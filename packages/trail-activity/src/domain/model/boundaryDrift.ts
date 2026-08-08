@@ -5,7 +5,7 @@
 // spec/31.trail/03.trail-activity/architectural-drift-detection.ja.md。
 //
 // 命名に boundary を含めるのは、既存の detect_drift（5 ソース間の意味的不一致・
-// memory_drift_events）および CheckArchitecturalAlignment（設計書追随確認）と
+// caravan_drift_events）および CheckArchitecturalAlignment（設計書追随確認）と
 // 字面で区別するためである。3 者は同名で呼ばれた結果、文書間で実装状態の矛盾を
 // 生んだ経緯がある（spec/92.doctrine/glossary.ja.md）。
 

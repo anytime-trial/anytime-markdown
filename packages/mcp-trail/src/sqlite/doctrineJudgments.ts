@@ -7,6 +7,7 @@ import {
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
 } from '@anytime-markdown/trail-activity';
+import { renameLegacyFlightRecordTables } from './instructions';
 import type { ResolvedCitation } from '../doctrine/resolveCitations';
 import type { CoverageGateResult } from '../doctrine/coverageGate';
 
@@ -118,11 +119,11 @@ export interface DoctrineAgreementMetrics {
 const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string }> = [
   {
     name: 'gate_verdict',
-    ddl: `ALTER TABLE doctrine_judgments ADD COLUMN gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate'))`,
+    ddl: `ALTER TABLE caravan_doctrine_judgments ADD COLUMN gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate'))`,
   },
   {
     name: 'gate_reasons_json',
-    ddl: `ALTER TABLE doctrine_judgments ADD COLUMN gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json))`,
+    ddl: `ALTER TABLE caravan_doctrine_judgments ADD COLUMN gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json))`,
   },
   {
     name: 'delegated_at',
@@ -136,11 +137,13 @@ const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string
 ];
 
 export function ensureDoctrineJudgmentsTable(db: Database): void {
+  // 旧名（doctrine_judgments）が残る DB の改名を IF NOT EXISTS より先に済ませる（split-brain 防止）
+  renameLegacyFlightRecordTables(db);
   db.exec(CREATE_DOCTRINE_JUDGMENTS);
   for (const idx of CREATE_DOCTRINE_JUDGMENT_INDEXES) {
     db.exec(idx);
   }
-  const columns = db.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{
+  const columns = db.prepare(`PRAGMA table_info(caravan_doctrine_judgments)`).all() as Array<{
     name: string;
   }>;
   const existing = new Set(columns.map((column) => column.name));
@@ -163,7 +166,7 @@ export interface DoctrineMigrationResult {
 /**
  * **副作用: 検証通過時に activity.db 側の doctrine_judgments を退避テーブルへ複製した上で DROP する。**
  *
- * doctrine_judgments の保存先移設（activity.db → caravan-book.db・2026-08-07）の遅延移行。
+ * doctrine_judgments → caravan_doctrine_judgments の保存先移設（activity.db → caravan-book.db・2026-08-07）の遅延移行。
  * デーモン非依存で mcp-trail 自身が行う（判断記録はデーモン未起動でも落とせない —
  * 記録経路と同じ理由で移行も同経路に置く）。全 doctrine 系ツールが ensure 直後に
  * 冪等実行する。移行済み（trail 側テーブル不在）なら即 null を返す。
@@ -202,37 +205,37 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
       // 旧 DB は後付け列（gate_verdict 等）を持たない可能性があるため、両側の列の共通部分をコピーする
       const trailCols = (db.prepare(`PRAGMA trail.table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name);
       const memCols = new Set(
-        (db.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name),
+        (db.prepare(`PRAGMA table_info(caravan_doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name),
       );
       const cols = trailCols.filter((c) => memCols.has(c));
       const colList = cols.join(', ');
       const colListNoId = cols.filter((c) => c !== 'id').join(', ');
       let copiedRows = 0;
       copiedRows += db
-        .prepare(`INSERT OR IGNORE INTO doctrine_judgments (${colList}) SELECT ${colList} FROM trail.doctrine_judgments`)
+        .prepare(`INSERT OR IGNORE INTO caravan_doctrine_judgments (${colList}) SELECT ${colList} FROM trail.doctrine_judgments`)
         .run().changes;
       copiedRows += db
         .prepare(
-          `INSERT OR IGNORE INTO doctrine_judgments (${colListNoId})
+          `INSERT OR IGNORE INTO caravan_doctrine_judgments (${colListNoId})
            SELECT ${colListNoId} FROM trail.doctrine_judgments t
-           WHERE NOT EXISTS (SELECT 1 FROM doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
+           WHERE NOT EXISTS (SELECT 1 FROM caravan_doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
         )
         .run().changes;
       // マージ段も列存在で条件分岐する（後付け列を持たない旧 trail スキーマで prepare が落ちないため）
       if (cols.includes('human_decision')) {
         db.prepare(
-          `UPDATE doctrine_judgments SET human_decision = t.human_decision, decided_at = t.decided_at, updated_at = t.updated_at
+          `UPDATE caravan_doctrine_judgments SET human_decision = t.human_decision, decided_at = t.decided_at, updated_at = t.updated_at
            FROM trail.doctrine_judgments t
-           WHERE doctrine_judgments.session_id = t.session_id AND doctrine_judgments.subject = t.subject
-             AND t.human_decision IS NOT NULL AND doctrine_judgments.human_decision IS NULL`,
+           WHERE caravan_doctrine_judgments.session_id = t.session_id AND caravan_doctrine_judgments.subject = t.subject
+             AND t.human_decision IS NOT NULL AND caravan_doctrine_judgments.human_decision IS NULL`,
         ).run();
       }
       if (cols.includes('delegated_at')) {
         db.prepare(
-          `UPDATE doctrine_judgments SET delegated_at = t.delegated_at, updated_at = t.updated_at
+          `UPDATE caravan_doctrine_judgments SET delegated_at = t.delegated_at, updated_at = t.updated_at
            FROM trail.doctrine_judgments t
-           WHERE doctrine_judgments.session_id = t.session_id AND doctrine_judgments.subject = t.subject
-             AND t.delegated_at IS NOT NULL AND doctrine_judgments.delegated_at IS NULL`,
+           WHERE caravan_doctrine_judgments.session_id = t.session_id AND caravan_doctrine_judgments.subject = t.subject
+             AND t.delegated_at IS NOT NULL AND caravan_doctrine_judgments.delegated_at IS NULL`,
         ).run();
       }
       const trailCount = Number(
@@ -245,11 +248,11 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
         const sampleKeys = db
           .prepare(
             `SELECT t.session_id, t.subject FROM trail.doctrine_judgments t
-             JOIN doctrine_judgments m ON m.session_id = t.session_id AND m.subject = t.subject LIMIT 5`,
+             JOIN caravan_doctrine_judgments m ON m.session_id = t.session_id AND m.subject = t.subject LIMIT 5`,
           )
           .all() as Array<{ session_id: string; subject: string }>;
         console.error(
-          `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration: ${collided} row(s) collided on (session_id, subject); trail-side judgment columns not adopted (full rows retained in doctrine_judgments__pre_move_backup). sample=${JSON.stringify(sampleKeys)}`,
+          `[${new Date().toISOString()}] [ERROR] [mcp-trail] caravan_doctrine_judgments migration: ${collided} row(s) collided on (session_id, subject); trail-side judgment columns not adopted (full rows retained in doctrine_judgments__pre_move_backup). sample=${JSON.stringify(sampleKeys)}`,
         );
       }
       // 検証: アンチ結合（存在）+ human_decision / delegated_at の保存確認（両者対称）
@@ -257,7 +260,7 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
         (db
           .prepare(
             `SELECT COUNT(*) c FROM trail.doctrine_judgments t
-             WHERE NOT EXISTS (SELECT 1 FROM doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
+             WHERE NOT EXISTS (SELECT 1 FROM caravan_doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
           )
           .get() as { c: number }).c,
       );
@@ -265,7 +268,7 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
         missingRows += Number(
           (db
             .prepare(
-              `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN doctrine_judgments m
+              `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN caravan_doctrine_judgments m
                  ON m.session_id = t.session_id AND m.subject = t.subject
                WHERE t.human_decision IS NOT NULL AND m.human_decision IS NULL`,
             )
@@ -276,7 +279,7 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
         missingRows += Number(
           (db
             .prepare(
-              `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN doctrine_judgments m
+              `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN caravan_doctrine_judgments m
                  ON m.session_id = t.session_id AND m.subject = t.subject
                WHERE t.delegated_at IS NOT NULL AND m.delegated_at IS NULL`,
             )
@@ -285,7 +288,7 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
       }
       if (missingRows > 0) {
         console.error(
-          `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration verification failed (rows not preserved: ${missingRows}); keeping trail-side table`,
+          `[${new Date().toISOString()}] [ERROR] [mcp-trail] caravan_doctrine_judgments migration verification failed (rows not preserved: ${missingRows}); keeping trail-side table`,
         );
         // コピー分は保持して確定する（次回の再実行は冪等）。DROP はしない
         db.exec('COMMIT');
@@ -309,7 +312,7 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
       }
       if (backedUp !== trailCount) {
         console.error(
-          `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration: backup row count mismatch (backup=${backedUp} trail=${trailCount}); rolling back`,
+          `[${new Date().toISOString()}] [ERROR] [mcp-trail] caravan_doctrine_judgments migration: backup row count mismatch (backup=${backedUp} trail=${trailCount}); rolling back`,
         );
         db.exec('ROLLBACK');
         return { status: 'verification_failed', copiedRows: 0, missingRows: trailCount };
@@ -343,7 +346,7 @@ export function ensureAndMigrateDoctrineJudgments(db: Database, memoryDbPath: st
     destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'activity.db'));
   } catch (err) {
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration failed (records continue to caravan-book.db; will retry on next call)`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] caravan_doctrine_judgments migration failed (records continue to caravan-book.db; will retry on next call)`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -366,7 +369,7 @@ export function recordDoctrineJudgmentDirect(
   // 同一 (session, subject) の再記録は最新判断で上書きし、既存の人の判断は無効化する
   // (判断が変わった後の突合は成立しないため)。
   db.prepare(
-    `INSERT INTO doctrine_judgments (
+    `INSERT INTO caravan_doctrine_judgments (
        session_id, subject, agent_judgment, coverage, citations_json,
        citation_count, resolved_count, gate_verdict, gate_reasons_json,
        underspecified_points_json, judged_at, created_at, updated_at
@@ -411,7 +414,7 @@ export function recordDoctrineJudgmentDirect(
     now,
   );
   const row = db
-    .prepare(`SELECT id FROM doctrine_judgments WHERE session_id = ? AND subject = ?`)
+    .prepare(`SELECT id FROM caravan_doctrine_judgments WHERE session_id = ? AND subject = ?`)
     .get(input.sessionId, input.subject) as { id: number };
   return { id: row.id, citationCount, resolvedCount };
 }
@@ -430,7 +433,7 @@ export function recordHumanDecisionDirect(
   const row = findJudgmentRow(db, args);
   const now = new Date().toISOString();
   db.prepare(
-    `UPDATE doctrine_judgments SET human_decision = ?, decided_at = ?, updated_at = ? WHERE id = ?`,
+    `UPDATE caravan_doctrine_judgments SET human_decision = ?, decided_at = ?, updated_at = ? WHERE id = ?`,
   ).run(args.decision, args.decidedAt ?? now, now, row.id);
   const agreement =
     row.agent_judgment === 'escalate'
@@ -461,12 +464,12 @@ function findJudgmentRow(
   let keyLabel: string;
   if (key.id !== undefined) {
     row = db
-      .prepare(`SELECT ${columns} FROM doctrine_judgments WHERE id = ?`)
+      .prepare(`SELECT ${columns} FROM caravan_doctrine_judgments WHERE id = ?`)
       .get(key.id) as JudgmentLookupRow | undefined;
     keyLabel = `id=${key.id}`;
   } else if (key.sessionId !== undefined && key.subject !== undefined) {
     row = db
-      .prepare(`SELECT ${columns} FROM doctrine_judgments WHERE session_id = ? AND subject = ?`)
+      .prepare(`SELECT ${columns} FROM caravan_doctrine_judgments WHERE session_id = ? AND subject = ?`)
       .get(key.sessionId, key.subject) as JudgmentLookupRow | undefined;
     keyLabel = `session_id=${key.sessionId}, subject=${key.subject}`;
   } else {
@@ -521,7 +524,7 @@ export function recordDelegatedApprovalDirect(
   const now = new Date().toISOString();
   const delegatedAt = args.delegatedAt ?? now;
   db.prepare(
-    `UPDATE doctrine_judgments SET delegated_at = ?, updated_at = ? WHERE id = ?`,
+    `UPDATE caravan_doctrine_judgments SET delegated_at = ?, updated_at = ? WHERE id = ?`,
   ).run(delegatedAt, now, row.id);
   return { id: row.id, delegatedAt, alreadyDelegated: false };
 }
@@ -593,7 +596,7 @@ export function listDoctrineJudgmentsBySession(
   db: Database,
   sessionId: string,
 ): DoctrineJudgmentView[] {
-  const columns = tableColumns(db, 'doctrine_judgments');
+  const columns = tableColumns(db, 'caravan_doctrine_judgments');
   if (columns.size === 0) {
     return [];
   }
@@ -612,7 +615,7 @@ export function listDoctrineJudgmentsBySession(
       `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
               ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at,
               ${delegatedAtExpr}, ${underspecifiedExpr}
-         FROM doctrine_judgments
+         FROM caravan_doctrine_judgments
         WHERE session_id = ?
         ORDER BY judged_at ASC, id ASC`,
     )
@@ -695,7 +698,7 @@ export function fetchDoctrineAgreementRows(
   db: Database,
   range: { readonly since?: string; readonly until?: string } = {},
 ): DoctrineAgreementRow[] {
-  const columns = tableColumns(db, 'doctrine_judgments');
+  const columns = tableColumns(db, 'caravan_doctrine_judgments');
   if (columns.size === 0) return [];
   const gateVerdictExpr = columns.has('gate_verdict') ? 'gate_verdict' : 'NULL AS gate_verdict';
   const delegatedAtExpr = columns.has('delegated_at') ? 'delegated_at' : 'NULL AS delegated_at';
@@ -717,7 +720,7 @@ export function fetchDoctrineAgreementRows(
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   return db
     .prepare(
-      `SELECT session_id, subject, agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, ${gateVerdictExpr}, ${delegatedAtExpr}, ${underspecifiedExpr} FROM doctrine_judgments${where}`,
+      `SELECT session_id, subject, agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, ${gateVerdictExpr}, ${delegatedAtExpr}, ${underspecifiedExpr} FROM caravan_doctrine_judgments${where}`,
     )
     .all(...params) as DoctrineAgreementRow[];
 }

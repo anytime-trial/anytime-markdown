@@ -6,7 +6,7 @@ export function upsertBugEntity(db: MemoryDbConnection, row: BugEntityRow): void
   // Use ON CONFLICT DO UPDATE (not INSERT OR REPLACE) to avoid CASCADE-deleting
   // edges that reference this entity's id.
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         summary, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Bug', ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -36,7 +36,7 @@ export function upsertCommitEntity(
 ): string {
   const commitId = entityId('Commit', opts.commitSha);
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Commit', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -68,7 +68,7 @@ export function upsertBugFix(
   }
 ): void {
   db.run(
-    `INSERT INTO memory_bug_fixes
+    `INSERT INTO caravan_bug_fixes
        (id, commit_sha, bug_entity_id, package, category, subject_summary,
         affected_file_paths_json, related_session_id, introduced_commit_sha,
         committed_at, recorded_at, workspace)
@@ -106,7 +106,7 @@ export function insertFixesEdge(
 ): boolean {
   const edgeId = entityId('edge', `fixes:${opts.commitId}:${opts.bugEntityId}`);
   db.run(
-    `INSERT OR IGNORE INTO memory_edges
+    `INSERT OR IGNORE INTO caravan_edges
        (id, subject_entity_id, predicate, object_entity_id,
         valid_from, valid_to, recorded_at,
         source_type, source_ref,

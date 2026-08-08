@@ -1,8 +1,8 @@
 /**
  * E2E tests for trail-caravan-book Phase 2.7: runReviewIncremental (Route A + B).
  *
- * E5: Route A — 2 synthetic review/*.md files → memory_reviews/findings + precedes edge
- * E6: Route B — 2 synthetic trail.messages code-reviewer sessions → memory_reviews/findings
+ * E5: Route A — 2 synthetic review/*.md files → caravan_reviews/findings + precedes edge
+ * E6: Route B — 2 synthetic trail.messages code-reviewer sessions → caravan_reviews/findings
  */
 
 import * as fs from 'fs';
@@ -205,18 +205,18 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
       const trailHandle = buildTrailDb({ withFixCommit: true });
       attachTrailDbFromHandle(db, trailHandle);
 
-      // 4. Insert Bug entity + memory_bug_fixes to simulate Phase 2.5 output
+      // 4. Insert Bug entity + caravan_bug_fixes to simulate Phase 2.5 output
       const now = new Date().toISOString();
       const bugEntityId = entityId('Bug', FIX_COMMIT_HASH);
       db.run(
-        `INSERT OR IGNORE INTO memory_entities
+        `INSERT OR IGNORE INTO caravan_entities
            (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
          VALUES (?, 'Bug', ?, 'E2E Test Bug', '[]', '[]', '{}', ?, ?, ?)`,
         [bugEntityId, FIX_COMMIT_HASH, now, now, now],
       );
       db.run(
-        `INSERT OR IGNORE INTO memory_bug_fixes
+        `INSERT OR IGNORE INTO caravan_bug_fixes
            (id, commit_sha, bug_entity_id, package, category, subject_summary,
             affected_file_paths_json, committed_at, recorded_at)
          VALUES (?, ?, ?, 'web-app', 'logic', 'fix logic error in foo.ts', ?, ?, ?)`,
@@ -238,17 +238,17 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
         expect(result.findings_inserted).toBeGreaterThanOrEqual(5);
         expect(result.duration_ms).toBeLessThan(5000);
 
-        // memory_reviews has 2 doc rows
-        const reviewCount = db.exec(`SELECT COUNT(*) FROM memory_reviews WHERE source_kind='review_doc'`);
+        // caravan_reviews has 2 doc rows
+        const reviewCount = db.exec(`SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='review_doc'`);
         expect(reviewCount[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(2);
 
-        // memory_review_findings has >=5 rows
-        const findingCount = db.exec(`SELECT COUNT(*) FROM memory_review_findings`);
+        // caravan_review_findings has >=5 rows
+        const findingCount = db.exec(`SELECT COUNT(*) FROM caravan_review_findings`);
         expect(findingCount[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(5);
 
         // precedes edge >= 1
         const precedesEdges = db.exec(
-          `SELECT COUNT(*) FROM memory_edges WHERE predicate='precedes' AND confidence_label='INFERRED'`,
+          `SELECT COUNT(*) FROM caravan_edges WHERE predicate='precedes' AND confidence_label='INFERRED'`,
         );
         expect(precedesEdges[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(1);
       } finally {
@@ -302,12 +302,12 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
 
         // >=2 session review rows
         const sessionCount = db.exec(
-          `SELECT COUNT(*) FROM memory_reviews WHERE source_kind='session'`,
+          `SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='session'`,
         );
         expect(sessionCount[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(2);
 
         // >=2 findings (one per session)
-        const findingCount = db.exec(`SELECT COUNT(*) FROM memory_review_findings`);
+        const findingCount = db.exec(`SELECT COUNT(*) FROM caravan_review_findings`);
         expect(findingCount[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(2);
       } finally {
         trailHandle.close();

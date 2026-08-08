@@ -208,13 +208,13 @@ function linkOneFinding(
   const now = new Date().toISOString();
 
   db.run(
-    `UPDATE memory_review_findings SET addressed_commit_sha = ?, addressed_at = ? WHERE id = ?`,
+    `UPDATE caravan_review_findings SET addressed_commit_sha = ?, addressed_at = ? WHERE id = ?`,
     [acceptedCommit.commit_hash, now, finding.id]
   );
 
   const commitEntityId = entityId('Commit', acceptedCommit.commit_hash);
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Commit', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -223,7 +223,7 @@ function linkOneFinding(
 
   const edgeId = entityId('edge', `addresses:${commitEntityId}:${finding.finding_entity_id}`);
   db.run(
-    `INSERT OR IGNORE INTO memory_edges
+    `INSERT OR IGNORE INTO caravan_edges
        (id, subject_entity_id, predicate, object_entity_id,
         valid_from, valid_to, recorded_at,
         source_type, source_ref,
@@ -256,7 +256,7 @@ function countSkips(
         SUM(CASE WHEN severity != 'info' AND target_file_path IS NULL THEN 1 ELSE 0 END),
         SUM(CASE WHEN severity != 'info' AND target_file_path IS NOT NULL
                   AND target_repo IS NULL THEN 1 ELSE 0 END)
-      FROM memory_review_findings
+      FROM caravan_review_findings
       WHERE addressed_at IS NULL
     `);
     const row = result[0]?.values[0];
@@ -289,8 +289,8 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
   let findings: FindingRow[];
 
   try {
-    // コミット窓のアンカーは memory_reviews.reviewed_at（実レビュー時刻）を使う。
-    // memory_review_findings.recorded_at は ingest 時刻なので、一括 re-ingest 後に
+    // コミット窓のアンカーは caravan_reviews.reviewed_at（実レビュー時刻）を使う。
+    // caravan_review_findings.recorded_at は ingest 時刻なので、一括 re-ingest 後に
     // 全 finding が「今日」付けとなり、reviewed_at 直後の修正コミットを取りこぼす（誤り）。
     // linkPrecedesBugs と同じ修正。
     // target_repo が NULL の行は照合対象から外す（fail-closed）。NULL は
@@ -299,8 +299,8 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     const result = db.exec(`
       SELECT mrf.id, mrf.finding_entity_id, mrf.target_file_path, mrf.target_repo,
              mrf.finding_text, r.reviewed_at
-      FROM memory_review_findings mrf
-      JOIN memory_reviews r ON r.id = mrf.review_id
+      FROM caravan_review_findings mrf
+      JOIN caravan_reviews r ON r.id = mrf.review_id
       WHERE mrf.addressed_at IS NULL
         AND mrf.target_file_path IS NOT NULL
         AND mrf.target_repo IS NOT NULL

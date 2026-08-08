@@ -30,7 +30,7 @@ export interface CrossSourceDataSource {
 export interface CrossSourceCorrelatorOptions {
   readonly trailDb: CrossSourceDataSource;
   /**
-   * PR review (`memory_reviews` / `memory_review_findings`, source_kind='pr_comment') を
+   * PR review (`caravan_reviews` / `caravan_review_findings`, source_kind='pr_comment') を
    * 読む口。caravan-book.db 未接続 (Step 5 移行後、memoryDbPath 未構成)ならこの analyzer は
    * PR review 相関を空 (0 件) として扱う。
    */

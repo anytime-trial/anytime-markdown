@@ -1,4 +1,4 @@
-// Flight Record: 所属セッションの flight_reviews を「指示」1 行へ畳む純粋関数の仕様。
+// Flight Record: 所属セッションの caravan_flight_reviews を「指示」1 行へ畳む純粋関数の仕様。
 // 外部仕様のみを黒箱で検査する（実装の内部構造には触れない）。
 
 import { assembleInstructionRecord } from '../AssembleInstructionRecord';
@@ -174,7 +174,7 @@ describe('assembleInstructionRecord', () => {
       expect(record.outcomeSource).toBe('machine');
     });
 
-    it('flight_reviews が 1 件も無くても行として成立する（未記録を 0 件成果に見せない）', () => {
+    it('caravan_flight_reviews が 1 件も無くても行として成立する（未記録を 0 件成果に見せない）', () => {
       const record = assemble([], { sessionCount: 2 });
 
       expect(record.outcome).toBe('unknown');
@@ -197,7 +197,7 @@ describe('assembleInstructionRecord', () => {
       expect(record.reworkCount).toBe(4);
     });
 
-    it('セッション数は flight_reviews の件数ではなく所属セッション数', () => {
+    it('セッション数は caravan_flight_reviews の件数ではなく所属セッション数', () => {
       const record = assemble([review({ sessionId: 's1', endedAt: '2026-08-05T01:00:00.000Z' })], { sessionCount: 3 });
 
       expect(record.sessionCount).toBe(3);

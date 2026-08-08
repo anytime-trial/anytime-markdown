@@ -17,7 +17,7 @@ export function resolveDrift(input: {
 
   try {
     db.run(
-      `UPDATE memory_drift_events
+      `UPDATE caravan_drift_events
        SET resolved_at = ?, resolution_note = ?
        WHERE id = ? AND resolved_at IS NULL`,
       [resolved_at, resolution_note, event_id],

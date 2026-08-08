@@ -321,7 +321,7 @@ export class TrailDataServer {
   private readonly alignmentApi: AlignmentApiHandler;
   private readonly emergencyApi: EmergencyApiHandler;
   /**
-   * Flight Record（flight_reviews / instructions / instruction_sessions）の永続化層。
+   * Flight Record（caravan_flight_reviews / instructions / caravan_instruction_sessions）の永続化層。
    * 保存先は caravan-book.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
    * flight 系エンドポイントはエラーを返す（暗黙の activity.db フォールバックはしない）。
    */
@@ -491,9 +491,9 @@ export class TrailDataServer {
   }
 
   /**
-   * pipeline_run_logs 永続化用の LogService を wire する。設定後は
+   * caravan_pipeline_run_logs 永続化用の LogService を wire する。設定後は
    * `POST /api/logs` が有効化され、内部 logger が
-   * composite (OutputChannel + pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
+   * composite (OutputChannel + caravan_pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
    *
    * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
    */

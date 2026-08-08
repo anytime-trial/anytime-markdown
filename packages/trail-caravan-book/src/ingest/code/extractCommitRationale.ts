@@ -116,7 +116,7 @@ function extractRationaleText(message: string): ExtractedRationale | null {
 // ── Per-commit ingestion helper ───────────────────────────────────────────────
 
 /**
- * Ingest one commit's rationale into memory_entities and memory_edges.
+ * Ingest one commit's rationale into caravan_entities and caravan_edges.
  * Returns { decisionInserted, edgeInserted } or null if rationaleText is empty.
  */
 function ingestCommitRationale(
@@ -140,7 +140,7 @@ function ingestCommitRationale(
 
   try {
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
@@ -165,7 +165,7 @@ function ingestCommitRationale(
   let decisionInserted = false;
   try {
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json, summary,
           first_seen_at, last_updated_at, recorded_at)
@@ -189,7 +189,7 @@ function ingestCommitRationale(
   let edgeInserted = false;
   try {
     db.run(
-      `INSERT INTO memory_edges
+      `INSERT INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id,
           valid_from, recorded_at, source_type, source_ref,
           confidence, confidence_label, modality)
@@ -281,7 +281,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       // ── 3-5. Upsert Commit, Decision, and edge ────────────────────────────
       // INSERT OR IGNORE (not REPLACE): Commit data is immutable. INSERT OR REPLACE
       // internally does DELETE+INSERT, which triggers ON DELETE SET NULL on
-      // memory_edges.object_entity_id and then violates a NOT NULL constraint on
+      // caravan_edges.object_entity_id and then violates a NOT NULL constraint on
       // re-runs that already have edges pointing to this Commit entity.
       const result = ingestCommitRationale(db, {
         commitHash,

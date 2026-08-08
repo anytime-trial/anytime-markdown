@@ -63,7 +63,7 @@ function buildRecurringQuestionEvent(
     code_value: null,
     drift_type: 'spec_clarification_recurring',
     severity: 'warn',
-    // Question entity は repo_name を持たない（実測 2026-08-05: memory_entities.repo_name は
+    // Question entity は repo_name を持たない（実測 2026-08-05: caravan_entities.repo_name は
     // 97,340 件が NULL）。推測で埋めず未解決のままにする。
     workspace: '',
     detail: {
@@ -94,7 +94,7 @@ export function detectRecurringQuestions(input: {
   try {
     rows = db.exec(
       `SELECT id, attributes_json, embedding
-       FROM memory_entities
+       FROM caravan_entities
        WHERE type = 'Question'
          AND embedding IS NOT NULL
          AND last_updated_at >= datetime('now', '-' || ? || ' days')`,

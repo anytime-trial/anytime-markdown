@@ -38,7 +38,7 @@ function queryByFilePath(
       `SELECT DISTINCT bf.id, bf.commit_sha, bf.package, bf.category,
               bf.subject_summary, bf.committed_at,
               bf.affected_file_paths_json, bf.introduced_commit_sha, bf.bug_entity_id
-       FROM memory_bug_fixes bf, json_each(bf.affected_file_paths_json)
+       FROM caravan_bug_fixes bf, json_each(bf.affected_file_paths_json)
        WHERE json_each.value = ? ${wherePart}
        ORDER BY bf.committed_at DESC
        LIMIT ?`,
@@ -79,7 +79,7 @@ export function getBugHistory(input: {
       `SELECT bf.id, bf.commit_sha, bf.package, bf.category,
               bf.subject_summary, bf.committed_at,
               bf.affected_file_paths_json, bf.introduced_commit_sha, bf.bug_entity_id
-       FROM memory_bug_fixes bf
+       FROM caravan_bug_fixes bf
        ${wherePart}
        ORDER BY bf.committed_at DESC
        LIMIT ?`,
@@ -139,8 +139,8 @@ function fetchCausedBy(db: MemoryDbConnection, bugEntityId: string, logger: Memo
   try {
     rows = db.exec(
       `SELECT me.object_entity_id, ent.display_name, me.confidence_label
-       FROM memory_edges me
-       JOIN memory_entities ent ON ent.id = me.object_entity_id
+       FROM caravan_edges me
+       JOIN caravan_entities ent ON ent.id = me.object_entity_id
        WHERE me.subject_entity_id = ?
          AND me.predicate = 'caused_by'
          AND me.valid_to IS NULL

@@ -114,12 +114,12 @@ export interface FlightReviewManualPatch {
 
 /**
  * コミットに紐付く決定根拠ノード（Phase 6 S4。memory.db の rationale_for エッジ由来・読み取り専用）。
- * confidenceLabel は memory_edges の CHECK 3 値をそのまま通す（現運用の rationale は EXTRACTED 固定）。
+ * confidenceLabel は caravan_edges の CHECK 3 値をそのまま通す（現運用の rationale は EXTRACTED 固定）。
  */
 export interface RationaleNode {
   commitHash: string;
   summary: string;
   confidenceLabel: 'EXTRACTED' | 'INFERRED' | 'AMBIGUOUS';
-  /** UTC ISO 8601（memory_edges.recorded_at 由来。API 契約は要件 §20.3 の createdAt） */
+  /** UTC ISO 8601（caravan_edges.recorded_at 由来。API 契約は要件 §20.3 の createdAt） */
   createdAt: string;
 }

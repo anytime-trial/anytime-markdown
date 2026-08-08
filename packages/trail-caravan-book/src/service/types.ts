@@ -89,7 +89,7 @@ export interface MemoryCoreServiceOptions {
    */
   pipelineRunner?: (ctx: PipelineRunnerContext) => Promise<void>;
   /**
-   * 初回 backfill (memory_pipeline_state.last_processed_at が空の場合) で
+   * 初回 backfill (caravan_pipeline_state.last_processed_at が空の場合) で
    * activity.db から遡って読み込む日数。省略時は 5 日。
    */
   backfillDays?: number;

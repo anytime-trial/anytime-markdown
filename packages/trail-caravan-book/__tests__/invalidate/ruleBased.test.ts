@@ -9,7 +9,7 @@ const LATER = '2026-01-02T00:00:00.000Z';
 
 function insertEntity(d: BetterSqlite3MemoryDb, id: string): void {
   d.run(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, ?, ?, ?)`,
     [id, id, id, NOW, NOW, NOW]
   );
@@ -24,7 +24,7 @@ function insertEdge(
   recordedAt: string
 ): void {
   d.run(
-    `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, confidence, confidence_label, modality)
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, confidence, confidence_label, modality)
      VALUES (?, ?, ?, ?, ?, ?, 'conversation', 'ep1', 1.0, 'EXTRACTED', 'asserted')`,
     [id, subjectId, predicate, objectId, recordedAt, recordedAt]
   );
@@ -67,19 +67,19 @@ describe('applySingleActiveRule', () => {
     expect(result.invalidated_edge_ids).toContain('edge-old');
 
     // old edge should have valid_to = LATER
-    const oldEdgeRows = db.exec(`SELECT valid_to FROM memory_edges WHERE id = 'edge-old'`);
+    const oldEdgeRows = db.exec(`SELECT valid_to FROM caravan_edges WHERE id = 'edge-old'`);
     expect(oldEdgeRows[0]?.values[0]?.[0]).toBe(LATER);
 
     // one invalidation row for edge-old
     const invRows = db.exec(
-      `SELECT COUNT(*) FROM memory_edge_invalidations WHERE edge_id = 'edge-old'`
+      `SELECT COUNT(*) FROM caravan_edge_invalidations WHERE edge_id = 'edge-old'`
     );
     expect(invRows[0]?.values[0]?.[0]).toBe(1);
   });
 
   test('single_active: new edge itself is not invalidated (valid_to remains NULL)', () => {
     // edge-new was inserted in the previous test; it should still be active
-    const rows = db.exec(`SELECT valid_to FROM memory_edges WHERE id = 'edge-new'`);
+    const rows = db.exec(`SELECT valid_to FROM caravan_edges WHERE id = 'edge-new'`);
     expect(rows[0]?.values[0]?.[0]).toBeNull();
   });
 
@@ -100,7 +100,7 @@ describe('applySingleActiveRule', () => {
     expect(result.invalidated_edge_ids).toHaveLength(0);
 
     // edge-dep1 should still be active
-    const rows = db.exec(`SELECT valid_to FROM memory_edges WHERE id = 'edge-dep1'`);
+    const rows = db.exec(`SELECT valid_to FROM caravan_edges WHERE id = 'edge-dep1'`);
     expect(rows[0]?.values[0]?.[0]).toBeNull();
   });
 
@@ -121,7 +121,7 @@ describe('applySingleActiveRule', () => {
   });
 
   test('unknown predicate: no-op (zero invalidated)', () => {
-    // A predicate not in memory_relation_types should return empty without error
+    // A predicate not in caravan_relation_types should return empty without error
     const newEdge = {
       id: 'edge-unknown',
       subject_entity_id: 'user1',

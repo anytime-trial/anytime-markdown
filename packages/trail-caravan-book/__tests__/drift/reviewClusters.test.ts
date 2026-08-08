@@ -22,7 +22,7 @@ let seq = 0;
 function insertEntity(db: BetterSqlite3MemoryDb, id?: string, type = 'Bug'): string {
   const eid = id ?? `ent-${++seq}`;
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [eid, type, eid, eid, TS, TS, TS],
@@ -34,7 +34,7 @@ function insertReview(db: BetterSqlite3MemoryDb, id?: string, workspace = ''): s
   const rid = id ?? `rev-${++seq}`;
   const reviewEntity = insertEntity(db, `rev-ent-${rid}`, 'Review');
   db.run(
-    `INSERT INTO memory_reviews
+    `INSERT INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
      VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?, ?)`,
     [rid, rid, reviewEntity, TS, TS, workspace],
@@ -58,7 +58,7 @@ function insertReviewFinding(
 ): string {
   const id = opts.id ?? `rf-${++seq}`;
   db.run(
-    `INSERT INTO memory_review_findings
+    `INSERT INTO caravan_review_findings
        (id, review_id, finding_entity_id, finding_index, target_file_path,
         severity, category, finding_text, recorded_at, addressed_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -92,7 +92,7 @@ function insertEdge(
 ): void {
   const id = opts.id ?? `edge-${++seq}`;
   db.run(
-    `INSERT INTO memory_edges
+    `INSERT INTO caravan_edges
        (id, subject_entity_id, predicate, object_entity_id, object_literal, source_type, source_ref,
         confidence, confidence_label, modality, valid_from, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'EXTRACTED', 'asserted', ?, ?)`,

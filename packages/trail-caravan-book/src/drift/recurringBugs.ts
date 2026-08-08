@@ -21,15 +21,15 @@ export function detectRegressionClusters(input: {
     rows = db.exec(
       // workspace はクラスタを構成するバグが 1 つのワークスペースへ収束するときだけ確定する。
       // 跨っていたら '' （未解決）。ワークスペースを grouping key に足さないのは
-      // memory_drift_events が UNIQUE(subject_entity_id, predicate, drift_type) を持ち、
+      // caravan_drift_events が UNIQUE(subject_entity_id, predicate, drift_type) を持ち、
       // 同じファイルパスが 2 ワークスペースに在ると 2 候補が同じキーで衝突するため。
       // NULLIF で '' を判定から外すのは、'' が「別のワークスペース」ではなく「未解決」だから。
       // 数に入れると、未解決が 1 件混ざっただけでクラスタ全体が未解決へ落ちる。
       `SELECT json_each.value AS file_path, COUNT(*) AS cnt,
-              GROUP_CONCAT(memory_bug_fixes.id) AS bug_fix_ids,
-              CASE WHEN COUNT(DISTINCT NULLIF(memory_bug_fixes.workspace, '')) = 1
-                   THEN MIN(NULLIF(memory_bug_fixes.workspace, '')) ELSE '' END AS workspace
-       FROM memory_bug_fixes, json_each(affected_file_paths_json)
+              GROUP_CONCAT(caravan_bug_fixes.id) AS bug_fix_ids,
+              CASE WHEN COUNT(DISTINCT NULLIF(caravan_bug_fixes.workspace, '')) = 1
+                   THEN MIN(NULLIF(caravan_bug_fixes.workspace, '')) ELSE '' END AS workspace
+       FROM caravan_bug_fixes, json_each(affected_file_paths_json)
        WHERE category = 'regression'
          AND committed_at >= datetime('now', '-' || ? || ' days')
        GROUP BY json_each.value
@@ -84,7 +84,7 @@ export function detectSpecViolationClusters(input: {
     rows = db.exec(
       `WITH pkg_total AS (
          SELECT package, COUNT(*) AS total
-         FROM memory_bug_fixes
+         FROM caravan_bug_fixes
          WHERE committed_at >= datetime('now', '-' || ? || ' days')
          GROUP BY package
        ),
@@ -92,7 +92,7 @@ export function detectSpecViolationClusters(input: {
          SELECT package, COUNT(*) AS spec_cnt,
                 CASE WHEN COUNT(DISTINCT NULLIF(workspace, '')) = 1
                      THEN MIN(NULLIF(workspace, '')) ELSE '' END AS workspace
-         FROM memory_bug_fixes
+         FROM caravan_bug_fixes
          WHERE category = 'spec'
            AND committed_at >= datetime('now', '-' || ? || ' days')
          GROUP BY package

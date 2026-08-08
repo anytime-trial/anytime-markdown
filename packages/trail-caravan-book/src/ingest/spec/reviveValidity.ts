@@ -18,11 +18,11 @@ export interface ReviveSpecDocValidityResult {
  *
  * entity id・edge id は rel_path から決まる決定的な sha1 なので、再 ingest 側の
  * `INSERT OR IGNORE` は既存行にヒットして何もしない。巻き戻しが無いと
- * memory_spec_documents の行だけが復活し、その entity と edge は検索・drift から
+ * caravan_spec_documents の行だけが復活し、その entity と edge は検索・drift から
  * 永久に見えないゴーストになる（エラーもログも出ない）。
  *
  * 剥がす対象は「設計書の消滅を理由に無効化された edge」に限る
- * （memory_edge_invalidations の reason + detail 接頭辞で判別）。single_active
+ * （caravan_edge_invalidations の reason + detail 接頭辞で判別）。single_active
  * ルールで上書きされた edge まで復活させると、古い事実が現役に戻ってしまう。
  */
 export function reviveSpecDocValidity(
@@ -32,7 +32,7 @@ export function reviveSpecDocValidity(
   const result: ReviveSpecDocValidityResult = { revived_entities: 0, revived_edges: 0 };
 
   // 1. spec_doc entity
-  db.run('UPDATE memory_entities SET valid_until = NULL WHERE id = ? AND valid_until IS NOT NULL', [
+  db.run('UPDATE caravan_entities SET valid_until = NULL WHERE id = ? AND valid_until IS NOT NULL', [
     specEntityId,
   ]);
   result.revived_entities += db.getRowsModified();
@@ -40,8 +40,8 @@ export function reviveSpecDocValidity(
   // 2. この設計書の消滅を理由に閉じられた edge
   const edgeStmt = db.prepare(
     `SELECT e.id AS id, e.subject_entity_id AS subject_entity_id, e.object_entity_id AS object_entity_id
-       FROM memory_edges e
-       JOIN memory_edge_invalidations i ON i.edge_id = e.id
+       FROM caravan_edges e
+       JOIN caravan_edge_invalidations i ON i.edge_id = e.id
       WHERE e.source_type = 'spec'
         AND e.valid_to IS NOT NULL
         AND e.source_ref IN (?, ?)
@@ -62,7 +62,7 @@ export function reviveSpecDocValidity(
   }
 
   for (const edgeId of edgeIds) {
-    db.run('UPDATE memory_edges SET valid_to = NULL WHERE id = ? AND valid_to IS NOT NULL', [edgeId]);
+    db.run('UPDATE caravan_edges SET valid_to = NULL WHERE id = ? AND valid_to IS NOT NULL', [edgeId]);
     result.revived_edges += db.getRowsModified();
   }
 
@@ -70,7 +70,7 @@ export function reviveSpecDocValidity(
   //    （孤立判定で valid_until を立てられたもの）
   for (const entityId of endpoints) {
     if (entityId === specEntityId) continue;
-    db.run('UPDATE memory_entities SET valid_until = NULL WHERE id = ? AND valid_until IS NOT NULL', [
+    db.run('UPDATE caravan_entities SET valid_until = NULL WHERE id = ? AND valid_until IS NOT NULL', [
       entityId,
     ]);
     result.revived_entities += db.getRowsModified();

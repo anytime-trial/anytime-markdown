@@ -100,7 +100,7 @@ function astEdgeId(subjectId: string, predicate: string, objectId: string): stri
 }
 
 /**
- * Upsert a memory_entities row for a File entity and return its entity ID.
+ * Upsert a caravan_entities row for a File entity and return its entity ID.
  */
 function upsertFileEntity(
   db: MemoryDbConnection,
@@ -112,7 +112,7 @@ function upsertFileEntity(
   const eId = entityId('File', canonName);
   try {
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
@@ -150,7 +150,7 @@ function computeFunctionHash(
 }
 
 /**
- * Upsert a memory_entities row for a Function entity.
+ * Upsert a caravan_entities row for a Function entity.
  * Identity: (repo, filePath, symbolName, parent). Content hash invalidates
  * embedding when any of these change.
  *
@@ -173,7 +173,7 @@ function upsertFunctionEntity(
   const summary = `${symbolName} in ${filePath}`;
   try {
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json,
           summary, content_hash, repo_name,
@@ -186,10 +186,10 @@ function upsertFunctionEntity(
          valid_until     = NULL,
          repo_name       = excluded.repo_name,
          embedding       = CASE
-           WHEN memory_entities.content_hash IS NULL
-             OR memory_entities.content_hash != excluded.content_hash
+           WHEN caravan_entities.content_hash IS NULL
+             OR caravan_entities.content_hash != excluded.content_hash
              THEN NULL
-           ELSE memory_entities.embedding
+           ELSE caravan_entities.embedding
          END,
          content_hash    = excluded.content_hash`,
       [eId, canonName, symbolName, summary, contentHash, repoName, recordedAt, recordedAt, recordedAt]
@@ -205,7 +205,7 @@ function upsertFunctionEntity(
 }
 
 /**
- * Upsert a memory_entities row for a Library entity and return its entity ID.
+ * Upsert a caravan_entities row for a Library entity and return its entity ID.
  */
 function upsertLibraryEntity(
   db: MemoryDbConnection,
@@ -217,7 +217,7 @@ function upsertLibraryEntity(
   const eId = entityId('Library', canonName);
   try {
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
@@ -241,7 +241,7 @@ type EdgeMeta = { factType: 'imports' | 'calls' | 'extends'; predicate: 'depends
 
 /**
  * Maps a TrailEdge type to the fact_type and predicate used when inserting into
- * memory_code_facts / memory_edges. Returns null for edge types that should be skipped.
+ * caravan_code_facts / caravan_edges. Returns null for edge types that should be skipped.
  */
 function resolveEdgeMeta(edgeType: string, target: string, internalFilePaths: Set<string>): EdgeMeta | null {
   if (edgeType === 'import') {
@@ -254,8 +254,8 @@ function resolveEdgeMeta(edgeType: string, target: string, internalFilePaths: Se
 }
 
 /**
- * Ingests AST-level facts from a TrailGraph into memory_code_facts and
- * memory_edges.
+ * Ingests AST-level facts from a TrailGraph into caravan_code_facts and
+ * caravan_edges.
  *
  * Processes edges of type 'import', 'call', and 'inheritance':
  * - 'import'      → fact_type='imports',  predicate='depends_on' (external Library)
@@ -326,7 +326,7 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
     const fId = factId(filePath, symbolPath, factType, factValue, commitSha);
     try {
       db.run(
-        `INSERT OR IGNORE INTO memory_code_facts
+        `INSERT OR IGNORE INTO caravan_code_facts
            (id, repo_name, file_path, symbol_path, fact_type, fact_value,
             line_start, commit_sha, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -371,7 +371,7 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
     const eId = astEdgeId(sourceEntityId, predicate, targetEntityId);
     try {
       db.run(
-        `INSERT INTO memory_edges
+        `INSERT INTO caravan_edges
            (id, subject_entity_id, predicate, object_entity_id,
             valid_from, recorded_at, source_type, source_ref,
             confidence, confidence_label, modality)

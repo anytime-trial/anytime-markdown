@@ -46,7 +46,7 @@ export async function runDriftDetection(input: {
         code_value: c.code_value,
         drift_type: c.drift_type,
         severity: decideSeverity(c.drift_type, c.predicate, 1),
-        // 三源比較は memory_edges 由来でワークスペースを持たない（推測で埋めない）。
+        // 三源比較は caravan_edges 由来でワークスペースを持たない（推測で埋めない）。
         workspace: '',
         detail: {
           conversation_value: c.conversation_value,

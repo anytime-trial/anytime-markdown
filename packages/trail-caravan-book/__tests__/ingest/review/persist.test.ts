@@ -100,7 +100,7 @@ function makeSession(overrides: Partial<ParsedReviewSession> = {}): ParsedReview
 
 /**
  * Inserts the minimum rows needed for upsertReviewFinding to succeed:
- *   memory_entities (Review) + memory_reviews
+ *   caravan_entities (Review) + caravan_reviews
  */
 async function openFreshWithReview(
   relPath: string,
@@ -109,14 +109,14 @@ async function openFreshWithReview(
   const reviewEntityId = entityId('Review', relPath);
 
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Review', ?, 'Test Review', '[]', '[]', '{}', ?, ?, ?)`,
     [reviewEntityId, relPath, TS, TS, TS],
   );
   db.run(
-    `INSERT OR IGNORE INTO memory_reviews
+    `INSERT OR IGNORE INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
      VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?)`,
     [reviewEntityId, relPath, reviewEntityId, TS, TS],
@@ -138,9 +138,9 @@ describe('upsertReviewFinding', () => {
       expect(result.inserted).toBe(true);
       expect(result.finding_entity_id).toBeTruthy();
 
-      // memory_review_findings: 1 row
+      // caravan_review_findings: 1 row
       const rows = db.exec(
-        `SELECT finding_index, category, severity, finding_text FROM memory_review_findings WHERE review_id = ?`,
+        `SELECT finding_index, category, severity, finding_text FROM caravan_review_findings WHERE review_id = ?`,
         [reviewEntityId],
       );
       expect(rows[0]?.values).toHaveLength(1);
@@ -149,9 +149,9 @@ describe('upsertReviewFinding', () => {
       expect(rows[0].values[0][2]).toBe('warn');
       expect(rows[0].values[0][3]).toBe('Some logic issue');
 
-      // memory_edges: flagged edge
+      // caravan_edges: flagged edge
       const edgeRows = db.exec(
-        `SELECT predicate, subject_entity_id, object_entity_id FROM memory_edges WHERE predicate = 'flagged'`,
+        `SELECT predicate, subject_entity_id, object_entity_id FROM caravan_edges WHERE predicate = 'flagged'`,
       );
       expect(edgeRows[0]?.values).toHaveLength(1);
       expect(edgeRows[0].values[0][1]).toBe(reviewEntityId);
@@ -180,7 +180,7 @@ describe('upsertReviewFinding', () => {
       );
 
       const rows = db.exec(
-        `SELECT finding_index, checklist_ref FROM memory_review_findings WHERE review_id = ? ORDER BY finding_index`,
+        `SELECT finding_index, checklist_ref FROM caravan_review_findings WHERE review_id = ? ORDER BY finding_index`,
         [reviewEntityId],
       );
       expect(rows[0]?.values).toEqual([[0, '§14'], [1, 'none'], [2, null]]);
@@ -211,11 +211,11 @@ describe('upsertReviewFinding', () => {
       expect(r2.inserted).toBe(false); // INSERT OR IGNORE = no-op
 
       // Only 1 finding row in DB
-      const count = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE review_id = ?`, [reviewEntityId]);
+      const count = db.exec(`SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = ?`, [reviewEntityId]);
       expect(count[0]?.values[0][0]).toBe(1);
 
       // Only 1 edge
-      const edgeCount = db.exec(`SELECT COUNT(*) FROM memory_edges WHERE predicate = 'flagged'`);
+      const edgeCount = db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'flagged'`);
       expect(edgeCount[0]?.values[0][0]).toBe(1);
     } finally {
       close();
@@ -237,7 +237,7 @@ describe('upsertReviewFinding', () => {
       expect(result.inserted).toBe(true);
       const rows = db.exec(
         `SELECT target_file_path, target_symbol, target_line_start, target_line_end
-           FROM memory_review_findings WHERE review_id = ?`,
+           FROM caravan_review_findings WHERE review_id = ?`,
         [reviewEntityId],
       );
       expect(rows[0]?.values[0][0]).toBeNull();
@@ -264,9 +264,9 @@ describe('upsertReviewDoc', () => {
       expect(result.findings_inserted).toBe(1);
       expect(result.edges_inserted).toBeGreaterThanOrEqual(1); // flagged + reviewed_by
 
-      // memory_reviews has 1 row
+      // caravan_reviews has 1 row
       const reviewRows = db.exec(
-        `SELECT source_kind, source_hash, title FROM memory_reviews WHERE id = ?`,
+        `SELECT source_kind, source_hash, title FROM caravan_reviews WHERE id = ?`,
         [result.review_id],
       );
       expect(reviewRows[0]?.values).toHaveLength(1);
@@ -276,7 +276,7 @@ describe('upsertReviewDoc', () => {
 
       // reviewed_by edge from File entity
       const edgeRows = db.exec(
-        `SELECT predicate FROM memory_edges WHERE predicate = 'reviewed_by'`,
+        `SELECT predicate FROM caravan_edges WHERE predicate = 'reviewed_by'`,
       );
       expect(edgeRows[0]?.values).toHaveLength(1);
     } finally {
@@ -296,14 +296,14 @@ describe('upsertReviewDoc', () => {
       expect(r2.is_new).toBe(false);
       expect(r2.findings_inserted).toBe(0);
 
-      const reviewCount = db.exec(`SELECT COUNT(*) FROM memory_reviews`);
+      const reviewCount = db.exec(`SELECT COUNT(*) FROM caravan_reviews`);
       expect(reviewCount[0]?.values[0][0]).toBe(1);
     } finally {
       close();
     }
   });
 
-  test('changed hash → source_hash is updated in memory_reviews', async () => {
+  test('changed hash → source_hash is updated in caravan_reviews', async () => {
     const { db, close } = await openFresh();
     try {
       const logger = makeLogger();
@@ -320,7 +320,7 @@ describe('upsertReviewDoc', () => {
       upsertReviewDoc(db, doc2, 'review/changed.md', 'hash-v2', TS, logger);
 
       const rows = db.exec(
-        `SELECT source_hash FROM memory_reviews WHERE source_ref = 'review/changed.md'`,
+        `SELECT source_hash FROM caravan_reviews WHERE source_ref = 'review/changed.md'`,
       );
       expect(rows[0]?.values[0][0]).toBe('hash-v2');
     } finally {
@@ -336,10 +336,10 @@ describe('upsertReviewDoc', () => {
       const result = upsertReviewDoc(db, doc, 'review/no-refs.md', 'hash-norefs', TS, logger);
 
       expect(result.is_new).toBe(true);
-      const rows = db.exec(`SELECT target_kind FROM memory_reviews WHERE id = ?`, [result.review_id]);
+      const rows = db.exec(`SELECT target_kind FROM caravan_reviews WHERE id = ?`, [result.review_id]);
       expect(rows[0]?.values[0][0]).toBe('mixed');
 
-      const edgeCount = db.exec(`SELECT COUNT(*) FROM memory_edges WHERE predicate = 'reviewed_by'`);
+      const edgeCount = db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'reviewed_by'`);
       expect(edgeCount[0]?.values[0][0]).toBe(0);
     } finally {
       close();
@@ -357,7 +357,7 @@ describe('upsertReviewDoc', () => {
       });
       const result = upsertReviewDoc(db, doc, 'review/date-test.md', 'hash-date', TS, logger);
 
-      const rows = db.exec(`SELECT reviewed_at FROM memory_reviews WHERE id = ?`, [result.review_id]);
+      const rows = db.exec(`SELECT reviewed_at FROM caravan_reviews WHERE id = ?`, [result.review_id]);
       expect(rows[0]?.values[0][0]).toBe('2026-04-15T00:00:00.000Z');
     } finally {
       close();
@@ -376,7 +376,7 @@ describe('upsertReviewDoc', () => {
       });
       const result = upsertReviewDoc(db, doc, 'review/iso-date.md', 'hash-iso', TS, logger);
 
-      const rows = db.exec(`SELECT reviewed_at FROM memory_reviews WHERE id = ?`, [result.review_id]);
+      const rows = db.exec(`SELECT reviewed_at FROM caravan_reviews WHERE id = ?`, [result.review_id]);
       expect(rows[0]?.values[0][0]).toBe(isoDate);
     } finally {
       close();
@@ -396,7 +396,7 @@ describe('upsertReviewDoc', () => {
       });
       const result = upsertReviewDoc(db, doc, 'review/iso-no-z.md', 'hash-noz', TS, logger);
 
-      const rows = db.exec(`SELECT reviewed_at FROM memory_reviews WHERE id = ?`, [result.review_id]);
+      const rows = db.exec(`SELECT reviewed_at FROM caravan_reviews WHERE id = ?`, [result.review_id]);
       const reviewedAt = rows[0]?.values[0][0] as string;
       // Should end with Z after conversion
       expect(reviewedAt).toMatch(/Z$/);
@@ -419,7 +419,7 @@ describe('upsertReviewDoc', () => {
       const result = upsertReviewDoc(db, doc, 'review/empty-date.md', 'hash-empty-date', TS, logger);
       const after = new Date().toISOString();
 
-      const rows = db.exec(`SELECT reviewed_at FROM memory_reviews WHERE id = ?`, [result.review_id]);
+      const rows = db.exec(`SELECT reviewed_at FROM caravan_reviews WHERE id = ?`, [result.review_id]);
       const reviewedAt = rows[0]?.values[0][0] as string;
       expect(reviewedAt >= before).toBe(true);
       expect(reviewedAt <= after).toBe(true);
@@ -440,7 +440,7 @@ describe('upsertReviewDoc', () => {
       });
       const result = upsertReviewDoc(db, doc, 'review/weird-date.md', 'hash-weird', TS, logger);
 
-      const rows = db.exec(`SELECT reviewed_at FROM memory_reviews WHERE id = ?`, [result.review_id]);
+      const rows = db.exec(`SELECT reviewed_at FROM caravan_reviews WHERE id = ?`, [result.review_id]);
       const reviewedAt = rows[0]?.values[0][0] as string;
       expect(reviewedAt).toMatch(/Z$/);
     } finally {
@@ -463,7 +463,7 @@ describe('upsertReviewDoc', () => {
 
       expect(result.findings_inserted).toBe(3);
 
-      const findingCount = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE review_id = ?`, [result.review_id]);
+      const findingCount = db.exec(`SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = ?`, [result.review_id]);
       expect(findingCount[0]?.values[0][0]).toBe(3);
     } finally {
       close();
@@ -485,9 +485,9 @@ describe('upsertReviewSession', () => {
       expect(result.findings_inserted).toBe(1);
       expect(result.review_id).toBeTruthy();
 
-      // memory_reviews: source_kind='session'
+      // caravan_reviews: source_kind='session'
       const rows = db.exec(
-        `SELECT source_kind, target_kind FROM memory_reviews WHERE id = ?`,
+        `SELECT source_kind, target_kind FROM caravan_reviews WHERE id = ?`,
         [result.review_id],
       );
       expect(rows[0]?.values[0][0]).toBe('session');
@@ -511,7 +511,7 @@ describe('upsertReviewSession', () => {
       expect(r2.is_new).toBe(false);
       expect(r2.findings_inserted).toBe(0);
 
-      const reviewCount = db.exec(`SELECT COUNT(*) FROM memory_reviews`);
+      const reviewCount = db.exec(`SELECT COUNT(*) FROM caravan_reviews`);
       expect(reviewCount[0]?.values[0][0]).toBe(1);
     } finally {
       close();
@@ -533,7 +533,7 @@ describe('upsertReviewSession', () => {
     }
   });
 
-  // RC1: reviewer / severity_overall を memory_reviews に書き込む（旧実装は両列を INSERT から
+  // RC1: reviewer / severity_overall を caravan_reviews に書き込む（旧実装は両列を INSERT から
   // 省略し、reviewer='' / severity_overall='info' のまま全レビューが記録されていた）。
   test('persists reviewer label and severity_overall (max finding severity)', async () => {
     const { db, close } = await openFresh();
@@ -549,7 +549,7 @@ describe('upsertReviewSession', () => {
       const result = upsertReviewSession(db, session, TS, logger);
 
       const rows = db.exec(
-        `SELECT reviewer, severity_overall FROM memory_reviews WHERE id = ?`,
+        `SELECT reviewer, severity_overall FROM caravan_reviews WHERE id = ?`,
         [result.review_id],
       );
       expect(rows[0]?.values[0][0]).toBe('pr-review-toolkit:code-reviewer');
@@ -567,7 +567,7 @@ describe('upsertReviewSession', () => {
       const result = upsertReviewSession(db, session, TS, logger);
 
       const rows = db.exec(
-        `SELECT reviewer, severity_overall FROM memory_reviews WHERE id = ?`,
+        `SELECT reviewer, severity_overall FROM caravan_reviews WHERE id = ?`,
         [result.review_id],
       );
       expect(rows[0]?.values[0][0]).toBe('superpowers:requesting-code-review');
@@ -587,9 +587,9 @@ describe('upsertReviewSession', () => {
       });
       const result = upsertReviewSession(db, session, TS, logger);
 
-      // The source_ref in memory_reviews should match the canonical name
+      // The source_ref in caravan_reviews should match the canonical name
       const rows = db.exec(
-        `SELECT source_ref FROM memory_reviews WHERE id = ?`,
+        `SELECT source_ref FROM caravan_reviews WHERE id = ?`,
         [result.review_id],
       );
       expect(rows[0]?.values[0][0]).toBe('my-session-001#aaaabbbb-cccc-dddd-eeee-ffff00001111');
@@ -611,7 +611,7 @@ describe('upsertReviewSession', () => {
       const result = upsertReviewSession(db, session, TS, logger);
 
       expect(result.findings_inserted).toBe(2);
-      const count = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE review_id = ?`, [result.review_id]);
+      const count = db.exec(`SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = ?`, [result.review_id]);
       expect(count[0]?.values[0][0]).toBe(2);
     } finally {
       close();
@@ -624,12 +624,12 @@ describe('upsertReviewSession', () => {
     try {
       upsertReviewDoc(db, doc, 'review/backfill.md', 'hash-1', TS, logger);
       // 修正前の取込が作った状態（本文列が空）を再現する
-      db.run("UPDATE memory_reviews SET summary = '', body_excerpt = '' WHERE source_ref = 'review/backfill.md'");
+      db.run("UPDATE caravan_reviews SET summary = '', body_excerpt = '' WHERE source_ref = 'review/backfill.md'");
 
       const result = upsertReviewDoc(db, doc, 'review/backfill.md', 'hash-1', TS, logger);
 
       expect(result.is_new).toBe(false);
-      const rows = db.exec("SELECT body_excerpt FROM memory_reviews WHERE source_ref = 'review/backfill.md'");
+      const rows = db.exec("SELECT body_excerpt FROM caravan_reviews WHERE source_ref = 'review/backfill.md'");
       expect(String(rows[0]?.values[0][0]).length).toBeGreaterThan(0);
     } finally {
       close();
@@ -642,11 +642,11 @@ describe('upsertReviewSession', () => {
     const doc = makeDoc();
     try {
       upsertReviewDoc(db, doc, 'review/keep-summary.md', 'hash-1', TS, logger);
-      db.run("UPDATE memory_reviews SET summary = '既存の要約', body_excerpt = '' WHERE source_ref = 'review/keep-summary.md'");
+      db.run("UPDATE caravan_reviews SET summary = '既存の要約', body_excerpt = '' WHERE source_ref = 'review/keep-summary.md'");
 
       upsertReviewDoc(db, doc, 'review/keep-summary.md', 'hash-1', TS, logger);
 
-      const rows = db.exec("SELECT summary, body_excerpt FROM memory_reviews WHERE source_ref = 'review/keep-summary.md'");
+      const rows = db.exec("SELECT summary, body_excerpt FROM caravan_reviews WHERE source_ref = 'review/keep-summary.md'");
       expect(rows[0]?.values[0][0]).toBe('既存の要約');
       expect(String(rows[0]?.values[0][1]).length).toBeGreaterThan(0);
     } finally {

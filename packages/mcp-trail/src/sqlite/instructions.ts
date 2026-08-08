@@ -1,7 +1,7 @@
-// Flight Record: 指示台帳（instructions / instruction_sessions）への直書き。
+// Flight Record: 指示台帳（caravan_instructions / caravan_instruction_sessions）への直書き。
 // 保存先は caravan-book.db（2026-08-07 に activity.db から移設。openMemoryDb で開く）。
 // TrailDataServer を経由しないのは、宣言がセッション開始直後に走り、
-// デーモン未起動でも記録が落ちてはならないため（doctrine_judgments と同方針）。
+// デーモン未起動でも記録が落ちてはならないため（caravan_doctrine_judgments と同方針）。
 
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
@@ -11,6 +11,8 @@ import {
   CREATE_INSTRUCTIONS,
   CREATE_INSTRUCTION_SESSIONS,
   CREATE_INSTRUCTION_INDEXES,
+  CARAVAN_FLIGHT_RECORD_RENAMES,
+  planTableRenames,
 } from '@anytime-markdown/trail-activity';
 
 export interface OpenInstructionInput {
@@ -44,8 +46,39 @@ export interface OpenInstructionRow {
   readonly sessionCount: number;
 }
 
+/**
+ * 旧名 FR テーブル（instructions 等）が残る caravan-book.db を caravan_ 接頭辞へ改名する
+ * （存在ガード付き・冪等）。ensure（IF NOT EXISTS）より先に呼ばないと、新名の空テーブルが
+ * でき旧名側のデータと分裂する。REFERENCES 句の書き換えは foreign_keys=ON のときだけ
+ * 行われるため、改名中のみ ON へ切り替えて元値に戻す。
+ */
+export function renameLegacyFlightRecordTables(db: Database): void {
+  const existing = new Set(
+    (db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as Array<{ name: string }>).map(
+      (r) => r.name,
+    ),
+  );
+  const statements = planTableRenames(existing, CARAVAN_FLIGHT_RECORD_RENAMES);
+  if (statements.length === 0) return;
+  const fkWasOn = Number(db.pragma('foreign_keys', { simple: true })) === 1;
+  db.pragma('foreign_keys = ON');
+  try {
+    db.exec(['BEGIN', ...statements, 'COMMIT'].join(';\n'));
+  } catch (e) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // ROLLBACK 失敗は元例外を優先して伝播させる
+    }
+    throw e;
+  } finally {
+    if (!fkWasOn) db.pragma('foreign_keys = OFF');
+  }
+}
+
 /** 既存 DB に台帳が無い場合に備えて冪等に作る（拡張の migration より先に宣言が届きうる）。 */
 export function ensureInstructionTables(db: Database): void {
+  renameLegacyFlightRecordTables(db);
   db.exec(CREATE_INSTRUCTIONS);
   db.exec(CREATE_INSTRUCTION_SESSIONS);
   for (const idx of CREATE_INSTRUCTION_INDEXES) db.exec(idx);
@@ -53,10 +86,10 @@ export function ensureInstructionTables(db: Database): void {
 const ensureTables = ensureInstructionTables;
 
 /**
- * **副作用: 検証通過時に activity.db 側の instructions / instruction_sessions を退避テーブルへ
+ * **副作用: 検証通過時に activity.db 側の instructions / caravan_instruction_sessions を退避テーブルへ
  * 複製した上で DROP する。**
  *
- * 台帳移設（activity.db → caravan-book.db・2026-08-07）の遅延移行。doctrine_judgments と同じく
+ * 台帳移設（activity.db → caravan-book.db・2026-08-07）の遅延移行。caravan_doctrine_judgments と同じく
  * デーモン非依存で mcp-trail 自身が行う — 旧指示が activity.db に残ったままだと、移設後の
  * list_open_instructions から消え、continue も成立しない。record_instruction の書込経路が
  * ensure 直後に冪等実行する（読み取り経路では起動しない）。
@@ -94,29 +127,30 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
       }
       // コピー列は両側の交差から組み立てる（doctrine 版と同方式）。固定列挙だと旧 activity.db
       // との列差 1 つで全体が throw → catch に落ち、旧指示が永久に回収されない
-      const intersectCols = (table: string): string[] => {
-        const trailCols = (db.prepare(`PRAGMA trail.table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
-        const memCols = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name));
+      // trail 側はレガシー名・memory 側は caravan_ 新名のため、交差は両名で取る
+      const intersectCols = (trailTable: string, memTable: string): string[] => {
+        const trailCols = (db.prepare(`PRAGMA trail.table_info(${trailTable})`).all() as Array<{ name: string }>).map((c) => c.name);
+        const memCols = new Set((db.prepare(`PRAGMA table_info(${memTable})`).all() as Array<{ name: string }>).map((c) => c.name));
         return trailCols.filter((c) => memCols.has(c));
       };
       let copiedRows = 0;
       if (present.has('instructions')) {
-        const cols = intersectCols('instructions').join(', ');
+        const cols = intersectCols('instructions', 'caravan_instructions').join(', ');
         copiedRows += db
-          .prepare(`INSERT OR IGNORE INTO instructions (${cols}) SELECT ${cols} FROM trail.instructions`)
+          .prepare(`INSERT OR IGNORE INTO caravan_instructions (${cols}) SELECT ${cols} FROM trail.instructions`)
           .run().changes;
       }
       if (present.has('instruction_sessions')) {
-        const cols = intersectCols('instruction_sessions').join(', ');
+        const cols = intersectCols('instruction_sessions', 'caravan_instruction_sessions').join(', ');
         copiedRows += db
-          .prepare(`INSERT OR IGNORE INTO instruction_sessions (${cols}) SELECT ${cols} FROM trail.instruction_sessions`)
+          .prepare(`INSERT OR IGNORE INTO caravan_instruction_sessions (${cols}) SELECT ${cols} FROM trail.instruction_sessions`)
           .run().changes;
         // session_id 衝突（memory 側で別指示へ再宣言済み）は後勝ちで memory が正だが、
         // 旧リンクの置換を黙って通さず可視化する（復旧は退避テーブルから可能）
         const superseded = Number(
           (db
             .prepare(
-              `SELECT COUNT(*) c FROM trail.instruction_sessions t JOIN instruction_sessions m
+              `SELECT COUNT(*) c FROM trail.instruction_sessions t JOIN caravan_instruction_sessions m
                  ON m.session_id = t.session_id WHERE m.instruction_id <> t.instruction_id`,
             )
             .get() as { c: number }).c,
@@ -132,7 +166,7 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
         missingRows += Number(
           (db
             .prepare(
-              `SELECT COUNT(*) c FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM instructions m WHERE m.id = t.id)`,
+              `SELECT COUNT(*) c FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instructions m WHERE m.id = t.id)`,
             )
             .get() as { c: number }).c,
         );
@@ -141,7 +175,7 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
         missingRows += Number(
           (db
             .prepare(
-              `SELECT COUNT(*) c FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM instruction_sessions m WHERE m.session_id = t.session_id)`,
+              `SELECT COUNT(*) c FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instruction_sessions m WHERE m.session_id = t.session_id)`,
             )
             .get() as { c: number }).c,
         );
@@ -193,7 +227,7 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
 /**
  * 書込ツール共通の前処理: caravan-book.db 側に台帳を冪等作成し、activity.db に旧台帳が
  * 残っていれば遅延移行する。移行失敗は宣言そのものを止めない（error ログの上で続行。
- * doctrine_judgments と同方針・次回呼び出しで冪等に再試行される）。
+ * caravan_doctrine_judgments と同方針・次回呼び出しで冪等に再試行される）。
  */
 // 移行完了（trail 側テーブル不在 = null / migrated）を確認済みの activity.db パス。
 // 完了後も宣言のたびに ATTACH + BEGIN IMMEDIATE（activity.db への書込ロック）を繰り返さない
@@ -221,11 +255,11 @@ export function ensureAndMigrateInstructionTables(db: Database, memoryDbPath: st
 /** sequence は指示内の最大 + 1。所属替えは上書き（1 セッションは 1 指示にしか属さない）。 */
 function linkSession(db: Database, instructionId: string, sessionId: string, declaredAt: string): number {
   const row = db
-    .prepare('SELECT COALESCE(MAX(sequence), 0) AS max_seq FROM instruction_sessions WHERE instruction_id = ?')
+    .prepare('SELECT COALESCE(MAX(sequence), 0) AS max_seq FROM caravan_instruction_sessions WHERE instruction_id = ?')
     .get(instructionId) as { max_seq: number } | undefined;
   const sequence = (row?.max_seq ?? 0) + 1;
   db.prepare(
-    `INSERT INTO instruction_sessions (session_id, instruction_id, sequence, declared_at)
+    `INSERT INTO caravan_instruction_sessions (session_id, instruction_id, sequence, declared_at)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(session_id) DO UPDATE SET
        instruction_id = excluded.instruction_id,
@@ -241,7 +275,7 @@ export function openInstructionDirect(db: Database, input: OpenInstructionInput)
   const startedAt = input.startedAt ?? now;
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO instructions (
+    `INSERT INTO caravan_instructions (
        id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id,
        started_at, closed_at, created_at, updated_at
      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
@@ -266,7 +300,7 @@ export function continueInstructionDirect(
 ): InstructionDeclarationResult {
   ensureTables(db);
   const row = db
-    .prepare('SELECT summary, workspace_path FROM instructions WHERE id = ?')
+    .prepare('SELECT summary, workspace_path FROM caravan_instructions WHERE id = ?')
     .get(input.instructionId) as { summary: string; workspace_path: string } | undefined;
   if (row === undefined) {
     // 存在しない ID を黙って新規作成しない — 取り違えた宣言がそのまま台帳に増え、
@@ -293,7 +327,7 @@ export function closeInstructionDirect(db: Database, instructionId: string): { i
   ensureTables(db);
   const closedAt = new Date().toISOString();
   const result = db
-    .prepare('UPDATE instructions SET closed_at = ?, updated_at = ? WHERE id = ?')
+    .prepare('UPDATE caravan_instructions SET closed_at = ?, updated_at = ? WHERE id = ?')
     .run(closedAt, closedAt, instructionId);
   if (result.changes === 0) throw new Error(`instruction not found: ${instructionId}`);
   return { instructionId, closedAt };
@@ -312,21 +346,36 @@ export function listOpenInstructionsDirect(
   workspacePath: string,
   limit: number,
 ): OpenInstructionRow[] {
-  // クエリは instruction_sessions も相関サブクエリで参照するため、両テーブルの実在を要求する
-  // （片方欠けは移行が片テーブルだけ回収した activity.db で起こり得る）
-  const tableCount = Number(
-    (db
-      .prepare(
-        `SELECT COUNT(*) c FROM sqlite_master WHERE type = 'table' AND name IN ('instructions', 'instruction_sessions')`,
-      )
-      .get() as { c: number }).c,
+  // クエリはセッション紐付け表も相関サブクエリで参照するため、両テーブルの実在を要求する
+  // （片方欠けは移行が片テーブルだけ回収した activity.db で起こり得る）。
+  // readonly 接続では改名（テーブル名接頭辞移行）を実行できないため、新名優先・旧名
+  // フォールバックの二段で解決する（旧ビルドが書いた未改名 DB を読み取り専用でも壊さず読む）。
+  const names = new Set(
+    (
+      db
+        .prepare(
+          `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN
+             ('instructions', 'instruction_sessions', 'caravan_instructions', 'caravan_instruction_sessions')`,
+        )
+        .all() as Array<{ name: string }>
+    ).map((r) => r.name),
   );
-  if (tableCount < 2) return [];
+  let instructionsTable: string;
+  let sessionsTable: string;
+  if (names.has('caravan_instructions') && names.has('caravan_instruction_sessions')) {
+    instructionsTable = 'caravan_instructions';
+    sessionsTable = 'caravan_instruction_sessions';
+  } else if (names.has('instructions') && names.has('instruction_sessions')) {
+    instructionsTable = 'instructions';
+    sessionsTable = 'instruction_sessions';
+  } else {
+    return [];
+  }
   const rows = db
     .prepare(
       `SELECT i.id, i.summary, i.origin_prompt, i.started_at, i.workspace_name,
-              (SELECT COUNT(*) FROM instruction_sessions s WHERE s.instruction_id = i.id) AS session_count
-       FROM instructions i
+              (SELECT COUNT(*) FROM ${sessionsTable} s WHERE s.instruction_id = i.id) AS session_count
+       FROM ${instructionsTable} i
        WHERE i.closed_at IS NULL AND (? = '' OR i.workspace_path = ?)
        ORDER BY i.started_at DESC LIMIT ?`,
     )

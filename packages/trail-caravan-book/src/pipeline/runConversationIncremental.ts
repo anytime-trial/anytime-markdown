@@ -30,7 +30,7 @@ function readPipelineState(db: MemoryDbConnection): {
   status: string;
 } {
   const stmt = db.prepare(
-    `SELECT last_processed_at, status FROM memory_pipeline_state WHERE scope = ?`
+    `SELECT last_processed_at, status FROM caravan_pipeline_state WHERE scope = ?`
   );
   try {
     const row = stmt.get(SCOPE);
@@ -56,7 +56,7 @@ function upsertPipelineState(
 ): void {
   const { status, last_processed_at, error_detail } = opts;
   db.run(
-    `INSERT INTO memory_pipeline_state
+    `INSERT INTO caravan_pipeline_state
        (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(scope) DO UPDATE SET
@@ -73,7 +73,7 @@ function upsertPipelineState(
 function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT(scope, item_key) DO UPDATE SET
        attempt_count = attempt_count + 1,
@@ -206,13 +206,13 @@ export async function runConversationIncremental(opts: {
   ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
-  // Preload episode ids already in memory_episodes within the sinceISO window.
+  // Preload episode ids already in caravan_episodes within the sinceISO window.
   // When a previous run was interrupted (VS Code reload mid-pipeline),
   // persistEpisodeFacts is idempotent but extractFactsFromEpisode is not —
   // re-feeding already-persisted episodes to Ollama wastes minutes per episode.
   const existingIds = new Set<string>();
   const existsRows = db.exec(
-    `SELECT id FROM memory_episodes WHERE valid_from >= ?`,
+    `SELECT id FROM caravan_episodes WHERE valid_from >= ?`,
     [sinceISO]
   );
   for (const row of existsRows[0]?.values ?? []) {
@@ -305,7 +305,7 @@ export async function runConversationIncremental(opts: {
           // 失敗 episode の valid_from + 1ms をカーソルに。これにより
           // 次回 run は失敗 episode を WHERE timestamp >= cursor で
           // 除外しつつ、後続セッションの未処理 episode は再走査される。
-          // 失敗 episode 自体は memory_failed_items に記録済みで
+          // 失敗 episode 自体は caravan_failed_items に記録済みで
           // runConversationFailedItemsRetry が後で拾い直す。
           upsertPipelineState(db, {
             status: 'quarantine',

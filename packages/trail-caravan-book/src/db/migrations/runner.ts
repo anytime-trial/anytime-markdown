@@ -1,10 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { MemoryDbConnection } from '../connection/types';
+import { applyTablePrefix, applyTablePrefixFts } from './023_table_prefix';
 
 interface MigrationDef {
   readonly version: number;
-  readonly file: string;
+  /** SQL ファイル移行。apply とどちらか一方を必ず持つ。 */
+  readonly file?: string;
+  /** code 移行（存在ガード等、SQL だけで書けない冪等化が要る場合）。 */
+  readonly apply?: (conn: MemoryDbConnection) => void;
   /** true なら FTS5 が無い SQLite ビルド (sql.js 既定 WASM 等) では skip する。 */
   readonly requiresFts5?: boolean;
 }
@@ -32,6 +36,8 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 20, file: '020_workspace_scope.sql' },
   { version: 21, file: '021_review_body_backfill_scope.sql' },
   { version: 22, file: '022_review_finding_extracted_by.sql' },
+  { version: 23, apply: applyTablePrefix },
+  { version: 24, apply: applyTablePrefixFts, requiresFts5: true },
 ]
 
 /**
@@ -82,9 +88,17 @@ export function runMigrations(conn: MemoryDbConnection): void {
       );
       continue;
     }
-    const sqlPath = path.join(__dirname, migration.file);
-    const sql = fs.readFileSync(sqlPath, 'utf8');
-    conn.execMany(sql);
+    if (migration.apply) {
+      migration.apply(conn);
+    } else if (migration.file) {
+      const sqlPath = path.join(__dirname, migration.file);
+      const sql = fs.readFileSync(sqlPath, 'utf8');
+      conn.execMany(sql);
+    } else {
+      throw new Error(
+        `trail-caravan-book: migration v${migration.version} has neither file nor apply`,
+      );
+    }
     conn.run(
       `INSERT INTO _migrations (version, applied_at) VALUES (?, ?)`,
       [migration.version, new Date().toISOString()],

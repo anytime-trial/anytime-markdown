@@ -28,7 +28,7 @@ function buildMinimalDb(dbPath: string): void {
     }
   };
 
-  run(`CREATE TABLE memory_entities (
+  run(`CREATE TABLE caravan_entities (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
     canonical_name TEXT NOT NULL,
@@ -43,14 +43,14 @@ function buildMinimalDb(dbPath: string): void {
     UNIQUE (type, canonical_name)
   ) STRICT`);
 
-  run(`CREATE TABLE memory_relation_types (
+  run(`CREATE TABLE caravan_relation_types (
     predicate TEXT PRIMARY KEY,
     cardinality TEXT NOT NULL,
     directionality TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
-  run(`CREATE TABLE memory_drift_events (
+  run(`CREATE TABLE caravan_drift_events (
     id TEXT PRIMARY KEY,
     subject_entity_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
@@ -65,7 +65,7 @@ function buildMinimalDb(dbPath: string): void {
     detail_json TEXT NOT NULL DEFAULT '{}'
   ) STRICT`);
 
-  run(`CREATE TABLE memory_bug_fixes (
+  run(`CREATE TABLE caravan_bug_fixes (
     id TEXT PRIMARY KEY,
     commit_sha TEXT NOT NULL UNIQUE,
     bug_entity_id TEXT NOT NULL,
@@ -80,7 +80,7 @@ function buildMinimalDb(dbPath: string): void {
     recorded_at TEXT NOT NULL
   ) STRICT`);
 
-  run(`CREATE TABLE memory_reviews (
+  run(`CREATE TABLE caravan_reviews (
     id TEXT PRIMARY KEY,
     source_kind TEXT NOT NULL,
     source_ref TEXT NOT NULL,
@@ -93,7 +93,7 @@ function buildMinimalDb(dbPath: string): void {
     recorded_at TEXT NOT NULL
   ) STRICT`);
 
-  run(`CREATE TABLE memory_review_findings (
+  run(`CREATE TABLE caravan_review_findings (
     id TEXT PRIMARY KEY,
     review_id TEXT NOT NULL,
     finding_entity_id TEXT NOT NULL,
@@ -107,12 +107,12 @@ function buildMinimalDb(dbPath: string): void {
     recorded_at TEXT NOT NULL
   ) STRICT`);
 
-  run(`CREATE TABLE memory_review_runs (
+  run(`CREATE TABLE caravan_review_runs (
     id TEXT PRIMARY KEY,
     model TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
-  run(`CREATE TABLE pipeline_runs (
+  run(`CREATE TABLE caravan_pipeline_runs (
     id TEXT PRIMARY KEY,
     scope TEXT NOT NULL,
     started_at TEXT NOT NULL,
@@ -123,7 +123,7 @@ function buildMinimalDb(dbPath: string): void {
     error_detail TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
-  run(`CREATE TABLE memory_failed_items (
+  run(`CREATE TABLE caravan_failed_items (
     scope TEXT NOT NULL,
     item_key TEXT NOT NULL,
     failed_at TEXT NOT NULL,
@@ -132,7 +132,7 @@ function buildMinimalDb(dbPath: string): void {
     PRIMARY KEY (scope, item_key)
   ) STRICT`);
 
-  run(`CREATE TABLE memory_edges (
+  run(`CREATE TABLE caravan_edges (
     id TEXT PRIMARY KEY,
     subject_entity_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
@@ -149,7 +149,7 @@ function buildMinimalDb(dbPath: string): void {
     attributes_json TEXT NOT NULL DEFAULT '{}'
   ) STRICT`);
 
-  run(`CREATE TABLE memory_edge_invalidations (
+  run(`CREATE TABLE caravan_edge_invalidations (
     id TEXT PRIMARY KEY,
     edge_id TEXT NOT NULL,
     invalidated_at TEXT NOT NULL,
@@ -159,26 +159,26 @@ function buildMinimalDb(dbPath: string): void {
 
   // Seed data
   run(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['ent-a', 'Package', 'pkg-a', 'Package A', TS, TS, TS],
   );
 
   run(
-    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
+    `INSERT INTO caravan_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
      VALUES (?, ?, ?, ?, ?, ?, NULL, '', '{}')`,
     ['drift-a', 'ent-a', 'prefers', 'spec_vs_code', 'warn', TS],
   );
 
   run(
-    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, affected_file_paths_json, committed_at, recorded_at)
+    `INSERT INTO caravan_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, affected_file_paths_json, committed_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['bf-a', 'sha-causal', 'ent-a', 'pkg-a', 'logic', 'Bug A summary', '["src/a.ts","src/b.ts"]', TS, TS],
   );
 
   // Add caused_by edge for root cause
   run(
-    `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref)
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ['edge-caused', 'ent-a', 'caused_by', 'ent-a', TS, TS, 'conversation', 'sess-x'],
   );

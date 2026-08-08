@@ -28,7 +28,7 @@ export interface PipelineStatusFile {
 
 /**
  * Writes pipeline run status to a shared JSON file.
- * sql.js は in-memory のため pipeline_runs テーブルは memDb.save() まで disk
+ * sql.js は in-memory のため caravan_pipeline_runs テーブルは memDb.save() まで disk
  * に反映されない。realtime な UI 表示用に、本クラスが fs に atomic 書き込みする。
  */
 export class PipelineStatusWriter {

@@ -36,7 +36,7 @@ export interface FlightRecordTestContext {
   readonly memoryDbPath: string;
   /** activity.db 側へ生 SQL を流す（sessions / repos / session_costs 等のシード用）。 */
   trailRun(sql: string, params?: readonly unknown[]): void;
-  /** caravan-book.db 側へ生 SQL を流す（flight_reviews / instructions の直接検証用）。 */
+  /** caravan-book.db 側へ生 SQL を流す（caravan_flight_reviews / instructions の直接検証用）。 */
   memoryRun(sql: string, params?: readonly unknown[]): void;
   cleanup(): void;
 }

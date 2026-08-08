@@ -50,7 +50,7 @@ function upsertFileEntity(
   const eId = entityId('File', canonName);
   try {
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
@@ -109,7 +109,7 @@ export function ingestDecisionComments(input: IngestDecisionCommentsInput): Extr
 
     try {
       db.run(
-        `INSERT OR IGNORE INTO memory_entities
+        `INSERT OR IGNORE INTO caravan_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json, summary,
             first_seen_at, last_updated_at, recorded_at)
@@ -130,7 +130,7 @@ export function ingestDecisionComments(input: IngestDecisionCommentsInput): Extr
     const edgeId = entityId('edge', `rationale_for:${decisionId}:${targetId}:comment:${line}`);
     try {
       db.run(
-        `INSERT INTO memory_edges
+        `INSERT INTO caravan_edges
            (id, subject_entity_id, predicate, object_entity_id,
             valid_from, recorded_at, source_type, source_ref,
             confidence, confidence_label, modality)

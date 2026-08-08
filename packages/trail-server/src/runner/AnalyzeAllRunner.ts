@@ -116,8 +116,8 @@ export interface AnalyzeAllRunnerOptions {
   memoryCoreService?: MemoryCoreService;
   /**
    * caravan-book.db パス (Step 5: PR review analyzer 群 (`PrReviewImporter` /
-   * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が memory_reviews /
-   * memory_review_findings へ読み書きするために使う)。ログ・診断専用で接続そのものは
+   * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が caravan_reviews /
+   * caravan_review_findings へ読み書きするために使う)。ログ・診断専用で接続そのものは
    * 開かない — 実接続は呼び出し側が `trailDaemonEntry` の LogService 配線
    * (`openMemoryCoreDb(memoryDbPath, { nativeBinding })`) と同じ前例で開き、`memoryDb` に
    * 渡す。片方だけの指定 (`memoryDbPath` のみ / `memoryDb` のみ) は未構成扱いにする。
@@ -127,7 +127,7 @@ export interface AnalyzeAllRunnerOptions {
   /** {@link memoryDbPath} に対応する、呼び出し側が開いた caravan-book.db 接続。 */
   memoryDb?: MemoryDbConnection;
   /**
-   * Wave 1/2/4 の analyzer 実行を `pipeline_runs` へ記録するファクトリ。
+   * Wave 1/2/4 の analyzer 実行を `caravan_pipeline_runs` へ記録するファクトリ。
    * 未指定なら記録しない (既存の呼び出し元は挙動不変)。
    */
   openPipelineRunLedger?: PipelineRunLedgerFactory;
@@ -317,7 +317,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       });
       const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
       const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
-      // Step 5: github_pr_review → memory_reviews / memory_review_findings (caravan-book.db)。
+      // Step 5: github_pr_review → caravan_reviews / caravan_review_findings (caravan-book.db)。
       // GitHub source 未設定時は対応 event が来ないため no-op。memoryDbPath / memoryDb が
       // 揃っていない場合は analyzer 自体を生成しない (silent skip を避けて info ログ)。
       let prReviewImporter: PrReviewImporter | null = null;
@@ -601,7 +601,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   }
 
   /**
-   * Wave 1/2/4 の実行を `pipeline_runs` へ記録する台帳が配線されているか。
+   * Wave 1/2/4 の実行を `caravan_pipeline_runs` へ記録する台帳が配線されているか。
    * `importEnabled` と同じく、ホスト (CLI / daemon) 側の注入漏れを検証するために公開する
    * (台帳は fail-open で、落ちていても ingest は成功したように見えるため外から観測できない)。
    */

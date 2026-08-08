@@ -47,17 +47,17 @@ async function makeDb(): Promise<BetterSqlite3MemoryDb> {
 }
 
 function countFacts(db: BetterSqlite3MemoryDb): number {
-  const result = db.exec(`SELECT COUNT(*) FROM memory_code_facts`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_code_facts`);
   return result[0]?.values[0][0] as number;
 }
 
 function countEdges(db: BetterSqlite3MemoryDb): number {
-  const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
   return result[0]?.values[0][0] as number;
 }
 
 function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
-  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
   try {
     const row = stmt.get(type);
     return ((row?.['c'] as number) ?? 0);
@@ -107,7 +107,7 @@ describe('ingestAstFacts', () => {
     expect(stats.edges_inserted).toBe(1);
 
     // fact check
-    const factRows = db.exec(`SELECT fact_type, fact_value, file_path FROM memory_code_facts`);
+    const factRows = db.exec(`SELECT fact_type, fact_value, file_path FROM caravan_code_facts`);
     expect(factRows[0]?.values).toHaveLength(1);
     const [factType, factValue, filePath] = factRows[0].values[0];
     expect(factType).toBe('imports');
@@ -119,7 +119,7 @@ describe('ingestAstFacts', () => {
     expect(countEntities(db, 'File')).toBe(1);
 
     // edge predicate check
-    const edgeRows = db.exec(`SELECT predicate, confidence_label FROM memory_edges`);
+    const edgeRows = db.exec(`SELECT predicate, confidence_label FROM caravan_edges`);
     expect(edgeRows[0]?.values).toHaveLength(1);
     expect(edgeRows[0].values[0][0]).toBe('depends_on');
     expect(edgeRows[0].values[0][1]).toBe('EXTRACTED');
@@ -152,7 +152,7 @@ describe('ingestAstFacts', () => {
     expect(countEntities(db, 'File')).toBe(2);
     expect(countEntities(db, 'Library')).toBe(0);
 
-    const edgeRows = db.exec(`SELECT predicate FROM memory_edges`);
+    const edgeRows = db.exec(`SELECT predicate FROM caravan_edges`);
     expect(edgeRows[0].values[0][0]).toBe('relates_to');
 
     db.close();
@@ -181,7 +181,7 @@ describe('ingestAstFacts', () => {
 
     expect(stats.facts_inserted).toBe(1);
 
-    const factRows = db.exec(`SELECT fact_type, fact_value, symbol_path, file_path FROM memory_code_facts`);
+    const factRows = db.exec(`SELECT fact_type, fact_value, symbol_path, file_path FROM caravan_code_facts`);
     expect(factRows[0]?.values).toHaveLength(1);
     const [ft, fv, sp, fp] = factRows[0].values[0];
     expect(ft).toBe('calls');
@@ -215,10 +215,10 @@ describe('ingestAstFacts', () => {
 
     expect(stats.facts_inserted).toBe(1);
 
-    const factRows = db.exec(`SELECT fact_type FROM memory_code_facts`);
+    const factRows = db.exec(`SELECT fact_type FROM caravan_code_facts`);
     expect(factRows[0].values[0][0]).toBe('extends');
 
-    const edgeRows = db.exec(`SELECT predicate FROM memory_edges`);
+    const edgeRows = db.exec(`SELECT predicate FROM caravan_edges`);
     expect(edgeRows[0].values[0][0]).toBe('relates_to');
 
     db.close();
@@ -315,7 +315,7 @@ describe('ingestAstFacts', () => {
 
     const expectedId = entityId('File', canonicalize(srcFile));
     const stmt = db.prepare(
-      `SELECT id FROM memory_entities WHERE type = 'File' AND canonical_name = ?`
+      `SELECT id FROM caravan_entities WHERE type = 'File' AND canonical_name = ?`
     );
     const row = stmt.get(canonicalize(srcFile));
     stmt.free?.();
@@ -340,7 +340,7 @@ describe('ingestAstFacts', () => {
 
     const expectedId = entityId('Library', canonicalize('zod'));
     const stmt = db.prepare(
-      `SELECT id FROM memory_entities WHERE type = 'Library' AND canonical_name = ?`
+      `SELECT id FROM caravan_entities WHERE type = 'Library' AND canonical_name = ?`
     );
     const row = stmt.get(canonicalize('zod'));
     stmt.free?.();
@@ -350,7 +350,7 @@ describe('ingestAstFacts', () => {
   }, 30000);
 
   // ── AFL-10: commit_sha is persisted in fact row ──────────────────────────
-  test('AFL-10: commit_sha is stored in memory_code_facts', async () => {
+  test('AFL-10: commit_sha is stored in caravan_code_facts', async () => {
     const db = await makeDb();
     const srcFile = 'src/foo.ts';
     const sha = 'deadbeef1234';
@@ -364,7 +364,7 @@ describe('ingestAstFacts', () => {
       recordedAt: RECORDED_AT, logger: silentLogger,
     });
 
-    const factRows = db.exec(`SELECT commit_sha FROM memory_code_facts`);
+    const factRows = db.exec(`SELECT commit_sha FROM caravan_code_facts`);
     expect(factRows[0]?.values[0][0]).toBe(sha);
 
     db.close();
@@ -395,7 +395,7 @@ describe('ingestAstFacts', () => {
     expect(stats.facts_inserted).toBe(3);
     expect(countFacts(db)).toBe(3);
 
-    const factRows = db.exec(`SELECT fact_type FROM memory_code_facts ORDER BY fact_type`);
+    const factRows = db.exec(`SELECT fact_type FROM caravan_code_facts ORDER BY fact_type`);
     const types = factRows[0].values.map(r => r[0] as string).sort();
     expect(types).toEqual(['calls', 'imports', 'imports']);
 
@@ -417,7 +417,7 @@ describe('ingestAstFacts', () => {
     });
 
     const edgeRows = db.exec(
-      `SELECT source_type, confidence_label, confidence FROM memory_edges`
+      `SELECT source_type, confidence_label, confidence FROM caravan_edges`
     );
     expect(edgeRows[0]?.values).toHaveLength(1);
     const [sourceType, confidenceLabel, confidence] = edgeRows[0].values[0];
@@ -446,7 +446,7 @@ describe('ingestAstFacts', () => {
     expect(result.function_entities_upserted).toBe(2);
     expect(countEntities(db, 'Function')).toBe(2);
 
-    const rows = db.exec(`SELECT display_name, content_hash, repo_name FROM memory_entities WHERE type='Function' ORDER BY display_name`);
+    const rows = db.exec(`SELECT display_name, content_hash, repo_name FROM caravan_entities WHERE type='Function' ORDER BY display_name`);
     expect(rows[0]?.values).toHaveLength(2);
     expect(rows[0].values[0][0]).toBe('src/foo.ts#bar');
     expect(rows[0].values[0][1]).toBeTruthy(); // content_hash not null
@@ -467,11 +467,11 @@ describe('ingestAstFacts', () => {
     ingestAstFacts({ db, repoName: REPO, graph, commitSha: COMMIT_SHA, recordedAt: RECORDED_AT, logger: silentLogger });
     // fake embedding を挿入
     const fnId = entityId('Function', canonicalize(`${REPO}:src/foo.ts::src/foo.ts#bar`));
-    db.run(`UPDATE memory_entities SET embedding = ? WHERE id = ?`, [new Uint8Array([1, 2, 3]), fnId]);
+    db.run(`UPDATE caravan_entities SET embedding = ? WHERE id = ?`, [new Uint8Array([1, 2, 3]), fnId]);
 
     // 同じ graph で再 ingest
     ingestAstFacts({ db, repoName: REPO, graph, commitSha: COMMIT_SHA, recordedAt: '2026-01-02T00:00:00.000Z', logger: silentLogger });
-    const stmt = db.prepare(`SELECT embedding FROM memory_entities WHERE id = ?`);
+    const stmt = db.prepare(`SELECT embedding FROM caravan_entities WHERE id = ?`);
     const embRow = stmt.get(fnId);
     const emb = embRow?.['embedding'];
     stmt.free?.();
@@ -489,10 +489,10 @@ describe('ingestAstFacts', () => {
 
     ingestAstFacts({ db, repoName: REPO, graph: graph1, commitSha: COMMIT_SHA, recordedAt: RECORDED_AT, logger: silentLogger });
     const fnId = entityId('Function', canonicalize(`${REPO}:src/foo.ts::src/foo.ts#bar`));
-    db.run(`UPDATE memory_entities SET embedding = ? WHERE id = ?`, [new Uint8Array([1, 2, 3]), fnId]);
+    db.run(`UPDATE caravan_entities SET embedding = ? WHERE id = ?`, [new Uint8Array([1, 2, 3]), fnId]);
 
     ingestAstFacts({ db, repoName: REPO, graph: graph2, commitSha: COMMIT_SHA, recordedAt: '2026-01-02T00:00:00.000Z', logger: silentLogger });
-    const stmt = db.prepare(`SELECT embedding FROM memory_entities WHERE id = ?`);
+    const stmt = db.prepare(`SELECT embedding FROM caravan_entities WHERE id = ?`);
     const embRow = stmt.get(fnId);
     const emb = embRow?.['embedding'];
     stmt.free?.();

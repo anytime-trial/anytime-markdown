@@ -93,7 +93,7 @@ export interface MemoryDbSessionDeps {
  * 各 scope メソッドを呼ぶ (analyzer ごとに DB を open すると ATTACH 競合・性能劣化)。
  *
  * 各 scope メソッドは `run*Incremental` を呼ぶ薄いラッパで、cursor 管理
- * (`memory_pipeline_state`) は `run*Incremental` 内に閉じたまま。メソッドは
+ * (`caravan_pipeline_state`) は `run*Incremental` 内に閉じたまま。メソッドは
  * 内部で例外を捕捉し `ScopeResult.status==='error'` を返す (throw しない)。
  * 呼び出し側 (analyzer / runMemoryCorePipeline) が error を見て throw する。
  *
@@ -141,7 +141,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
         // 前進カーソルではなく一回限りの完了印なので、含めると是正が黙って再実行される
         // （runReviewBackfillOnce の docstring 参照）。
         memDb.db.run(
-          `UPDATE memory_pipeline_state
+          `UPDATE caravan_pipeline_state
               SET last_processed_at = ''
             WHERE scope IN ('conversation_backfill', 'conversation_incremental')`,
         );
@@ -151,7 +151,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
     }
 
     const stmt = memDb.db.prepare(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`,
     );
     const stateRow = stmt.get('conversation_incremental');
     const lastProcessedAt = (stateRow?.['last_processed_at'] as string) ?? '';
@@ -332,7 +332,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
   /**
    * runReviewBackfill を 1 回だけ実行する。
    *
-   * 完了印は memory_pipeline_state の専用スコープに置く。毎回走らせないのは、
+   * 完了印は caravan_pipeline_state の専用スコープに置く。毎回走らせないのは、
    * 全期間のメッセージ再走査が数十秒かかるため。失敗しても取込本体は止めない
    * （是正は次回に持ち越せる）。
    */
@@ -346,11 +346,11 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
     // status に専用値を足さないのは CHECK が idle/running/quarantine/error のため。
     // scope 自体は migration 021 で CHECK へ追加済み。
     //
-    // 再実行したいときは `DELETE FROM memory_pipeline_state WHERE scope='review_body_backfill'`。
+    // 再実行したいときは `DELETE FROM caravan_pipeline_state WHERE scope='review_body_backfill'`。
     // runReviewBackfill は冪等（空欄のみ補完・削除は対象消滅で 0 件）なので再実行は安全。
     const scope = 'review_body_backfill';
     const stmt = memDb.db.prepare(
-      'SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?',
+      'SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?',
     );
     let done = false;
     try {
@@ -381,7 +381,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
         return;
       }
       memDb.db.run(
-        `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+        `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
          VALUES (?, 'idle', ?, '')
          ON CONFLICT(scope) DO UPDATE SET last_processed_at = excluded.last_processed_at`,
         [scope, recordedAt],

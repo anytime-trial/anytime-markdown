@@ -48,7 +48,7 @@ export function listReviewRuns(input: {
               started_at, finished_at, duration_ms, status,
               findings_count, findings_inserted, findings_merged,
               input_tokens, output_tokens, review_id, error_detail
-       FROM memory_review_runs
+       FROM caravan_review_runs
        ${where}
        ORDER BY started_at DESC
        LIMIT ?`,

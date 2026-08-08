@@ -160,8 +160,8 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     expect(result.items_processed).toBe(3);
   }, 60000);
 
-  it('inserts 3 rows in memory_spec_documents', () => {
-    const rows = memDb.exec('SELECT type FROM memory_spec_documents ORDER BY type');
+  it('inserts 3 rows in caravan_spec_documents', () => {
+    const rows = memDb.exec('SELECT type FROM caravan_spec_documents ORDER BY type');
     const types = (rows[0]?.values ?? []).map((r) => r[0] as string).sort();
     expect(types).toEqual(['proposal', 'spec', 'tech']);
   }, 60000);
@@ -174,7 +174,7 @@ describe('runSpecIncremental E2E — Phase 3', () => {
 
   it('populates summary for all 3 spec documents', () => {
     const rows = memDb.exec(
-      `SELECT summary FROM memory_spec_documents WHERE summary != ''`,
+      `SELECT summary FROM caravan_spec_documents WHERE summary != ''`,
     );
     expect((rows[0]?.values ?? []).length).toBe(3);
   }, 60000);
@@ -184,7 +184,7 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     // The entity display_name or canonical_name is 'sql.js'
     const sqlJsEntityId = makeEntityId('Library', 'sql.js');
     const rows = memDb.exec(
-      `SELECT modality, predicate, object_entity_id FROM memory_edges
+      `SELECT modality, predicate, object_entity_id FROM caravan_edges
        WHERE source_type = 'spec'
          AND modality = 'mandatory'
          AND object_entity_id = ?`,
@@ -196,7 +196,7 @@ describe('runSpecIncremental E2E — Phase 3', () => {
   it('inserts forbidden edge for activity.db', () => {
     const trailDbEntityId = makeEntityId('Library', 'activity.db');
     const rows = memDb.exec(
-      `SELECT modality, predicate, object_entity_id FROM memory_edges
+      `SELECT modality, predicate, object_entity_id FROM caravan_edges
        WHERE source_type = 'spec'
          AND modality = 'forbidden'
          AND object_entity_id = ?`,
@@ -205,11 +205,11 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     expect((rows[0]?.values ?? []).length).toBeGreaterThanOrEqual(1);
   }, 60000);
 
-  it('links pkg_trail-caravan-book in memory_spec_doc_entities', () => {
+  it('links pkg_trail-caravan-book in caravan_spec_doc_entities', () => {
     // linkByC4Scope inserts entityId('Package', 'pkg_trail-caravan-book') as entity_id
     const c4EntityId = makeEntityId('Package', 'pkg_trail-caravan-book');
     const rows = memDb.exec(
-      `SELECT COUNT(*) FROM memory_spec_doc_entities WHERE entity_id = ?`,
+      `SELECT COUNT(*) FROM caravan_spec_doc_entities WHERE entity_id = ?`,
       [c4EntityId]
     );
     const count = rows[0]?.values?.[0]?.[0] as number;
@@ -224,7 +224,7 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     // Directly verify that sql.js entity is in the DB with a display_name match
     const sqlJsEntityId = makeEntityId('Library', 'sql.js');
     const entityRows = memDb.exec(
-      `SELECT id, display_name FROM memory_entities WHERE id = ?`,
+      `SELECT id, display_name FROM caravan_entities WHERE id = ?`,
       [sqlJsEntityId]
     );
     const entityExists = (entityRows[0]?.values ?? []).length > 0;
@@ -232,7 +232,7 @@ describe('runSpecIncremental E2E — Phase 3', () => {
 
     // Also verify mandatory edge is queryable
     const edgeRows = memDb.exec(
-      `SELECT id, modality FROM memory_edges
+      `SELECT id, modality FROM caravan_edges
        WHERE source_type = 'spec' AND modality = 'mandatory' AND object_entity_id = ?`,
       [sqlJsEntityId]
     );

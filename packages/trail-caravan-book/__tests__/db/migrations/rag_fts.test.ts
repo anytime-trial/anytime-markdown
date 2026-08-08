@@ -22,23 +22,23 @@ describe('migration 013 (rag_fts)', () => {
     );
     const names = (result[0]?.values ?? []).map((r) => r[0] as string);
     expect(names).toEqual([
-      'memory_drift_events_fts',
-      'memory_entities_fts',
-      'memory_episodes_fts',
+      'caravan_drift_events_fts',
+      'caravan_entities_fts',
+      'caravan_episodes_fts',
     ]);
 
     close();
   }, 30000);
 
-  test('memory_pipeline_state.scope に rag_fts_rebuild を INSERT できる', async () => {
+  test('caravan_pipeline_state.scope に rag_fts_rebuild を INSERT できる', async () => {
     const { db, close } = await openMemoryCoreDb(tmpDb);
 
     expect(() => {
-      db.run(`INSERT OR REPLACE INTO memory_pipeline_state(scope) VALUES ('rag_fts_rebuild')`);
+      db.run(`INSERT OR REPLACE INTO caravan_pipeline_state(scope) VALUES ('rag_fts_rebuild')`);
     }).not.toThrow();
 
     const result = db.exec(
-      `SELECT scope FROM memory_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
+      `SELECT scope FROM caravan_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
     );
     expect(result[0]?.values[0][0]).toBe('rag_fts_rebuild');
 

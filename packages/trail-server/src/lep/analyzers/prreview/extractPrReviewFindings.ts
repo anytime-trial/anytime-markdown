@@ -34,7 +34,7 @@ function toCategory(raw: string | null | undefined): PrReviewFindingInput['categ
 
 /**
  * PR review の body + 行コメントから `ingestPrReview` (trail-caravan-book) 向けの finding 入力を
- * 抽出する純粋関数 (Step 5: memory_reviews / memory_review_findings への付け替え)。
+ * 抽出する純粋関数 (Step 5: caravan_reviews / caravan_review_findings への付け替え)。
  *
  * - 行コメントがあれば各コメントを 1 finding にする (file_path / line_number 付き)
  * - 行コメントが無く、CHANGES_REQUESTED で body があれば body を 1 finding にする

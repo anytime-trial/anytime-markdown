@@ -12,7 +12,7 @@ type PipelineStatus = 'success' | 'partial' | 'error';
 const RETRY_SCOPE = 'conversation_failed_items_retry';
 // Retry covers every conversation ingest scope that records extraction failures.
 // Previously only 'conversation_backfill' was retried, leaving
-// 'conversation_incremental' failures orphaned in memory_failed_items forever.
+// 'conversation_incremental' failures orphaned in caravan_failed_items forever.
 const DEFAULT_SOURCE_SCOPES = ['conversation_incremental', 'conversation_backfill'] as const;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const QUARANTINE_THRESHOLD = 3;
@@ -55,7 +55,7 @@ function loadFailedItems(db: MemoryDbConnection, sourceScopes: readonly string[]
   const placeholders = sourceScopes.map(() => '?').join(', ');
   const rows = db.exec(
     `SELECT scope, item_key, attempt_count
-     FROM memory_failed_items
+     FROM caravan_failed_items
      WHERE scope IN (${placeholders}) AND reason IN ('extraction_failed', 'persist_failed', 'episode_not_found')
        AND attempt_count < ?
      ORDER BY failed_at ASC`,
@@ -151,7 +151,7 @@ function reconstructEpisode(
 
 function deleteFailedItem(db: MemoryDbConnection, scope: string, item_key: string): void {
   db.run(
-    `DELETE FROM memory_failed_items WHERE scope = ? AND item_key = ?`,
+    `DELETE FROM caravan_failed_items WHERE scope = ? AND item_key = ?`,
     [scope, item_key]
   );
 }
@@ -165,7 +165,7 @@ function recordFailedItem(
 ): void {
   const failedAt = new Date().toISOString();
   db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT(scope, item_key) DO UPDATE SET
        attempt_count = attempt_count + 1,
@@ -182,7 +182,7 @@ function upsertPipelineState(
 ): void {
   const { status, error_detail } = opts;
   db.run(
-    `INSERT INTO memory_pipeline_state
+    `INSERT INTO caravan_pipeline_state
        (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, '', ?)
      ON CONFLICT(scope) DO UPDATE SET
@@ -233,7 +233,7 @@ export interface FailedItemsRetryResult {
 
 /**
  * Re-runs LLM extraction on previously failed episodes recorded in
- * memory_failed_items. Each item_key is split into (session_id, message_uuid_start),
+ * caravan_failed_items. Each item_key is split into (session_id, message_uuid_start),
  * the original episode is reconstructed from the ATTACHed activity.db, and the
  * extraction is retried. On success the failed_items row is DELETEd; on failure
  * attempt_count is incremented (existing ON CONFLICT path).

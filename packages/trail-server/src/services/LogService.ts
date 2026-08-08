@@ -23,7 +23,7 @@ export class LogService {
     private readonly systemRunId: string,
   ) {
     this.insertStmt = this.db.prepare(`
-      INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
+      INSERT INTO caravan_pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
   }
@@ -65,23 +65,23 @@ export class LogService {
       new Date(now.getTime() - days * 24 * 3600 * 1000).toISOString();
 
     this.db.run(
-      `DELETE FROM pipeline_run_logs
+      `DELETE FROM caravan_pipeline_run_logs
        WHERE run_id = ? AND level = 'debug' AND timestamp < ?`,
       [this.systemRunId, cutoff(3)],
     );
     this.db.run(
-      `DELETE FROM pipeline_run_logs
+      `DELETE FROM caravan_pipeline_run_logs
        WHERE run_id = ? AND level = 'info' AND timestamp < ?`,
       [this.systemRunId, cutoff(30)],
     );
     this.db.run(
-      `DELETE FROM pipeline_run_logs
+      `DELETE FROM caravan_pipeline_run_logs
        WHERE run_id = ? AND level IN ('warn','error') AND timestamp < ?`,
       [this.systemRunId, cutoff(90)],
     );
 
     const countStmt = this.db.prepare(
-      `SELECT COUNT(*) AS n FROM pipeline_run_logs WHERE run_id = ?`,
+      `SELECT COUNT(*) AS n FROM caravan_pipeline_run_logs WHERE run_id = ?`,
     );
     let total = 0;
     try {
@@ -92,8 +92,8 @@ export class LogService {
     }
     if (total > HARD_LIMIT) {
       this.db.run(
-        `DELETE FROM pipeline_run_logs WHERE id IN (
-          SELECT id FROM pipeline_run_logs WHERE run_id = ?
+        `DELETE FROM caravan_pipeline_run_logs WHERE id IN (
+          SELECT id FROM caravan_pipeline_run_logs WHERE run_id = ?
           ORDER BY timestamp ASC, id ASC LIMIT ?
         )`,
         [this.systemRunId, total - HARD_LIMIT],

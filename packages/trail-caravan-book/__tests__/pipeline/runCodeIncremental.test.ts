@@ -176,13 +176,13 @@ function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
 }
 
 function countPipelineRuns(db: BetterSqlite3MemoryDb): number {
-  const result = db.exec(`SELECT COUNT(*) FROM pipeline_runs WHERE scope = 'code_incremental'`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_pipeline_runs WHERE scope = 'code_incremental'`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
 function getPipelineState(db: BetterSqlite3MemoryDb): { status: string; last_processed_at: string } | null {
   const stmt = db.prepare(
-    `SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`
+    `SELECT status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'code_incremental'`
   );
   try {
     const row = stmt.get();
@@ -229,7 +229,7 @@ describe('runCodeIncremental', () => {
       attachTrailDbFromHandle(memDb, trailDb);
 
       memDb.run(
-        `INSERT INTO memory_pipeline_state (scope, status, last_processed_at)
+        `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at)
          VALUES ('code_incremental', 'idle', ?)`,
         [GRAPH_UPDATED_AT]
       );
@@ -273,7 +273,7 @@ describe('runCodeIncremental', () => {
 
       expect(countPipelineRuns(memDb)).toBe(1);
       const runRows = memDb.exec(
-        `SELECT status FROM pipeline_runs WHERE scope = 'code_incremental'`
+        `SELECT status FROM caravan_pipeline_runs WHERE scope = 'code_incremental'`
       );
       expect(runRows[0]?.values[0][0]).toBe('success');
     });
@@ -330,7 +330,7 @@ describe('runCodeIncremental', () => {
 
       expect(result.status).toBe('success');
       const decisionRows = memDb.exec(
-        `SELECT COUNT(*) FROM memory_entities WHERE type = 'Decision'`
+        `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Decision'`
       );
       expect(decisionRows[0]?.values[0][0]).toBe(1);
     });

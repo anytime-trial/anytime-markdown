@@ -16,10 +16,10 @@ export interface DetectBackfillWindowExpansionResult {
 }
 
 /**
- * config の backfillDays が広がった結果、memory_episodes でカバーされていない
+ * config の backfillDays が広がった結果、caravan_episodes でカバーされていない
  * 過去メッセージが activity.db 側に存在するかを検出する。
  *
- * - memory_episodes.MIN(valid_from) を「現在カバー済みの最古地点」とみなす
+ * - caravan_episodes.MIN(valid_from) を「現在カバー済みの最古地点」とみなす
  * - desired_start = now - sinceDays * 1day を「望むカバー開始地点」とする
  * - desired_start < earliest かつ trail.messages にその区間で
  *   未処理の user メッセージがあれば shouldExpand=true を返す
@@ -38,7 +38,7 @@ export function detectBackfillWindowExpansion(
   const desiredStart = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
 
   // 現在カバー済みの最古 episode timestamp
-  const earliestRows = db.exec(`SELECT MIN(valid_from) AS earliest FROM memory_episodes`);
+  const earliestRows = db.exec(`SELECT MIN(valid_from) AS earliest FROM caravan_episodes`);
   const earliest = (earliestRows[0]?.values?.[0]?.[0] as string | null) ?? null;
 
   if (earliest === null) {

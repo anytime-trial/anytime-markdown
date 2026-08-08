@@ -6,13 +6,13 @@ import { parseReviewSessions } from '../../../src/ingest/review/parseReviewSessi
 
 /**
  * Create a minimal trail-caravan-book main DB (no migrations needed — we just need
- * the attach guard to work, which requires memory_failed_items table).
+ * the attach guard to work, which requires caravan_failed_items table).
  */
 function makeMainDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   db.run(`
-    CREATE TABLE IF NOT EXISTS memory_failed_items (
+    CREATE TABLE IF NOT EXISTS caravan_failed_items (
       scope TEXT NOT NULL,
       item_key TEXT NOT NULL,
       failed_at TEXT NOT NULL,
@@ -807,7 +807,7 @@ describe('parseReviewSessions', () => {
   }, 30000);
 
   // reviewer はブロックのラベル(subagent_type)になる。旧実装は 'unknown' 固定で、
-  // memory_reviews.reviewer が全件空になっていた(RC1)。
+  // caravan_reviews.reviewer が全件空になっていた(RC1)。
   test('sets reviewer from subagent_type label', async () => {
     const mainDb = makeMainDb();
     const trailDb = makeTrailDb();

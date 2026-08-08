@@ -102,7 +102,7 @@ function insertCommit(
 }
 
 function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
-  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
   try {
     return ((stmt.get(type)?.['c'] as number) ?? 0);
   } finally {
@@ -112,14 +112,14 @@ function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
 
 function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
   if (predicate) {
-    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_edges WHERE predicate = ?`);
+    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_edges WHERE predicate = ?`);
     try {
       return ((stmt.get(predicate)?.['c'] as number) ?? 0);
     } finally {
       stmt.free?.();
     }
   }
-  const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
@@ -157,7 +157,7 @@ describe('extractCommitRationale', () => {
     expect(countEdges(memDb, 'rationale_for')).toBe(1);
 
     // Verify Decision summary contains the rationale text
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('既存 baz 関数が肥大化したため分離する');
 
@@ -190,7 +190,7 @@ describe('extractCommitRationale', () => {
     expect(stats.decisions_inserted).toBe(1);
     expect(stats.edges_inserted).toBe(1);
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('Legacy adapter was causing circular imports');
 
@@ -222,7 +222,7 @@ describe('extractCommitRationale', () => {
     expect(stats.decisions_inserted).toBe(1);
     expect(stats.edges_inserted).toBe(1);
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('デザインシステムに合わせるため統一した');
 
@@ -317,7 +317,7 @@ describe('extractCommitRationale', () => {
     expect(stats.edges_inserted).toBe(1);
 
     const labels = memDb.exec(
-      `SELECT confidence_label FROM memory_edges WHERE predicate = 'rationale_for'`,
+      `SELECT confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`,
     );
     expect(String(labels[0]?.values[0][0])).toBe('INFERRED');
 
@@ -404,7 +404,7 @@ describe('extractCommitRationale', () => {
     expect(stats.commits_processed).toBe(1);
     expect(stats.decisions_inserted).toBe(1);
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('new commit after cursor');
 
@@ -477,7 +477,7 @@ describe('extractCommitRationale', () => {
     const expectedDecisionId = entityId('Decision', expectedCanonName);
 
     const stmt = memDb.prepare(
-      `SELECT id, canonical_name FROM memory_entities WHERE type = 'Decision'`
+      `SELECT id, canonical_name FROM caravan_entities WHERE type = 'Decision'`
     );
     const row = stmt.get();
     stmt.free?.();
@@ -513,7 +513,7 @@ describe('extractCommitRationale', () => {
 
     const edgeRows = memDb.exec(
       `SELECT source_type, source_ref, confidence_label, confidence, predicate
-         FROM memory_edges WHERE predicate = 'rationale_for'`
+         FROM caravan_edges WHERE predicate = 'rationale_for'`
     );
     expect(edgeRows[0]?.values).toHaveLength(1);
     const [sourceType, sourceRef, confidenceLabel, confidence, predicate] =
@@ -552,9 +552,9 @@ describe('extractCommitRationale', () => {
 
     const rows = memDb.exec(`
       SELECT me_subj.type AS subj_type, me_obj.type AS obj_type
-      FROM memory_edges e
-      JOIN memory_entities me_subj ON me_subj.id = e.subject_entity_id
-      JOIN memory_entities me_obj  ON me_obj.id  = e.object_entity_id
+      FROM caravan_edges e
+      JOIN caravan_entities me_subj ON me_subj.id = e.subject_entity_id
+      JOIN caravan_entities me_obj  ON me_obj.id  = e.object_entity_id
       WHERE e.predicate = 'rationale_for'
     `);
     expect(rows[0]?.values).toHaveLength(1);
@@ -633,7 +633,7 @@ describe('extractCommitRationale', () => {
       logger: silentLogger,
     });
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('line1');
     expect(summary).toContain('line2 continued');
@@ -690,13 +690,13 @@ describe('extractCommitRationale', () => {
 
 function edgeConfidenceLabels(db: BetterSqlite3MemoryDb): string[] {
   const rows = db.exec(
-    `SELECT confidence_label FROM memory_edges WHERE predicate = 'rationale_for'`,
+    `SELECT confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`,
   );
   return (rows[0]?.values ?? []).map((r) => String(r[0]));
 }
 
 function decisionSummaries(db: BetterSqlite3MemoryDb): string[] {
-  const rows = db.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+  const rows = db.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
   return (rows[0]?.values ?? []).map((r) => String(r[0]));
 }
 

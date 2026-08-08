@@ -30,14 +30,14 @@ function seedMemoryDb(dbPath: string): void {
   };
 
   run(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Package', 'trail-viewer', 'trail-viewer', ?, ?, ?)`,
     ['ent-1', TS, TS, TS],
   );
 
   const insertReview = (id: string, sourceRef: string, kind: string, reviewedAt: string): void => {
     run(
-      `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewer, reviewed_at, recorded_at, workspace)
+      `INSERT INTO caravan_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewer, reviewed_at, recorded_at, workspace)
        VALUES (?, ?, ?, 'ent-1', 'code', ?, 'pr-review-toolkit:code-reviewer', ?, ?, 'anytime-markdown')`,
       [id, kind, sourceRef, `Session review ${id}`, reviewedAt, reviewedAt],
     );
@@ -50,7 +50,7 @@ function seedMemoryDb(dbPath: string): void {
     targetFilePath: string | null,
   ): void => {
     run(
-      `INSERT INTO memory_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, recorded_at)
+      `INSERT INTO caravan_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, recorded_at)
        VALUES (?, ?, 'ent-1', ?, ?, 'logic', ?, ?, ?)`,
       [id, reviewId, index, targetFilePath, severity, `finding ${id}`, TS],
     );
@@ -70,7 +70,7 @@ function seedMemoryDb(dbPath: string): void {
   // Bug Fixed 一覧の指示名列も同じ畳み方（宣言済み / 暗黙 / セッション不明）を通る
   const insertBugFix = (id: string, sha: string, sessionId: string | null): void => {
     run(
-      `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
+      `INSERT INTO caravan_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
        VALUES (?, ?, 'ent-1', 'trail-viewer', 'logic', ?, ?, ?, ?)`,
       [id, sha, `bug ${id}`, TS, TS, sessionId],
     );
@@ -83,9 +83,9 @@ function seedMemoryDb(dbPath: string): void {
 }
 
 /**
- * instruction_sessions は caravan-book.db 側へ移設済み（2026-08-07）のため、activity.db では
+ * caravan_instruction_sessions は caravan-book.db 側へ移設済み（2026-08-07）のため、activity.db では
  * なく memoryDbPath へ FlightRecordDatabase 経由でシードする（openInstruction がテーブルを
- * 冪等作成し、instruction_sessions へ起点セッションを紐付ける）。
+ * 冪等作成し、caravan_instruction_sessions へ起点セッションを紐付ける）。
  */
 function seedInstructionSession(memoryDbPath: string): void {
   const flightDb = new FlightRecordDatabase(memoryDbPath);
@@ -183,7 +183,7 @@ describe('MemoryApiHandler flight review findings', () => {
 
     const db = new BetterSqlite3MemoryDb({ filePath: memoryDbPath });
     db.run(
-      `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewer, reviewed_at, recorded_at, workspace)
+      `INSERT INTO caravan_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewer, reviewed_at, recorded_at, workspace)
        VALUES ('rev-bulk', 'session', ?, 'ent-1', 'code', 'bulk', 'code-reviewer', ?, ?, 'anytime-markdown')`,
       [`${IMPLICIT_SESSION}#uuid-bulk`, TS, TS],
     );
@@ -191,7 +191,7 @@ describe('MemoryApiHandler flight review findings', () => {
     db.run('BEGIN');
     for (let i = 0; i < 250; i++) {
       db.run(
-        `INSERT INTO memory_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, recorded_at)
+        `INSERT INTO caravan_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, recorded_at)
          VALUES (?, 'rev-bulk', 'ent-1', ?, 'packages/x.ts', 'logic', 'info', ?, ?)`,
         [`rf-bulk-${i}`, i, `bulk ${i}`, TS],
       );

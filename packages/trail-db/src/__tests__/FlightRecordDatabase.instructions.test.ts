@@ -1,4 +1,4 @@
-// Flight Record: 指示台帳（instructions / instruction_sessions）と指示単位の一覧の外部仕様。
+// Flight Record: 指示台帳（instructions / caravan_instruction_sessions）と指示単位の一覧の外部仕様。
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -216,7 +216,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
     });
 
     describe('ワークスペース名', () => {
-      // flight_reviews.workspace_path はセッションの cwd 由来で、ワークスペース直下とは
+      // caravan_flight_reviews.workspace_path はセッションの cwd 由来で、ワークスペース直下とは
       // 限らない（実測: /anytime-markdown/.anytime/trail/db → 基準名が 'db' になる）
       let wsRoot: string;
 

@@ -108,7 +108,7 @@ let analyzeAllRunner: AnalyzeAllRunner | null = null;
 /**
  * AnalyzeAllRunner の PR レビュー系（PrReviewImporter / PrReviewFindingAnalyzer /
  * CrossSourceCorrelator の PR 相関）が読む caravan-book.db 接続。PR レビューの永続化先を
- * memory_reviews へ統合（2026-08-07）した配線で、LogService と同じ openMemoryCoreDb 前例。
+ * caravan_reviews へ統合（2026-08-07）した配線で、LogService と同じ openMemoryCoreDb 前例。
  * 接続の所有は daemon 側（rebuild ごとに開き直し、disposeAll で閉じる）。
  */
 let analyzeMemoryCoreDb: MemoryCoreDb | null = null;

@@ -29,22 +29,22 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     return openMemoryCoreDb(tmpDb);
   }
 
-  test('memory_reviews table is created', async () => {
+  test('caravan_reviews table is created', async () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_reviews'"
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='caravan_reviews'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
     close();
   }, 30000);
 
-  test('memory_review_findings table is created', async () => {
+  test('caravan_review_findings table is created', async () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_review_findings'"
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='caravan_review_findings'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -55,7 +55,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'reviewed_by'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'reviewed_by'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -66,7 +66,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'flagged'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'flagged'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -77,7 +77,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'addresses'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'addresses'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -88,7 +88,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'precedes'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'precedes'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -125,12 +125,12 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     close2();
   }, 30000);
 
-  test('FK: insert memory_review_findings with non-existent review_id throws', async () => {
+  test('FK: insert caravan_review_findings with non-existent review_id throws', async () => {
     const { db, close } = await openFresh();
 
     // Insert a real entity for finding_entity_id
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ['ent-finding-1', 'Concept', 'test-concept', 'Test Concept', TS, TS, TS]
@@ -138,7 +138,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_review_findings
+        `INSERT INTO caravan_review_findings
            (id, review_id, finding_entity_id, finding_index, finding_text, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['rf-test-1', 'nonexistent-review-id', 'ent-finding-1', 0, 'some finding', TS]
@@ -153,7 +153,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
 
     // Need a valid entity for review_entity_id
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ['ent-src-kind-1', 'Concept', 'src-kind-concept', 'Src Kind Concept', TS, TS, TS]
@@ -161,7 +161,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_reviews
+        `INSERT INTO caravan_reviews
            (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         ['rv-invalid-sk', 'invalid_value', 'ref/001', 'ent-src-kind-1', 'code', 'Bad kind', TS, TS]
@@ -175,7 +175,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db, close } = await openFresh();
 
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ['ent-ts-check-1', 'Concept', 'ts-check-concept', 'TS Check Concept', TS, TS, TS]
@@ -183,7 +183,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_reviews
+        `INSERT INTO caravan_reviews
            (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         ['rv-invalid-ts', 'review_doc', 'ref/002', 'ent-ts-check-1', 'code', 'Bad ts', '2026-01-01', TS]
@@ -197,21 +197,21 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db, close } = await openFresh();
 
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ['ent-uniq-1', 'Concept', 'uniq-concept', 'Uniq Concept', TS, TS, TS]
     );
 
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ['ent-uniq-2', 'Concept', 'uniq-concept-2', 'Uniq Concept 2', TS, TS, TS]
     );
 
     db.run(
-      `INSERT INTO memory_reviews
+      `INSERT INTO caravan_reviews
          (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ['rv-uniq-1', 'review_doc', 'ref/same', 'ent-uniq-1', 'code', 'First', TS, TS]
@@ -219,7 +219,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_reviews
+        `INSERT INTO caravan_reviews
            (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         ['rv-uniq-2', 'review_doc', 'ref/same', 'ent-uniq-2', 'code', 'Second', TS, TS]
@@ -229,12 +229,12 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     close();
   }, 30000);
 
-  test('FK: insert memory_reviews with non-existent review_entity_id throws', async () => {
+  test('FK: insert caravan_reviews with non-existent review_entity_id throws', async () => {
     const { db, close } = await openFresh();
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_reviews
+        `INSERT INTO caravan_reviews
            (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         ['rv-fk-1', 'review_doc', 'ref/fk-test', 'nonexistent-entity-id', 'code', 'FK test', TS, TS]
@@ -244,12 +244,12 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     close();
   }, 30000);
 
-  test('ON DELETE CASCADE: delete memory_reviews removes linked findings', async () => {
+  test('ON DELETE CASCADE: delete caravan_reviews removes linked findings', async () => {
     const { db, close } = await openFresh();
 
     // Insert entity for review_entity_id
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ['ent-review-1', 'Concept', 'review-concept', 'Review Concept', TS, TS, TS]
@@ -257,15 +257,15 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
 
     // Insert entity for finding_entity_id
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ['ent-finding-2', 'Concept', 'finding-concept', 'Finding Concept', TS, TS, TS]
     );
 
-    // Insert a memory_reviews row
+    // Insert a caravan_reviews row
     db.run(
-      `INSERT INTO memory_reviews
+      `INSERT INTO caravan_reviews
          (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ['rv-1', 'review_doc', 'review/2026-01-01.md', 'ent-review-1', 'code', 'Test Review', TS, TS]
@@ -273,21 +273,21 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
 
     // Insert a linked finding
     db.run(
-      `INSERT INTO memory_review_findings
+      `INSERT INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index, finding_text, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       ['rf-2', 'rv-1', 'ent-finding-2', 0, 'a finding', TS]
     );
 
     // Verify finding exists
-    const before = db.exec("SELECT COUNT(*) FROM memory_review_findings WHERE review_id = 'rv-1'");
+    const before = db.exec("SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = 'rv-1'");
     expect(before[0]?.values[0][0] as number).toBe(1);
 
     // Delete the parent review
-    db.run("DELETE FROM memory_reviews WHERE id = 'rv-1'");
+    db.run("DELETE FROM caravan_reviews WHERE id = 'rv-1'");
 
     // Finding should be gone due to CASCADE
-    const after = db.exec("SELECT COUNT(*) FROM memory_review_findings WHERE review_id = 'rv-1'");
+    const after = db.exec("SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = 'rv-1'");
     expect(after[0]?.values[0][0] as number).toBe(0);
 
     close();

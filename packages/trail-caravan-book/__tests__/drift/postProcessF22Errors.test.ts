@@ -122,7 +122,7 @@ describe('postProcessF22 - UPDATE 失敗パス', () => {
     let seq = 0;
     const insertEntity = (id: string, attrsJson: string): void => {
       db.run(
-        `INSERT INTO memory_entities
+        `INSERT INTO caravan_entities
            (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at, attributes_json)
          VALUES (?, 'Tool', ?, ?, ?, ?, ?, ?)`,
         [id, id, id, TS, TS, TS, attrsJson],
@@ -134,7 +134,7 @@ describe('postProcessF22 - UPDATE 失敗パス', () => {
       const reviewEntity = `rev-ent-${rid}`;
       insertEntity(reviewEntity, '{}');
       db.run(
-        `INSERT INTO memory_reviews
+        `INSERT INTO caravan_reviews
            (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
          VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?)`,
         [rid, rid, reviewEntity, TS, TS],
@@ -147,7 +147,7 @@ describe('postProcessF22 - UPDATE 失敗パス', () => {
     // 有効な JSON - suggested_by フィールドが正しく設定されるかチェック
     insertEntity(entityId, '{}');
     db.run(
-      `INSERT INTO memory_review_findings
+      `INSERT INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index, target_file_path, category, finding_text, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, 'text', ?)`,
       [`rf-${++seq}`, rev, entityId, seq, 'spec/attrs.md', 'other', TS],
@@ -163,7 +163,7 @@ describe('postProcessF22 - UPDATE 失敗パス', () => {
     });
 
     expect(result.findings_suggested).toBe(1);
-    const rows = db.exec(`SELECT attributes_json FROM memory_entities WHERE id = ?`, [entityId]);
+    const rows = db.exec(`SELECT attributes_json FROM caravan_entities WHERE id = ?`, [entityId]);
     const attrs = JSON.parse(rows[0].values[0][0] as string) as Record<string, unknown>;
     expect(attrs['category_suggested']).toBe('spec');
     expect(attrs['suggested_at']).toBe(TS);

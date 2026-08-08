@@ -212,7 +212,7 @@ describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () =>
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // 回帰: Wave 1/2/4 を pipeline_runs へ記録する openPipelineRunLedger は cli.ts でしか
+  // 回帰: Wave 1/2/4 を caravan_pipeline_runs へ記録する openPipelineRunLedger は cli.ts でしか
   // 注入されておらず、production 経路である daemon では落ちていた。Wave は走るのに台帳は
   // wave='memory' と 'system' しか埋まらず、Trail Pipeline の Runs 画面では sources /
   // primary / derived が恒久的に空 = 「パイプラインが動作していない」に見えた (2026-08-05)。

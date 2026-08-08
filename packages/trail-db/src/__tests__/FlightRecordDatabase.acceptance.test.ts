@@ -1,4 +1,4 @@
-// 受入台帳（acceptance_records）は 2026-08-07 に activity.db から caravan-book.db
+// 受入台帳（caravan_acceptance_records）は 2026-08-07 に activity.db から caravan-book.db
 // （FlightRecordDatabase）へ移設した。旧 TrailDatabase.acceptance.test.ts の移行版。
 // コミット・リポジトリ情報（session_commits / commit_files / repos）は activity.db 残留の
 // ため ctx.trailRun でシードする。
@@ -41,7 +41,7 @@ function seedCommit(
   }
 }
 
-describe('FlightRecordDatabase acceptance records (acceptance_records)', () => {
+describe('FlightRecordDatabase acceptance records (caravan_acceptance_records)', () => {
   let ctx: FlightRecordTestContext;
 
   beforeEach(() => {

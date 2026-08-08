@@ -27,7 +27,7 @@ function insertRunRow(
   startedAt: string,
 ): void {
   db.run(
-    `INSERT INTO memory_review_runs
+    `INSERT INTO caravan_review_runs
        (id, trigger_kind, target_kind, model, prompt_kind, prompt_hash, started_at, status, recorded_at)
      VALUES (?, 'manual', 'code', 'test-model', 'logic', 'h1', ?, ?, ?)`,
     [id, startedAt, status, TS],
@@ -53,7 +53,7 @@ test('I23: 11 min stale → stale_count=1, only that row becomes error/timeout',
 
     // 11 min row → error/timeout
     const staleRow = db.exec(
-      `SELECT status, error_detail, finished_at FROM memory_review_runs WHERE id = 'run-11m'`,
+      `SELECT status, error_detail, finished_at FROM caravan_review_runs WHERE id = 'run-11m'`,
     );
     expect(staleRow[0]?.values?.[0]?.[0]).toBe('error');
     expect(staleRow[0]?.values?.[0]?.[1]).toBe('timeout');
@@ -61,13 +61,13 @@ test('I23: 11 min stale → stale_count=1, only that row becomes error/timeout',
 
     // 5 min row → still running
     const freshRow = db.exec(
-      `SELECT status FROM memory_review_runs WHERE id = 'run-5m'`,
+      `SELECT status FROM caravan_review_runs WHERE id = 'run-5m'`,
     );
     expect(freshRow[0]?.values?.[0]?.[0]).toBe('running');
 
     // success row → unchanged
     const doneRow = db.exec(
-      `SELECT status FROM memory_review_runs WHERE id = 'run-done'`,
+      `SELECT status FROM caravan_review_runs WHERE id = 'run-done'`,
     );
     expect(doneRow[0]?.values?.[0]?.[0]).toBe('success');
   } finally {
@@ -92,7 +92,7 @@ test('timeoutMinutes=4 → stale_count=2, both 11 min and 5 min rows become erro
     expect(result.stale_count).toBe(2);
 
     const staleCount = db.exec(
-      `SELECT COUNT(*) FROM memory_review_runs WHERE status = 'error' AND error_detail = 'timeout'`,
+      `SELECT COUNT(*) FROM caravan_review_runs WHERE status = 'error' AND error_detail = 'timeout'`,
     );
     expect(staleCount[0]?.values?.[0]?.[0] as number).toBe(2);
   } finally {

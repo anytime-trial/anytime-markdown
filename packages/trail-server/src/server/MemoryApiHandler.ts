@@ -123,14 +123,14 @@ export interface ReviewHistoryRow {
 /**
  * Flight Record（指示単位の運航記録）へ畳んだレビュー指摘 1 件。
  *
- * `instructionId` は明示宣言（instruction_sessions・caravan-book.db 内）があればその指示 ID、無ければ
+ * `instructionId` は明示宣言（caravan_instruction_sessions・caravan-book.db 内）があればその指示 ID、無ければ
  * セッション ID そのもの。後者は TrailDatabase が「1 セッション = 1 指示」の暗黙グループへ
  * セッション ID を指示 ID として使うため、同じ値で突き合わせられる。
  */
 export interface FlightReviewFindingRow {
   id: string;
   /**
-   * memory_edges の `precedes` が指すのは finding の **entity id** であり行 id ではない。
+   * caravan_edges の `precedes` が指すのは finding の **entity id** であり行 id ではない。
    * バグ側の「事前指摘」チップから指摘へ絞り込むには両者を同じキーで揃える必要があるため、
    * 行 id と併せて entity id も返す。
    */
@@ -268,7 +268,7 @@ export class MemoryApiHandler {
   private trailDbAttached = false;
 
   /**
-   * caravan-book.db に instruction_sessions が在るか（指示 ID 解決用）。
+   * caravan-book.db に caravan_instruction_sessions が在るか（指示 ID 解決用）。
    * Flight Record は caravan-book.db へ移設済み（2026-08-07）だが、移行前の DB や
    * FlightRecordDatabase 初期化前はテーブルが無いため、実在を見て縮退を決める。
    * probe は openReadOnly の接続キャッシュ確立時に 1 回だけ走る。TrailDataServer の
@@ -331,12 +331,12 @@ export class MemoryApiHandler {
       });
       try {
         const probe = this.cachedReadOnlyDb.exec(
-          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'instruction_sessions'`,
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'caravan_instruction_sessions'`,
         );
         this.instructionSessionsAvailable = (probe[0]?.values.length ?? 0) > 0;
       } catch (err) {
         this.instructionSessionsAvailable = false;
-        this.logger.warn(`[MemoryApiHandler.openReadOnly] instruction_sessions probe failed: ${err instanceof Error ? err.message : String(err)}`);
+        this.logger.warn(`[MemoryApiHandler.openReadOnly] caravan_instruction_sessions probe failed: ${err instanceof Error ? err.message : String(err)}`);
       }
       const trailDbPath = path.join(path.dirname(this.dbPath), 'activity.db');
       if (fs.existsSync(trailDbPath)) {
@@ -396,9 +396,9 @@ export class MemoryApiHandler {
     try {
       const names = new Set<string>();
       for (const sql of [
-        "SELECT DISTINCT workspace FROM memory_reviews WHERE workspace != ''",
-        "SELECT DISTINCT workspace FROM memory_bug_fixes WHERE workspace != ''",
-        "SELECT DISTINCT workspace FROM memory_drift_events WHERE workspace != ''",
+        "SELECT DISTINCT workspace FROM caravan_reviews WHERE workspace != ''",
+        "SELECT DISTINCT workspace FROM caravan_bug_fixes WHERE workspace != ''",
+        "SELECT DISTINCT workspace FROM caravan_drift_events WHERE workspace != ''",
       ]) {
         const result = db.exec(sql);
         for (const row of result[0]?.values ?? []) names.add(String(row[0]));
@@ -460,8 +460,8 @@ export class MemoryApiHandler {
                de.predicate, de.drift_type, de.severity,
                de.conversation_value, de.spec_value, de.code_value,
                de.detected_at, de.resolved_at, de.resolution_note, de.workspace
-        FROM memory_drift_events de
-        LEFT JOIN memory_entities e ON e.id = de.subject_entity_id
+        FROM caravan_drift_events de
+        LEFT JOIN caravan_entities e ON e.id = de.subject_entity_id
         ${where}
         ORDER BY de.detected_at DESC
         LIMIT ?
@@ -505,8 +505,8 @@ export class MemoryApiHandler {
                 de.predicate, de.drift_type, de.severity,
                 de.conversation_value, de.spec_value, de.code_value,
                 de.detected_at, de.resolved_at, de.resolution_note, de.detail_json, de.workspace
-         FROM memory_drift_events de
-         LEFT JOIN memory_entities e ON e.id = de.subject_entity_id
+         FROM caravan_drift_events de
+         LEFT JOIN caravan_entities e ON e.id = de.subject_entity_id
          WHERE de.id = ?`,
         [eventId],
       );
@@ -587,8 +587,8 @@ export class MemoryApiHandler {
       const result = db.exec(
         `SELECT de.id, de.subject_entity_id, COALESCE(e.display_name, e.canonical_name, '') AS subject_display_name,
                 de.drift_type, de.severity, de.detected_at
-         FROM memory_drift_events de
-         LEFT JOIN memory_entities e ON e.id = de.subject_entity_id
+         FROM caravan_drift_events de
+         LEFT JOIN caravan_entities e ON e.id = de.subject_entity_id
          WHERE ${conditions.join(' AND ')}
          ORDER BY de.detected_at DESC
          LIMIT ?`,
@@ -659,11 +659,11 @@ export class MemoryApiHandler {
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
       // 指示 ID は Review タブ（flightFindingSourceSql）と同じ規則で解決する。
-      // instruction_sessions は caravan-book.db 内（2026-08-07 移設）。未移行 DB では
+      // caravan_instruction_sessions は caravan-book.db 内（2026-08-07 移設）。未移行 DB では
       // テーブルが無いので、行全体を落とさずセッション ID へフォールバックする。
       const instructionIdExpr = this.instructionSessionsAvailable
         ? `COALESCE(
-             (SELECT i.instruction_id FROM instruction_sessions i
+             (SELECT i.instruction_id FROM caravan_instruction_sessions i
                WHERE i.session_id = bf.related_session_id),
              bf.related_session_id
            )`
@@ -673,10 +673,10 @@ export class MemoryApiHandler {
                 bf.subject_summary, bf.related_session_id, bf.committed_at, bf.workspace,
                 ${instructionIdExpr} AS instruction_id,
                 (SELECT GROUP_CONCAT(e.subject_entity_id)
-                 FROM memory_edges e
+                 FROM caravan_edges e
                  WHERE e.predicate='precedes' AND e.valid_to IS NULL
                    AND e.object_entity_id = bf.bug_entity_id) AS preceded_by
-         FROM memory_bug_fixes bf
+         FROM caravan_bug_fixes bf
          ${where}
          ORDER BY bf.committed_at DESC
          LIMIT ?`,
@@ -717,7 +717,7 @@ export class MemoryApiHandler {
       const bugResult = db.exec(
         `SELECT bf.commit_sha, bf.subject_summary, bf.category, bf.committed_at,
                 bf.affected_file_paths_json, bf.introduced_commit_sha
-         FROM memory_bug_fixes bf
+         FROM caravan_bug_fixes bf
          WHERE bf.bug_entity_id = ?
          ORDER BY bf.committed_at DESC
          LIMIT 1`,
@@ -739,8 +739,8 @@ export class MemoryApiHandler {
       // 2. root causes (caused_by edges → entity display_name)
       const causedByResult = db.exec(
         `SELECT e.id, COALESCE(e.display_name, e.canonical_name, '') AS name
-         FROM memory_edges edge
-         JOIN memory_entities e ON e.id = edge.object_entity_id
+         FROM caravan_edges edge
+         JOIN caravan_entities e ON e.id = edge.object_entity_id
          WHERE edge.predicate='caused_by' AND edge.valid_to IS NULL
            AND edge.subject_entity_id = ?`,
         toBindParams([bugEntityId]),
@@ -755,7 +755,7 @@ export class MemoryApiHandler {
         ? null
         : db.exec(
             `SELECT DISTINCT edge.subject_entity_id
-             FROM memory_edges edge
+             FROM caravan_edges edge
              WHERE edge.predicate='caused_by' AND edge.valid_to IS NULL
                AND edge.object_entity_id IN (${rootCauses.map(() => '?').join(',')})
                AND edge.subject_entity_id != ?`,
@@ -766,8 +766,8 @@ export class MemoryApiHandler {
       // 4. preceding findings (precedes edges 逆方向)
       const precedesResult = db.exec(
         `SELECT edge.subject_entity_id, rf.target_file_path, rf.severity
-         FROM memory_edges edge
-         LEFT JOIN memory_review_findings rf ON rf.finding_entity_id = edge.subject_entity_id
+         FROM caravan_edges edge
+         LEFT JOIN caravan_review_findings rf ON rf.finding_entity_id = edge.subject_entity_id
          WHERE edge.predicate='precedes' AND edge.valid_to IS NULL
            AND edge.object_entity_id = ?`,
         toBindParams([bugEntityId]),
@@ -783,7 +783,7 @@ export class MemoryApiHandler {
       let introducedByCommitSubject: string | null = null;
       if (introducedCommitSha) {
         const subResult = db.exec(
-          `SELECT subject_summary FROM memory_bug_fixes WHERE commit_sha=? LIMIT 1`,
+          `SELECT subject_summary FROM caravan_bug_fixes WHERE commit_sha=? LIMIT 1`,
           toBindParams([introducedCommitSha]),
         );
         const subRow = subResult[0]?.values?.[0];
@@ -792,8 +792,8 @@ export class MemoryApiHandler {
         // fallback to introduced_by edge
         const edgeResult = db.exec(
           `SELECT e.canonical_name
-           FROM memory_edges edge
-           JOIN memory_entities e ON e.id = edge.object_entity_id
+           FROM caravan_edges edge
+           JOIN caravan_entities e ON e.id = edge.object_entity_id
            WHERE edge.predicate='introduced_by' AND edge.valid_to IS NULL
              AND edge.subject_entity_id = ?
            LIMIT 1`,
@@ -801,7 +801,7 @@ export class MemoryApiHandler {
         );
         const introRow = edgeResult[0]?.values?.[0];
         if (introRow) {
-          // memory_entities.canonical_name for Commit type = commit_sha
+          // caravan_entities.canonical_name for Commit type = commit_sha
         }
       }
 
@@ -856,7 +856,7 @@ export class MemoryApiHandler {
       const result = db.exec(
         `SELECT rf.id, rf.review_id, rf.target_file_path, rf.category, rf.severity,
                 rf.finding_text, rf.recorded_at
-         FROM memory_review_findings rf
+         FROM caravan_review_findings rf
          WHERE ${conditions.join(' AND ')}
          ORDER BY rf.recorded_at ASC
          LIMIT ?`,
@@ -928,12 +928,12 @@ export class MemoryApiHandler {
                 rf.target_file_path, rf.target_repo, rf.category, rf.severity, rf.finding_text,
                 rf.addressed_commit_sha, rf.addressed_at,
                 (SELECT GROUP_CONCAT(e.object_entity_id)
-                 FROM memory_edges e
+                 FROM caravan_edges e
                  WHERE e.predicate='precedes' AND e.valid_to IS NULL
                    AND e.subject_entity_id = rf.finding_entity_id) AS precedes_bugs
-         FROM memory_review_findings rf
-         JOIN memory_reviews r ON r.id = rf.review_id
-         LEFT JOIN memory_review_runs rr ON r.source_kind = 'agent' AND rr.id = r.source_ref
+         FROM caravan_review_findings rf
+         JOIN caravan_reviews r ON r.id = rf.review_id
+         LEFT JOIN caravan_review_runs rr ON r.source_kind = 'agent' AND rr.id = r.source_ref
          WHERE 1=1 ${where}
          ORDER BY r.reviewed_at DESC
          LIMIT ?`,
@@ -983,7 +983,7 @@ export class MemoryApiHandler {
   private flightFindingSourceSql(): string {
     return `SELECT f.*,
                    COALESCE(
-                     (SELECT i.instruction_id FROM instruction_sessions i
+                     (SELECT i.instruction_id FROM caravan_instruction_sessions i
                        WHERE i.session_id = f.session_id),
                      f.session_id
                    ) AS instruction_id
@@ -993,8 +993,8 @@ export class MemoryApiHandler {
                      rf.addressed_commit_sha, rf.addressed_at,
                      r.title, r.reviewer, r.reviewed_at, r.workspace,
                      substr(r.source_ref, 1, instr(r.source_ref, '#') - 1) AS session_id
-              FROM memory_review_findings rf
-              JOIN memory_reviews r ON r.id = rf.review_id
+              FROM caravan_review_findings rf
+              JOIN caravan_reviews r ON r.id = rf.review_id
               WHERE r.source_kind = 'session' AND instr(r.source_ref, '#') > 1
             ) f`;
   }
@@ -1002,7 +1002,7 @@ export class MemoryApiHandler {
   /**
    * 指示単位の指摘件数。instructionIds 未指定なら全件を返す。
    *
-   * activity.db が ATTACH できていないときは結合キー（instruction_sessions）が引けないため
+   * activity.db が ATTACH できていないときは結合キー（caravan_instruction_sessions）が引けないため
    * 空配列を返す。呼び出し側が「0 件」と「引けなかった」を区別できるよう、理由をログへ残す。
    */
   async getFlightReviewFindingCounts(): Promise<FlightReviewFindingCountRow[]> {
@@ -1010,7 +1010,7 @@ export class MemoryApiHandler {
     if (!db) return [];
     try {
       if (!this.instructionSessionsAvailable) {
-        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] instruction_sessions table missing in caravan-book.db; cannot resolve instruction ids');
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] caravan_instruction_sessions table missing in caravan-book.db; cannot resolve instruction ids');
         return [];
       }
       const result = db.exec(
@@ -1053,7 +1053,7 @@ export class MemoryApiHandler {
     if (!db) return [];
     try {
       if (!this.instructionSessionsAvailable) {
-        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] instruction_sessions table missing in caravan-book.db; cannot resolve instruction ids');
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] caravan_instruction_sessions table missing in caravan-book.db; cannot resolve instruction ids');
         return [];
       }
       // Review タブは全指示横断の一覧なので、他 API より大きい上限を許す（ルートの
@@ -1144,7 +1144,7 @@ export class MemoryApiHandler {
                       WHEN 'running' THEN 0
                       ELSE 0
                     END) AS worst_rank
-         FROM pipeline_runs
+         FROM caravan_pipeline_runs
          ${where}
          GROUP BY day, scope, wave
          ORDER BY day DESC, scope ASC, wave ASC`,
@@ -1206,7 +1206,7 @@ export class MemoryApiHandler {
       const result = db.exec(
         `SELECT id, scope, wave, tier, status, started_at, finished_at, duration_ms,
                 items_processed, items_failed, error_detail
-         FROM pipeline_runs
+         FROM caravan_pipeline_runs
          ${where}
          ORDER BY started_at DESC
          LIMIT ?`,
@@ -1248,7 +1248,7 @@ export class MemoryApiHandler {
       const limit = clampLimit(params.limit, 200);
       const result = db.exec(
         `SELECT id, timestamp, level, source, component, message, metadata, stack
-         FROM pipeline_run_logs
+         FROM caravan_pipeline_run_logs
          WHERE run_id = ?
          ORDER BY timestamp ASC, id ASC
          LIMIT ?`,
@@ -1316,7 +1316,7 @@ export class MemoryApiHandler {
       }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       const result = db.exec(
-        `SELECT detected_at, resolved_at FROM memory_drift_events ${where}`,
+        `SELECT detected_at, resolved_at FROM caravan_drift_events ${where}`,
         toBindParams(bindValues),
       );
       if (!result[0]) {
@@ -1363,7 +1363,7 @@ export class MemoryApiHandler {
       bindValues.push(limit);
       const result = db.exec(
         `SELECT scope, item_key, failed_at, reason, detail, attempt_count
-         FROM memory_failed_items
+         FROM caravan_failed_items
          WHERE ${conditions.join(' AND ')}
          ORDER BY failed_at DESC
          LIMIT ?`,
@@ -1405,9 +1405,9 @@ export class MemoryApiHandler {
     try {
       const result = db.exec(
         `SELECT c.canonical_name AS commit_hash, d.summary, e.confidence_label, e.recorded_at AS created_at
-         FROM memory_edges e
-         JOIN memory_entities d ON d.id = e.subject_entity_id AND d.type = 'Decision'
-         JOIN memory_entities c ON c.id = e.object_entity_id AND c.type = 'Commit'
+         FROM caravan_edges e
+         JOIN caravan_entities d ON d.id = e.subject_entity_id AND d.type = 'Decision'
+         JOIN caravan_entities c ON c.id = e.object_entity_id AND c.type = 'Commit'
          WHERE e.predicate = 'rationale_for'
            AND c.canonical_name IN (SELECT commit_hash FROM trail.session_commits WHERE session_id = ?)
          ORDER BY e.recorded_at DESC
@@ -1458,7 +1458,7 @@ export class MemoryApiHandler {
       bindValues.push(limit);
       const result = db.exec(
         `SELECT id, edge_id, invalidated_at, reason, superseding_edge_id
-         FROM memory_edge_invalidations
+         FROM caravan_edge_invalidations
          ${where}
          ORDER BY invalidated_at DESC
          LIMIT ?`,
@@ -1487,7 +1487,7 @@ export class MemoryApiHandler {
   // ---- knowledge graph (共起ネットワーク表示用) ----
 
   /**
-   * 知識グラフ（memory_entities / memory_edges）を共起ネットワーク描画用に集約して返す。
+   * 知識グラフ（caravan_entities / caravan_edges）を共起ネットワーク描画用に集約して返す。
    * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md §2.2
    *
    * 全件（実測 2.9 万ノード）は描画できないため、有効エッジ次数の上位 `limit` 件だけを返す。
@@ -1510,13 +1510,13 @@ export class MemoryApiHandler {
       const activeCte = `
         active AS (
           SELECT e.subject_entity_id AS s, e.object_entity_id AS o
-          FROM memory_edges e
-          JOIN memory_entities es ON es.id = e.subject_entity_id
-          JOIN memory_entities eo ON eo.id = e.object_entity_id
+          FROM caravan_edges e
+          JOIN caravan_entities es ON es.id = e.subject_entity_id
+          JOIN caravan_entities eo ON eo.id = e.object_entity_id
           WHERE e.object_entity_id IS NOT NULL
             AND e.subject_entity_id != e.object_entity_id
             AND e.valid_to IS NULL
-            AND NOT EXISTS (SELECT 1 FROM memory_edge_invalidations i WHERE i.edge_id = e.id)
+            AND NOT EXISTS (SELECT 1 FROM caravan_edge_invalidations i WHERE i.edge_id = e.id)
             ${typeFilter}
         )`;
       const typeBinds = types.length > 0 ? [...types, ...types] : [];
@@ -1531,7 +1531,7 @@ export class MemoryApiHandler {
           ) GROUP BY id
         )
         SELECT en.id, en.display_name, en.type, deg.d
-        FROM deg JOIN memory_entities en ON en.id = deg.id
+        FROM deg JOIN caravan_entities en ON en.id = deg.id
         ORDER BY deg.d DESC, en.id
         LIMIT ?`,
         toBindParams([...typeBinds, limit]),
@@ -1573,7 +1573,7 @@ export class MemoryApiHandler {
 
       const countFilter = types.length > 0 ? `WHERE type IN (${types.map(() => '?').join(',')})` : '';
       const totalResult = db.exec(
-        `SELECT COUNT(*) FROM memory_entities ${countFilter}`,
+        `SELECT COUNT(*) FROM caravan_entities ${countFilter}`,
         toBindParams([...types]),
       );
       const totalEntityCount = Number(totalResult[0]?.values[0]?.[0] ?? 0);
@@ -1585,7 +1585,7 @@ export class MemoryApiHandler {
       );
       const connectedEntityCount = Number(connectedResult[0]?.values[0]?.[0] ?? 0);
 
-      const availableResult = db.exec(`SELECT DISTINCT type FROM memory_entities ORDER BY type`);
+      const availableResult = db.exec(`SELECT DISTINCT type FROM caravan_entities ORDER BY type`);
       const availableTypes = (availableResult[0]?.values ?? []).map((row) => toStr(row[0]));
 
       return {

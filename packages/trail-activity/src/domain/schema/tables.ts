@@ -576,7 +576,7 @@ export const CREATE_PR_REVIEW_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_pr_reviews_submitted_at ON pr_reviews(submitted_at)`,
 ];
 
-// PR review から抽出した finding (Step 4c)。trail-caravan-book の memory_review_findings とは
+// PR review から抽出した finding (Step 4c)。trail-caravan-book の caravan_review_findings とは
 // 完全に分離した独立テーブル。trail-caravan-book の source_type enum (CHECK 制約) を変更せず、
 // drift/compare クエリへ影響を与えないため独立させる (lep-step4 プラン §6.3.2)。
 // severity は LLM 分類時のみ設定し、LLM 不在時は NULL (raw コメントのみ保存)。
@@ -663,7 +663,7 @@ export const CREATE_EMERGENCY_INDEXES = [
 // sessions 行の取込（インポートラグ数十分〜）より先に届くため。
 // outcome は S1 では 'unknown' 固定（機械集計で成否を断定しない）。self は S2、manual は S3 で使用開始。
 // rationale_audit_status は S4 で追加（既存 DB へは列ごと独立 columnExists の ALTER。Rationale Audit の記録粒度はセッション単位）。
-export const CREATE_FLIGHT_REVIEWS = `CREATE TABLE IF NOT EXISTS flight_reviews (
+export const CREATE_FLIGHT_REVIEWS = `CREATE TABLE IF NOT EXISTS caravan_flight_reviews (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL UNIQUE,
   workspace_path TEXT NOT NULL DEFAULT '',
@@ -686,7 +686,7 @@ export const CREATE_FLIGHT_REVIEWS = `CREATE TABLE IF NOT EXISTS flight_reviews 
 ) STRICT`;
 
 export const CREATE_FLIGHT_REVIEW_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_flight_reviews_ended_at ON flight_reviews(ended_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_flight_reviews_ended_at ON caravan_flight_reviews(ended_at)`,
 ];
 
 // Phase 6 S2 (User Feedback Logging): ユーザーの事後修正指示の記録。
@@ -709,10 +709,10 @@ export const CREATE_USER_FEEDBACK_INDEXES = [
 
 // 自律受入基盤 S5 (受入台帳): develop マージコミット単位の受入記録。
 // FK を張らない: farm（受入ファーム）の書き込みは Trail のコミット取込（session_commits）より
-// 先に届くため（flight_reviews / safe_points と同方針）。
+// 先に届くため（caravan_flight_reviews / safe_points と同方針）。
 // 冪等性: (commit_sha, route) を PK とし UPSERT（farm の再実行・多重記録を吸収）。
 // verdict='not_run' はファーム自体の実行失敗（環境要因）で、合格でも不合格でもない（要件書 §9）。
-export const CREATE_ACCEPTANCE_RECORDS = `CREATE TABLE IF NOT EXISTS acceptance_records (
+export const CREATE_ACCEPTANCE_RECORDS = `CREATE TABLE IF NOT EXISTS caravan_acceptance_records (
   commit_sha TEXT NOT NULL,
   route TEXT NOT NULL CHECK (route IN ('auto', 'machine', 'human')),
   repo_name TEXT NOT NULL DEFAULT '',
@@ -730,7 +730,7 @@ export const CREATE_ACCEPTANCE_RECORDS = `CREATE TABLE IF NOT EXISTS acceptance_
 ) STRICT`;
 
 export const CREATE_ACCEPTANCE_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_acceptance_records_decided_at ON acceptance_records(decided_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_acceptance_records_decided_at ON caravan_acceptance_records(decided_at)`,
 ];
 
 // ドクトリン接地判断の並走記録 (D1)。中間承認の直前のエージェント判断と人の判断を
@@ -753,7 +753,7 @@ const DELEGATED_AT_CHECK = `CHECK (delegated_at IS NULL OR delegated_at GLOB ${T
  */
 const UNDERSPECIFIED_POINTS_COLUMN = `underspecified_points_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(underspecified_points_json))`;
 
-export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_judgments (
+export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS caravan_doctrine_judgments (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL,
   subject TEXT NOT NULL,
@@ -785,16 +785,16 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
  * 既存 DB へ `delegated_at` を足す ALTER。CHECK 制約を CREATE 側と同一に保つため、
  * GLOB 定義を共有するここで組み立てる（手書きすると新規 DB と移行 DB で制約が食い違う）。
  */
-export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE doctrine_judgments ADD COLUMN delegated_at TEXT ${DELEGATED_AT_CHECK}`;
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE caravan_doctrine_judgments ADD COLUMN delegated_at TEXT ${DELEGATED_AT_CHECK}`;
 
 /**
  * 既存 DB へ `underspecified_points_json` を足す ALTER。NOT NULL + DEFAULT `'[]'` なので、
  * **既存行はこの ALTER の時点で「空の申告」に確定する**（遡って原因を分類し直さない）。
  */
-export const ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS = `ALTER TABLE doctrine_judgments ADD COLUMN ${UNDERSPECIFIED_POINTS_COLUMN}`;
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS = `ALTER TABLE caravan_doctrine_judgments ADD COLUMN ${UNDERSPECIFIED_POINTS_COLUMN}`;
 
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON caravan_doctrine_judgments(judged_at)`,
 ];
 
 // Architectural Drift Detection (管制塔要件 §2.3): 宣言境界（パッケージ）と
@@ -860,8 +860,8 @@ export const CREATE_BOUNDARY_DRIFT_INDEXES = [
 // 自動判定する方式は「進めて」で始まる新規指示と継続を原理的に区別できないため採らない。
 //
 // sessions への FK を張らない: 宣言はセッション取込（import ラグ数十分）より先行して届く
-// （flight_reviews / user_feedback_entries / acceptance_records と同方針）。表示側は欠損に耐える。
-export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS instructions (
+// （caravan_flight_reviews / user_feedback_entries / caravan_acceptance_records と同方針）。表示側は欠損に耐える。
+export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS caravan_instructions (
   id TEXT PRIMARY KEY,
   workspace_path TEXT NOT NULL DEFAULT '',
   workspace_name TEXT NOT NULL DEFAULT '',
@@ -877,19 +877,19 @@ export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS instructions (
 // session_id は PK 単独: 1 セッションは 1 指示にしか属さない。所属替えは UPSERT で上書きする
 // （2 つの指示へ同時に属せると、時間・トークンが二重計上され合計が実測と合わなくなる）。
 // instruction_id の FK は宣言のみで、参照整合は DB では強制されない — activity.db は
-// foreign_keys=OFF で開くため。指示を削除する経路を足す場合、instruction_sessions の
+// foreign_keys=OFF で開くため。指示を削除する経路を足す場合、caravan_instruction_sessions の
 // 掃除はアプリ側の責務になる（DDL の ON DELETE CASCADE に頼れない）。
-export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS instruction_sessions (
+export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS caravan_instruction_sessions (
   session_id TEXT PRIMARY KEY,
-  instruction_id TEXT NOT NULL REFERENCES instructions(id) ON DELETE CASCADE,
+  instruction_id TEXT NOT NULL REFERENCES caravan_instructions(id) ON DELETE CASCADE,
   sequence INTEGER NOT NULL CHECK (sequence >= 1),
   declared_at TEXT NOT NULL CHECK (declared_at GLOB ${TS_GLOB_MS} OR declared_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
 export const CREATE_INSTRUCTION_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_instructions_started_at ON instructions(started_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_instructions_workspace_open ON instructions(workspace_path, closed_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_instruction_sessions_instruction ON instruction_sessions(instruction_id, sequence)`,
+  `CREATE INDEX IF NOT EXISTS idx_instructions_started_at ON caravan_instructions(started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instructions_workspace_open ON caravan_instructions(workspace_path, closed_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instruction_sessions_instruction ON caravan_instruction_sessions(instruction_id, sequence)`,
 ];
 
 // 検証実施台帳: 1 行 = 検証コマンド 1 回の実行（scripts/run-verified.mjs が書く）。
@@ -899,7 +899,7 @@ export const CREATE_INSTRUCTION_INDEXES = [
 // を使わない — 形が非互換で、触ると拡張側のマイグレーション記録を壊すため。
 //
 // session_id は「どの指示の検証か」を解く唯一のキー。instruction_id は非正規化しない:
-// 宣言が無いセッションは instruction_sessions に行を持たず、その場合の指示 ID は session_id
+// 宣言が無いセッションは caravan_instruction_sessions に行を持たず、その場合の指示 ID は session_id
 // そのもの（1 セッション = 1 指示の暗黙グループ）なので、読み出し側で COALESCE すれば足りる。
 // 帰属不明（CLAUDE_CODE_SESSION_ID の無い手動実行）は '' で記録し、指示へは畳まれない。
 export const CREATE_VERIFICATION_RUNS = `CREATE TABLE IF NOT EXISTS verification_runs (

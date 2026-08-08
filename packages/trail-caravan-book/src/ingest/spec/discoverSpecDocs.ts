@@ -84,7 +84,7 @@ function readFileContent(abs_path: string, logger: MemoryLogger): Buffer | null 
 
 /**
  * Discover spec Markdown files under specRoot that are new or have changed
- * (by comparing sha1 source_hash against memory_spec_documents table).
+ * (by comparing sha1 source_hash against caravan_spec_documents table).
  *
  * Side effects: reads files from disk, queries DB. Never writes.
  */
@@ -109,7 +109,7 @@ export async function discoverChangedSpecs(input: DiscoverInput): Promise<Change
   });
 
   const results: ChangedSpec[] = [];
-  const stmt = db.prepare('SELECT source_hash FROM memory_spec_documents WHERE rel_path = ?');
+  const stmt = db.prepare('SELECT source_hash FROM caravan_spec_documents WHERE rel_path = ?');
 
   try {
     for (const rel of mdFiles) {

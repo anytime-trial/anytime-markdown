@@ -23,7 +23,7 @@ function insertEntity(
   validUntil: string | null = null,
 ): void {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, summary, aliases_json,
         first_seen_at, last_updated_at, recorded_at, valid_until)
      VALUES (?, 'Function', ?, ?, ?, '[]', ?, ?, ?, ?)`,
@@ -33,7 +33,7 @@ function insertEntity(
 
 function insertEpisode(db: MemoryDbConnection, id: string, raw: string): void {
   db.run(
-    `INSERT INTO memory_episodes
+    `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model,
         valid_from, recorded_at, raw_excerpt)
      VALUES (?, 'sess', 'm1', 'm2', 'claude_code', 'sonnet', ?, ?, ?)`,
@@ -43,7 +43,7 @@ function insertEpisode(db: MemoryDbConnection, id: string, raw: string): void {
 
 function insertDrift(db: MemoryDbConnection, id: string, entityId: string, predicate: string): void {
   db.run(
-    `INSERT INTO memory_drift_events
+    `INSERT INTO caravan_drift_events
        (id, subject_entity_id, predicate, drift_type, severity, detected_at)
      VALUES (?, ?, ?, 'spec_vs_code', 'warn', ?)`,
     [id, entityId, predicate, TS],
@@ -84,8 +84,8 @@ describe('runRagFtsRebuild', () => {
     expect(result.status).toBe('success');
     const matches = db.exec(
       `SELECT e.display_name
-         FROM memory_entities e
-         JOIN memory_entities_fts f ON e.rowid = f.rowid`,
+         FROM caravan_entities e
+         JOIN caravan_entities_fts f ON e.rowid = f.rowid`,
     );
     const names = (matches[0]?.values ?? []).map((r) => r[0] as string);
     expect(names).toEqual(['Active Fn']);
@@ -100,29 +100,29 @@ describe('runRagFtsRebuild', () => {
 
     expect(result.status).toBe('success');
     const episodeMatch = db.exec(
-      `SELECT count(*) FROM memory_episodes_fts WHERE memory_episodes_fts MATCH 'quick'`,
+      `SELECT count(*) FROM caravan_episodes_fts WHERE caravan_episodes_fts MATCH 'quick'`,
     );
     expect(episodeMatch[0]?.values[0][0]).toBeGreaterThan(0);
 
     const driftMatch = db.exec(
-      `SELECT count(*) FROM memory_drift_events_fts WHERE memory_drift_events_fts MATCH 'returns'`,
+      `SELECT count(*) FROM caravan_drift_events_fts WHERE caravan_drift_events_fts MATCH 'returns'`,
     );
     expect(driftMatch[0]?.values[0][0]).toBeGreaterThan(0);
   });
 
   test('既に running の場合はスキップ', async () => {
     db.run(
-      `INSERT INTO memory_pipeline_state(scope, status) VALUES ('rag_fts_rebuild', 'running')`,
+      `INSERT INTO caravan_pipeline_state(scope, status) VALUES ('rag_fts_rebuild', 'running')`,
     );
     const result = await runRagFtsRebuild({ db, trigger: 'manual' });
     expect(result.status).toBe('skipped');
   });
 
-  test('完了時に pipeline_runs に 1 行 success で記録される', async () => {
+  test('完了時に caravan_pipeline_runs に 1 行 success で記録される', async () => {
     insertEntity(db, 'e1', 'fn', 'Fn', '', null);
     await runRagFtsRebuild({ db, trigger: 'manual' });
     const runs = db.exec(
-      `SELECT scope, status FROM pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
+      `SELECT scope, status FROM caravan_pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
     );
     expect(runs[0]?.values).toHaveLength(1);
     expect(runs[0]?.values[0][1]).toBe('success');
@@ -131,7 +131,7 @@ describe('runRagFtsRebuild', () => {
   test('完了後 pipeline_state は idle に戻る', async () => {
     await runRagFtsRebuild({ db, trigger: 'manual' });
     const state = db.exec(
-      `SELECT status FROM memory_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
+      `SELECT status FROM caravan_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
     );
     expect(state[0]?.values[0][0]).toBe('idle');
   });
@@ -157,13 +157,13 @@ describe('runRagFtsRebuild', () => {
 
     // pipeline_state should be 'error'
     const state = db.exec(
-      `SELECT status FROM memory_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
+      `SELECT status FROM caravan_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
     );
     expect(state[0]?.values[0][0]).toBe('error');
 
-    // pipeline_runs row should be 'error'
+    // caravan_pipeline_runs row should be 'error'
     const runs = db.exec(
-      `SELECT status FROM pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
+      `SELECT status FROM caravan_pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
     );
     expect(runs[0]?.values[0][0]).toBe('error');
   });
@@ -204,15 +204,15 @@ describe('runRagFtsRebuild', () => {
     await runRagFtsRebuild({ db, trigger: 'manual' });
 
     // entities テーブルを変更 → 再構築すると FTS に反映される
-    db.run(`UPDATE memory_entities SET display_name = 'Fn2' WHERE id = 'e1'`);
+    db.run(`UPDATE caravan_entities SET display_name = 'Fn2' WHERE id = 'e1'`);
     await runRagFtsRebuild({ db, trigger: 'manual' });
 
     const r = db.exec(
-      `SELECT count(*) FROM memory_entities_fts WHERE memory_entities_fts MATCH 'Fn2'`,
+      `SELECT count(*) FROM caravan_entities_fts WHERE caravan_entities_fts MATCH 'Fn2'`,
     );
     expect(r[0]?.values[0][0]).toBe(1);
     const r2 = db.exec(
-      `SELECT count(*) FROM memory_entities_fts WHERE memory_entities_fts MATCH 'Fn1'`,
+      `SELECT count(*) FROM caravan_entities_fts WHERE caravan_entities_fts MATCH 'Fn1'`,
     );
     expect(r2[0]?.values[0][0]).toBe(0);
   });

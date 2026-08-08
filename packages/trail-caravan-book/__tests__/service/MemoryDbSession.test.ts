@@ -318,7 +318,7 @@ describe('MemoryDbSession', () => {
 
       // cursor を事前に設定 (incremental 経路)
       memDb.db.run(
-        `INSERT OR REPLACE INTO memory_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
+        `INSERT OR REPLACE INTO caravan_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
         ['conversation_incremental', '2026-01-01T00:00:00.000Z'],
       );
 
@@ -346,7 +346,7 @@ describe('MemoryDbSession', () => {
       const trailDb = makeTrailDb();
 
       memDb.db.run(
-        `INSERT OR REPLACE INTO memory_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
+        `INSERT OR REPLACE INTO caravan_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
         ['conversation_incremental', '2026-01-01T00:00:00.000Z'],
       );
 
@@ -371,7 +371,7 @@ describe('MemoryDbSession', () => {
 
       // cursor 設定済み
       memDb.db.run(
-        `INSERT OR REPLACE INTO memory_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
+        `INSERT OR REPLACE INTO caravan_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
         ['conversation_incremental', '2026-01-01T00:00:00.000Z'],
       );
 
@@ -594,7 +594,7 @@ describe('MemoryDbSession', () => {
 
       expect(mockRunReviewBackfill).toHaveBeenCalledTimes(1);
       const first = memDb.db.exec(
-        "SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+        "SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'review_body_backfill'",
       );
       expect(String(first[0]?.values?.[0]?.[0] ?? '')).not.toBe('');
 
@@ -616,7 +616,7 @@ describe('MemoryDbSession', () => {
       await session.runReview();
 
       const rows = memDb.db.exec(
-        "SELECT scope FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+        "SELECT scope FROM caravan_pipeline_state WHERE scope = 'review_body_backfill'",
       );
       expect(rows[0]?.values ?? []).toEqual([]);
 
@@ -646,7 +646,7 @@ describe('MemoryDbSession', () => {
       expect(result.status).toBe('success');
       expect(logger.error).toHaveBeenCalled();
       const rows = memDb.db.exec(
-        "SELECT scope FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+        "SELECT scope FROM caravan_pipeline_state WHERE scope = 'review_body_backfill'",
       );
       expect(rows[0]?.values ?? []).toEqual([]);
 
@@ -1099,7 +1099,7 @@ describe('MemoryDbSession', () => {
 
       // incremental 経路へ
       memDb.db.run(
-        `INSERT OR REPLACE INTO memory_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
+        `INSERT OR REPLACE INTO caravan_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
         ['conversation_incremental', '2026-01-01T00:00:00.000Z'],
       );
 
@@ -1177,7 +1177,7 @@ describe('MemoryDbSession', () => {
       // incremental 経路へ
       const rawDb = (memDb as { db: BetterSqlite3MemoryDb }).db;
       rawDb.run(
-        `INSERT OR REPLACE INTO memory_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
+        `INSERT OR REPLACE INTO caravan_pipeline_state (scope, last_processed_at) VALUES (?, ?)`,
         ['conversation_incremental', '2026-01-01T00:00:00.000Z'],
       );
 

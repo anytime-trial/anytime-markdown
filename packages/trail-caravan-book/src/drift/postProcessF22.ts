@@ -13,8 +13,8 @@ function suggestSpecCategory(
   try {
     rows = db.exec(
       `SELECT e.id, e.attributes_json
-       FROM memory_review_findings rf
-       JOIN memory_entities e ON e.id = rf.finding_entity_id
+       FROM caravan_review_findings rf
+       JOIN caravan_entities e ON e.id = rf.finding_entity_id
        WHERE rf.target_file_path = ?
          AND rf.category = 'other'`,
       [targetSpecPath],
@@ -40,7 +40,7 @@ function suggestSpecCategory(
     attrs['suggested_at'] = recordedAt;
     attrs['suggested_by'] = eventId;
     try {
-      db.run(`UPDATE memory_entities SET attributes_json = ? WHERE id = ?`, [
+      db.run(`UPDATE caravan_entities SET attributes_json = ? WHERE id = ?`, [
         JSON.stringify(attrs),
         entityId,
       ]);

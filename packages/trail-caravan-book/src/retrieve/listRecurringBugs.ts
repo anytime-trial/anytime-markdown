@@ -35,7 +35,7 @@ function queryPackageBugs(
   try {
     rows = db.exec(
       `SELECT id, commit_sha, subject_summary, committed_at
-       FROM memory_bug_fixes
+       FROM caravan_bug_fixes
        WHERE package = ?
          AND committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
        ORDER BY committed_at DESC`,
@@ -59,8 +59,8 @@ function queryFilePathBugs(
   let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
-      `SELECT memory_bug_fixes.id, commit_sha, subject_summary, committed_at
-       FROM memory_bug_fixes, json_each(affected_file_paths_json)
+      `SELECT caravan_bug_fixes.id, commit_sha, subject_summary, committed_at
+       FROM caravan_bug_fixes, json_each(affected_file_paths_json)
        WHERE json_each.value = ?
          AND committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
        ORDER BY committed_at DESC`,
@@ -85,7 +85,7 @@ function queryCausedByBugs(
   try {
     bugEntityRows = db.exec(
       `SELECT DISTINCT subject_entity_id
-       FROM memory_edges
+       FROM caravan_edges
        WHERE predicate = 'caused_by'
          AND object_entity_id = ?
          AND valid_to IS NULL
@@ -106,7 +106,7 @@ function queryCausedByBugs(
     try {
       fixRows = db.exec(
         `SELECT id, commit_sha, subject_summary, committed_at
-         FROM memory_bug_fixes
+         FROM caravan_bug_fixes
          WHERE bug_entity_id = ?
            AND committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
          ORDER BY committed_at DESC LIMIT 1`,

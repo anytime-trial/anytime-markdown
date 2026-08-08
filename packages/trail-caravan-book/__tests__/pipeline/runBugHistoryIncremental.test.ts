@@ -117,10 +117,10 @@ describe('runBugHistoryIncremental', () => {
     // fixes edges = 3, affects edges = 2+1+0 = 3 → minimum 6
     expect(result.edges_inserted).toBeGreaterThanOrEqual(6);
 
-    const bugFixes = db.exec('SELECT COUNT(*) FROM memory_bug_fixes');
+    const bugFixes = db.exec('SELECT COUNT(*) FROM caravan_bug_fixes');
     expect(bugFixes[0].values[0][0]).toBe(3);
 
-    const bugEntities = db.exec(`SELECT COUNT(*) FROM memory_entities WHERE type='Bug'`);
+    const bugEntities = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type='Bug'`);
     expect(bugEntities[0].values[0][0]).toBe(3);
 
     close();
@@ -154,10 +154,10 @@ describe('runBugHistoryIncremental', () => {
 
     expect(result.bugs_inserted).toBe(1);
 
-    const bugCount = db.exec(`SELECT COUNT(*) FROM memory_entities WHERE type='Bug'`);
+    const bugCount = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type='Bug'`);
     expect(bugCount[0].values[0][0]).toBe(1);
 
-    const affectCount = db.exec(`SELECT COUNT(*) FROM memory_edges WHERE predicate='affects'`);
+    const affectCount = db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE predicate='affects'`);
     expect(affectCount[0].values[0][0]).toBe(0);
 
     close();

@@ -42,7 +42,7 @@ const ollama = createOllamaClient({ baseUrl: 'http://host.docker.internal:11434'
 
 const countBefore = db.exec(
   `SELECT r.source_kind, COUNT(rf.id) AS findings
-   FROM memory_reviews r LEFT JOIN memory_review_findings rf ON rf.review_id=r.id
+   FROM caravan_reviews r LEFT JOIN caravan_review_findings rf ON rf.review_id=r.id
    GROUP BY r.source_kind ORDER BY r.source_kind`,
 );
 console.log('\n[reingest] BEFORE:');
@@ -70,7 +70,7 @@ console.log('\n[reingest] RESULT:', JSON.stringify(result, null, 2));
 
 const countAfter = db.exec(
   `SELECT r.source_kind, COUNT(rf.id) AS findings
-   FROM memory_reviews r LEFT JOIN memory_review_findings rf ON rf.review_id=r.id
+   FROM caravan_reviews r LEFT JOIN caravan_review_findings rf ON rf.review_id=r.id
    GROUP BY r.source_kind ORDER BY r.source_kind`,
 );
 console.log('\n[reingest] AFTER:');

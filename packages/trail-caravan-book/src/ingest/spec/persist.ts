@@ -60,8 +60,8 @@ function toTimestamp(dateStr: string): string {
 // ── upsertSpecDoc ─────────────────────────────────────────────────────────────
 
 /**
- * Upsert a spec document into memory_spec_documents and create a corresponding
- * Concept entity (kind='spec_doc') in memory_entities.
+ * Upsert a spec document into caravan_spec_documents and create a corresponding
+ * Concept entity (kind='spec_doc') in caravan_entities.
  */
 export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
   const { db, parsed, source_hash, recordedAt } = input;
@@ -80,12 +80,12 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
   // c4_scope_json
   const c4_scope_json = JSON.stringify(frontmatter.c4Scope ?? []);
 
-  // Upsert into memory_spec_documents.
+  // Upsert into caravan_spec_documents.
   // summary は ON CONFLICT の更新対象に含めない（既存値を温存）。
   // 新しい要約は呼び出し側が updateSpecDocSummary で別途上書きする。
   // これにより、再 ingest で要約生成が失敗しても直前の良い要約が破壊されない。
   db.run(
-    `INSERT INTO memory_spec_documents
+    `INSERT INTO caravan_spec_documents
       (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, summary, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)
      ON CONFLICT(id) DO UPDATE SET
@@ -111,15 +111,15 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
   // INSERT OR IGNORE Concept entity for this spec doc
   const attributes_json = JSON.stringify({ kind: 'spec_doc', rel_path });
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
       (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, ?, ?, ?, ?)`,
     [specEntityId, rel_path, frontmatter.title, attributes_json, recordedAt, recordedAt, recordedAt],
   );
 
-  // Link spec doc to its entity in memory_spec_doc_entities
+  // Link spec doc to its entity in caravan_spec_doc_entities
   db.run(
-    `INSERT OR IGNORE INTO memory_spec_doc_entities (spec_doc_id, entity_id, line_hint)
+    `INSERT OR IGNORE INTO caravan_spec_doc_entities (spec_doc_id, entity_id, line_hint)
      VALUES (?, ?, NULL)`,
     [specDocId, specEntityId],
   );
@@ -136,14 +136,14 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
  * Update summary of a spec document.
  */
 export function updateSpecDocSummary(db: MemoryDbConnection, specDocId: string, summary: string): void {
-  db.run(`UPDATE memory_spec_documents SET summary = ? WHERE id = ?`, [summary, specDocId]);
+  db.run(`UPDATE caravan_spec_documents SET summary = ? WHERE id = ?`, [summary, specDocId]);
 }
 
 // ── upsertSpecClaims ──────────────────────────────────────────────────────────
 
 /**
- * Persist claims extracted from a spec document as memory_edges.
- * Subject and object entities are upserted into memory_entities.
+ * Persist claims extracted from a spec document as caravan_edges.
+ * Subject and object entities are upserted into caravan_entities.
  * Edges are inserted with source_type='spec' and modality from each claim.
  */
 export function upsertSpecClaims(input: UpsertSpecClaimsInput): UpsertSpecClaimsResult {
@@ -162,7 +162,7 @@ export function upsertSpecClaims(input: UpsertSpecClaimsInput): UpsertSpecClaims
     // Upsert subject entity
     const subjectAttr = JSON.stringify({ source: 'spec_claim', spec_doc_id: specDocId });
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
         (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [subjectId, subjectType, claim.subject.name, claim.subject.name, subjectAttr, recordedAt, recordedAt, recordedAt],
@@ -175,7 +175,7 @@ export function upsertSpecClaims(input: UpsertSpecClaimsInput): UpsertSpecClaims
     // Upsert object entity
     const objectAttr = JSON.stringify({ source: 'spec_claim', spec_doc_id: specDocId });
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
         (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [objectId, objectType, claim.object.name, claim.object.name, objectAttr, recordedAt, recordedAt, recordedAt],
@@ -191,7 +191,7 @@ export function upsertSpecClaims(input: UpsertSpecClaimsInput): UpsertSpecClaims
       .slice(0, 16);
 
     db.run(
-      `INSERT OR IGNORE INTO memory_edges
+      `INSERT OR IGNORE INTO caravan_edges
         (id, subject_entity_id, predicate, object_entity_id, object_literal,
          valid_from, recorded_at, source_type, source_ref,
          confidence, confidence_label, modality, attributes_json)

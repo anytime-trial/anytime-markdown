@@ -5,7 +5,7 @@ import { MemoryAnalyzerBase } from './MemoryAnalyzerBase';
 /**
  * 多源ドリフト検出 (drift detection)。純 SQL で **LLM 非依存**。
  *
- * `memory_edges` (conv/spec/code が投入) と review/bug クラスタ結果を読むため、
+ * `caravan_edges` (conv/spec/code が投入) と review/bug クラスタ結果を読むため、
  * **全 content analyzer の後**に走る必要がある (dependsOn 参照)。
  */
 export class DriftMemoryAnalyzer extends MemoryAnalyzerBase {

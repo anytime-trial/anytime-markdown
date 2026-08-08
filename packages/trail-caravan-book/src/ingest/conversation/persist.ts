@@ -54,9 +54,9 @@ export function persistEpisodeFacts(opts: {
 
   const epId = episodeId(episode.session_id, episode.message_uuid_start);
 
-  // ── 1. Upsert memory_episodes ────────────────────────────────────────────
+  // ── 1. Upsert caravan_episodes ────────────────────────────────────────────
   db.run(
-    `INSERT INTO memory_episodes
+    `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end,
         agent_runtime, model, valid_from, recorded_at, raw_excerpt, summary)
      VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, ?, ?)
@@ -66,7 +66,7 @@ export function persistEpisodeFacts(opts: {
        -- 空要約（LLM が summary を省略した再 ingest 等）で既存の要約を破壊しない。
        -- 非空のときのみ上書きする。
        summary          = CASE WHEN excluded.summary != '' THEN excluded.summary
-                               ELSE memory_episodes.summary END`,
+                               ELSE caravan_episodes.summary END`,
     [
       epId,
       episode.session_id,
@@ -95,14 +95,14 @@ export function persistEpisodeFacts(opts: {
 
     // Detect whether the row exists before upsert to track inserted vs updated
     const existsStmt = db.prepare(
-      `SELECT id FROM memory_entities WHERE type = ? AND canonical_name = ?`
+      `SELECT id FROM caravan_entities WHERE type = ? AND canonical_name = ?`
     );
     const exists = existsStmt.get(ent.type, canonName) !== undefined;
     existsStmt.free?.();
 
     try {
       db.run(
-        `INSERT INTO memory_entities
+        `INSERT INTO caravan_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
@@ -157,7 +157,7 @@ export function persistEpisodeFacts(opts: {
       const eId = entityId(endpoint.type, canon);
       try {
         db.run(
-          `INSERT INTO memory_entities
+          `INSERT INTO caravan_entities
              (id, type, canonical_name, display_name,
               aliases_json, tags_json, attributes_json,
               first_seen_at, last_updated_at, recorded_at)
@@ -188,10 +188,10 @@ export function persistEpisodeFacts(opts: {
     const eId = edgeId(subjectId, rel.predicate, objectId, episode.message_uuid_start);
     const edgeRecordedAt = recordedAt;
 
-    // Insert the new edge first so the FK in memory_edge_invalidations.superseding_edge_id resolves.
+    // Insert the new edge first so the FK in caravan_edge_invalidations.superseding_edge_id resolves.
     try {
       db.run(
-        `INSERT INTO memory_edges
+        `INSERT INTO caravan_edges
            (id, subject_entity_id, predicate, object_entity_id,
             valid_from, recorded_at, source_type, source_ref,
             confidence, confidence_label, modality)
@@ -231,7 +231,7 @@ export function persistEpisodeFacts(opts: {
   for (const [mapKey, eId] of entityIdMap) {
     try {
       db.run(
-        `INSERT INTO memory_episode_entities (episode_id, entity_id, mention_text)
+        `INSERT INTO caravan_episode_entities (episode_id, entity_id, mention_text)
          VALUES (?, ?, '')
          ON CONFLICT(episode_id, entity_id) DO NOTHING`,
         [epId, eId]
@@ -253,7 +253,7 @@ export function persistEpisodeFacts(opts: {
 
     try {
       db.run(
-        `INSERT INTO memory_entities
+        `INSERT INTO caravan_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
@@ -270,7 +270,7 @@ export function persistEpisodeFacts(opts: {
     // episode_entities for question entity
     try {
       db.run(
-        `INSERT INTO memory_episode_entities (episode_id, entity_id, mention_text)
+        `INSERT INTO caravan_episode_entities (episode_id, entity_id, mention_text)
          VALUES (?, ?, '')
          ON CONFLICT(episode_id, entity_id) DO NOTHING`,
         [epId, qId]
@@ -287,7 +287,7 @@ export function persistEpisodeFacts(opts: {
     const askedById = edgeId(qId, 'asked_by', sessionId, msgStart);
     try {
       db.run(
-        `INSERT INTO memory_edges
+        `INSERT INTO caravan_edges
            (id, subject_entity_id, predicate, object_literal,
             valid_from, recorded_at, source_type, source_ref,
             confidence, confidence_label, modality)

@@ -60,7 +60,7 @@ function preInsertEpisode(
 ): void {
   const id = episodeId(sessionId, msgUuid);
   memDb.run(
-    `INSERT INTO memory_episodes
+    `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end,
         agent_runtime, model, valid_from, recorded_at, raw_excerpt)
      VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, '')`,
@@ -138,7 +138,7 @@ describe('runConversationBackfill resume', () => {
       preInsertEpisode(memDb, sessId, msgUuid, ts);
     }
 
-    // 4 new episodes (no memory_episodes row yet)
+    // 4 new episodes (no caravan_episodes row yet)
     for (let i = 0; i < 4; i++) {
       const sessId = `sess_new_${i}`;
       const msgUuid = `msg_new_${i}`;
@@ -198,7 +198,7 @@ describe('runConversationBackfill resume', () => {
     expect(result.items_processed).toBe(0);
 
     const stateRows = memDb.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`,
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`,
     );
     expect(stateRows[0]?.values).toHaveLength(1);
     const lastProcessedAt = stateRows[0].values[0][0] as string;
@@ -256,8 +256,8 @@ describe('runConversationBackfill resume', () => {
     // skipped because of a max-timestamp cursor jump from the newer one.
     expect(result.items_processed).toBe(2);
 
-    // Verify both episodes are now persisted in memory_episodes.
-    const epRows = memDb.exec(`SELECT session_id FROM memory_episodes`);
+    // Verify both episodes are now persisted in caravan_episodes.
+    const epRows = memDb.exec(`SELECT session_id FROM caravan_episodes`);
     const persistedSessionIds = (epRows[0]?.values ?? []).map((r) => r[0] as string);
     expect(persistedSessionIds.sort()).toEqual(
       ['aaa-newest-uuid', 'zzz-oldest-uuid'].sort()
@@ -311,7 +311,7 @@ describe('runConversationBackfill resume', () => {
     expect(result.status).toBe('partial');
 
     const backfillCursorRows = memDb.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_backfill'`
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_backfill'`
     );
     const backfillCursor = backfillCursorRows[0]?.values[0]?.[0] as string;
 

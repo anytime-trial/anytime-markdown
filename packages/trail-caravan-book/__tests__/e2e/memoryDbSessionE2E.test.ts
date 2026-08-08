@@ -104,11 +104,11 @@ describe('E2E: MemoryDbSession scope methods', () => {
     expect(r1.status).toBe('success');
     expect(r1.scope).toBe('conversation_incremental');
 
-    const edges = memDb.db.exec(`SELECT predicate FROM memory_edges WHERE valid_to IS NULL`);
+    const edges = memDb.db.exec(`SELECT predicate FROM caravan_edges WHERE valid_to IS NULL`);
     expect(edges[0]?.values?.some((row) => row[0] === 'prefers')).toBe(true);
 
     const state1 = memDb.db.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`,
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`,
     );
     const lastAt1 = state1[0].values[0][0] as string;
     expect(lastAt1 > '1970-01-01T00:00:00.000Z').toBe(true);

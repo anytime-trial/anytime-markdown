@@ -2,7 +2,7 @@
  * runDriftDetection — pipeline integration tests
  *
  * Strategy: use openMemoryCoreDb() for the full schema (all drift tables exist),
- * then seed memory_edges / memory_entities / memory_bug_fixes etc. to exercise
+ * then seed caravan_edges / caravan_entities / caravan_bug_fixes etc. to exercise
  * each detector pathway. Ollama is not involved in drift detection.
  */
 
@@ -73,7 +73,7 @@ const ENTITY_ID = 'ent_test_001';
 
 function insertEntity(db: MemoryDbConnection, id: string, name: string): void {
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, summary, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, '', '[]', '[]', '{}', ?, ?, ?)`,
@@ -83,7 +83,7 @@ function insertEntity(db: MemoryDbConnection, id: string, name: string): void {
 
 function insertRelationType(db: MemoryDbConnection, predicate: string): void {
   db.run(
-    `INSERT OR IGNORE INTO memory_relation_types
+    `INSERT OR IGNORE INTO caravan_relation_types
        (predicate, cardinality, directionality, description)
      VALUES (?, 'multiple_active', 'subject_to_object', 'test predicate')`,
     [predicate],
@@ -104,7 +104,7 @@ function insertEdge(
 ): void {
   insertRelationType(db, opts.predicate);
   db.run(
-    `INSERT OR IGNORE INTO memory_edges
+    `INSERT OR IGNORE INTO caravan_edges
        (id, subject_entity_id, predicate, object_entity_id, object_literal,
         source_type, source_ref, confidence, valid_from, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, 'test', ?, ?, ?)`,
@@ -140,13 +140,13 @@ describe('runDriftDetection', () => {
     }
   }, 30000);
 
-  // D2: pipeline_runs row is created with scope='drift_detection'
-  test('D2: pipeline_runs row created with scope=drift_detection and status=success', async () => {
+  // D2: caravan_pipeline_runs row is created with scope='drift_detection'
+  test('D2: caravan_pipeline_runs row created with scope=drift_detection and status=success', async () => {
     const { db, close } = await openTestDb();
     try {
       await runDriftDetection({ db, logger: noopLogger });
       const rows = db.exec(
-        `SELECT scope, status FROM pipeline_runs WHERE scope = 'drift_detection'`,
+        `SELECT scope, status FROM caravan_pipeline_runs WHERE scope = 'drift_detection'`,
       );
       expect(rows[0]?.values).toHaveLength(1);
       expect(rows[0]?.values[0][0]).toBe('drift_detection');
@@ -253,7 +253,7 @@ describe('runDriftDetection', () => {
 
       // Now align code to match spec
       db.run(
-        `UPDATE memory_edges SET object_literal = 'A' WHERE id = 'edge_code_res'`,
+        `UPDATE caravan_edges SET object_literal = 'A' WHERE id = 'edge_code_res'`,
       );
 
       // Re-run — drift should be resolved

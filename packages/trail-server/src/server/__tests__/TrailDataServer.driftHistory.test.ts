@@ -1,5 +1,5 @@
 // Phase 6 S5-C: GET /api/memory/drift/by-day（FR-26）。
-// memory_drift_events を実 fixture で作り、JST 境界・0 埋め・未解決累計を API 経由で固定する。
+// caravan_drift_events を実 fixture で作り、JST 境界・0 埋め・未解決累計を API 経由で固定する。
 jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
@@ -23,7 +23,7 @@ type DriftHistoryPoint = {
 
 function buildMemoryDb(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE memory_drift_events (
+  db.exec(`CREATE TABLE caravan_drift_events (
     id TEXT PRIMARY KEY,
     subject_entity_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
@@ -38,7 +38,7 @@ function buildMemoryDb(dbPath: string): void {
     detail_json TEXT NOT NULL DEFAULT '{}'
   ) STRICT`);
   const ins = db.prepare(
-    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at)
+    `INSERT INTO caravan_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at)
      VALUES (?, 'ent-1', 'p', ?, ?, ?, ?)`,
   );
   // JST 2026-07-01 に 2 件検知（うち 1 件は 07-03 に解決）

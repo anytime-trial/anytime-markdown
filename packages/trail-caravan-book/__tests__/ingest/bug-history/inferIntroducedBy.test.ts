@@ -65,7 +65,7 @@ async function openTestDb(trailHandle?: BetterSqlite3MemoryDb) {
   // Insert a Bug entity
   const bugId = entityId('Bug', FIX_SHA);
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Bug', ?, 'test bug', '[]', '[]', '{}',

@@ -42,20 +42,20 @@ function count(db: MemoryDbConnection, sql: string): number {
 
 export function collectReviewTargetStats(db: MemoryDbConnection): ReviewTargetStats {
   return {
-    reviews: count(db, `SELECT COUNT(*) FROM memory_reviews`),
-    reviewsWithWorkspace: count(db, `SELECT COUNT(*) FROM memory_reviews WHERE workspace != ''`),
-    findings: count(db, `SELECT COUNT(*) FROM memory_review_findings`),
+    reviews: count(db, `SELECT COUNT(*) FROM caravan_reviews`),
+    reviewsWithWorkspace: count(db, `SELECT COUNT(*) FROM caravan_reviews WHERE workspace != ''`),
+    findings: count(db, `SELECT COUNT(*) FROM caravan_review_findings`),
     findingsWithPath: count(
       db,
-      `SELECT COUNT(*) FROM memory_review_findings WHERE target_file_path IS NOT NULL AND target_file_path != ''`,
+      `SELECT COUNT(*) FROM caravan_review_findings WHERE target_file_path IS NOT NULL AND target_file_path != ''`,
     ),
     findingsWithTargetRepo: count(
       db,
-      `SELECT COUNT(*) FROM memory_review_findings WHERE target_repo IS NOT NULL`,
+      `SELECT COUNT(*) FROM caravan_review_findings WHERE target_repo IS NOT NULL`,
     ),
     findingsAddressed: count(
       db,
-      `SELECT COUNT(*) FROM memory_review_findings WHERE addressed_commit_sha IS NOT NULL`,
+      `SELECT COUNT(*) FROM caravan_review_findings WHERE addressed_commit_sha IS NOT NULL`,
     ),
   };
 }

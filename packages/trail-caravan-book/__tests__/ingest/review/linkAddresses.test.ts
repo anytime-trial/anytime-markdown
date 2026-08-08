@@ -115,39 +115,39 @@ async function buildSetup(opts: {
 
   attachTrailDbFromHandle(db, trailHandle);
 
-  // 3. Insert prerequisite memory_entities for review entity
+  // 3. Insert prerequisite caravan_entities for review entity
   const reviewEntityId = entityId('Concept', 'test-review-entity');
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, 'Test Review', ?, ?, ?)`,
     [reviewEntityId, 'test-review-entity', TS_BASE, TS_BASE, TS_BASE]
   );
 
-  // 4. Insert memory_reviews
+  // 4. Insert caravan_reviews
   const reviewId = 'rv-test-1';
   db.run(
-    `INSERT OR IGNORE INTO memory_reviews
+    `INSERT OR IGNORE INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
      VALUES (?, 'review_doc', 'review/test.md', ?, 'code', 'Test Review', ?, ?)`,
     [reviewId, reviewEntityId, reviewedAt, TS_BASE]
   );
 
-  // 5. Insert memory_entities for finding entity (using Concept as allowed type)
+  // 5. Insert caravan_entities for finding entity (using Concept as allowed type)
   const findingCanonicalName = `test-finding-${Date.now()}`;
   const findingEntityId = entityId('Concept', findingCanonicalName);
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, 'Test Finding', ?, ?, ?)`,
     [findingEntityId, findingCanonicalName, TS_BASE, TS_BASE, TS_BASE]
   );
 
-  // 6. Insert memory_review_findings
+  // 6. Insert caravan_review_findings
   const findingId = 'rf-test-1';
   if (addressedAt !== null) {
     db.run(
-      `INSERT OR IGNORE INTO memory_review_findings
+      `INSERT OR IGNORE INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_repo, severity, finding_text, recorded_at, addressed_at, addressed_commit_sha)
        VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'already-addressed-sha')`,
@@ -155,7 +155,7 @@ async function buildSetup(opts: {
     );
   } else {
     db.run(
-      `INSERT OR IGNORE INTO memory_review_findings
+      `INSERT OR IGNORE INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_repo, severity, finding_text, recorded_at)
        VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)`,
@@ -199,7 +199,7 @@ describe('linkAddresses', () => {
 
     // Check addressed_commit_sha and addressed_at are set
     const rows = db.exec(
-      `SELECT addressed_commit_sha, addressed_at FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha, addressed_at FROM caravan_review_findings WHERE id = ?`,
       [findingId]
     );
     const values = rows[0]?.values[0];
@@ -210,7 +210,7 @@ describe('linkAddresses', () => {
     // Check edge exists
     const commitEntityId = entityId('Commit', 'abc123def456');
     const edges = db.exec(
-      `SELECT COUNT(*) FROM memory_edges WHERE predicate='addresses' AND subject_entity_id=? AND object_entity_id=?`,
+      `SELECT COUNT(*) FROM caravan_edges WHERE predicate='addresses' AND subject_entity_id=? AND object_entity_id=?`,
       [commitEntityId, findingEntityId]
     );
     expect(edges[0]?.values[0][0]).toBe(1);
@@ -219,7 +219,7 @@ describe('linkAddresses', () => {
     const edgeRows = db.exec(
       `SELECT subject_entity_id, predicate, object_entity_id,
               confidence, confidence_label, modality, source_type, source_ref
-       FROM memory_edges WHERE predicate = 'addresses'`
+       FROM caravan_edges WHERE predicate = 'addresses'`
     );
     expect(edgeRows[0]?.values?.length).toBe(1);
     const [subjectId, predicate, objectId, confidence, confidenceLabel, modality, sourceType, sourceRef] = edgeRows[0]!.values[0]!;
@@ -253,7 +253,7 @@ describe('linkAddresses', () => {
 
     // addressed_commit_sha should remain NULL
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId]
     );
     expect(rows[0]?.values[0][0]).toBeNull();
@@ -280,7 +280,7 @@ describe('linkAddresses', () => {
 
     // addressed_commit_sha should remain NULL
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId]
     );
     expect(rows[0]?.values[0][0]).toBeNull();
@@ -310,7 +310,7 @@ describe('linkAddresses', () => {
     expect(result.findings_linked).toBe(1);
     expect(result.edges_inserted).toBe(1);
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId]
     );
     expect(rows[0]?.values[0][0]).toBe('abc123def456');
@@ -378,7 +378,7 @@ describe('linkAddresses', () => {
 
     // addressed_commit_sha should remain the original value
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId]
     );
     expect(rows[0]?.values[0][0]).toBe('already-addressed-sha');
@@ -414,7 +414,7 @@ describe('linkAddresses', () => {
     expect(result.findings_linked).toBe(1);
 
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId]
     );
     expect(rows[0]?.values[0][0]).toBe('abc123def456');
@@ -442,7 +442,7 @@ describe('linkAddresses', () => {
     expect(result.edges_inserted).toBe(0);
 
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId]
     );
     expect(rows[0]?.values[0][0]).toBeNull();
@@ -475,7 +475,7 @@ describe('linkAddresses', () => {
 
     expect(result.findings_linked).toBe(0);
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId],
     );
     expect(rows[0]?.values[0][0]).toBeNull();
@@ -498,7 +498,7 @@ describe('linkAddresses', () => {
 
     expect(result.findings_linked).toBe(0);
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId],
     );
     expect(rows[0]?.values[0][0]).toBeNull();
@@ -526,7 +526,7 @@ describe('linkAddresses', () => {
 
     expect(result.findings_linked).toBe(1);
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId],
     );
     expect(rows[0]?.values[0][0]).not.toBeNull();
@@ -549,7 +549,7 @@ describe('linkAddresses', () => {
 
     expect(result.findings_linked).toBe(0);
     const rows = db.exec(
-      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      `SELECT addressed_commit_sha FROM caravan_review_findings WHERE id = ?`,
       [findingId],
     );
     expect(rows[0]?.values[0][0]).toBeNull();
@@ -636,13 +636,13 @@ describe('linkAddresses', () => {
         ['rf-extra-nopath', 'error', null, null],
         ['rf-extra-norepo', 'error', 'src/bar.ts', null],
       ];
-      const base = db.exec(`SELECT review_id, finding_entity_id FROM memory_review_findings WHERE id = ?`, [findingId]);
+      const base = db.exec(`SELECT review_id, finding_entity_id FROM caravan_review_findings WHERE id = ?`, [findingId]);
       const reviewId = String(base[0].values[0][0]);
       const entityId = String(base[0].values[0][1]);
       let index = 1;
       for (const [id, severity, path, repo] of extras) {
         db.run(
-          `INSERT INTO memory_review_findings
+          `INSERT INTO caravan_review_findings
              (id, review_id, finding_entity_id, finding_index,
               target_file_path, target_repo, severity, finding_text, recorded_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, 'x', '2026-04-20T00:00:00.000Z')`,
@@ -652,7 +652,7 @@ describe('linkAddresses', () => {
 
       const result = linkAddresses({ db, logger: makeLogger() });
       // linkAddresses はリンクした指摘へ addressed_at を書くため、母数は残数 + リンク数。
-      const totalRow = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE addressed_at IS NULL`);
+      const totalRow = db.exec(`SELECT COUNT(*) FROM caravan_review_findings WHERE addressed_at IS NULL`);
       const remaining = Number(totalRow[0].values[0][0]);
       const skipped = result.skipped!;
       expect(result.candidates + skipped.severity_info + skipped.no_target_path + skipped.unresolved_repo).toBe(

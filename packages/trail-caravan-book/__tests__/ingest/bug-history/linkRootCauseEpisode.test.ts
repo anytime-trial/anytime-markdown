@@ -24,7 +24,7 @@ async function openTestDb() {
 
 function insertEpisode(db: ReturnType<typeof require>['db'] | any, id: string, sessionId: string, validFrom: string) {
   db.run(
-    `INSERT INTO memory_episodes
+    `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end,
         agent_runtime, model, valid_from, recorded_at, raw_excerpt)
      VALUES (?, ?, 'msg1', 'msg2', 'claude_code', 'test', ?, '2026-01-01T00:00:00.000Z', '')`,
@@ -36,7 +36,7 @@ function insertBugFix(db: any, id: string) {
   // Insert required entities first
   const bugId = entityId('Bug', 'sha999');
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Bug', 'sha999', 'test bug', '[]', '[]', '{}',
@@ -44,7 +44,7 @@ function insertBugFix(db: any, id: string) {
     [bugId]
   );
   db.run(
-    `INSERT INTO memory_bug_fixes
+    `INSERT INTO caravan_bug_fixes
        (id, commit_sha, bug_entity_id, package, category, subject_summary,
         committed_at, recorded_at)
      VALUES (?, 'sha999', ?, 'web-app', 'regression', 'test',
@@ -76,7 +76,7 @@ describe('linkRootCauseEpisode', () => {
     expect(result.root_cause_episode_id).toBe('ep2');
 
     // Verify the DB was updated
-    const updated = db.exec(`SELECT root_cause_episode_id FROM memory_bug_fixes WHERE id = ?`, [bugFixId]);
+    const updated = db.exec(`SELECT root_cause_episode_id FROM caravan_bug_fixes WHERE id = ?`, [bugFixId]);
     expect(updated[0].values[0][0]).toBe('ep2');
 
     close();

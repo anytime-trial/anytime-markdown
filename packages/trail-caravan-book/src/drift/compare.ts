@@ -32,7 +32,7 @@ function resolveDriftType(
 }
 
 /**
- * Detects drift candidates by comparing memory_edges across
+ * Detects drift candidates by comparing caravan_edges across
  * 'conversation', 'spec', and 'code' source types.
  *
  * Returns edges where at least two sources disagree after normalization.
@@ -68,7 +68,7 @@ export function detectThreeSourceDrifts(input: {
         MAX(CASE WHEN source_type = 'conversation' THEN COALESCE(object_literal, object_entity_id) END) AS conv_v,
         MAX(CASE WHEN source_type = 'spec'         THEN COALESCE(object_literal, object_entity_id) END) AS spec_v,
         MAX(CASE WHEN source_type = 'code'         THEN COALESCE(object_literal, object_entity_id) END) AS code_v
-      FROM memory_edges
+      FROM caravan_edges
       WHERE valid_to IS NULL
         AND confidence >= ?
         ${whereExclude}

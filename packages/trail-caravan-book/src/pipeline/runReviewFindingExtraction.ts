@@ -60,7 +60,7 @@ const MIN_QUOTE_CHARS = 24;
 /**
  * finding_index の起点。実パーサが出す index（0 起点）と衝突させない。
  *
- * memory_review_findings は UNIQUE(review_id, finding_index) で、挿入は
+ * caravan_review_findings は UNIQUE(review_id, finding_index) で、挿入は
  * INSERT OR IGNORE。同じ index を LLM が先に占めると、後から書式準拠でパースし直した
  * **本物の指摘が 1 件残らず黙って捨てられる**（inserted=false になるだけ）。
  */
@@ -348,10 +348,10 @@ export async function runReviewFindingExtraction(
   try {
     const placeholders = sourceKinds.map(() => '?').join(',');
     const stmt = db.prepare(
-      `SELECT id, source_kind, source_ref FROM memory_reviews r
+      `SELECT id, source_kind, source_ref FROM caravan_reviews r
         WHERE r.body_excerpt <> ''
           AND r.source_kind IN (${placeholders})
-          AND NOT EXISTS (SELECT 1 FROM memory_review_findings f WHERE f.review_id = r.id)
+          AND NOT EXISTS (SELECT 1 FROM caravan_review_findings f WHERE f.review_id = r.id)
         ORDER BY r.reviewed_at DESC` + (input.limit ? ` LIMIT ${Number(input.limit)}` : ''),
     );
     try {

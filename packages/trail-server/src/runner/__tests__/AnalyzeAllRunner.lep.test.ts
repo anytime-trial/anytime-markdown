@@ -383,7 +383,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
     const memoryDb = buildTestMemoryDb(dir);
-    // memory_reviews (source_kind='pr_comment') を実 ingestPrReview で 1 件シード。
+    // caravan_reviews (source_kind='pr_comment') を実 ingestPrReview で 1 件シード。
     ingestPrReview(memoryDb, {
       repoName: 'widget',
       prNumber: 7,
@@ -484,7 +484,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(written).toEqual([]);
   });
 
-  it('Step 5: github_pr_review → PrReviewImporter → PrReviewFindingAnalyzer → memory_reviews/memory_review_findings', async () => {
+  it('Step 5: github_pr_review → PrReviewImporter → PrReviewFindingAnalyzer → caravan_reviews/caravan_review_findings', async () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
     const memoryDb = buildTestMemoryDb(dir);
@@ -510,14 +510,14 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).toContain('[PrReviewImporter] done (imported=1');
     expect(allLines).toContain('[PrReviewFindingAnalyzer] done (reviews=1, findings=1)');
 
-    // memory_reviews / memory_review_findings に実際に書き込まれたことを実測で確認する。
+    // caravan_reviews / caravan_review_findings に実際に書き込まれたことを実測で確認する。
     const reviewRows = memoryDb.exec(
-      `SELECT source_ref, reviewer, severity_overall FROM memory_reviews WHERE source_kind='pr_comment'`,
+      `SELECT source_ref, reviewer, severity_overall FROM caravan_reviews WHERE source_kind='pr_comment'`,
     );
     expect(reviewRows[0]?.values).toEqual([['widget#pr7#100', 'alice', 'info']]);
     const findingRows = memoryDb.exec(
       `SELECT target_file_path, target_line_start, finding_text
-         FROM memory_review_findings f JOIN memory_reviews r ON r.id = f.review_id
+         FROM caravan_review_findings f JOIN caravan_reviews r ON r.id = f.review_id
         WHERE r.source_kind='pr_comment'`,
     );
     expect(findingRows[0]?.values).toEqual([['a.ts', 12, 'null check']]);
@@ -541,7 +541,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     });
 
     await runner.runOnce('manual');
-    const reviewRows = memoryDb.exec(`SELECT COUNT(*) FROM memory_reviews WHERE source_kind='pr_comment'`);
+    const reviewRows = memoryDb.exec(`SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='pr_comment'`);
     memoryDb.close();
 
     expect(logSink.lines.join('\n')).not.toContain('[GitHubPrReviewIngester]');

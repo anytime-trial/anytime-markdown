@@ -128,7 +128,7 @@ export interface InstructionTokenUsage {
 }
 
 /**
- * 一覧の 1 行。所属セッションの flight_reviews を畳んで導出する
+ * 一覧の 1 行。所属セッションの caravan_flight_reviews を畳んで導出する
  * （導出は AssembleInstructionRecord の純粋関数が正本）。
  */
 export interface InstructionRecord {

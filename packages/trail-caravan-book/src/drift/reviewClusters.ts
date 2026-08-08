@@ -24,8 +24,8 @@ export function detectReviewUnfixed(input: {
     rows = db.exec(
       `SELECT f.id, f.finding_entity_id, f.target_file_path, f.severity, f.recorded_at,
               COALESCE(r.workspace, '') AS workspace
-       FROM memory_review_findings f
-       LEFT JOIN memory_reviews r ON r.id = f.review_id
+       FROM caravan_review_findings f
+       LEFT JOIN caravan_reviews r ON r.id = f.review_id
        WHERE f.addressed_at IS NULL
          AND f.severity IN (${placeholders})
          -- LLM 再抽出（runReviewFindingExtraction）由来は drift の母集合に入れない。
@@ -83,7 +83,7 @@ export function detectReviewVsCode(input: {
       `SELECT subject_entity_id, predicate,
               MAX(CASE WHEN source_type = 'review' THEN COALESCE(object_literal, object_entity_id) END) AS rev_v,
               MAX(CASE WHEN source_type = 'code'   THEN COALESCE(object_literal, object_entity_id) END) AS code_v
-       FROM memory_edges
+       FROM caravan_edges
        WHERE valid_to IS NULL
          AND modality = 'asserted'
          AND confidence >= 0.6
@@ -119,7 +119,7 @@ export function detectReviewVsCode(input: {
       code_value: codeV,
       drift_type: 'review_vs_code',
       severity,
-      // memory_edges はワークスペースを持たない（source_ref は review_finding# / spec_doc# 等の
+      // caravan_edges はワークスペースを持たない（source_ref は review_finding# / spec_doc# 等の
       // 出所参照で、そこからリポジトリは一意に決まらない）。推測で埋めず未解決のままにする。
       workspace: '',
       detail: { review_value: revV, code_value: codeV, spec_vs_code_overlap: hasSpecVsCode },
@@ -153,8 +153,8 @@ export function detectRecurringReviewFindings(input: {
               GROUP_CONCAT(f.id) AS finding_ids,
               CASE WHEN COUNT(DISTINCT NULLIF(r.workspace, '')) = 1
                    THEN MIN(NULLIF(r.workspace, '')) ELSE '' END AS workspace
-       FROM memory_review_findings f
-       LEFT JOIN memory_reviews r ON r.id = f.review_id
+       FROM caravan_review_findings f
+       LEFT JOIN caravan_reviews r ON r.id = f.review_id
        WHERE f.category NOT IN (${placeholders})
          AND f.target_file_path IS NOT NULL
          AND f.recorded_at >= datetime('now', '-' || ? || ' days')

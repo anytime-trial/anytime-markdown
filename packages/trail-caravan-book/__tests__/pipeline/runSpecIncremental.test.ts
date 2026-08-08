@@ -169,7 +169,7 @@ describe('runSpecIncremental', () => {
       });
 
       const rows = db.exec(
-        `SELECT source_type, modality, predicate FROM memory_edges
+        `SELECT source_type, modality, predicate FROM caravan_edges
          WHERE source_type = 'spec' AND predicate = 'depends_on' AND modality = 'mandatory'`,
       );
 
@@ -241,10 +241,10 @@ describe('runSpecIncremental', () => {
       expect(result.items_failed).toBe(0);
       expect(result.items_processed).toBe(0);
 
-      // No entry in memory_failed_items for this file
+      // No entry in caravan_failed_items for this file
       // db.exec always returns [{columns, values}] for SELECT; check values.length for row count
       const failedRows = db.exec(
-        `SELECT item_key FROM memory_failed_items WHERE scope = 'spec' AND item_key = 'no-fm.md'`,
+        `SELECT item_key FROM caravan_failed_items WHERE scope = 'spec' AND item_key = 'no-fm.md'`,
       );
       const matchingRowCount = failedRows[0]?.values.length ?? 0;
       expect(matchingRowCount).toBe(0);
@@ -341,7 +341,7 @@ describe('runSpecIncremental', () => {
       expect(result.items_failed).toBe(1);
 
       const failedRows = db.exec(
-        `SELECT scope, item_key, reason FROM memory_failed_items WHERE scope = 'spec'`,
+        `SELECT scope, item_key, reason FROM caravan_failed_items WHERE scope = 'spec'`,
       );
       expect(failedRows.length).toBeGreaterThan(0);
       expect(failedRows[0].values.length).toBeGreaterThan(0);
@@ -403,7 +403,7 @@ describe('runSpecIncremental', () => {
       expect(result.items_processed).toBe(0);
 
       const failedRows = db.exec(
-        `SELECT reason FROM memory_failed_items WHERE scope='spec' AND item_key='llm-fail.md'`,
+        `SELECT reason FROM caravan_failed_items WHERE scope='spec' AND item_key='llm-fail.md'`,
       );
       expect(failedRows[0]?.values?.length ?? 0).toBe(1);
       expect(failedRows[0].values[0][0]).toBe('llm_error');
@@ -482,7 +482,7 @@ describe('runSpecIncremental', () => {
       expect(result.status).toBe('partial');
       expect(result.items_failed).toBe(5);
 
-      const failedRows = db.exec(`SELECT reason FROM memory_failed_items WHERE scope='spec'`);
+      const failedRows = db.exec(`SELECT reason FROM caravan_failed_items WHERE scope='spec'`);
       expect(failedRows[0]?.values?.length ?? 0).toBe(5);
       // All failed as llm_error
       for (const row of failedRows[0].values) {

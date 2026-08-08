@@ -1,4 +1,4 @@
-// Flight Record: 所属セッションの flight_reviews を「指示」1 行へ畳む純粋関数。
+// Flight Record: 所属セッションの caravan_flight_reviews を「指示」1 行へ畳む純粋関数。
 // DB アクセス・時刻取得は呼び出し側（trail-db / trail-server）が担う。
 //
 // 畳み方の要点:
@@ -7,7 +7,7 @@
 //   - 成否は最後のセッションを採るが unknown なら直近の非 unknown へ後退する。
 //     Stop フックは常に行を作るため、最終セッションが自己評価を出さないだけで
 //     達成済みの指示が「不明」に落ちるのを防ぐ。
-//   - flight_reviews が 0 件でも行は成立させる。未記録（取込前）を「成果 0」に
+//   - caravan_flight_reviews が 0 件でも行は成立させる。未記録（取込前）を「成果 0」に
 //     見せないため、時間系は 0 ではなく null を返す。
 
 import type { FlightOutcome, FlightOutcomeSource, FlightReview } from '../model/flightReview';
@@ -21,9 +21,9 @@ import type {
 
 export interface AssembleInstructionRecordInput {
   instruction: Instruction;
-  /** 所属セッションの flight_reviews。順序は問わない（本関数が endedAt で並べる）。 */
+  /** 所属セッションの caravan_flight_reviews。順序は問わない（本関数が endedAt で並べる）。 */
   reviews: readonly FlightReview[];
-  /** instruction_sessions の件数。flight_reviews が未記録のセッションも数える。 */
+  /** caravan_instruction_sessions の件数。caravan_flight_reviews が未記録のセッションも数える。 */
   sessionCount: number;
   tokenUsage: InstructionTokenUsage;
   deliverables: readonly InstructionDeliverable[];
@@ -42,7 +42,7 @@ function parseTags(raw: string, sessionId: string): string[] {
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((v): v is string => typeof v === 'string');
   } catch {
-    console.warn(`[instruction] broken JSON in flight_reviews.tags (session=${sessionId})`);
+    console.warn(`[instruction] broken JSON in caravan_flight_reviews.tags (session=${sessionId})`);
     return [];
   }
 }

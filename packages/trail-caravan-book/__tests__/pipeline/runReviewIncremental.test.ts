@@ -190,7 +190,7 @@ describe('runReviewIncremental', () => {
       expect(result.findings_inserted).toBeGreaterThanOrEqual(1);
 
       const reviewsCount = db.exec(
-        `SELECT COUNT(*) FROM memory_reviews WHERE source_kind='review_doc'`,
+        `SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='review_doc'`,
       );
       expect(reviewsCount[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(1);
     } finally {
@@ -215,7 +215,7 @@ describe('runReviewIncremental', () => {
     const snapshot = () =>
       JSON.stringify(
         db.exec(
-          `SELECT source_ref, summary, body_excerpt, workspace FROM memory_reviews
+          `SELECT source_ref, summary, body_excerpt, workspace FROM caravan_reviews
             WHERE source_kind='review_doc' ORDER BY source_ref`,
         )[0]?.values ?? [],
       );
@@ -224,7 +224,7 @@ describe('runReviewIncremental', () => {
       await run();
       // 修正前の取込が作った状態（後から足した列が空・ハッシュは一致）を再現する
       db.run(
-        "UPDATE memory_reviews SET summary='', body_excerpt='', workspace='' WHERE source_kind='review_doc'",
+        "UPDATE caravan_reviews SET summary='', body_excerpt='', workspace='' WHERE source_kind='review_doc'",
       );
 
       const second = await run();
@@ -233,7 +233,7 @@ describe('runReviewIncremental', () => {
       expect(second.reviews_inserted).toBe(0);
 
       const rows = db.exec(
-        `SELECT source_ref, summary, body_excerpt, workspace FROM memory_reviews
+        `SELECT source_ref, summary, body_excerpt, workspace FROM caravan_reviews
           WHERE source_kind='review_doc' ORDER BY source_ref`,
       )[0]?.values ?? [];
       expect(rows.length).toBe(2);
@@ -294,7 +294,7 @@ describe('runReviewIncremental', () => {
   }, 30000);
 
   // I17 Route B: session ingestion
-  test('I17 Route B: session review → memory_reviews has row with source_kind=session', async () => {
+  test('I17 Route B: session review → caravan_reviews has row with source_kind=session', async () => {
     const TS = '2026-03-01T00:00:00.000Z';
     const { db, close } = await openTestDb({
       trailMessages: [
@@ -323,7 +323,7 @@ describe('runReviewIncremental', () => {
       expect(result.status).toBe('success');
 
       const sessionReviews = db.exec(
-        `SELECT COUNT(*) FROM memory_reviews WHERE source_kind='session'`,
+        `SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='session'`,
       );
       expect(sessionReviews[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(1);
     } finally {
@@ -354,7 +354,7 @@ describe('runReviewIncremental', () => {
       expect(result.reviews_inserted).toBe(0);
 
       // No failed items for spec file
-      const failedItems = db.exec(`SELECT COUNT(*) FROM memory_failed_items`);
+      const failedItems = db.exec(`SELECT COUNT(*) FROM caravan_failed_items`);
       expect(failedItems[0]?.values?.[0]?.[0] as number).toBe(0);
     } finally {
       close();

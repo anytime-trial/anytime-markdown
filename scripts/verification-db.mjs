@@ -1,7 +1,8 @@
 /**
  * 検証実施台帳（activity.db の verification_runs）の共有アクセス層（writer 正本）。
  *
- * 保存先は activity.db — Flight Record の指示（instructions / instruction_sessions）と同じ DB に
+ * 保存先は activity.db — Flight Record の指示（caravan_instructions / caravan_instruction_sessions。
+ * 2026-08-07 に caravan-book.db へ移設済み）と session_id で結合できる位置に
  * 置くことで、session_id 経由で「どの指示で何を検証したか」を結合できる。
  * スキーマの正本は packages/trail-activity/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS で、
  * 本ファイルはその **ミラー**（.mjs から TS を import できないため）。片方だけ変えないこと。
@@ -33,7 +34,7 @@ const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claud
  *
  * 基点は `git rev-parse --git-common-dir` の親であって `--show-toplevel` ではない。worktree
  * では toplevel が worktree 自身を指すため、そこを根にすると **worktree ごとに空の activity.db が
- * 新規作成され**、指示（instructions / instruction_sessions）のある本体の台帳には 1 行も
+ * 新規作成され**、指示（instructions / caravan_instruction_sessions）のある本体の台帳には 1 行も
  * 入らない。検証を回したセッションは本体の指示に属するので、書き先も本体へ寄せる。
  * git 管理下でなければ与えられた根（既定 cwd）へ縮退する。
  */

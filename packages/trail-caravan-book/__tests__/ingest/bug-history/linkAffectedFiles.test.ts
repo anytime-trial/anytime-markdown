@@ -53,7 +53,7 @@ async function buildTestDb(commitSha: string, filePaths: string[], repoName = 'a
   // 3. Insert a Bug entity
   const bugId = entityId('Bug', commitSha);
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Bug', ?, 'test bug', '[]', '[]', '{}',
@@ -96,7 +96,7 @@ describe('linkAffectedFiles', () => {
     expect(result.edges_inserted).toBe(3);
 
     const edgeCount = db.exec(
-      `SELECT COUNT(*) FROM memory_edges WHERE predicate='affects' AND subject_entity_id=?`,
+      `SELECT COUNT(*) FROM caravan_edges WHERE predicate='affects' AND subject_entity_id=?`,
       [bugId]
     );
     expect(edgeCount[0].values[0][0]).toBe(3);

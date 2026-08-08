@@ -263,9 +263,9 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
    *
    * Verifies:
    *   - status='success', bugs_inserted=6, items_processed=6
-   *   - memory_entities has 6 Bug rows + 6 Commit rows
-   *   - memory_bug_fixes has 6 rows
-   *   - memory_edges: 6 'fixes' edges (Commit→Bug) + >=6 'affects' edges (Bug→File)
+   *   - caravan_entities has 6 Bug rows + 6 Commit rows
+   *   - caravan_bug_fixes has 6 rows
+   *   - caravan_edges: 6 'fixes' edges (Commit→Bug) + >=6 'affects' edges (Bug→File)
    *   - feat commits do not produce Bug entities
    *   - pipeline_state advanced past last fix commit
    *   - duration_ms < 5000
@@ -299,36 +299,36 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
 
         // Bug entities
         const bugCount = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_entities WHERE type = 'Bug'`
+          `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Bug'`
         );
         expect(bugCount[0]?.values[0][0] as number).toBe(6);
 
         // Commit entities (one per fix commit)
         const commitCount = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_entities WHERE type = 'Commit'`
+          `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Commit'`
         );
         expect(commitCount[0]?.values[0][0] as number).toBe(6);
 
-        // memory_bug_fixes
-        const fixCount = memDb.db.exec(`SELECT COUNT(*) FROM memory_bug_fixes`);
+        // caravan_bug_fixes
+        const fixCount = memDb.db.exec(`SELECT COUNT(*) FROM caravan_bug_fixes`);
         expect(fixCount[0]?.values[0][0] as number).toBe(6);
 
         // fixes edges: Commit → fixes → Bug
         const fixesEdges = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_edges WHERE predicate = 'fixes'`
+          `SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'fixes'`
         );
         expect(fixesEdges[0]?.values[0][0] as number).toBe(6);
 
         // affects edges: Bug → affects → File (>=6, at least one per fix commit)
         const affectsEdges = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_edges WHERE predicate = 'affects'`
+          `SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'affects'`
         );
         expect(affectsEdges[0]?.values[0][0] as number).toBeGreaterThanOrEqual(6);
 
         // feat commits must NOT produce Bug entities
         const featBugCount = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_entities me
-           JOIN memory_bug_fixes mbf ON mbf.bug_entity_id = me.id
+          `SELECT COUNT(*) FROM caravan_entities me
+           JOIN caravan_bug_fixes mbf ON mbf.bug_entity_id = me.id
            WHERE me.type = 'Bug' AND mbf.commit_sha LIKE 'feat%'`
         );
         expect(featBugCount[0]?.values[0][0] as number).toBe(0);
@@ -336,7 +336,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
         // pipeline_state advanced past last fix commit (2026-03-06)
         const stateRows = memDb.db.exec(
           `SELECT status, last_processed_at
-           FROM memory_pipeline_state WHERE scope = 'bug_history_incremental'`
+           FROM caravan_pipeline_state WHERE scope = 'bug_history_incremental'`
         );
         expect(stateRows[0]?.values?.length).toBe(1);
         const [pipeStatus, lastAt] = stateRows[0].values[0] as [string, string];
@@ -392,12 +392,12 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
 
         // counts unchanged
         const bugCount = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_entities WHERE type = 'Bug'`
+          `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Bug'`
         );
         expect(bugCount[0]?.values[0][0] as number).toBe(6);
 
         const fixesEdges = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_edges WHERE predicate = 'fixes'`
+          `SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'fixes'`
         );
         expect(fixesEdges[0]?.values[0][0] as number).toBe(6);
       } finally {
@@ -440,7 +440,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
 
         // 2 regression Bug entities for web-app
         const regressionRows = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_entities
+          `SELECT COUNT(*) FROM caravan_entities
            WHERE type = 'Bug'
              AND json_extract(attributes_json, '$.category') = 'regression'
              AND json_extract(attributes_json, '$.package') = 'web-app'`
@@ -449,14 +449,14 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
 
         // Shared file has >=2 affects edges (one per regression bug)
         const sharedFileRows = memDb.db.exec(
-          `SELECT id FROM memory_entities
+          `SELECT id FROM caravan_entities
            WHERE type = 'File' AND canonical_name LIKE '%shared/utils%'`
         );
         expect(sharedFileRows[0]?.values?.length).toBeGreaterThanOrEqual(1);
 
         const sharedFileId = sharedFileRows[0].values[0][0] as string;
         const edgeStmt = memDb.db.prepare(
-          `SELECT COUNT(*) AS c FROM memory_edges
+          `SELECT COUNT(*) AS c FROM caravan_edges
            WHERE object_entity_id = ? AND predicate = 'affects'`
         );
         const edgeRow = edgeStmt.get(sharedFileId);
@@ -466,7 +466,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
 
         // Commit entities exist (6 fix commits → 6 Commit entities)
         const commitCount = memDb.db.exec(
-          `SELECT COUNT(*) FROM memory_entities WHERE type = 'Commit'`
+          `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Commit'`
         );
         expect(commitCount[0]?.values[0][0] as number).toBe(6);
       } finally {

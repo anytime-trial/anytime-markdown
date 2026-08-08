@@ -55,7 +55,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
 
     try {
       db.run(
-        `INSERT OR IGNORE INTO memory_entities
+        `INSERT OR IGNORE INTO caravan_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
@@ -81,7 +81,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
     const edgeIdVal = entityId('edge', `affects:${bugEntityId}:${fileId}`);
     try {
       db.run(
-        `INSERT OR IGNORE INTO memory_edges
+        `INSERT OR IGNORE INTO caravan_edges
            (id, subject_entity_id, predicate, object_entity_id,
             valid_from, valid_to, recorded_at,
             source_type, source_ref,

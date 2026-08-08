@@ -46,7 +46,7 @@ function recordFailedItem(
   detail: string,
 ): void {
   db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT(scope, item_key) DO UPDATE SET
        attempt_count = attempt_count + 1,
@@ -114,8 +114,8 @@ async function ingestOneFinding(opts: {
     // F21: look for existing findings with matching file/symbol/category
     const candidates = db.exec(
       `SELECT mrf.finding_entity_id, me.embedding
-       FROM memory_review_findings mrf
-       JOIN memory_entities me ON me.id = mrf.finding_entity_id
+       FROM caravan_review_findings mrf
+       JOIN caravan_entities me ON me.id = mrf.finding_entity_id
        WHERE mrf.target_file_path IS ?
          AND mrf.target_symbol IS ?
          AND mrf.category = ?
@@ -133,7 +133,7 @@ async function ingestOneFinding(opts: {
       : JSON.stringify({ confidence_label: 'INFERRED' });
 
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'ReviewFinding', ?, ?, '[]', '[]', ?, ?, ?, ?)`,
@@ -145,7 +145,7 @@ async function ingestOneFinding(opts: {
     );
     if (mergedInto) {
       db.run(
-        `UPDATE memory_entities SET attributes_json = ?, last_updated_at = ?
+        `UPDATE caravan_entities SET attributes_json = ?, last_updated_at = ?
          WHERE id = ? AND type = 'ReviewFinding'`,
         [attributesJson, recordedAt, findingEntityId],
       );
@@ -153,7 +153,7 @@ async function ingestOneFinding(opts: {
 
     const findingRowId = entityId('finding_row', findingCanonicalName);
     db.run(
-      `INSERT OR IGNORE INTO memory_review_findings
+      `INSERT OR IGNORE INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
           category, severity, finding_text, suggestion_text, recorded_at)
@@ -171,7 +171,7 @@ async function ingestOneFinding(opts: {
 
     const edgeId = entityId('edge', `flagged:${reviewEntityId}:${findingEntityId}`);
     db.run(
-      `INSERT OR IGNORE INTO memory_edges
+      `INSERT OR IGNORE INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id,
           valid_from, valid_to, recorded_at,
           source_type, source_ref, confidence, confidence_label, modality)
@@ -248,7 +248,7 @@ export async function ingestAgentReviewResult(input: {
     const durationMs =
       new Date(parsed.finished_at).getTime() - new Date(parsed.started_at).getTime();
     db.run(
-      `INSERT OR IGNORE INTO memory_review_runs
+      `INSERT OR IGNORE INTO caravan_review_runs
          (id, trigger_kind, target_kind, target_refs_json, model, prompt_kind, prompt_hash,
           started_at, finished_at, duration_ms, status,
           input_tokens, output_tokens, gpu_used, error_detail, recorded_at)
@@ -270,12 +270,12 @@ export async function ingestAgentReviewResult(input: {
     };
   }
 
-  // ── Step 3: Insert memory_review_runs as 'running' ────────────────────────
+  // ── Step 3: Insert caravan_review_runs as 'running' ────────────────────────
 
   const durationMs =
     new Date(parsed.finished_at).getTime() - new Date(parsed.started_at).getTime();
   db.run(
-    `INSERT OR IGNORE INTO memory_review_runs
+    `INSERT OR IGNORE INTO caravan_review_runs
        (id, trigger_kind, target_kind, target_refs_json, model, prompt_kind, prompt_hash,
         started_at, finished_at, duration_ms, status,
         input_tokens, output_tokens, gpu_used, error_detail, recorded_at)
@@ -292,7 +292,7 @@ export async function ingestAgentReviewResult(input: {
 
   const reviewEntityId = entityId('Review', parsed.run_id);
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Review', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -303,10 +303,10 @@ export async function ingestAgentReviewResult(input: {
     ],
   );
 
-  // ── Step 5: Insert memory_reviews row (source_kind='agent') ───────────────
+  // ── Step 5: Insert caravan_reviews row (source_kind='agent') ───────────────
 
   db.run(
-    `INSERT OR IGNORE INTO memory_reviews
+    `INSERT OR IGNORE INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id,
         target_kind, target_refs_json, title, reviewer, severity_overall,
         reviewed_at, recorded_at)
@@ -320,7 +320,7 @@ export async function ingestAgentReviewResult(input: {
     ],
   );
 
-  db.run(`UPDATE memory_reviews SET workspace = ? WHERE id = ? AND workspace = ''`, [
+  db.run(`UPDATE caravan_reviews SET workspace = ? WHERE id = ? AND workspace = ''`, [
     input.workspace,
     reviewEntityId,
   ]);
@@ -344,14 +344,14 @@ export async function ingestAgentReviewResult(input: {
     if (result.merged) findingsMerged += 1;
   }
 
-  // ── Step 7: Finalize memory_review_runs ───────────────────────────────────
+  // ── Step 7: Finalize caravan_review_runs ───────────────────────────────────
 
   const partialOrSuccess: 'partial' | 'success' = itemsFailed > 0 ? 'partial' : 'success';
   const finalStatus: 'success' | 'partial' | 'error' =
     itemsFailed > 0 && itemsFailed === parsed.findings.length ? 'error' : partialOrSuccess;
 
   db.run(
-    `UPDATE memory_review_runs SET
+    `UPDATE caravan_review_runs SET
        status = ?, findings_count = ?, findings_inserted = ?, findings_merged = ?,
        review_id = ?
      WHERE id = ?`,

@@ -25,7 +25,7 @@ export interface CodeIncrementalResult {
 
 function readPipelineState(db: MemoryDbConnection): { last_processed_at: string } {
   const stmt = db.prepare(
-    `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`
+    `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`
   );
   try {
     const row = stmt.get(SCOPE);
@@ -42,7 +42,7 @@ function upsertPipelineState(
 ): void {
   const { status, last_processed_at, error_detail } = opts;
   db.run(
-    `INSERT INTO memory_pipeline_state
+    `INSERT INTO caravan_pipeline_state
        (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(scope) DO UPDATE SET

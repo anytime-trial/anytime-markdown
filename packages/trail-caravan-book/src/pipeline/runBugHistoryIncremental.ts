@@ -30,7 +30,7 @@ export interface BugHistoryIncrementalResult {
 }
 
 function readPipelineState(db: MemoryDbConnection): string {
-  const stmt = db.prepare(`SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`);
+  const stmt = db.prepare(`SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`);
   try {
     const row = stmt.get(SCOPE);
     if (row) return (row['last_processed_at'] as string) || DEFAULT_SINCE;
@@ -45,7 +45,7 @@ function upsertPipelineState(
   opts: { status: string; last_processed_at?: string; error_detail?: string }
 ): void {
   db.run(
-    `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+    `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(scope) DO UPDATE SET
        status            = excluded.status,
@@ -60,7 +60,7 @@ function upsertPipelineState(
 
 function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT(scope, item_key) DO UPDATE SET
        attempt_count = attempt_count + 1,
@@ -79,7 +79,7 @@ interface CommitRow {
 }
 
 /**
- * `memory_bug_fixes.workspace` が空（列追加前に取り込まれた行）を、activity.db 側の
+ * `caravan_bug_fixes.workspace` が空（列追加前に取り込まれた行）を、activity.db 側の
  * コミット所属リポジトリから埋める。
  *
  * 既に埋まっている行は触らない（`WHERE workspace = ''`）ので、毎回走らせても
@@ -89,7 +89,7 @@ interface CommitRow {
 function backfillBugFixWorkspace(db: MemoryDbConnection, repoName: string, logger: MemoryLogger): void {
   try {
     db.run(
-      `UPDATE memory_bug_fixes
+      `UPDATE caravan_bug_fixes
          SET workspace = ?
        WHERE workspace = ''
          AND commit_sha IN (
@@ -255,7 +255,7 @@ export async function runBugHistoryIncremental(opts: {
       bugsInserted += 1;
       if (fixesInserted) totals.edges_inserted += 1;
 
-      // g. Upsert memory_bug_fixes
+      // g. Upsert caravan_bug_fixes
       upsertBugFix(db, {
         id: bugFixId,
         commitSha,

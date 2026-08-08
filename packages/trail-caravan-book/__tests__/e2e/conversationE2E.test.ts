@@ -191,7 +191,7 @@ describe('E2E: runConversationIncremental', () => {
 
       // Verify both active edges exist
       const edgeRows = memDb.db.exec(
-        `SELECT predicate, valid_to FROM memory_edges WHERE valid_to IS NULL ORDER BY predicate`
+        `SELECT predicate, valid_to FROM caravan_edges WHERE valid_to IS NULL ORDER BY predicate`
       );
       const activeEdges = edgeRows[0]?.values ?? [];
       expect(activeEdges).toHaveLength(2);
@@ -200,7 +200,7 @@ describe('E2E: runConversationIncremental', () => {
 
       // pipeline_state advanced
       const stateRows1 = memDb.db.exec(
-        `SELECT last_processed_at, status FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+        `SELECT last_processed_at, status FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
       );
       const [lastAt1, status1] = stateRows1[0].values[0] as [string, string];
       expect(status1).toBe('idle');
@@ -225,7 +225,7 @@ describe('E2E: runConversationIncremental', () => {
 
       // pipeline_state cursor must not have regressed
       const stateRows2 = memDb.db.exec(
-        `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+        `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
       );
       const lastAt2 = stateRows2[0].values[0][0] as string;
       expect(lastAt2).toBe(lastAt1);
@@ -246,7 +246,7 @@ describe('E2E: runConversationIncremental', () => {
    *
    * Because 'replaces' is single_active, the second insert must invalidate
    * the first: Angular edge gets valid_to set, Bootstrap edge stays active,
-   * memory_edge_invalidations has 1 row.
+   * caravan_edge_invalidations has 1 row.
    */
   test(
     'E1b: single_active invalidation — replaces predicate sets valid_to on old edge',
@@ -315,8 +315,8 @@ describe('E2E: runConversationIncremental', () => {
       // Angular edge: valid_to IS NOT NULL (invalidated)
       const invalidated = memDb.db.exec(
         `SELECT me.valid_to
-         FROM memory_edges me
-         JOIN memory_entities obj ON obj.id = me.object_entity_id
+         FROM caravan_edges me
+         JOIN caravan_entities obj ON obj.id = me.object_entity_id
          WHERE me.predicate = 'replaces' AND obj.canonical_name = 'angular'`
       );
       expect(invalidated[0]?.values).toHaveLength(1);
@@ -325,15 +325,15 @@ describe('E2E: runConversationIncremental', () => {
       // Bootstrap edge: valid_to IS NULL (active)
       const active = memDb.db.exec(
         `SELECT me.valid_to
-         FROM memory_edges me
-         JOIN memory_entities obj ON obj.id = me.object_entity_id
+         FROM caravan_edges me
+         JOIN caravan_entities obj ON obj.id = me.object_entity_id
          WHERE me.predicate = 'replaces' AND obj.canonical_name = 'bootstrap'`
       );
       expect(active[0]?.values).toHaveLength(1);
       expect(active[0].values[0][0]).toBeNull();
 
-      // memory_edge_invalidations has 1 row
-      const invRows = memDb.db.exec(`SELECT COUNT(*) FROM memory_edge_invalidations`);
+      // caravan_edge_invalidations has 1 row
+      const invRows = memDb.db.exec(`SELECT COUNT(*) FROM caravan_edge_invalidations`);
       expect(invRows[0].values[0][0]).toBe(1);
 
       trailDb.close();
@@ -414,7 +414,7 @@ describe('E2E: runConversationIncremental', () => {
 
       // Concept entity exists with 'conventional' in canonical_name
       const entRows = memDb.db.exec(
-        `SELECT canonical_name FROM memory_entities
+        `SELECT canonical_name FROM caravan_entities
          WHERE type = 'Concept' AND canonical_name LIKE '%conventional%'`
       );
       expect(entRows[0]?.values).toHaveLength(1);
@@ -424,9 +424,9 @@ describe('E2E: runConversationIncremental', () => {
       // The 'prefers' edge is active (valid_to IS NULL)
       const edgeRows = memDb.db.exec(
         `SELECT me.valid_to
-         FROM memory_edges me
-         JOIN memory_entities subj ON subj.id = me.subject_entity_id
-         JOIN memory_entities obj  ON obj.id  = me.object_entity_id
+         FROM caravan_edges me
+         JOIN caravan_entities subj ON subj.id = me.subject_entity_id
+         JOIN caravan_entities obj  ON obj.id  = me.object_entity_id
          WHERE subj.canonical_name = 'user'
            AND me.predicate = 'prefers'
            AND obj.canonical_name LIKE '%conventional%'`
@@ -437,7 +437,7 @@ describe('E2E: runConversationIncremental', () => {
       // pipeline_state.last_processed_at advanced past epoch default
       const stateRows = memDb.db.exec(
         `SELECT last_processed_at, status
-         FROM memory_pipeline_state
+         FROM caravan_pipeline_state
          WHERE scope = 'conversation_incremental'`
       );
       expect(stateRows[0]?.values).toHaveLength(1);

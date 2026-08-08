@@ -27,7 +27,7 @@ export interface PrReviewIngestInput {
   readonly bodyHash: string; // source_hash へ（冪等判定）
   readonly title?: string; // 省略時 "PR #<n> review by <author>"
   readonly bodyExcerpt?: string;
-  readonly workspace?: string; // memory_reviews.workspace へ（省略時 repoName）
+  readonly workspace?: string; // caravan_reviews.workspace へ（省略時 repoName）
   readonly findings: readonly PrReviewFindingInput[];
 }
 
@@ -42,7 +42,7 @@ export interface PrReviewIngestResult {
 // 式を 2 か所に持つと、ずれたときに「冪等判定が常に新規・逆引きが常に 0 件」という
 // エラーの出ない壊れ方をするため、実体をここへ一本化する。
 
-/** PR レビューの memory_reviews.source_ref を構築する（source_kind='pr_comment' 用）。 */
+/** PR レビューの caravan_reviews.source_ref を構築する（source_kind='pr_comment' 用）。 */
 export function buildPrReviewSourceRef(repoName: string, prNumber: number, reviewId: string): string {
   return `${repoName}#pr${prNumber}#${reviewId}`;
 }
@@ -110,7 +110,7 @@ function buildTargetRefsJson(findings: readonly PrReviewFindingInput[]): string 
 }
 
 /**
- * memory_review_findings の洗い替え。
+ * caravan_review_findings の洗い替え。
  *
  * finding の entity id は (review, finding_index) 由来で、コメントの増減により同じ id が
  * 別内容を指し得る。旧 finding のエンティティと、それを指す**全** edge（flagged だけでなく
@@ -120,23 +120,23 @@ function buildTargetRefsJson(findings: readonly PrReviewFindingInput[]): string 
  */
 function washAwayFindings(db: MemoryDbConnection, reviewRowId: string): void {
   db.run(
-    `DELETE FROM memory_edges WHERE
-       subject_entity_id IN (SELECT finding_entity_id FROM memory_review_findings WHERE review_id=?)
-       OR object_entity_id IN (SELECT finding_entity_id FROM memory_review_findings WHERE review_id=?)`,
+    `DELETE FROM caravan_edges WHERE
+       subject_entity_id IN (SELECT finding_entity_id FROM caravan_review_findings WHERE review_id=?)
+       OR object_entity_id IN (SELECT finding_entity_id FROM caravan_review_findings WHERE review_id=?)`,
     [reviewRowId, reviewRowId],
   );
-  db.run(`DELETE FROM memory_edges WHERE predicate='flagged' AND subject_entity_id=?`, [reviewRowId]);
+  db.run(`DELETE FROM caravan_edges WHERE predicate='flagged' AND subject_entity_id=?`, [reviewRowId]);
   db.run(
-    `DELETE FROM memory_entities WHERE id IN (SELECT finding_entity_id FROM memory_review_findings WHERE review_id=?)`,
+    `DELETE FROM caravan_entities WHERE id IN (SELECT finding_entity_id FROM caravan_review_findings WHERE review_id=?)`,
     [reviewRowId],
   );
-  db.run(`DELETE FROM memory_review_findings WHERE review_id=?`, [reviewRowId]);
+  db.run(`DELETE FROM caravan_review_findings WHERE review_id=?`, [reviewRowId]);
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * GitHub PR レビュー 1 件を memory_reviews / memory_review_findings へ取り込む。
+ * GitHub PR レビュー 1 件を caravan_reviews / caravan_review_findings へ取り込む。
  *
  * source_kind='pr_comment'・source_ref={@link buildPrReviewSourceRef} の UNIQUE キーで
  * 冪等 upsert する。source_hash（bodyHash）が既存行と一致すれば何もせず skip
@@ -161,22 +161,22 @@ export function ingestPrReview(
 
   db.execMany('BEGIN');
   try {
-    // 1. Review entity を確保する（memory_reviews.review_entity_id の FK 先）。
+    // 1. Review entity を確保する（caravan_reviews.review_entity_id の FK 先）。
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Review', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
       [reviewRowId, sourceRef, title, recordedAt, recordedAt, recordedAt],
     );
     db.run(
-      `UPDATE memory_entities SET display_name=?, last_updated_at=? WHERE id=? AND type='Review'`,
+      `UPDATE caravan_entities SET display_name=?, last_updated_at=? WHERE id=? AND type='Review'`,
       [title, recordedAt, reviewRowId],
     );
 
     // 2. 既存行の source_hash を見る。
     const existingRows = db.exec(
-      `SELECT source_hash FROM memory_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
+      `SELECT source_hash FROM caravan_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
       [sourceRef],
     );
     const existingRow = existingRows[0]?.values?.[0];
@@ -185,7 +185,7 @@ export function ingestPrReview(
 
     if (!created && existingHash === input.bodyHash) {
       const countRows = db.exec(
-        `SELECT COUNT(*) FROM memory_review_findings WHERE review_id=?`,
+        `SELECT COUNT(*) FROM caravan_review_findings WHERE review_id=?`,
         [reviewRowId],
       );
       const findingsCount = Number(countRows[0]?.values?.[0]?.[0] ?? 0);
@@ -201,7 +201,7 @@ export function ingestPrReview(
 
     if (created) {
       db.run(
-        `INSERT INTO memory_reviews
+        `INSERT INTO caravan_reviews
            (id, source_kind, source_ref, review_entity_id, target_kind, target_refs_json,
             title, reviewer, severity_overall, summary, body_excerpt, reviewed_at, recorded_at,
             source_hash, workspace)
@@ -224,7 +224,7 @@ export function ingestPrReview(
       );
     } else {
       db.run(
-        `UPDATE memory_reviews
+        `UPDATE caravan_reviews
             SET target_refs_json=?, title=?, reviewer=?, severity_overall=?, body_excerpt=?,
                 reviewed_at=?, recorded_at=?, source_hash=?, workspace=?
           WHERE id=?`,

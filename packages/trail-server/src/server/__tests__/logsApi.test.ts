@@ -16,7 +16,7 @@ describe('handlePostLogs', () => {
     };
     const res = handlePostLogs(JSON.stringify(body), svc);
     expect(res.status).toBe(204);
-    const result = db.exec('SELECT COUNT(*) AS n FROM pipeline_run_logs');
+    const result = db.exec('SELECT COUNT(*) AS n FROM caravan_pipeline_run_logs');
     expect(result[0]?.values[0]?.[0]).toBe(1);
   });
 

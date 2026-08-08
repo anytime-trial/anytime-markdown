@@ -46,7 +46,7 @@ function upsertPipelineState(
   opts: { status: string; lastProcessedAt?: string; errorDetail?: string },
 ): void {
   db.run(
-    `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+    `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(scope) DO UPDATE SET
        status            = excluded.status,
@@ -68,7 +68,7 @@ function recordFailedItem(
   failedAt: string,
 ): void {
   db.run(
-    `INSERT OR REPLACE INTO memory_failed_items
+    `INSERT OR REPLACE INTO caravan_failed_items
       (scope, item_key, failed_at, reason, detail)
      VALUES (?, ?, ?, ?, ?)`,
     [scope, itemKey, failedAt, reason, detail],
@@ -77,7 +77,7 @@ function recordFailedItem(
 
 function ensurePredicateExists(db: MemoryDbConnection, predicate: string): void {
   db.run(
-    `INSERT OR IGNORE INTO memory_relation_types
+    `INSERT OR IGNORE INTO caravan_relation_types
       (predicate, cardinality, directionality, description)
      VALUES (?, 'multiple_active', 'subject_to_object', 'spec extracted predicate')`,
     [predicate],
@@ -127,7 +127,7 @@ export async function runSpecIncremental(
 
   logger.info(`[${startedAt}] [INFO] [anytime-memory] runSpecIncremental: starting (specRoot=${specRoot})`);
 
-  // 1. Insert running row into pipeline_runs
+  // 1. Insert running row into caravan_pipeline_runs
   const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
   ledger.start(startedAt);
 
@@ -162,7 +162,7 @@ export async function runSpecIncremental(
     // For the test: 2nd run discoverChangedSpecs returns [] (0 changed), items_processed=0
     // We need items_skipped to be 1. We'll compute it via DB query after discoverChangedSpecs.
 
-    // Count all md files currently tracked in memory_spec_documents (as a proxy for skips)
+    // Count all md files currently tracked in caravan_spec_documents (as a proxy for skips)
     // Actually the cleanest: count total_md_in_specRoot - changed_specs.length
     // We do a quick file count here.
     let totalMdCount = 0;
@@ -276,7 +276,7 @@ export async function runSpecIncremental(
         }
 
         // f. Persist claims as edges
-        // Ensure all predicates exist in memory_relation_types before inserting edges
+        // Ensure all predicates exist in caravan_relation_types before inserting edges
         for (const claim of extracted.claims) {
           ensurePredicateExists(db, claim.predicate);
         }

@@ -378,10 +378,10 @@ describe('E2E Phase 2: runCodeIncremental', () => {
    *
    * Verifies:
    *   - status='success'
-   *   - memory_entities has Package + File entries (from fromTrailGraph)
-   *   - memory_code_facts has imports and calls entries (from ingestAstFacts)
-   *   - memory_edges has source_type='code' depends_on + relates_to edges
-   *   - memory_entities has at least 1 Decision (from extractCommitRationale)
+   *   - caravan_entities has Package + File entries (from fromTrailGraph)
+   *   - caravan_code_facts has imports and calls entries (from ingestAstFacts)
+   *   - caravan_edges has source_type='code' depends_on + relates_to edges
+   *   - caravan_entities has at least 1 Decision (from extractCommitRationale)
    *   - duration_ms < 5000
    *   - Second run returns status='skipped'
    */
@@ -414,31 +414,31 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // Package entities exist (test-pkg-a, test-pkg-b)
       const pkgRows = memDb.db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE type = 'Package'`
+        `SELECT type, canonical_name FROM caravan_entities WHERE type = 'Package'`
       );
       expect(pkgRows[0]?.values?.length).toBeGreaterThanOrEqual(2);
 
       // File entities exist (5 files across 2 packages)
       const fileRows = memDb.db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE type = 'File'`
+        `SELECT type, canonical_name FROM caravan_entities WHERE type = 'File'`
       );
       expect(fileRows[0]?.values?.length).toBeGreaterThanOrEqual(5);
 
-      // memory_code_facts has imports (foo.ts imports bar.ts)
+      // caravan_code_facts has imports (foo.ts imports bar.ts)
       const importFacts = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_code_facts WHERE fact_type = 'imports'`
+        `SELECT COUNT(*) FROM caravan_code_facts WHERE fact_type = 'imports'`
       );
       expect(importFacts[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
-      // memory_code_facts has calls (foo.ts calls greet)
+      // caravan_code_facts has calls (foo.ts calls greet)
       const callFacts = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_code_facts WHERE fact_type = 'calls'`
+        `SELECT COUNT(*) FROM caravan_code_facts WHERE fact_type = 'calls'`
       );
       expect(callFacts[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
-      // memory_edges has source_type='code' edges
+      // caravan_edges has source_type='code' edges
       const codeEdges = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_edges WHERE source_type = 'code'`
+        `SELECT COUNT(*) FROM caravan_edges WHERE source_type = 'code'`
       );
       expect(codeEdges[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
@@ -448,24 +448,24 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       // Note: depends_on edges (for truly external modules) are NOT produced by
       // analyzeWithProgram because applyFilter removes edges to non-project files.
       const relatesToEdges = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_edges WHERE predicate = 'relates_to' AND source_type = 'code'`
+        `SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'relates_to' AND source_type = 'code'`
       );
       expect(relatesToEdges[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
       // Decision entity + rationale_for edge from extractCommitRationale
       const decisionRows = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_entities WHERE type = 'Decision'`
+        `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Decision'`
       );
       expect(decisionRows[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
       const rationaleEdges = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_edges WHERE predicate = 'rationale_for'`
+        `SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'rationale_for'`
       );
       expect(rationaleEdges[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
       // pipeline_state advanced
       const stateRows = memDb.db.exec(
-        `SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`
+        `SELECT status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'code_incremental'`
       );
       expect(stateRows[0]?.values?.length).toBe(1);
       const [status1, lastAt1] = stateRows[0].values[0] as [string, string];
@@ -475,7 +475,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // Commit entity exists (from extractCommitRationale)
       const commitRows = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_entities WHERE type = 'Commit'`
+        `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Commit'`
       );
       expect(commitRows[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
@@ -495,7 +495,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // pipeline_state must not have regressed
       const stateRows2 = memDb.db.exec(
-        `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`
+        `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'code_incremental'`
       );
       const lastAt2 = stateRows2[0].values[0][0] as string;
       expect(lastAt2).toBe(lastAt1);
@@ -516,7 +516,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
    * embeddings (LLM not used), so the embedding similarity step returns nothing.
    * Instead we verify directly in the DB that:
    *   - A File entity with canonical_name containing 'utils' exists
-   *   - A depends_on or relates_to edge in memory_edges with source_type='code'
+   *   - A depends_on or relates_to edge in caravan_edges with source_type='code'
    *     targeting that file entity exists
    *
    * This is the equivalent of the acceptance check described in the task spec.
@@ -547,7 +547,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // File entity for utils.ts exists (src/a/utils.ts is imported by both index.ts and service.ts)
       const utilsFileRows = memDb.db.exec(
-        `SELECT id, canonical_name FROM memory_entities
+        `SELECT id, canonical_name FROM caravan_entities
          WHERE type = 'File' AND canonical_name LIKE '%utils%'`
       );
       expect(utilsFileRows[0]?.values?.length).toBeGreaterThanOrEqual(1);
@@ -557,7 +557,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       // Note: db.exec() has params dropped by the trail readonly guard, so
       // we use prepare/bind/step to pass parameters correctly.
       const edgeStmt = memDb.db.prepare(
-        `SELECT COUNT(*) AS c FROM memory_edges
+        `SELECT COUNT(*) AS c FROM caravan_edges
          WHERE object_entity_id = ? AND source_type = 'code'`
       );
       const edgeCountRow = edgeStmt.get(utilsEntityId);

@@ -804,7 +804,7 @@ export interface DoraMetricRow {
 //  GitHub PR review (LEP 新ソース / Step 4b-4c)
 // ---------------------------------------------------------------------------
 
-/** PR review 1 件の行形状（CrossSourceCorrelator 入力の契約。永続化は memory_reviews 側・2026-08-07 統合）。 */
+/** PR review 1 件の行形状（CrossSourceCorrelator 入力の契約。永続化は caravan_reviews 側・2026-08-07 統合）。 */
 export interface PrReviewRow {
   readonly reviewId: string;
   readonly repoName: string;
@@ -815,7 +815,7 @@ export interface PrReviewRow {
   readonly bodyHash: string;
 }
 
-/** PR review finding 1 件の行形状（相関計算の契約。永続化は memory_review_findings 側・2026-08-07 統合）。 */
+/** PR review finding 1 件の行形状（相関計算の契約。永続化は caravan_review_findings 側・2026-08-07 統合）。 */
 export interface PrReviewFindingRow {
   readonly findingId: string;
   readonly reviewId: string;
@@ -3717,7 +3717,7 @@ export class TrailDatabase {
     this.migrateDropDerivedRepoName(db);
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
-    // pr_reviews / pr_review_comments / pr_review_findings は memory_reviews 系へ統合（2026-08-07）。
+    // pr_reviews / pr_review_comments / pr_review_findings は caravan_reviews 系へ統合（2026-08-07）。
     // activity.db 側では作成しない（残存する旧テーブルは FlightRecordDatabase の移行が 0 行時のみ回収）。
     // cross-source 相関 (Step 4d)。新規テーブルのみ。
     db.run(CREATE_CROSS_SOURCE_CORRELATIONS);
@@ -3734,7 +3734,7 @@ export class TrailDatabase {
     for (const idx of CREATE_EMERGENCY_INDEXES) {
       db.run(idx);
     }
-    // Flight Review / Flight Record（flight_reviews / instructions / instruction_sessions）は
+    // Flight Review / Flight Record（caravan_flight_reviews / instructions / caravan_instruction_sessions）は
     // caravan-book.db へ移設した（2026-08-07・FlightRecordDatabase が所有）。activity.db 側では
     // 作成しない。既存 DB の残存テーブルは FlightRecordDatabase.migrateFromTrailDb が
     // コピー検証後に DROP する。
@@ -3749,7 +3749,7 @@ export class TrailDatabase {
     for (const idx of CREATE_VERIFICATION_RUN_INDEXES) {
       db.run(idx);
     }
-    // 受入台帳 (acceptance_records)・ドクトリン接地判断 (doctrine_judgments) は
+    // 受入台帳 (caravan_acceptance_records)・ドクトリン接地判断 (caravan_doctrine_judgments) は
     // caravan-book.db へ移設した（2026-08-07）。activity.db 側では作成しない。
     // 残存テーブルは FlightRecordDatabase / mcp-trail の遅延移行が回収する。
     // Architectural Drift Detection (管制塔 §2.3)。新規テーブルのみ。
@@ -4950,7 +4950,7 @@ export class TrailDatabase {
   }
 
   // PR review の永続化（旧 pr_reviews / pr_review_comments / pr_review_findings）は
-  // memory_reviews / memory_review_findings（source_kind='pr_comment'）へ統合した（2026-08-07）。
+  // caravan_reviews / caravan_review_findings（source_kind='pr_comment'）へ統合した（2026-08-07）。
   // 取込は trail-caravan-book の ingestPrReview、読み出しは trail-server の prReviewMemorySource が担う。
 
   /**
@@ -10817,7 +10817,7 @@ export class TrailDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  ※ 受入台帳 (acceptance_records) は FlightRecordDatabase（caravan-book.db）へ移設（2026-08-07）
+  //  ※ 受入台帳 (caravan_acceptance_records) は FlightRecordDatabase（caravan-book.db）へ移設（2026-08-07）
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------

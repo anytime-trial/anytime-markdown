@@ -35,7 +35,7 @@ const MS_PER_DAY = 86_400_000;
  *
  * いずれも実証目的であり、相関 0 件でも例外なく [] を返す。
  *
- * > 補足: プラン当初案の「finding ↔ memory_review_findings」「review ↔ memory_drift_findings」は
+ * > 補足: プラン当初案の「finding ↔ caravan_review_findings」「review ↔ memory_drift_findings」は
  * > trail-caravan-book の別 DB に依存し Wave 4 (activity.db reader) から到達できないため、activity.db で完結する
  * > 上記 3 相関に調整した (lep-step4 §6.4 / フォローアップ)。
  */

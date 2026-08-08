@@ -29,42 +29,42 @@ interface EmbeddingTarget {
 /**
  * embedding を持つ 3 テーブル。
  *
- * memory_entities だけを見ていた時期があり、memory_episodes 5,222 件と
- * memory_spec_documents 492 件が全件 NULL のまま「success」を報告し続けていた
+ * caravan_entities だけを見ていた時期があり、caravan_episodes 5,222 件と
+ * caravan_spec_documents 492 件が全件 NULL のまま「success」を報告し続けていた
  * （対象外なので失敗として数えられない）。対象はここに集約し、増えたテーブルを
  * 足し忘れたら型で気づけるようにする。
  */
 const EMBEDDING_TARGETS: readonly EmbeddingTarget[] = [
   {
     name: 'entities',
-    table: 'memory_entities',
+    table: 'caravan_entities',
     // 無効化済み（valid_until IS NOT NULL）は検索対象外なので埋めない
     selectSql: `SELECT id, text FROM (
                   SELECT id,
                          CASE WHEN summary <> '' THEN type || ': ' || display_name || '. ' || summary
                               ELSE type || ': ' || display_name END AS text
-                    FROM memory_entities
+                    FROM caravan_entities
                    WHERE embedding IS NULL AND valid_until IS NULL
                 ) WHERE TRIM(text) <> ''`,
   },
   {
     name: 'episodes',
-    table: 'memory_episodes',
+    table: 'caravan_episodes',
     selectSql: `SELECT id, text FROM (
                   SELECT id,
                          CASE WHEN summary <> '' THEN summary || '\n' || raw_excerpt
                               ELSE raw_excerpt END AS text
-                    FROM memory_episodes
+                    FROM caravan_episodes
                    WHERE embedding IS NULL
                 ) WHERE TRIM(text) <> ''`,
   },
   {
     name: 'spec_documents',
-    table: 'memory_spec_documents',
+    table: 'caravan_spec_documents',
     selectSql: `SELECT id, text FROM (
                   SELECT id,
                          CASE WHEN summary <> '' THEN title || '\n' || summary ELSE title END AS text
-                    FROM memory_spec_documents
+                    FROM caravan_spec_documents
                    WHERE embedding IS NULL
                 ) WHERE TRIM(text) <> ''`,
   },
@@ -76,7 +76,7 @@ const MAX_EMBED_CHARS = 8000;
 function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT(scope, item_key) DO UPDATE SET
        attempt_count = attempt_count + 1,
@@ -127,7 +127,7 @@ export async function runEmbeddingBackfill(opts: {
   // item_key の旧形式（テーブル修飾なしの裸 id）を掃除する。
   // 修飾を入れた後は DELETE が新形式しか消さないため、放置すると embedding が
   // 埋まった行の失敗記録が「直っているのに失敗のまま」残り続ける。
-  db.run(`DELETE FROM memory_failed_items WHERE scope = ? AND item_key NOT LIKE '%:%'`, [SCOPE]);
+  db.run(`DELETE FROM caravan_failed_items WHERE scope = ? AND item_key NOT LIKE '%:%'`, [SCOPE]);
 
   const counters = { processed: 0, failed: 0 };
   const processedByTarget: Record<EmbeddingTargetName, number> = {
@@ -143,7 +143,7 @@ export async function runEmbeddingBackfill(opts: {
 
     for (const [rowId, rawText] of rows) {
       // item_key はテーブル名で修飾する。id は sha1 の先頭 16 桁で、
-      // テーブルをまたぐと衝突しうるため（memory_failed_items の主キーは scope+item_key）。
+      // テーブルをまたぐと衝突しうるため（caravan_failed_items の主キーは scope+item_key）。
       const itemKey = `${target.name}:${rowId}`;
       const text = (rawText ?? '').slice(0, MAX_EMBED_CHARS);
 
@@ -151,7 +151,7 @@ export async function runEmbeddingBackfill(opts: {
         const { embedding } = await ollama.embeddings({ model: embedModel, prompt: text });
         const blob = encodeEmbedding(embedding);
         db.run(`UPDATE ${target.table} SET embedding = ? WHERE id = ?`, [blob, rowId]);
-        db.run('DELETE FROM memory_failed_items WHERE scope = ? AND item_key = ?', [SCOPE, itemKey]);
+        db.run('DELETE FROM caravan_failed_items WHERE scope = ? AND item_key = ?', [SCOPE, itemKey]);
         counters.processed++;
         processedByTarget[target.name]++;
       } catch (err) {

@@ -9,7 +9,7 @@ export interface CodeReconciliationResult {
 }
 
 /**
- * Reconcile memory_entities of type 'Function' and 'File' against a current
+ * Reconcile caravan_entities of type 'Function' and 'File' against a current
  * snapshot from the latest code graph. Entities present in DB but missing from
  * the snapshot are soft-deleted by setting valid_until to recordedAt.
  *
@@ -35,7 +35,7 @@ export function runCodeReconciliation(opts: {
 
   // Scan all Function/File entities for this repo that are not already soft-deleted.
   const stmt = opts.db.prepare(
-    `SELECT id FROM memory_entities
+    `SELECT id FROM caravan_entities
      WHERE repo_name = ?
        AND type IN ('Function','File')
        AND valid_until IS NULL`
@@ -56,7 +56,7 @@ export function runCodeReconciliation(opts: {
   for (const id of toDelete) {
     try {
       opts.db.run(
-        `UPDATE memory_entities SET valid_until = ? WHERE id = ? AND valid_until IS NULL`,
+        `UPDATE caravan_entities SET valid_until = ? WHERE id = ? AND valid_until IS NULL`,
         [opts.recordedAt, id]
       );
       softDeleted += 1;

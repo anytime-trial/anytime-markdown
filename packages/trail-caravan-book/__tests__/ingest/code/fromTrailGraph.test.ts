@@ -111,7 +111,7 @@ function insertGraph(
 function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
   // Use prepare/get because exec() with params is broken after
   // installTrailReadonlyGuard wraps db.exec (guard drops the params arg).
-  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
   try {
     const row = stmt.get(type);
     return ((row?.['c'] as number) ?? 0);
@@ -121,7 +121,7 @@ function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
 }
 
 function countEdges(db: BetterSqlite3MemoryDb): number {
-  const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
   return result[0]?.values[0][0] as number;
 }
 
@@ -283,7 +283,7 @@ describe('fromTrailGraph', () => {
 
     const expectedPkgId = entityId('Package', canonicalize('web-app'));
     const pkgStmt = memDb.prepare(
-      `SELECT id FROM memory_entities WHERE type = 'Package' AND canonical_name = ?`
+      `SELECT id FROM caravan_entities WHERE type = 'Package' AND canonical_name = ?`
     );
     const pkgRow = pkgStmt.get(canonicalize('web-app'));
     pkgStmt.free?.();
@@ -291,7 +291,7 @@ describe('fromTrailGraph', () => {
 
     const expectedFileId = entityId('File', canonicalize('packages/web-app/src/index.ts'));
     const fileStmt = memDb.prepare(
-      `SELECT id FROM memory_entities WHERE type = 'File' AND canonical_name = ?`
+      `SELECT id FROM caravan_entities WHERE type = 'File' AND canonical_name = ?`
     );
     const fileRow = fileStmt.get(canonicalize('packages/web-app/src/index.ts'));
     fileStmt.free?.();
@@ -320,7 +320,7 @@ describe('fromTrailGraph', () => {
     });
 
     const edgeRows = memDb.exec(
-      `SELECT source_type, source_ref, predicate FROM memory_edges`
+      `SELECT source_type, source_ref, predicate FROM caravan_edges`
     );
     expect(edgeRows[0]?.values).toHaveLength(1);
     const [sourceType, sourceRef, predicate] = edgeRows[0].values[0];
@@ -358,7 +358,7 @@ describe('fromTrailGraph', () => {
 
     // Package attributes_json
     const pkgStmt = memDb.prepare(
-      `SELECT attributes_json FROM memory_entities WHERE type = 'Package'`
+      `SELECT attributes_json FROM caravan_entities WHERE type = 'Package'`
     );
     const pkgRow = pkgStmt.get();
     pkgStmt.free?.();
@@ -366,7 +366,7 @@ describe('fromTrailGraph', () => {
 
     // File attributes_json
     const fileStmt = memDb.prepare(
-      `SELECT attributes_json FROM memory_entities WHERE type = 'File'`
+      `SELECT attributes_json FROM caravan_entities WHERE type = 'File'`
     );
     const fileRow = fileStmt.get();
     fileStmt.free?.();
@@ -422,7 +422,7 @@ describe('fromTrailGraph', () => {
       logger: silentLogger,
     });
 
-    const edgeRows = memDb.exec(`SELECT valid_from FROM memory_edges`);
+    const edgeRows = memDb.exec(`SELECT valid_from FROM caravan_edges`);
     expect(edgeRows[0]?.values).toHaveLength(1);
     expect(edgeRows[0].values[0][0]).toBe(GENERATED_AT);
 
@@ -490,7 +490,7 @@ describe('fromTrailGraph', () => {
     expect(countEntities(memDb, 'Package')).toBe(1);
     expect(countEntities(memDb, 'File')).toBe(1);
 
-    const pkgRows = memDb.exec(`SELECT canonical_name FROM memory_entities WHERE type = 'Package'`);
+    const pkgRows = memDb.exec(`SELECT canonical_name FROM caravan_entities WHERE type = 'Package'`);
     expect(pkgRows[0]?.values[0][0]).toBe(canonicalize('pkg-a'));
 
     trailDb.close();
@@ -572,7 +572,7 @@ describe('fromTrailGraph', () => {
       logger: silentLogger,
     });
 
-    const edgeRows = memDb.exec(`SELECT valid_from FROM memory_edges`);
+    const edgeRows = memDb.exec(`SELECT valid_from FROM caravan_edges`);
     expect(edgeRows[0]?.values).toHaveLength(1);
     // Should use recordedAt as fallback when generatedAt is invalid
     expect(edgeRows[0].values[0][0]).toBe(RECORDED_AT);

@@ -24,7 +24,7 @@ export type ParsedFinding = {
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 /**
- * 指摘群の最大重大度を返す（error > warn > info）。memory_reviews.severity_overall に使う。
+ * 指摘群の最大重大度を返す（error > warn > info）。caravan_reviews.severity_overall に使う。
  * 指摘が無ければ 'info'。
  */
 export function maxSeverity(

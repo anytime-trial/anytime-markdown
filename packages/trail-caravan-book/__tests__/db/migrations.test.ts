@@ -21,15 +21,15 @@ describe('migrations', () => {
     const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     const names = (tables[0]?.values ?? []).map((r) => r[0] as string);
 
-    expect(names).toContain('memory_entities');
-    expect(names).toContain('memory_episodes');
-    expect(names).toContain('memory_edges');
-    expect(names).toContain('memory_edge_invalidations');
-    expect(names).toContain('memory_episode_entities');
-    expect(names).toContain('memory_pipeline_state');
-    expect(names).toContain('pipeline_runs');
-    expect(names).toContain('memory_failed_items');
-    expect(names).toContain('memory_relation_types');
+    expect(names).toContain('caravan_entities');
+    expect(names).toContain('caravan_episodes');
+    expect(names).toContain('caravan_edges');
+    expect(names).toContain('caravan_edge_invalidations');
+    expect(names).toContain('caravan_episode_entities');
+    expect(names).toContain('caravan_pipeline_state');
+    expect(names).toContain('caravan_pipeline_runs');
+    expect(names).toContain('caravan_failed_items');
+    expect(names).toContain('caravan_relation_types');
     expect(names).toContain('_migrations');
 
     close();
@@ -38,7 +38,7 @@ describe('migrations', () => {
   test('seed data: 15 relation types inserted', async () => {
     const { db, close } = await openMemoryCoreDb(tmpDb);
 
-    const result = db.exec('SELECT COUNT(*) FROM memory_relation_types');
+    const result = db.exec('SELECT COUNT(*) FROM caravan_relation_types');
     const count = result[0]?.values[0][0] as number;
     // Phase 1: 15 seeds, Phase 2 adds rationale_for + imports_module = 17, Phase 2.7 adds 4 = 21 total
     expect(count).toBe(21);

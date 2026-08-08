@@ -1358,7 +1358,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-pr');
     const data = inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'rev-legacy'");
     expect(Number(data[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    // repo_name は repos JOIN で復元できる（read メソッドは memory_reviews 統合（2026-08-07）で
+    // repo_name は repos JOIN で復元できる（read メソッドは caravan_reviews 統合（2026-08-07）で
     // 撤去済のため生 SQL で契約を確認する）。
     const joined = inner.exec(
       `SELECT r.repo_name FROM pr_reviews p JOIN repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'rev-legacy'`,
@@ -1369,11 +1369,11 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='pr_reviews'");
     const idxNames = (idx[0]?.values ?? []).map((r: ReadonlyArray<unknown>) => String(r[0]));
     expect(idxNames).not.toContain('idx_pr_reviews_repo_pr');
-    // 新 repo_id 先頭索引は CREATE_PR_REVIEW_INDEXES が張っていたが、memory_reviews 統合
+    // 新 repo_id 先頭索引は CREATE_PR_REVIEW_INDEXES が張っていたが、caravan_reviews 統合
     //（2026-08-07）で activity.db 側の DDL 適用を撤去したため作成されない（残存テーブルは
     // FlightRecordDatabase の移行が回収する過渡期のみ存在する）。
 
-    // 書き込み API（upsertPrReview）は memory_reviews 統合（2026-08-07）で撤去済のため、
+    // 書き込み API（upsertPrReview）は caravan_reviews 統合（2026-08-07）で撤去済のため、
     // ここでは additive migration の結果（列・索引・backfill）だけを検証する。
     db.close();
   });
@@ -1459,7 +1459,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(colsOf('dora_metrics')).toContain('repo_id');
     expect(colsOf('dora_metrics')).not.toContain('repo_name');
     expect(pkOf('dora_metrics')).toEqual(['period', 'repo_id']);
-    // pr_reviews は memory_reviews 統合（2026-08-07）で新規 DB に作成されない。
+    // pr_reviews は caravan_reviews 統合（2026-08-07）で新規 DB に作成されない。
     expect(colsOf('pr_reviews')).toEqual([]);
     // cross_source_correlations: repo_id 列を持つ (PK は不変)。Phase H-1: repo_name 列は無い。
     expect(colsOf('cross_source_correlations')).toContain('repo_id');
@@ -1556,7 +1556,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(Number(inner.exec("SELECT repo_id FROM cross_source_correlations WHERE source_a_id = 'h1-a'")[0]?.values?.[0]?.[0])).toBe(repoId);
 
     // read メソッドは依然 repoName を返す (JOIN repos で復元・下流契約不変)。
-    // pr_reviews の read メソッドは memory_reviews 統合（2026-08-07）で撤去済のため生 SQL で確認する。
+    // pr_reviews の read メソッドは caravan_reviews 統合（2026-08-07）で撤去済のため生 SQL で確認する。
     const prJoined = inner.exec(
       `SELECT r.repo_name FROM pr_reviews p JOIN repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'h1-rev'`,
     );

@@ -72,13 +72,13 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
 }
 
 /**
- * memory_spec_documents に必要な行を挿入する（FK 制約のために必要）。
+ * caravan_spec_documents に必要な行を挿入する（FK 制約のために必要）。
  */
 function insertSpecDoc(db: MemoryDbConnection, specDocId: string): void {
   // installTrailReadonlyGuard 後は db.run のラッパー経由。trail.* でないため通過する。
   const run = (db as unknown as { run: BetterSqlite3MemoryDb['run'] }).run.bind(db);
   run(
-    `INSERT OR IGNORE INTO memory_spec_documents
+    `INSERT OR IGNORE INTO caravan_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [specDocId, `docs/${specDocId}.md`, 'spec', 'Test Doc', '[]', TS, 'hash123', TS],
@@ -86,12 +86,12 @@ function insertSpecDoc(db: MemoryDbConnection, specDocId: string): void {
 }
 
 /**
- * memory_entities に specEntityId の Concept entity を挿入する（edges の FK 制約のために必要）。
+ * caravan_entities に specEntityId の Concept entity を挿入する（edges の FK 制約のために必要）。
  */
 function insertSpecEntity(db: MemoryDbConnection, specEntityId: string): void {
   const run = (db as unknown as { run: BetterSqlite3MemoryDb['run'] }).run.bind(db);
   run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -138,25 +138,25 @@ describe('linkByC4Scope', () => {
       expect(result.skipped_count).toBe(0);
       expect(result.edges_inserted).toBe(2);
 
-      // memory_entities に Package entity が 1 件
+      // caravan_entities に Package entity が 1 件
       const entRows = db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE type = 'Package'`,
+        `SELECT type, canonical_name FROM caravan_entities WHERE type = 'Package'`,
       );
       expect(entRows[0].values).toHaveLength(1);
       expect(entRows[0].values[0][1]).toBe('pkg_trail-caravan-book');
 
-      // memory_edges に mentioned_in / relates_to の 2 本
+      // caravan_edges に mentioned_in / relates_to の 2 本
       const edgeRows = db.exec(
-        `SELECT predicate FROM memory_edges ORDER BY predicate`,
+        `SELECT predicate FROM caravan_edges ORDER BY predicate`,
       );
       const predicates = edgeRows[0].values.map((r) => r[0]);
       expect(predicates).toContain('mentioned_in');
       expect(predicates).toContain('relates_to');
       expect(edgeRows[0].values).toHaveLength(2);
 
-      // memory_spec_doc_entities に 1 件
+      // caravan_spec_doc_entities に 1 件
       const sdeRows = db.exec(
-        `SELECT spec_doc_id, entity_id FROM memory_spec_doc_entities`,
+        `SELECT spec_doc_id, entity_id FROM caravan_spec_doc_entities`,
       );
       expect(sdeRows[0].values).toHaveLength(1);
       expect(sdeRows[0].values[0][0]).toBe(specDocId);
@@ -225,13 +225,13 @@ describe('linkByC4Scope', () => {
       linkByC4Scope(args);
 
       // DB 上のレコード数は重複しない
-      const entRows = db.exec(`SELECT COUNT(*) FROM memory_entities WHERE type = 'Package'`);
+      const entRows = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type = 'Package'`);
       expect(entRows[0].values[0][0]).toBe(1);
 
-      const edgeRows = db.exec(`SELECT COUNT(*) FROM memory_edges`);
+      const edgeRows = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
       expect(edgeRows[0].values[0][0]).toBe(2);
 
-      const sdeRows = db.exec(`SELECT COUNT(*) FROM memory_spec_doc_entities`);
+      const sdeRows = db.exec(`SELECT COUNT(*) FROM caravan_spec_doc_entities`);
       expect(sdeRows[0].values[0][0]).toBe(1);
     } finally {
       cleanup();
@@ -265,7 +265,7 @@ describe('linkByC4Scope', () => {
       expect(result.edges_inserted).toBe(2);
 
       const entRows = db.exec(
-        `SELECT type FROM memory_entities WHERE canonical_name = 'sys_anytime-markdown'`,
+        `SELECT type FROM caravan_entities WHERE canonical_name = 'sys_anytime-markdown'`,
       );
       expect(entRows[0].values[0][0]).toBe('Concept');
     } finally {
@@ -300,7 +300,7 @@ describe('linkByC4Scope', () => {
       expect(result.edges_inserted).toBe(2);
 
       const entRows = db.exec(
-        `SELECT type FROM memory_entities WHERE canonical_name = 'pkg_trail-caravan-book/engine'`,
+        `SELECT type FROM caravan_entities WHERE canonical_name = 'pkg_trail-caravan-book/engine'`,
       );
       expect(entRows[0].values[0][0]).toBe('Concept');
     } finally {

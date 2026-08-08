@@ -36,20 +36,20 @@ function ingest(db: BetterSqlite3MemoryDb, comments: DecisionCommentItem[]) {
 }
 
 function countDecisions(db: BetterSqlite3MemoryDb): number {
-  const result = db.exec(`SELECT COUNT(*) FROM memory_entities WHERE type = 'Decision'`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type = 'Decision'`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
 function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
   if (predicate) {
-    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_edges WHERE predicate = ?`);
+    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_edges WHERE predicate = ?`);
     try {
       return (stmt.get(predicate)?.['c'] as number) ?? 0;
     } finally {
       stmt.free?.();
     }
   }
-  const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
@@ -68,14 +68,14 @@ describe('ingestDecisionComments', () => {
     expect(countEdges(db, 'rationale_for')).toBe(1);
 
     const rows = db.exec(
-      `SELECT summary, display_name FROM memory_entities WHERE type = 'Decision'`
+      `SELECT summary, display_name FROM caravan_entities WHERE type = 'Decision'`
     );
     expect(rows[0]?.values).toHaveLength(1);
     expect(rows[0].values[0][0] as string).toContain('ロジック A の理由');
     expect(rows[0].values[0][1] as string).toContain('ロジック A の理由');
 
     const edgeRows = db.exec(
-      `SELECT source_type, source_ref, confidence_label FROM memory_edges WHERE predicate = 'rationale_for'`
+      `SELECT source_type, source_ref, confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`
     );
     expect(edgeRows[0].values[0][0]).toBe('code');
     expect(edgeRows[0].values[0][1] as string).toMatch(/^code_fact:comment:.+#\d+$/);
@@ -128,7 +128,7 @@ describe('ingestDecisionComments', () => {
       .slice(0, 16);
     const expectedId = entityId('Decision', canonName);
 
-    const rows = db.exec(`SELECT id FROM memory_entities WHERE type = 'Decision'`);
+    const rows = db.exec(`SELECT id FROM caravan_entities WHERE type = 'Decision'`);
     expect(rows[0]?.values[0][0]).toBe(expectedId);
   });
 
@@ -138,14 +138,14 @@ describe('ingestDecisionComments', () => {
       { filePath: 'src/index.ts', line: 1, text: 'r1', symbolName: null },
       { filePath: 'src/index.ts', line: 9, text: 'r2', symbolName: null },
     ]);
-    const fileRows = db.exec(`SELECT COUNT(*) FROM memory_entities WHERE type = 'File'`);
+    const fileRows = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type = 'File'`);
     expect(fileRows[0]?.values[0][0] as number).toBe(1);
 
     // 同名列 (type) を 2 つ select すると sql.js が collapse するため別名にする。
     const edgeRows = db.exec(`
-      SELECT s.type AS subject_type, o.type AS object_type FROM memory_edges e
-        JOIN memory_entities s ON s.id = e.subject_entity_id
-        JOIN memory_entities o ON o.id = e.object_entity_id
+      SELECT s.type AS subject_type, o.type AS object_type FROM caravan_edges e
+        JOIN caravan_entities s ON s.id = e.subject_entity_id
+        JOIN caravan_entities o ON o.id = e.object_entity_id
        WHERE e.predicate = 'rationale_for' LIMIT 1
     `);
     expect(edgeRows[0].values[0][0]).toBe('Decision');
@@ -156,7 +156,7 @@ describe('ingestDecisionComments', () => {
     const db = await makeDb();
     const longText = 'x'.repeat(200);
     ingest(db, [{ filePath: 'src/index.ts', line: 1, text: longText, symbolName: 'mySymbol' }]);
-    const rows = db.exec(`SELECT display_name FROM memory_entities WHERE type = 'Decision'`);
+    const rows = db.exec(`SELECT display_name FROM caravan_entities WHERE type = 'Decision'`);
     const displayName = rows[0].values[0][0] as string;
     expect(displayName.startsWith('mySymbol: ')).toBe(true);
     expect(displayName.length).toBeLessThanOrEqual(90); // symbol + ': ' + 80

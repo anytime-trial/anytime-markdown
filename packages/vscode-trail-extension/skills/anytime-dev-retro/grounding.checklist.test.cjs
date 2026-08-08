@@ -37,7 +37,7 @@ function writeMemoryDb(ws, { withColumn, rows }) {
   fs.mkdirSync(dbDir, { recursive: true });
   new DatabaseSync(path.join(dbDir, 'activity.db')).close();
   const db = new DatabaseSync(path.join(dbDir, 'caravan-book.db'));
-  db.exec(`CREATE TABLE memory_review_findings (
+  db.exec(`CREATE TABLE caravan_review_findings (
     id TEXT PRIMARY KEY,
     category TEXT,
     severity TEXT,
@@ -49,11 +49,11 @@ function writeMemoryDb(ws, { withColumn, rows }) {
   for (const row of rows) {
     const recordedAt = row.recorded_at ?? new Date().toISOString();
     if (withColumn) {
-      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL,?,?)').run(
+      db.prepare('INSERT INTO caravan_review_findings VALUES (?,?,?,?,NULL,?,?)').run(
         `f${i++}`, row.category, 'info', row.file ?? null, recordedAt, row.checklist_ref ?? null,
       );
     } else {
-      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL,?)').run(
+      db.prepare('INSERT INTO caravan_review_findings VALUES (?,?,?,?,NULL,?)').run(
         `f${i++}`, row.category, 'info', row.file ?? null, recordedAt,
       );
     }

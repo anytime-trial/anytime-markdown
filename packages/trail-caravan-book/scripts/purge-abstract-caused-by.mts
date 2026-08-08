@@ -1,8 +1,8 @@
 /**
  * 一回限りの migration:
  * `caused_by` predicate を持ち object が Concept / Decision / Rule / Person /
- * Project / Question / Task / Skill 型の memory_edges を valid_to=now で無効化し、
- * memory_edge_invalidations に reason='abstract_root_cause_purge' で記録する。
+ * Project / Question / Task / Skill 型の caravan_edges を valid_to=now で無効化し、
+ * caravan_edge_invalidations に reason='abstract_root_cause_purge' で記録する。
  *
  * これにより detectRecurringRootCauses が次回実行されたとき、対応する drift
  * (例: drift:<abstract-entity>:caused_by:recurring_root_cause) は candidates
@@ -21,7 +21,7 @@ import * as fs from 'node:fs';
 import { openMemoryCoreDb } from '../src/db/connection';
 
 const ABSTRACT_OBJECT_TYPES = ['Concept', 'Decision', 'Rule', 'Person', 'Project', 'Question', 'Task', 'Skill'];
-// memory_edge_invalidations.reason は CHECK 制約で
+// caravan_edge_invalidations.reason は CHECK 制約で
 // ('rule_exclusive','llm_contradiction','spec_updated','code_changed','manual') に限定。
 // この一回限り migration は手動運用なので 'manual'。具体的な理由は detail に記録する。
 const REASON = 'manual';
@@ -45,14 +45,14 @@ const { db, close } = await openMemoryCoreDb(memoryDbPath);
 const placeholders = ABSTRACT_OBJECT_TYPES.map(() => '?').join(', ');
 
 const beforeRows = db.exec(
-  `SELECT COUNT(*) AS active_caused_by FROM memory_edges
+  `SELECT COUNT(*) AS active_caused_by FROM caravan_edges
    WHERE predicate = 'caused_by' AND valid_to IS NULL`,
 );
 const activeBefore = (beforeRows[0]?.values[0]?.[0] as number) ?? 0;
 
 const targetRows = db.exec(
-  `SELECT e.id FROM memory_edges e
-   JOIN memory_entities ent ON ent.id = e.object_entity_id
+  `SELECT e.id FROM caravan_edges e
+   JOIN caravan_entities ent ON ent.id = e.object_entity_id
    WHERE e.predicate = 'caused_by'
      AND e.valid_to IS NULL
      AND ent.type IN (${placeholders})`,
@@ -78,13 +78,13 @@ db.run('BEGIN');
 let invalidated = 0;
 try {
   for (const edgeId of targetIds) {
-    db.run(`UPDATE memory_edges SET valid_to = ? WHERE id = ?`, [recordedAt, edgeId]);
+    db.run(`UPDATE caravan_edges SET valid_to = ? WHERE id = ?`, [recordedAt, edgeId]);
     const invalidationId = createHash('sha1')
       .update(`${edgeId}:${recordedAt}:${DETAIL}`)
       .digest('hex')
       .slice(0, 16);
     db.run(
-      `INSERT INTO memory_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
+      `INSERT INTO caravan_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
        VALUES (?, ?, ?, ?, NULL, ?)`,
       [invalidationId, edgeId, recordedAt, REASON, DETAIL],
     );
@@ -99,7 +99,7 @@ try {
 }
 
 const afterRows = db.exec(
-  `SELECT COUNT(*) AS active_caused_by FROM memory_edges
+  `SELECT COUNT(*) AS active_caused_by FROM caravan_edges
    WHERE predicate = 'caused_by' AND valid_to IS NULL`,
 );
 const activeAfter = (afterRows[0]?.values[0]?.[0] as number) ?? 0;

@@ -108,7 +108,7 @@ function resolveOllamaOptions(): Record<string, unknown> {
   // num_ctx=4096 + NUM_PARALLEL=2 では各 slot effective 2048 token のため
   // 長い episode で JSON output が途中切断 (~1.4%) する。一度 num_ctx=8192
   // を試したが、KV cache 倍化で wall-clock が +47% 遅化したため既定は
-  // 4096 に戻し、切断した episode は memory_failed_items 経由で後段
+  // 4096 に戻し、切断した episode は caravan_failed_items 経由で後段
   // (Phase 5 等) で再処理する設計を選ぶ。
   // 失敗を抑えたい運用では MEMORY_CORE_NUM_CTX=8192 で override 可。
   // 環境変数 MEMORY_CORE_NUM_PREDICT も同様に override 可。

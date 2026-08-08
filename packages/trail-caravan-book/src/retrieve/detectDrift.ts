@@ -58,7 +58,7 @@ export function detectDrift(input: DetectDriftInput): DriftEventSummary[] {
     rows = db.exec(
       `SELECT id, subject_entity_id, predicate, drift_type, severity,
               detected_at, resolved_at, resolution_note, detail_json
-       FROM memory_drift_events
+       FROM caravan_drift_events
        ${where}
        ORDER BY detected_at DESC
        LIMIT ?`,

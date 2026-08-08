@@ -62,7 +62,7 @@ export async function handleRecordInstruction(
   const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
   const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
-    // activity.db に旧台帳が残っていれば回収する（doctrine_judgments と同じ遅延移行。
+    // activity.db に旧台帳が残っていれば回収する（caravan_doctrine_judgments と同じ遅延移行。
     // 回収しないと旧指示への continue が「not found」になり、一覧からも消える）
     ensureAndMigrateInstructionTables(opened.db, dbPath);
     if (input.mode === 'close') {

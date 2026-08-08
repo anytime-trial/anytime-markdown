@@ -52,7 +52,7 @@ function ensureEntity(
   recordedAt: string,
 ): void {
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -62,12 +62,12 @@ function ensureEntity(
 
 /**
  * drift candidate の subject_entity_id を **正準 entity id** へ解決し、FK を満たすため
- * 対応する memory_entities 行を冪等に確保して、解決後の id を返す。
+ * 対応する caravan_entities 行を冪等に確保して、解決後の id を返す。
  *
  * 一部の検出器は `file:<path>` / `package:<name>` / `spec_clarification:<key>` 等の合成 ID を
- * subject にする。memory_drift_events.subject_entity_id は memory_entities(id) への FK を持つため、
+ * subject にする。caravan_drift_events.subject_entity_id は caravan_entities(id) への FK を持つため、
  * これを実 entity に写像しないと FK 違反で INSERT が silent に欠落していた（regression_cluster 等が
- * 常に 0 件だった真因）。さらに memory_entities は UNIQUE(type, canonical_name) を持つので、合成 ID を
+ * 常に 0 件だった真因）。さらに caravan_entities は UNIQUE(type, canonical_name) を持つので、合成 ID を
  * 生パスのまま canonical_name にすると既存の実 File entity（canonical_name=canonicalize(path)）と衝突し、
  * INSERT OR IGNORE が黙ってスキップして FK 違反が再発する。
  *
@@ -122,7 +122,7 @@ export function reportDriftEvents(input: {
 
   // 1. 既存の active drift events を取得
   const rows = db.exec(
-    'SELECT id, subject_entity_id, predicate, drift_type FROM memory_drift_events WHERE resolved_at IS NULL',
+    'SELECT id, subject_entity_id, predicate, drift_type FROM caravan_drift_events WHERE resolved_at IS NULL',
   );
   const activeEvents: ActiveEvent[] = (rows[0]?.values ?? []).map((r) => ({
     id: r[0] as string,
@@ -143,7 +143,7 @@ export function reportDriftEvents(input: {
       if (!candidateKeys.has(key)) {
         try {
           db.run(
-            `UPDATE memory_drift_events
+            `UPDATE caravan_drift_events
              SET resolved_at = ?, resolution_note = 'auto: drift no longer present'
              WHERE id = ?`,
             [recordedAt, ev.id],
@@ -176,7 +176,7 @@ export function reportDriftEvents(input: {
       // 一斉に '' へ落ち、どのワークスペースで絞っても画面から消える。
       try {
         db.run(
-          `UPDATE memory_drift_events
+          `UPDATE caravan_drift_events
               SET severity = ?, detail_json = ?, workspace = COALESCE(NULLIF(?, ''), workspace)
             WHERE id = ?`,
           [candidate.severity, detailJson, candidate.workspace, existing.id],
@@ -190,7 +190,7 @@ export function reportDriftEvents(input: {
       // subject entity は step 0 で正規化・確保済みなので FK は満たされる。
       try {
         db.run(
-          `INSERT INTO memory_drift_events
+          `INSERT INTO caravan_drift_events
              (id, subject_entity_id, predicate, conversation_value, spec_value, code_value,
               drift_type, severity, detected_at, detail_json, workspace)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

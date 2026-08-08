@@ -1,4 +1,4 @@
-// Phase 6 S1 (Flight Review): flight_reviews 永続化のポート。
+// Phase 6 S1 (Flight Review): caravan_flight_reviews 永続化のポート。
 // 実装は trail-db の TrailDatabase（副作用: activity.db への書き込み）。
 
 import type {

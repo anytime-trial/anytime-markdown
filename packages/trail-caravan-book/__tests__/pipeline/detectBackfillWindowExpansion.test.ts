@@ -70,7 +70,7 @@ function preInsertEpisode(
   // 簡単な決定論的 ID。実装と同じ episodeId 関数は使わずに済むよう uuid を流用。
   const id = `${sessionId}:${msgUuid}`;
   memDb.run(
-    `INSERT INTO memory_episodes
+    `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end,
         agent_runtime, model, valid_from, recorded_at, raw_excerpt)
      VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, '')`,

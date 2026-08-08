@@ -171,7 +171,7 @@ describe('TrailDatabase.replaceDoraMetrics', () => {
 });
 
 // PR Review 系（getPrReviewBodyHash / upsertPrReview / getPrReviewDetail / getPrReviews /
-// replacePrReviewFindings / getPrReviewFindings）は memory_reviews 統合（2026-08-07）で撤去。
+// replacePrReviewFindings / getPrReviewFindings）は caravan_reviews 統合（2026-08-07）で撤去。
 // 取込の検証は trail-caravan-book __tests__/ingest/pr-review/prReview.test.ts が担う。
 
 // ─────────────────────────────────────────────────────────────────────────────

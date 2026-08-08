@@ -1,4 +1,4 @@
-// 自律受入基盤 S5 (受入台帳): acceptance_records 永続化のポート。
+// 自律受入基盤 S5 (受入台帳): caravan_acceptance_records 永続化のポート。
 // 実装は trail-db の TrailDatabase（副作用: activity.db への書き込み）。
 
 import type {

@@ -1,7 +1,7 @@
 /**
  * Tests for src/ingest/pr-review/ingestPrReview.ts
  *
- * GitHub PR レビューを memory_reviews / memory_review_findings へ取り込む
+ * GitHub PR レビューを caravan_reviews / caravan_review_findings へ取り込む
  * ingestPrReview の新規取込・冪等 skip・洗い替え・source_ref 一意性を検証する。
  */
 import * as os from 'os';
@@ -61,7 +61,7 @@ function makeInput(overrides: Partial<PrReviewIngestInput> = {}): PrReviewIngest
 function selectReviewRow(db: MemoryDbConnection, reviewRowId: string) {
   const rows = db.exec(
     `SELECT source_kind, source_ref, source_hash, severity_overall, target_refs_json, title, reviewer, workspace
-       FROM memory_reviews WHERE id=?`,
+       FROM caravan_reviews WHERE id=?`,
     [reviewRowId],
   );
   const values = rows[0]?.values?.[0];
@@ -82,7 +82,7 @@ function selectReviewRow(db: MemoryDbConnection, reviewRowId: string) {
 function selectFindings(db: MemoryDbConnection, reviewRowId: string) {
   const rows = db.exec(
     `SELECT finding_index, finding_text, severity, target_file_path
-       FROM memory_review_findings WHERE review_id=? ORDER BY finding_index`,
+       FROM caravan_review_findings WHERE review_id=? ORDER BY finding_index`,
     [reviewRowId],
   );
   const values = rows[0]?.values ?? [];
@@ -96,7 +96,7 @@ function selectFindings(db: MemoryDbConnection, reviewRowId: string) {
 
 function countFlaggedEdges(db: MemoryDbConnection, reviewRowId: string): number {
   const rows = db.exec(
-    `SELECT COUNT(*) FROM memory_edges WHERE predicate='flagged' AND subject_entity_id=?`,
+    `SELECT COUNT(*) FROM caravan_edges WHERE predicate='flagged' AND subject_entity_id=?`,
     [reviewRowId],
   );
   return Number(rows[0]?.values?.[0]?.[0] ?? 0);
@@ -209,7 +209,7 @@ describe('ingestPrReview', () => {
       expect(second.reviewRowId).not.toBe(first.reviewRowId);
       expect(second.created).toBe(true);
 
-      const rows = db.exec(`SELECT COUNT(*) FROM memory_reviews WHERE source_kind='pr_comment'`);
+      const rows = db.exec(`SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='pr_comment'`);
       expect(Number(rows[0]?.values?.[0]?.[0] ?? 0)).toBe(2);
     } finally {
       close();

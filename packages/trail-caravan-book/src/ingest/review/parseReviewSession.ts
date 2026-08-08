@@ -388,7 +388,7 @@ export function parseReviewSessions(input: {
   //    本文が 1 文字も無いブロックは登録しない。スキル起動のメッセージ列
   //    （`skill='superpowers:requesting-code-review'` 等）は allowlist に一致する
   //    ものの、レビュー結果ではなく起動の痕跡でしかなく、本文ゼロのまま
-  //    memory_reviews へ入って「タイトルだけの殻」を量産していた（実測 293 件）。
+  //    caravan_reviews へ入って「タイトルだけの殻」を量産していた（実測 293 件）。
   const results: ParsedReviewSession[] = [];
   for (const block of blocks) {
     const session = buildSessionFromBlock(block, logger);

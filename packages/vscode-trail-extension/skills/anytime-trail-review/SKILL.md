@@ -20,7 +20,7 @@ description: コードレビュー結果を出力する際の Markdown 書式（
 | **太字なしの `問題:` だけ**で落ちている | 91 |
 | 見出しはあるがマーカーが無い | 229 |
 
-落ちた指摘は Flight Record に 1 件も残らず、`memory_reviews.summary` に「指摘なし（本文 5946 文字）」と出るだけになる。**本文を書いたのに指摘 0 件**という状態がそれ。
+落ちた指摘は Flight Record に 1 件も残らず、`caravan_reviews.summary` に「指摘なし（本文 5946 文字）」と出るだけになる。**本文を書いたのに指摘 0 件**という状態がそれ。
 
 外してはいけないのは次の 3 点だけ。
 
@@ -300,7 +300,7 @@ session 抽出は trail.messages の `text_content` 全体に対して `splitInt
 
 既存の review .md で本書式に従っていないものは、書き直すか、書式変換スクリプトで `**問題:**` / `**提案:**` ペアに置換する。
 
-session レビュー（subagent 出力）は activity.db のメッセージが正本で書き直せないため、**取り込み後に LLM で本文から指摘を再抽出する**救済経路がある（`runReviewFindingExtraction`）。抽出した finding は `memory_review_findings.extracted_by` に抽出元（`llm:<model>`）が入るので、書式準拠で取り込まれた finding（空文字）と区別できる。
+session レビュー（subagent 出力）は activity.db のメッセージが正本で書き直せないため、**取り込み後に LLM で本文から指摘を再抽出する**救済経路がある（`runReviewFindingExtraction`）。抽出した finding は `caravan_review_findings.extracted_by` に抽出元（`llm:<model>`）が入るので、書式準拠で取り込まれた finding（空文字）と区別できる。
 
 > [!IMPORTANT]
 > LLM 再抽出は救済であって代替ではない。本文に無い内容を作らないよう抽出結果は原文との一致を検査してから登録するが、重大度・対象パスの精度は書式準拠の指摘に劣る。**書式を守るほうが常に精度が高い。**

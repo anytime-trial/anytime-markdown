@@ -21,7 +21,7 @@ let seq = 0;
 function insertEntity(db: BetterSqlite3MemoryDb, id?: string): string {
   const eid = id ?? `ent-${++seq}`;
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Bug', ?, ?, ?, ?, ?)`,
     [eid, eid, eid, TS, TS, TS],
@@ -46,7 +46,7 @@ function insertBugFix(
   const paths = JSON.stringify(opts.affectedPaths ?? []);
   const committedAt = opts.committedAt ?? TS;
   db.run(
-    `INSERT INTO memory_bug_fixes
+    `INSERT INTO caravan_bug_fixes
        (id, commit_sha, bug_entity_id, package, category, subject_summary, affected_file_paths_json, committed_at, recorded_at, workspace)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, opts.commitSha, opts.bugEntityId, opts.package ?? 'web-app', opts.category, 'summary', paths, committedAt, TS, opts.workspace ?? ''],

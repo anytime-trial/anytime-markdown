@@ -640,7 +640,7 @@ describe('flightRecordPanel', () => {
     handle.destroy();
   });
 
-  // ── レビュー指摘（Flight Record へ畳んだ memory_reviews の session 経路） ──
+  // ── レビュー指摘（Flight Record へ畳んだ caravan_reviews の session 経路） ──
   describe('レビュー指摘', () => {
     const FINDING = {
       id: 'rf-1',
