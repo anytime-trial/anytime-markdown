@@ -18,8 +18,8 @@ export type LinkC4ScopeResult = {
 };
 
 /**
- * c4Scope 配列の各要素を trail.c4_manual_elements テーブルで解決し、
- * memory_entities / memory_edges / memory_spec_doc_entities に INSERT OR IGNORE する。
+ * c4Scope 配列の各要素を trail.activity_c4_manual_elements テーブルで解決し、
+ * caravan_entities / caravan_edges / caravan_spec_doc_entities に INSERT OR IGNORE する。
  *
  * trail DB は呼び出し元により ATTACH 済みであること（AS trail）。
  */
@@ -34,12 +34,12 @@ export function linkByC4Scope(input: LinkC4ScopeInput): LinkC4ScopeResult {
       // 1. プレフィックス判定
       let entityType: string;
       if (scopeId.startsWith('sys_')) {
-        // System は memory_entities.type CHECK 制約に含まれないため Concept にマップ
+        // System は caravan_entities.type CHECK 制約に含まれないため Concept にマップ
         entityType = 'Concept';
       } else if (scopeId.startsWith('pkg_') && !scopeId.includes('/')) {
         entityType = 'Package';
       } else if (scopeId.startsWith('pkg_') && scopeId.includes('/')) {
-        // Component は memory_entities.type CHECK 制約に含まれないため Concept にマップ
+        // Component は caravan_entities.type CHECK 制約に含まれないため Concept にマップ
         entityType = 'Concept';
       } else {
         logger.warn?.(`[linkByC4Scope] [${recordedAt}] unknown c4Scope prefix, skipping: ${scopeId}`);
@@ -47,10 +47,10 @@ export function linkByC4Scope(input: LinkC4ScopeInput): LinkC4ScopeResult {
         continue;
       }
 
-      // 2. trail.c4_manual_elements から解決
-      const rows = db.exec(`SELECT id, name FROM trail.c4_manual_elements WHERE id = ?`, [scopeId]);
+      // 2. trail.activity_c4_manual_elements から解決
+      const rows = db.exec(`SELECT id, name FROM trail.activity_c4_manual_elements WHERE id = ?`, [scopeId]);
       if (rows.length === 0 || rows[0].values.length === 0) {
-        logger.warn?.(`[linkByC4Scope] [${recordedAt}] c4_manual_elements row not found, skipping: ${scopeId}`);
+        logger.warn?.(`[linkByC4Scope] [${recordedAt}] activity_c4_manual_elements row not found, skipping: ${scopeId}`);
         skipped_count++;
         continue;
       }
@@ -62,9 +62,9 @@ export function linkByC4Scope(input: LinkC4ScopeInput): LinkC4ScopeResult {
       // 3. entity id を決定（canonical_name として c4_id を使用）
       const c4EntityId = entityId(entityType, c4Id);
 
-      // 4. memory_entities に INSERT OR IGNORE
+      // 4. caravan_entities に INSERT OR IGNORE
       db.run(
-        `INSERT OR IGNORE INTO memory_entities
+        `INSERT OR IGNORE INTO caravan_entities
           (id, type, canonical_name, display_name, attributes_json,
            first_seen_at, last_updated_at, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -80,10 +80,10 @@ export function linkByC4Scope(input: LinkC4ScopeInput): LinkC4ScopeResult {
         ],
       );
 
-      // 5. memory_edges: specEntityId → mentioned_in → c4EntityId
+      // 5. caravan_edges: specEntityId → mentioned_in → c4EntityId
       const edgeId1 = entityId('edge', `${specEntityId}:mentioned_in:${c4EntityId}`);
       db.run(
-        `INSERT OR IGNORE INTO memory_edges
+        `INSERT OR IGNORE INTO caravan_edges
           (id, subject_entity_id, predicate, object_entity_id,
            valid_from, recorded_at, source_type, source_ref,
            confidence, confidence_label, modality, attributes_json)
@@ -104,10 +104,10 @@ export function linkByC4Scope(input: LinkC4ScopeInput): LinkC4ScopeResult {
         ],
       );
 
-      // 6. memory_edges: c4EntityId → relates_to → specEntityId
+      // 6. caravan_edges: c4EntityId → relates_to → specEntityId
       const edgeId2 = entityId('edge', `${c4EntityId}:relates_to:${specEntityId}`);
       db.run(
-        `INSERT OR IGNORE INTO memory_edges
+        `INSERT OR IGNORE INTO caravan_edges
           (id, subject_entity_id, predicate, object_entity_id,
            valid_from, recorded_at, source_type, source_ref,
            confidence, confidence_label, modality, attributes_json)
@@ -128,9 +128,9 @@ export function linkByC4Scope(input: LinkC4ScopeInput): LinkC4ScopeResult {
         ],
       );
 
-      // 7. memory_spec_doc_entities に INSERT OR IGNORE
+      // 7. caravan_spec_doc_entities に INSERT OR IGNORE
       db.run(
-        `INSERT OR IGNORE INTO memory_spec_doc_entities (spec_doc_id, entity_id)
+        `INSERT OR IGNORE INTO caravan_spec_doc_entities (spec_doc_id, entity_id)
          VALUES (?, ?)`,
         [specDocId, c4EntityId],
       );

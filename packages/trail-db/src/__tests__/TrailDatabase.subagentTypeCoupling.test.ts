@@ -12,7 +12,7 @@ const isoDaysAgo = (days: number): string =>
 const insertSession = (db: TrailDatabase, sessionId: string, startTime: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     [sessionId, sessionId, startTime],
   );
 };
@@ -25,7 +25,7 @@ const insertMessage = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, parent_uuid, type, timestamp, subagent_type
      ) VALUES (?, ?, NULL, 'assistant', '2026-04-29T00:00:00.000Z', ?)`,
     [uuid, sessionId, subagentType],
@@ -42,7 +42,7 @@ const insertToolCall = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
      ) VALUES (?, ?, 0, ?, ?, ?, NULL, NULL, NULL, 0, NULL, 0, 0, NULL, ?)`,
@@ -61,7 +61,7 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=subagentType)', () =>
     db.close();
   });
 
-  it('returns subagentType-grain pairs from message_tool_calls', () => {
+  it('returns subagentType-grain pairs from activity_message_tool_calls', () => {
     insertSession(db, 's1', isoDaysAgo(1));
     insertMessage(db, 'm1', 's1', 'Explore');
     insertToolCall(db, 's1', 'm1', 0, 'Edit', 'src/auth.ts');
@@ -190,7 +190,7 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=subagentType)', () =>
     const inner = (db as unknown as { db: SqlJsDb }).db;
     // delegation marker (child message in CC session pointing back to parent assistant)
     inner.run(
-      `INSERT INTO messages (uuid, session_id, parent_uuid, type, timestamp, source_tool_assistant_uuid)
+      `INSERT INTO activity_messages (uuid, session_id, parent_uuid, type, timestamp, source_tool_assistant_uuid)
        VALUES ('cc1-child', 'cc1', NULL, 'assistant', ?, 'p-uuid')`,
       [ccStart],
     );
@@ -198,12 +198,12 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=subagentType)', () =>
     const codexStart = new Date(Date.parse(ccStart) + 60_000).toISOString();
     const codexEnd = new Date(Date.parse(ccStart) + 5 * 60_000).toISOString();
     inner.run(
-      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex1', 'codex1', '0', '', '', ?, ?, 0, '', 0, '', 'codex')`,
+      `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex1', 'codex1', '0', '', '', ?, ?, 0, '', 0, '', 'codex')`,
       [codexStart, codexEnd],
     );
     // codex session message edits 2 files (both within same group → co-change pair within 'codex')
     inner.run(
-      `INSERT INTO messages (uuid, session_id, parent_uuid, type, timestamp)
+      `INSERT INTO activity_messages (uuid, session_id, parent_uuid, type, timestamp)
        VALUES ('cm1', 'codex1', NULL, 'assistant', ?)`,
       [codexStart],
     );

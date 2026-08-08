@@ -14,11 +14,11 @@ import type { SqlJsCompatDatabase as Database } from './internal/SqlJsCompatData
  */
 
 const WATCHED_TABLES = [
-  'sessions',
-  'messages',
-  'current_graphs',
-  'c4_manual_elements',
-  'c4_manual_relationships',
+  'activity_sessions',
+  'activity_messages',
+  'activity_current_graphs',
+  'activity_c4_manual_elements',
+  'activity_c4_manual_relationships',
 ] as const;
 
 type WatchedTable = typeof WATCHED_TABLES[number];

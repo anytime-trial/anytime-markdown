@@ -55,7 +55,7 @@ interface EntityCandidate {
 }
 
 /**
- * クエリベクトルに対しコサイン類似度で memory_entities をランク付けし
+ * クエリベクトルに対しコサイン類似度で caravan_entities をランク付けし
  * 上位 `limit` 件を返す。RAG ハイブリッド検索からも参照される。
  */
 export async function vectorTopK(opts: {
@@ -88,7 +88,7 @@ export async function vectorTopK(opts: {
   }
 
   const whereClause = `WHERE ${conditions.join(' AND ')}`;
-  const sql = `SELECT id, type, display_name, summary, embedding FROM memory_entities ${whereClause} LIMIT 200`;
+  const sql = `SELECT id, type, display_name, summary, embedding FROM caravan_entities ${whereClause} LIMIT 200`;
   const rows = db.exec(sql, params.length > 0 ? params : undefined);
   const rawRows = rows[0]?.values ?? [];
 
@@ -151,7 +151,7 @@ export async function searchMemory(opts: {
   const edgePlaceholders = topIds.map(() => '?').join(', ');
   const edgeRows = db.exec(
     `SELECT id, subject_entity_id, predicate, object_entity_id, object_literal, source_type, valid_from, source_ref, confidence_label
-     FROM memory_edges
+     FROM caravan_edges
      WHERE subject_entity_id IN (${edgePlaceholders}) AND valid_to IS NULL`,
     topIds
   );
@@ -172,8 +172,8 @@ export async function searchMemory(opts: {
   const epPlaceholders = topIds.map(() => '?').join(', ');
   const epRows = db.exec(
     `SELECT ee.entity_id, me.id, me.session_id, me.valid_from, me.raw_excerpt
-     FROM memory_episode_entities ee
-     JOIN memory_episodes me ON me.id = ee.episode_id
+     FROM caravan_episode_entities ee
+     JOIN caravan_episodes me ON me.id = ee.episode_id
      WHERE ee.entity_id IN (${epPlaceholders})
      ORDER BY me.valid_from DESC`,
     topIds

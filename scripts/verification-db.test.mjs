@@ -92,7 +92,7 @@ test('openVerificationLedger: 二重 open しても DDL は冪等', () => {
   openVerificationLedger(dbPath).close();
   const db = openVerificationLedger(dbPath);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all();
-  assert.ok(tables.some((t) => t.name === 'verification_runs'));
+  assert.ok(tables.some((t) => t.name === 'activity_verification_runs'));
   db.close();
 });
 
@@ -100,7 +100,7 @@ test('recordRun: clean は code_state_hash=commit、dirty は NULL', () => {
   const db = openVerificationLedger(':memory:');
   recordRun(db, baseRun);
   recordRun(db, { ...baseRun, kind: 'build', treeState: 'dirty' });
-  const rows = db.prepare('SELECT kind, code_state_hash FROM verification_runs ORDER BY id').all();
+  const rows = db.prepare('SELECT kind, code_state_hash FROM activity_verification_runs ORDER BY id').all();
   assert.equal(rows[0].code_state_hash, 'abc123');
   assert.equal(rows[1].code_state_hash, null);
   db.close();
@@ -136,7 +136,7 @@ test('listRuns: commit / 期間でフィルタする', () => {
 
 // 回帰: writer の DDL は trail-activity の正本のミラー。CREATE TABLE IF NOT EXISTS は先に作った側が
 // 勝つため、CHECK が緩い方が先に走るとテーブルがその制約で固定される。文字列で突合して守る。
-test('SCHEMA_STATEMENTS: verification_runs の DDL が trail-activity の正本と一致する', () => {
+test('SCHEMA_STATEMENTS: activity_verification_runs の DDL が trail-activity の正本と一致する', () => {
   const canonicalSrc = fs.readFileSync(
     path.join(import.meta.dirname, '..', 'packages', 'trail-activity', 'src', 'domain', 'schema', 'tables.ts'),
     'utf8',
@@ -156,4 +156,24 @@ test('SCHEMA_STATEMENTS: verification_runs の DDL が trail-activity の正本�
 
 test('VERIFICATION_KINDS: RFC の 7 種別', () => {
   assert.deepEqual([...VERIFICATION_KINDS], ['unit', 'build', 'next-build', 'typecheck', 'lint', 'e2e', 'manual']);
+});
+
+test('openVerificationLedger: 旧 verification_runs だけの DB は改名して履歴を引き継ぐ', () => {
+  const dbPath = path.join(tmpDir, 'legacy.db');
+  // 旧名スキーマの DB を再現（接頭辞移行前の writer が作った状態）
+  const legacy = openVerificationLedger(dbPath);
+  recordRun(legacy, baseRun);
+  legacy.exec('ALTER TABLE activity_verification_runs RENAME TO verification_runs');
+  legacy.close();
+
+  const db = openVerificationLedger(dbPath);
+  const names = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%verification_runs'`)
+    .all()
+    .map((r) => r.name);
+  assert.deepEqual(names, ['activity_verification_runs']);
+  // 旧履歴が新名テーブルから読める（空の新テーブルで座礁しない）
+  const verified = queryVerifiedKinds(db, { packageName: baseRun.package, codeStateHash: baseRun.commitHash });
+  assert.equal(verified.size, 1);
+  db.close();
 });

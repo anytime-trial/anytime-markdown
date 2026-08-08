@@ -26,9 +26,9 @@ function warn(logger: MemoryLogger, message: string): void {
 }
 
 export interface ResolveReviewTargetsResult {
-  /** workspace を新たに埋めた memory_reviews の行数。 */
+  /** workspace を新たに埋めた caravan_reviews の行数。 */
   readonly workspacesFilled: number;
-  /** target_repo を新たに埋めた memory_review_findings の行数。 */
+  /** target_repo を新たに埋めた caravan_review_findings の行数。 */
   readonly targetsResolved: number;
   /** target_file_path を正規化して書き換えた行数。 */
   readonly pathsNormalized: number;
@@ -46,7 +46,7 @@ export interface ResolveReviewTargetsResult {
 
 /**
  * `source_kind='session'` のレビューについて、source_ref 先頭の session_id から
- * trail.sessions → trail.repos を辿って実際のワークスペースを引く。
+ * trail.activity_sessions → trail.activity_repos を辿って実際のワークスペースを引く。
  *
  * **既定値による一括フォールバックは持たない**。`WHERE workspace = ''` だけで絞ると
  * DB 内の未解決行**全部**が対象になり、複数ワークスペースを集約している
@@ -71,10 +71,10 @@ export function resolveReviewWorkspaces(
   try {
     const result = db.exec(
       `SELECT r.id, rp.repo_name
-         FROM memory_reviews r
-         JOIN trail.sessions s
+         FROM caravan_reviews r
+         JOIN trail.activity_sessions s
            ON s.id = substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
-         JOIN trail.repos rp ON rp.repo_id = s.repo_id
+         JOIN trail.activity_repos rp ON rp.repo_id = s.repo_id
         WHERE r.workspace = ''
           AND r.source_kind = 'session'
           AND instr(r.source_ref, '#') > 1`,
@@ -93,7 +93,7 @@ export function resolveReviewWorkspaces(
 
   for (const row of sessionRows) {
     try {
-      db.run(`UPDATE memory_reviews SET workspace = ? WHERE id = ?`, [row.workspace, row.id]);
+      db.run(`UPDATE caravan_reviews SET workspace = ? WHERE id = ?`, [row.workspace, row.id]);
       filled += 1;
     } catch (err) {
       failures += 1;
@@ -132,8 +132,8 @@ export function resolveFindingTargets(
   try {
     const result = db.exec(
       `SELECT rf.id, rf.target_file_path, r.workspace
-         FROM memory_review_findings rf
-         JOIN memory_reviews r ON r.id = rf.review_id
+         FROM caravan_review_findings rf
+         JOIN caravan_reviews r ON r.id = rf.review_id
         WHERE rf.target_repo IS NULL
           AND rf.target_file_path IS NOT NULL
           AND rf.target_file_path != ''`,
@@ -161,7 +161,7 @@ export function resolveFindingTargets(
       const normalized = normalizeTargetPath(finding.rawPath);
 
       if (normalized === null) {
-        db.run(`UPDATE memory_review_findings SET target_file_path = NULL WHERE id = ?`, [
+        db.run(`UPDATE caravan_review_findings SET target_file_path = NULL WHERE id = ?`, [
           finding.id,
         ]);
         pathsRejected += 1;
@@ -178,7 +178,7 @@ export function resolveFindingTargets(
       // 解決できなくても正規化後の値は保存する（行番号サフィックス等は落ちる）。
       const storedPath = resolved?.path ?? normalized.path;
       if (storedPath !== finding.rawPath) {
-        db.run(`UPDATE memory_review_findings SET target_file_path = ? WHERE id = ?`, [
+        db.run(`UPDATE caravan_review_findings SET target_file_path = ? WHERE id = ?`, [
           storedPath,
           finding.id,
         ]);
@@ -186,7 +186,7 @@ export function resolveFindingTargets(
       }
 
       if (resolved !== null) {
-        db.run(`UPDATE memory_review_findings SET target_repo = ? WHERE id = ?`, [
+        db.run(`UPDATE caravan_review_findings SET target_repo = ? WHERE id = ?`, [
           resolved.repo,
           finding.id,
         ]);

@@ -39,7 +39,7 @@ function insertQuestion(
   if (opts.targetSymbol != null) attrs['target_symbol'] = opts.targetSymbol;
 
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at,
         attributes_json, embedding)
      VALUES (?, 'Question', ?, ?, ?, ?, ?, ?, ?)`,

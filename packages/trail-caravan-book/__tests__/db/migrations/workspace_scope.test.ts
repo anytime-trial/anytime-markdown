@@ -1,5 +1,5 @@
 /**
- * 020_workspace_scope — memory_bug_fixes / memory_drift_events へのワークスペース列と、
+ * 020_workspace_scope — caravan_bug_fixes / caravan_drift_events へのワークスペース列と、
  * レビュー由来 drift の backfill。
  *
  * backfill は「既存行がある DB に列が足される」経路でしか走らないが、migration は
@@ -26,7 +26,12 @@ function makeDb(): BetterSqlite3MemoryDb {
   return db;
 }
 
-/** migration ファイルから backfill の UPDATE 文だけを取り出す。 */
+/**
+ * migration ファイルから backfill の UPDATE 文だけを取り出す。
+ * 020 は 023（テーブル接頭辞移行）より前の歴史ファイルで memory_* の旧名のまま凍結されている。
+ * 本テストは最新スキーマ（caravan_*）へ適用済みの DB で SQL の意味を検査するため、
+ * 実行前にテーブル名だけ 023 と同じ対応で新名へ読み替える。
+ */
 function backfillStatements(): string[] {
   const sql = fs.readFileSync(MIGRATION_PATH, 'utf8');
   const statements = sql
@@ -38,7 +43,8 @@ function backfillStatements(): string[] {
         .join('\n')
         .trim(),
     )
-    .filter((s) => s.startsWith('UPDATE memory_drift_events'));
+    .filter((s) => s.startsWith('UPDATE memory_drift_events'))
+    .map((s) => s.replace(/\bmemory_/g, 'caravan_'));
   // 取り出せなかったら「0 件で成功」に化けるので、ここで落とす
   expect(statements.length).toBe(2);
   return statements;
@@ -51,7 +57,7 @@ function columnNames(db: BetterSqlite3MemoryDb, table: string): string[] {
 
 function insertEntity(db: BetterSqlite3MemoryDb, id: string, type = 'Concept'): string {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [id, type, id, id, TS, TS, TS],
@@ -62,7 +68,7 @@ function insertEntity(db: BetterSqlite3MemoryDb, id: string, type = 'Concept'): 
 function insertReview(db: BetterSqlite3MemoryDb, id: string, workspace: string): string {
   insertEntity(db, `rev-ent-${id}`, 'Review');
   db.run(
-    `INSERT INTO memory_reviews
+    `INSERT INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
      VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?, ?)`,
     [id, id, `rev-ent-${id}`, TS, TS, workspace],
@@ -76,7 +82,7 @@ function insertFinding(
 ): string {
   insertEntity(db, `fe-${opts.id}`, 'ReviewFinding');
   db.run(
-    `INSERT INTO memory_review_findings
+    `INSERT INTO caravan_review_findings
        (id, review_id, finding_entity_id, finding_index, severity, category, finding_text, recorded_at)
      VALUES (?, ?, ?, ?, 'error', 'other', 'text', ?)`,
     [opts.id, opts.reviewId, `fe-${opts.id}`, opts.index, TS],
@@ -89,7 +95,7 @@ function insertDriftEvent(
   opts: { id: string; subjectEntityId: string; driftType: string; detail: unknown },
 ): void {
   db.run(
-    `INSERT INTO memory_drift_events
+    `INSERT INTO caravan_drift_events
        (id, subject_entity_id, predicate, drift_type, severity, detected_at, detail_json)
      VALUES (?, ?, ?, ?, 'warn', ?, ?)`,
     [opts.id, opts.subjectEntityId, `pred-${opts.id}`, opts.driftType, TS, JSON.stringify(opts.detail)],
@@ -97,27 +103,27 @@ function insertDriftEvent(
 }
 
 function workspaceOf(db: BetterSqlite3MemoryDb, driftId: string): string {
-  const res = db.exec('SELECT workspace FROM memory_drift_events WHERE id = ?', [driftId]);
+  const res = db.exec('SELECT workspace FROM caravan_drift_events WHERE id = ?', [driftId]);
   return String(res[0]?.values[0]?.[0] ?? '<missing>');
 }
 
 describe('020_workspace_scope migration', () => {
-  it('memory_bug_fixes / memory_drift_events に workspace 列が足される', () => {
+  it('caravan_bug_fixes / caravan_drift_events に workspace 列が足される', () => {
     const db = makeDb();
-    expect(columnNames(db, 'memory_bug_fixes')).toContain('workspace');
-    expect(columnNames(db, 'memory_drift_events')).toContain('workspace');
+    expect(columnNames(db, 'caravan_bug_fixes')).toContain('workspace');
+    expect(columnNames(db, 'caravan_drift_events')).toContain('workspace');
   });
 
   it('既存行の workspace は未解決（空文字）で入る', () => {
     const db = makeDb();
     insertEntity(db, 'bug-ent-1', 'Bug');
     db.run(
-      `INSERT INTO memory_bug_fixes
+      `INSERT INTO caravan_bug_fixes
          (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at)
        VALUES ('bf-1', 'sha-1', 'bug-ent-1', 'web-app', 'logic', 'summary', ?, ?)`,
       [TS, TS],
     );
-    const res = db.exec('SELECT workspace FROM memory_bug_fixes WHERE id = ?', ['bf-1']);
+    const res = db.exec('SELECT workspace FROM caravan_bug_fixes WHERE id = ?', ['bf-1']);
     expect(res[0]?.values[0]?.[0]).toBe('');
   });
 

@@ -27,7 +27,7 @@ const CATEGORIES: readonly FeatureCategory[] = [
 ];
 
 /**
- * `current_code_graph_communities` の各行 (mappings_json 込み) から FeatureMatrix を構築する。
+ * `activity_current_code_graph_communities` の各行 (mappings_json 込み) から FeatureMatrix を構築する。
  * - name が空、または mappings_json が null/空/不正 JSON の行は除外
  * - 残行ゼロなら null を返す
  */

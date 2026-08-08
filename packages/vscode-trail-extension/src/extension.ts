@@ -1032,7 +1032,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// Emergency spool drain (Phase 5 S2): フック検知イベント（ループ検知・自動 Kill Switch）を
-	// spool から emergency_log へ定期取込する
+	// spool から activity_emergency_log へ定期取込する
 	context.subscriptions.push(
 		startEmergencySpoolDrain({
 			getWorkspacePath: getEffectiveWorkspacePath,

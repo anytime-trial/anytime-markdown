@@ -24,7 +24,7 @@ function insertEntity(
 ): void {
   const blob = encodeEmbedding(embedding);
   db.run(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Tool', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?, ?)`,
     [id, canonicalName, displayName, summary, blob, now, now, now]
   );
@@ -70,7 +70,7 @@ describe('searchMemory', () => {
     // Insert an active edge to verify it is NOT returned
     const edgeNow = new Date().toISOString();
     db.run(
-      `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, attributes_json)
+      `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, attributes_json)
        VALUES ('edge_hops0', 'id1', 'relates_to', 'id2', ?, ?, 'conversation', 'ep1', '{}')`,
       [edgeNow, edgeNow]
     );
@@ -91,14 +91,14 @@ describe('searchMemory', () => {
 
     // Active edge: valid_to IS NULL
     db.run(
-      `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, attributes_json)
+      `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, attributes_json)
        VALUES ('edge_active', 'id1', 'relates_to', 'id2', ?, ?, 'conversation', 'ep1', '{}')`,
       [edgeNow, edgeNow]
     );
 
     // Expired edge: valid_to is set
     db.run(
-      `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, valid_to, recorded_at, source_type, source_ref, attributes_json)
+      `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, valid_to, recorded_at, source_type, source_ref, attributes_json)
        VALUES ('edge_expired', 'id1', 'relates_to', 'id3', ?, ?, ?, 'conversation', 'ep1', '{}')`,
       [yesterday, edgeNow, edgeNow]
     );
@@ -120,7 +120,7 @@ describe('searchMemory', () => {
     // Insert a 'Person' entity — should be excluded when filtering for Tool
     const personEmbed = encodeEmbedding(Float32Array.from([1, 0, 0]));
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
        VALUES ('person1', 'Person', 'alice', 'Alice', '[]', '[]', '{}', 'A person', ?, ?, ?, ?)`,
       [personEmbed, now, now, now]
     );
@@ -138,7 +138,7 @@ describe('searchMemory', () => {
 
   it('valid_until がセットされた entity を検索結果から除外する', async () => {
     // id1 を soft-delete
-    db.run(`UPDATE memory_entities SET valid_until = ? WHERE id = ?`, [now, 'id1']);
+    db.run(`UPDATE caravan_entities SET valid_until = ? WHERE id = ?`, [now, 'id1']);
 
     const result = await searchMemory({
       db,

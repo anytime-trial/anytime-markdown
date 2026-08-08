@@ -2,7 +2,7 @@
  * E2E tests for trail-caravan-book Phase 2.
  *
  * These tests spin up:
- *   - An in-memory sql.js "trail DB" with synthetic current_code_graphs + session_commits
+ *   - An in-memory sql.js "trail DB" with synthetic activity_current_code_graphs + activity_session_commits
  *   - An in-memory sql.js trail-caravan-book DB (Phase 1 + Phase 2 migrations applied)
  *   - The full runCodeIncremental pipeline (real ts.createProgram, no mocks)
  *
@@ -21,8 +21,8 @@ import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import { noopLogger } from '../../src/logger';
 import type { MemoryCoreDb } from '../../src/db/connection';
-// runCodeIncremental は typescript 依存を撤去し current_graphs（生 TrailGraph）から読むため、
-// E2E では analyze-child の役割を実 analyzeWithProgram で再現して current_graphs をシードする。
+// runCodeIncremental は typescript 依存を撤去し activity_current_graphs（生 TrailGraph）から読むため、
+// E2E では analyze-child の役割を実 analyzeWithProgram で再現して activity_current_graphs をシードする。
 import { analyzeWithProgram } from '@anytime-markdown/trail-activity/analyze';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -32,16 +32,16 @@ const TS_GLOB_NO_MS = '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-
 
 /**
  * Creates a synthetic trail DB with:
- *   - sessions table (needed for session_commits FK)
- *   - session_commits with one commit containing "Rationale:" in the body
- *   - current_code_graphs with one row for the given repoName
+ *   - sessions table (needed for activity_session_commits FK)
+ *   - activity_session_commits with one commit containing "Rationale:" in the body
+ *   - activity_current_code_graphs with one row for the given repoName
  */
 function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
-  // sessions table (FK target for session_commits)
-  db.run(`CREATE TABLE sessions (
+  // sessions table (FK target for activity_session_commits)
+  db.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY,
     slug TEXT NOT NULL DEFAULT '',
     repo_name TEXT NOT NULL DEFAULT '',
@@ -60,17 +60,17 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     peak_context_tokens INTEGER
   ) STRICT`);
 
-  // Phase H-3/H-4: trail.current_code_graphs / session_commits から repo_name 列を撤去し
+  // Phase H-3/H-4: trail.activity_current_code_graphs / activity_session_commits から repo_name 列を撤去し
   // repo_id 参照にしたため、fixture も repos + repo_id スキーマで作る。
-  db.run(`CREATE TABLE repos (
+  db.run(`CREATE TABLE activity_repos (
     repo_id    INTEGER PRIMARY KEY,
     repo_name  TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
   ) STRICT`);
 
-  // session_commits (Phase H-4: repo_name 撤去・repo_id 参照)
-  db.run(`CREATE TABLE session_commits (
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  // activity_session_commits (Phase H-4: repo_name 撤去・repo_id 参照)
+  db.run(`CREATE TABLE activity_session_commits (
+    session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL DEFAULT '',
     author TEXT NOT NULL DEFAULT '',
@@ -84,17 +84,17 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     PRIMARY KEY (session_id, commit_hash)
   ) STRICT`);
 
-  // current_code_graphs
-  db.run(`CREATE TABLE current_code_graphs (
-    repo_id INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+  // activity_current_code_graphs
+  db.run(`CREATE TABLE activity_current_code_graphs (
+    repo_id INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     graph_json TEXT NOT NULL CHECK (json_valid(graph_json)),
     generated_at TEXT,
     updated_at TEXT
   ) STRICT`);
 
-  // current_graphs（生 TrailGraph。ingestAstFacts が読む）
-  db.run(`CREATE TABLE current_graphs (
-    repo_id INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+  // activity_current_graphs（生 TrailGraph。ingestAstFacts が読む）
+  db.run(`CREATE TABLE activity_current_graphs (
+    repo_id INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     commit_id TEXT NOT NULL DEFAULT '',
     graph_json TEXT NOT NULL CHECK (json_valid(graph_json)),
     tsconfig_path TEXT NOT NULL DEFAULT '',
@@ -103,9 +103,9 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     updated_at TEXT
   ) STRICT`);
 
-  // code_decision_comments（analyze-child が永続化。ingestDecisionComments が読む）
-  db.run(`CREATE TABLE code_decision_comments (
-    repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  // activity_code_decision_comments（analyze-child が永続化。ingestDecisionComments が読む）
+  db.run(`CREATE TABLE activity_code_decision_comments (
+    repo_id INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     comment_hash TEXT NOT NULL,
     file_path TEXT NOT NULL,
     line INTEGER NOT NULL,
@@ -117,7 +117,7 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
   ) STRICT`);
 
   // Seed session
-  db.run(`INSERT INTO sessions (id, repo_name) VALUES ('sess-code-e2e', ?)`, [repoName]);
+  db.run(`INSERT INTO activity_sessions (id, repo_name) VALUES ('sess-code-e2e', ?)`, [repoName]);
 
   // Seed repos row and resolve repo_id for the commit
   const repoId = trailRepoId(db, repoName);
@@ -125,7 +125,7 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
   // Seed commit with Rationale: section
   const committedAt = '2026-01-15T10:00:00.000Z';
   db.run(
-    `INSERT INTO session_commits
+    `INSERT INTO activity_session_commits
        (session_id, commit_hash, commit_message, committed_at, repo_id)
      VALUES (?, ?, ?, ?, ?)`,
     [
@@ -141,7 +141,7 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
 }
 
 /**
- * Seeds current_code_graphs with a synthetic CodeGraph JSON.
+ * Seeds activity_current_code_graphs with a synthetic CodeGraph JSON.
  * Nodes: 5 code files across 2 packages:
  *   - test-pkg-a: src/a/index.ts, src/a/utils.ts, src/a/types.ts
  *   - test-pkg-b: src/b/service.ts, src/b/helper.ts
@@ -220,22 +220,22 @@ function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string): void
 
   const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
-    `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+    `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
      VALUES (?, ?, ?, ?)`,
     [repoId, graphJson, generatedAt, generatedAt]
   );
 }
 
 /**
- * analyze-child の役割（生 TrailGraph を current_graphs に保存）を実 analyzeWithProgram で再現する。
- * runCodeIncremental は current_graphs から graph を読んで ingestAstFacts に渡す。
+ * analyze-child の役割（生 TrailGraph を activity_current_graphs に保存）を実 analyzeWithProgram で再現する。
+ * runCodeIncremental は activity_current_graphs から graph を読んで ingestAstFacts に渡す。
  */
 function seedCurrentGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, tsconfigPath: string): void {
   const { graph } = analyzeWithProgram({ tsconfigPath });
   const repoId = trailRepoId(trailDb, repoName);
   const analyzedAt = '2026-01-15T12:00:00.000Z';
   trailDb.run(
-    `INSERT INTO current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+    `INSERT INTO activity_current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
      VALUES (?, '', ?, ?, '', ?, ?)`,
     [repoId, JSON.stringify(graph), tsconfigPath, analyzedAt, analyzedAt]
   );
@@ -244,10 +244,10 @@ function seedCurrentGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, tsco
 /** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
 function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
     [repoName, '2026-01-15T00:00:00.000Z']
   );
-  const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
+  const stmt = trailDb.prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?');
   try {
     const row = stmt.get(repoName);
     return Number(row?.['repo_id'] ?? 0);
@@ -378,10 +378,10 @@ describe('E2E Phase 2: runCodeIncremental', () => {
    *
    * Verifies:
    *   - status='success'
-   *   - memory_entities has Package + File entries (from fromTrailGraph)
-   *   - memory_code_facts has imports and calls entries (from ingestAstFacts)
-   *   - memory_edges has source_type='code' depends_on + relates_to edges
-   *   - memory_entities has at least 1 Decision (from extractCommitRationale)
+   *   - caravan_entities has Package + File entries (from fromTrailGraph)
+   *   - caravan_code_facts has imports and calls entries (from ingestAstFacts)
+   *   - caravan_edges has source_type='code' depends_on + relates_to edges
+   *   - caravan_entities has at least 1 Decision (from extractCommitRationale)
    *   - duration_ms < 5000
    *   - Second run returns status='skipped'
    */
@@ -414,31 +414,31 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // Package entities exist (test-pkg-a, test-pkg-b)
       const pkgRows = memDb.db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE type = 'Package'`
+        `SELECT type, canonical_name FROM caravan_entities WHERE type = 'Package'`
       );
       expect(pkgRows[0]?.values?.length).toBeGreaterThanOrEqual(2);
 
       // File entities exist (5 files across 2 packages)
       const fileRows = memDb.db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE type = 'File'`
+        `SELECT type, canonical_name FROM caravan_entities WHERE type = 'File'`
       );
       expect(fileRows[0]?.values?.length).toBeGreaterThanOrEqual(5);
 
-      // memory_code_facts has imports (foo.ts imports bar.ts)
+      // caravan_code_facts has imports (foo.ts imports bar.ts)
       const importFacts = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_code_facts WHERE fact_type = 'imports'`
+        `SELECT COUNT(*) FROM caravan_code_facts WHERE fact_type = 'imports'`
       );
       expect(importFacts[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
-      // memory_code_facts has calls (foo.ts calls greet)
+      // caravan_code_facts has calls (foo.ts calls greet)
       const callFacts = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_code_facts WHERE fact_type = 'calls'`
+        `SELECT COUNT(*) FROM caravan_code_facts WHERE fact_type = 'calls'`
       );
       expect(callFacts[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
-      // memory_edges has source_type='code' edges
+      // caravan_edges has source_type='code' edges
       const codeEdges = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_edges WHERE source_type = 'code'`
+        `SELECT COUNT(*) FROM caravan_edges WHERE source_type = 'code'`
       );
       expect(codeEdges[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
@@ -448,24 +448,24 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       // Note: depends_on edges (for truly external modules) are NOT produced by
       // analyzeWithProgram because applyFilter removes edges to non-project files.
       const relatesToEdges = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_edges WHERE predicate = 'relates_to' AND source_type = 'code'`
+        `SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'relates_to' AND source_type = 'code'`
       );
       expect(relatesToEdges[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
       // Decision entity + rationale_for edge from extractCommitRationale
       const decisionRows = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_entities WHERE type = 'Decision'`
+        `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Decision'`
       );
       expect(decisionRows[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
       const rationaleEdges = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_edges WHERE predicate = 'rationale_for'`
+        `SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'rationale_for'`
       );
       expect(rationaleEdges[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
       // pipeline_state advanced
       const stateRows = memDb.db.exec(
-        `SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`
+        `SELECT status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'code_incremental'`
       );
       expect(stateRows[0]?.values?.length).toBe(1);
       const [status1, lastAt1] = stateRows[0].values[0] as [string, string];
@@ -475,7 +475,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // Commit entity exists (from extractCommitRationale)
       const commitRows = memDb.db.exec(
-        `SELECT COUNT(*) FROM memory_entities WHERE type = 'Commit'`
+        `SELECT COUNT(*) FROM caravan_entities WHERE type = 'Commit'`
       );
       expect(commitRows[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);
 
@@ -495,7 +495,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // pipeline_state must not have regressed
       const stateRows2 = memDb.db.exec(
-        `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'code_incremental'`
+        `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'code_incremental'`
       );
       const lastAt2 = stateRows2[0].values[0][0] as string;
       expect(lastAt2).toBe(lastAt1);
@@ -516,7 +516,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
    * embeddings (LLM not used), so the embedding similarity step returns nothing.
    * Instead we verify directly in the DB that:
    *   - A File entity with canonical_name containing 'utils' exists
-   *   - A depends_on or relates_to edge in memory_edges with source_type='code'
+   *   - A depends_on or relates_to edge in caravan_edges with source_type='code'
    *     targeting that file entity exists
    *
    * This is the equivalent of the acceptance check described in the task spec.
@@ -547,7 +547,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
       // File entity for utils.ts exists (src/a/utils.ts is imported by both index.ts and service.ts)
       const utilsFileRows = memDb.db.exec(
-        `SELECT id, canonical_name FROM memory_entities
+        `SELECT id, canonical_name FROM caravan_entities
          WHERE type = 'File' AND canonical_name LIKE '%utils%'`
       );
       expect(utilsFileRows[0]?.values?.length).toBeGreaterThanOrEqual(1);
@@ -557,7 +557,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       // Note: db.exec() has params dropped by the trail readonly guard, so
       // we use prepare/bind/step to pass parameters correctly.
       const edgeStmt = memDb.db.prepare(
-        `SELECT COUNT(*) AS c FROM memory_edges
+        `SELECT COUNT(*) AS c FROM caravan_edges
          WHERE object_entity_id = ? AND source_type = 'code'`
       );
       const edgeCountRow = edgeStmt.get(utilsEntityId);
@@ -573,7 +573,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
   // ── CP3: no graph → status='skipped' ─────────────────────────────────────
   /**
-   * Scenario CP3 – When current_code_graphs has no row for the given repo,
+   * Scenario CP3 – When activity_current_code_graphs has no row for the given repo,
    * runCodeIncremental must return status='skipped' immediately.
    */
   test(
@@ -584,7 +584,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const gitRoot = tmpDir;
 
       const memDb = await makeMemoryDb();
-      // Trail DB without any current_code_graphs rows
+      // Trail DB without any activity_current_code_graphs rows
       const trailDb2 = makeTrailDb('other-repo'); // different repo, no graph
       // Don't insertCodeGraph for repoName
       attachTrailDbFromHandle(memDb.db, trailDb2);

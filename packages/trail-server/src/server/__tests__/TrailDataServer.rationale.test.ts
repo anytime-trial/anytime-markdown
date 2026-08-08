@@ -19,7 +19,7 @@ const TS = '2026-07-17T10:00:00.000Z';
 
 function buildMemoryDb(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE memory_entities (
+  db.exec(`CREATE TABLE caravan_entities (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
     canonical_name TEXT NOT NULL,
@@ -33,7 +33,7 @@ function buildMemoryDb(dbPath: string): void {
     recorded_at TEXT NOT NULL,
     UNIQUE (type, canonical_name)
   ) STRICT`);
-  db.exec(`CREATE TABLE memory_edges (
+  db.exec(`CREATE TABLE caravan_edges (
     id TEXT PRIMARY KEY,
     subject_entity_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
@@ -50,7 +50,7 @@ function buildMemoryDb(dbPath: string): void {
     attributes_json TEXT NOT NULL DEFAULT '{}'
   ) STRICT`);
   const insEntity = db.prepare(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, summary, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, summary, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   insEntity.run('commit-abc', 'Commit', 'abc123def4567890', 'abc123def456', '', TS, TS, TS);
@@ -58,23 +58,23 @@ function buildMemoryDb(dbPath: string): void {
   insEntity.run('commit-other', 'Commit', 'ffff00001111', 'ffff0000', '', TS, TS, TS);
   insEntity.run('decision-2', 'Decision', 'dec-2', '別セッションの決定', '別セッションの決定', TS, TS, TS);
   const insEdge = db.prepare(
-    `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, confidence, confidence_label, modality)
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, confidence, confidence_label, modality)
      VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, ?, 'asserted')`,
   );
-  insEdge.run('edge-1', 'decision-1', 'commit-abc', TS, TS, 'session_commits#abc123def4567890', 'EXTRACTED');
-  insEdge.run('edge-2', 'decision-2', 'commit-other', TS, TS, 'session_commits#ffff00001111', 'INFERRED');
+  insEdge.run('edge-1', 'decision-1', 'commit-abc', TS, TS, 'activity_session_commits#abc123def4567890', 'EXTRACTED');
+  insEdge.run('edge-2', 'decision-2', 'commit-other', TS, TS, 'activity_session_commits#ffff00001111', 'INFERRED');
   db.close();
 }
 
 function buildTrailDbFile(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE session_commits (
+  db.exec(`CREATE TABLE activity_session_commits (
     session_id TEXT NOT NULL,
     commit_hash TEXT NOT NULL,
     repo_id INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (session_id, repo_id, commit_hash)
   )`);
-  db.prepare(`INSERT INTO session_commits (session_id, commit_hash) VALUES (?, ?)`).run(
+  db.prepare(`INSERT INTO activity_session_commits (session_id, commit_hash) VALUES (?, ?)`).run(
     'sess-with-rationale',
     'abc123def4567890',
   );

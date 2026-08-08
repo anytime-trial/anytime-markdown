@@ -40,7 +40,7 @@ function insertEntity(
   embedding: Float32Array,
 ): void {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, summary, aliases_json,
         embedding, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Function', ?, ?, ?, '[]', ?, ?, ?, ?)`,

@@ -16,7 +16,7 @@ import { listUnaddressedReviewFindings } from '../../src/retrieve/listUnaddresse
  *
  * これらの関数は個々のクエリ失敗を握って fail-open で継続する（呼び出し側には
  * 「該当なし」と同じ空配列が返る）。そのため列名がスキーマとずれても本番で失敗として
- * 現れず、ログを読むまで気付けない。実例: `memory_code_facts` は `recorded_at` を持つのに
+ * 現れず、ログを読むまで気付けない。実例: `caravan_code_facts` は `recorded_at` を持つのに
  * `last_seen_at` を参照していて、「直近 7 日で変更されたファイル」ヒントが常に欠落していた。
  * `explainDrift` の code ソースも `entity_id` / `fact_kind` / `last_seen_at` の 3 つが実在せず、
  * 5 ソースのうち 1 つが常に空だった。
@@ -59,13 +59,13 @@ describe('retrieve クエリとスキーマの整合', () => {
     // イベントが無いと早期 return して gather* に到達しない（＝素通りするテストになる）。
     const now = '2026-08-02T00:00:00.000Z';
     handle.db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'File', ?, ?, ?, ?, ?)`,
       ['ent-file-1', 'packages/foo/src/bar.ts', 'bar.ts', now, now, now],
     );
     handle.db.run(
-      `INSERT INTO memory_drift_events
+      `INSERT INTO caravan_drift_events
          (id, subject_entity_id, predicate, drift_type, severity, detected_at, detail_json)
        VALUES (?, ?, 'depends_on', 'spec_vs_code', 'warn', ?, '{}')`,
       ['drift:test:1', 'ent-file-1', now],
@@ -82,19 +82,19 @@ describe('retrieve クエリとスキーマの整合', () => {
     // 原文のまま。素の等値結合にすると大文字を含むパス（実 DB の 76%）が落ちる。
     const now = '2026-08-02T00:00:00.000Z';
     handle.db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'File', ?, ?, ?, ?, ?)`,
       ['ent-file-2', 'packages/foo/src/mixedcase.ts', 'MixedCase.ts', now, now, now],
     );
     handle.db.run(
-      `INSERT INTO memory_drift_events
+      `INSERT INTO caravan_drift_events
          (id, subject_entity_id, predicate, drift_type, severity, detected_at, detail_json)
        VALUES (?, ?, 'depends_on', 'spec_vs_code', 'warn', ?, '{}')`,
       ['drift:test:2', 'ent-file-2', now],
     );
     handle.db.run(
-      `INSERT INTO memory_code_facts
+      `INSERT INTO caravan_code_facts
          (id, repo_name, file_path, fact_type, fact_value, recorded_at)
        VALUES (?, 'anytime-markdown', ?, 'imports', 'react', ?)`,
       ['fact-1', 'packages/foo/src/MixedCase.ts', now],

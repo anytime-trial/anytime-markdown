@@ -102,33 +102,33 @@ test('Case 1: 3 findings → success, review_runs + reviews + findings rows', as
     expect(result.findings_merged).toBe(0);
     expect(result.review_id).not.toBeNull();
 
-    // memory_review_runs: 1 row, status=success
+    // caravan_review_runs: 1 row, status=success
     const runRow = db.exec(
-      `SELECT status, findings_count, findings_inserted FROM memory_review_runs WHERE id = ?`,
+      `SELECT status, findings_count, findings_inserted FROM caravan_review_runs WHERE id = ?`,
       [RUN_CASE1],
     );
     expect(runRow[0]?.values?.[0]?.[0]).toBe('success');
     expect(runRow[0]?.values?.[0]?.[1] as number).toBe(3);
     expect(runRow[0]?.values?.[0]?.[2] as number).toBe(3);
 
-    // memory_reviews: source_kind='agent'
+    // caravan_reviews: source_kind='agent'
     const reviewRow = db.exec(
-      `SELECT source_kind, target_kind FROM memory_reviews WHERE review_entity_id = ?`,
+      `SELECT source_kind, target_kind FROM caravan_reviews WHERE review_entity_id = ?`,
       [result.review_id!],
     );
     expect(reviewRow[0]?.values?.[0]?.[0]).toBe('agent');
     expect(reviewRow[0]?.values?.[0]?.[1]).toBe('code');
 
-    // memory_review_findings: 3 rows
+    // caravan_review_findings: 3 rows
     const findingCount = db.exec(
-      `SELECT COUNT(*) FROM memory_review_findings WHERE review_id = ?`,
+      `SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = ?`,
       [result.review_id!],
     );
     expect(findingCount[0]?.values?.[0]?.[0] as number).toBe(3);
 
-    // memory_edges: 3 'flagged' edges with INFERRED
+    // caravan_edges: 3 'flagged' edges with INFERRED
     const edgeCount = db.exec(
-      `SELECT COUNT(*) FROM memory_edges WHERE subject_entity_id = ? AND predicate = 'flagged'
+      `SELECT COUNT(*) FROM caravan_edges WHERE subject_entity_id = ? AND predicate = 'flagged'
          AND confidence_label = 'INFERRED'`,
       [result.review_id!],
     );
@@ -163,13 +163,13 @@ test('Case 2: invalid severity → status=error + failed_items row', async () =>
     expect(result.findings_inserted).toBe(0);
 
     const failedRow = db.exec(
-      `SELECT COUNT(*) FROM memory_failed_items WHERE scope = 'review'`,
+      `SELECT COUNT(*) FROM caravan_failed_items WHERE scope = 'review'`,
     );
     expect(failedRow[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(1);
 
-    // No memory_review_runs row for this run_id (zod fails before INSERT)
+    // No caravan_review_runs row for this run_id (zod fails before INSERT)
     const noRunRow = db.exec(
-      `SELECT COUNT(*) FROM memory_review_runs WHERE id = ?`,
+      `SELECT COUNT(*) FROM caravan_review_runs WHERE id = ?`,
       [RUN_CASE2],
     );
     expect(noRunRow[0]?.values?.[0]?.[0] as number).toBe(0);
@@ -204,17 +204,17 @@ test('Case 3: external endpoint → rejected_external_endpoint, no findings', as
     expect(result.findings_inserted).toBe(0);
     expect(result.error_detail).toContain('api.external-llm.com');
 
-    // memory_review_runs: rejected row present
+    // caravan_review_runs: rejected row present
     const runRow = db.exec(
-      `SELECT status FROM memory_review_runs WHERE id = ?`,
+      `SELECT status FROM caravan_review_runs WHERE id = ?`,
       [RUN_CASE3],
     );
     expect(runRow[0]?.values?.[0]?.[0]).toBe('rejected_external_endpoint');
 
     // No findings
     const findingCount = db.exec(
-      `SELECT COUNT(*) FROM memory_review_findings rf
-       JOIN memory_reviews r ON r.id = rf.review_id
+      `SELECT COUNT(*) FROM caravan_review_findings rf
+       JOIN caravan_reviews r ON r.id = rf.review_id
        WHERE r.source_ref = ?`,
       [RUN_CASE3],
     );
@@ -237,27 +237,27 @@ test('Case 4: F21 merge — cosine ≥ 0.85 → merged_into set, findings_merged
     const existingFindingRowId    = entityId('finding_row',    `${existingReviewId}:0`);
 
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at, embedding)
        VALUES (?, 'ReviewFinding', ?, 'border 1px', '[]', '[]', '{}', ?, ?, ?, ?)`,
       [existingFindingEntityId, `${existingReviewId}:0`, TS_BASE, TS_BASE, TS_BASE, unitBlob],
     );
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Review', ?, 'Existing Review', '[]', '[]', '{}', ?, ?, ?)`,
       [existingReviewId, existingReviewId, TS_BASE, TS_BASE, TS_BASE],
     );
     db.run(
-      `INSERT OR IGNORE INTO memory_reviews
+      `INSERT OR IGNORE INTO caravan_reviews
          (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
        VALUES (?, 'agent', 'old-run-id', ?, 'code', 'Old Review', ?, ?)`,
       [existingReviewId, existingReviewId, TS_BASE, TS_BASE],
     );
     db.run(
-      `INSERT OR IGNORE INTO memory_review_findings
+      `INSERT OR IGNORE INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, category, severity, finding_text, suggestion_text, recorded_at)
        VALUES (?, ?, ?, 0, 'packages/web-app/src/foo.ts', NULL, 'design', 'warn',
@@ -295,15 +295,15 @@ test('Case 4: F21 merge — cosine ≥ 0.85 → merged_into set, findings_merged
     const newReviewEntityId = entityId('Review', RUN_CASE4);
     const newFindingEntityId = entityId('ReviewFinding', `${newReviewEntityId}:0`);
     const attrsRow = db.exec(
-      `SELECT attributes_json FROM memory_entities WHERE id = ?`,
+      `SELECT attributes_json FROM caravan_entities WHERE id = ?`,
       [newFindingEntityId],
     );
     const attrs = JSON.parse(attrsRow[0]?.values?.[0]?.[0] as string);
     expect(attrs.merged_into).toBe(existingFindingEntityId);
 
-    // memory_review_runs.findings_merged = 1
+    // caravan_review_runs.findings_merged = 1
     const runRow = db.exec(
-      `SELECT findings_merged FROM memory_review_runs WHERE id = ?`,
+      `SELECT findings_merged FROM caravan_review_runs WHERE id = ?`,
       [RUN_CASE4],
     );
     expect(runRow[0]?.values?.[0]?.[0] as number).toBe(1);
@@ -321,7 +321,7 @@ test('Case 5: stale run → watchdog error/timeout, then new ingest succeeds ind
 
     // Insert a stale 'running' row manually
     db.run(
-      `INSERT INTO memory_review_runs
+      `INSERT INTO caravan_review_runs
          (id, trigger_kind, target_kind, model, prompt_kind, prompt_hash,
           started_at, status, recorded_at)
        VALUES (?, 'cron', 'code', 'qwen3.5:9b', 'logic', 'abc', ?, 'running', ?)`,
@@ -333,7 +333,7 @@ test('Case 5: stale run → watchdog error/timeout, then new ingest succeeds ind
     expect(watchdogResult.stale_count).toBe(1);
 
     const staleRow = db.exec(
-      `SELECT status, error_detail FROM memory_review_runs WHERE id = ?`,
+      `SELECT status, error_detail FROM caravan_review_runs WHERE id = ?`,
       [RUN_CASE5A],
     );
     expect(staleRow[0]?.values?.[0]?.[0]).toBe('error');
@@ -361,7 +361,7 @@ test('Case 5: stale run → watchdog error/timeout, then new ingest succeeds ind
     expect(result.findings_inserted).toBe(1);
 
     // Total runs: stale (error/timeout) + new (success)
-    const totalRuns = db.exec(`SELECT COUNT(*) FROM memory_review_runs`);
+    const totalRuns = db.exec(`SELECT COUNT(*) FROM caravan_review_runs`);
     expect(totalRuns[0]?.values?.[0]?.[0] as number).toBe(2);
   } finally {
     close();

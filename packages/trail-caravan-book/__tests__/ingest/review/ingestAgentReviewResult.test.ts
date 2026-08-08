@@ -75,7 +75,7 @@ test('U16: remote ollama_endpoint → rejected_external_endpoint', async () => {
     expect(result.error_detail).toContain('remote.example.com');
 
     const run = db.exec(
-      `SELECT status FROM memory_review_runs WHERE id = ?`,
+      `SELECT status FROM caravan_review_runs WHERE id = ?`,
       [VALID_UUID],
     );
     expect(run[0]?.values?.[0]?.[0]).toBe('rejected_external_endpoint');
@@ -117,7 +117,7 @@ test('U17: invalid severity enum → zod error, status=error, failed_items row',
     expect(result.error_detail).not.toBe('');
 
     const failedItems = db.exec(
-      `SELECT COUNT(*) FROM memory_failed_items WHERE scope = 'review'`,
+      `SELECT COUNT(*) FROM caravan_failed_items WHERE scope = 'review'`,
     );
     expect(failedItems[0]?.values?.[0]?.[0] as number).toBeGreaterThanOrEqual(1);
   } finally {
@@ -144,7 +144,7 @@ test('U18: cosine 0.92 → merged_into set, findings_merged++', async () => {
     const existingFindingRowId = entityId('finding_row', `${existingReviewId}:0`);
 
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at, embedding)
        VALUES (?, 'ReviewFinding', ?, 'existing finding', '[]', '[]', '{}', ?, ?, ?, ?)`,
@@ -152,22 +152,22 @@ test('U18: cosine 0.92 → merged_into set, findings_merged++', async () => {
     );
     // Need a review entity for the FK
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Review', ?, 'Existing Review', '[]', '[]', '{}', ?, ?, ?)`,
       [existingReviewId, existingReviewId, TS, TS, TS],
     );
-    // Need a memory_reviews row for the FK
+    // Need a caravan_reviews row for the FK
     db.run(
-      `INSERT OR IGNORE INTO memory_reviews
+      `INSERT OR IGNORE INTO caravan_reviews
          (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
        VALUES (?, 'review_doc', 'docs/old.md', ?, 'code', 'Old Review', ?, ?)`,
       [existingReviewId, existingReviewId, TS, TS],
     );
     // Pre-insert the finding row
     db.run(
-      `INSERT OR IGNORE INTO memory_review_findings
+      `INSERT OR IGNORE INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, category, severity, finding_text, suggestion_text, recorded_at)
        VALUES (?, ?, ?, 0, ?, NULL, ?, 'warn', 'old finding text', 'old suggestion', ?)`,
@@ -211,7 +211,7 @@ test('U18: cosine 0.92 → merged_into set, findings_merged++', async () => {
     const newReviewEntityId = entityId('Review', UUID_U18);
     const newFindingEntityId = entityId('ReviewFinding', `${newReviewEntityId}:0`);
     const attrs = db.exec(
-      `SELECT attributes_json FROM memory_entities WHERE id = ?`,
+      `SELECT attributes_json FROM caravan_entities WHERE id = ?`,
       [newFindingEntityId],
     );
     const attrsJson = attrs[0]?.values?.[0]?.[0] as string;
@@ -224,7 +224,7 @@ test('U18: cosine 0.92 → merged_into set, findings_merged++', async () => {
 
 // ── I22: successful ingestion ─────────────────────────────────────────────────
 
-test('I22: valid 1-finding run → success, memory_review_runs + memory_reviews + finding', async () => {
+test('I22: valid 1-finding run → success, caravan_review_runs + caravan_reviews + finding', async () => {
   const { db, close } = await openFresh();
   try {
     const result = await ingestAgentReviewResult({
@@ -257,32 +257,32 @@ test('I22: valid 1-finding run → success, memory_review_runs + memory_reviews 
     expect(result.findings_merged).toBe(0);
     expect(result.error_detail).toBe('');
 
-    // memory_review_runs: 1 row with status='success'
+    // caravan_review_runs: 1 row with status='success'
     const runRows = db.exec(
-      `SELECT status, findings_count, findings_inserted FROM memory_review_runs WHERE id = ?`,
+      `SELECT status, findings_count, findings_inserted FROM caravan_review_runs WHERE id = ?`,
       [UUID_I22],
     );
     expect(runRows[0]?.values?.[0]?.[0]).toBe('success');
     expect(runRows[0]?.values?.[0]?.[1] as number).toBe(1);
     expect(runRows[0]?.values?.[0]?.[2] as number).toBe(1);
 
-    // memory_reviews: 1 row with source_kind='agent'
+    // caravan_reviews: 1 row with source_kind='agent'
     const reviewRows = db.exec(
-      `SELECT source_kind FROM memory_reviews WHERE review_entity_id = ?`,
+      `SELECT source_kind FROM caravan_reviews WHERE review_entity_id = ?`,
       [result.review_id!],
     );
     expect(reviewRows[0]?.values?.[0]?.[0]).toBe('agent');
 
-    // memory_review_findings: 1 row
+    // caravan_review_findings: 1 row
     const findingRows = db.exec(
-      `SELECT COUNT(*) FROM memory_review_findings WHERE review_id = ?`,
+      `SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = ?`,
       [result.review_id!],
     );
     expect(findingRows[0]?.values?.[0]?.[0] as number).toBe(1);
 
     // flagged edge: confidence_label='INFERRED'
     const edgeRows = db.exec(
-      `SELECT confidence_label FROM memory_edges WHERE subject_entity_id = ? AND predicate = 'flagged'`,
+      `SELECT confidence_label FROM caravan_edges WHERE subject_entity_id = ? AND predicate = 'flagged'`,
       [result.review_id!],
     );
     expect(edgeRows[0]?.values?.[0]?.[0]).toBe('INFERRED');
@@ -349,7 +349,7 @@ test('idempotency: same run_id submitted twice → second is no-op', async () =>
 
     // DB still has exactly 1 run row (INSERT OR IGNORE)
     const runCount = db.exec(
-      `SELECT COUNT(*) FROM memory_review_runs WHERE id = ?`,
+      `SELECT COUNT(*) FROM caravan_review_runs WHERE id = ?`,
       [UUID_IDEM],
     );
     expect(runCount[0]?.values?.[0]?.[0] as number).toBe(1);

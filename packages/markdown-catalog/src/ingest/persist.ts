@@ -1,6 +1,6 @@
 /**
- * 抽出済みドキュメントを catalog.db へ永続化する（doc / doc_relation / doc_fts）。
- * doc_relation・doc_fts は当該 path で洗い替え（DELETE→INSERT）して冪等にする。
+ * 抽出済みドキュメントを catalog.db へ永続化する（doc / catalog_doc_relation / catalog_doc_fts）。
+ * catalog_doc_relation・catalog_doc_fts は当該 path で洗い替え（DELETE→INSERT）して冪等にする。
  */
 
 import type { DocDb } from '../db/open';
@@ -10,19 +10,19 @@ import type { ExtractedDoc } from '../types';
 /** 1 ドキュメントを upsert する（related・FTS も同一トランザクションで更新）。 */
 export function persistDoc(db: DocDb, doc: ExtractedDoc, updatedAt = new Date().toISOString()): void {
   const upsertDoc = db.prepare(
-    `INSERT INTO doc (path, title, category, type, lang, excerpt, content_hash, updated_at)
+    `INSERT INTO catalog_doc (path, title, category, type, lang, excerpt, content_hash, updated_at)
      VALUES (@path, @title, @category, @type, @lang, @excerpt, @contentHash, @updatedAt)
      ON CONFLICT(path) DO UPDATE SET
        title = @title, category = @category, type = @type, lang = @lang,
        excerpt = @excerpt, content_hash = @contentHash, updated_at = @updatedAt`,
   );
-  const delRel = db.prepare('DELETE FROM doc_relation WHERE from_path = ?');
-  const insRel = db.prepare('INSERT OR IGNORE INTO doc_relation (from_path, to_path, type) VALUES (?, ?, ?)');
-  const delFts = db.prepare('DELETE FROM doc_fts WHERE path = ?');
-  const insFts = db.prepare('INSERT INTO doc_fts (path, title, excerpt, body) VALUES (?, ?, ?, ?)');
-  const delSectionFts = db.prepare('DELETE FROM doc_section_fts WHERE path = ?');
+  const delRel = db.prepare('DELETE FROM catalog_doc_relation WHERE from_path = ?');
+  const insRel = db.prepare('INSERT OR IGNORE INTO catalog_doc_relation (from_path, to_path, type) VALUES (?, ?, ?)');
+  const delFts = db.prepare('DELETE FROM catalog_doc_fts WHERE path = ?');
+  const insFts = db.prepare('INSERT INTO catalog_doc_fts (path, title, excerpt, body) VALUES (?, ?, ?, ?)');
+  const delSectionFts = db.prepare('DELETE FROM catalog_doc_section_fts WHERE path = ?');
   const insSectionFts = db.prepare(
-    'INSERT INTO doc_section_fts (path, heading, level, body) VALUES (?, ?, ?, ?)',
+    'INSERT INTO catalog_doc_section_fts (path, heading, level, body) VALUES (?, ?, ?, ?)',
   );
 
   withTx(db, () => {
@@ -47,7 +47,7 @@ export function persistDoc(db: DocDb, doc: ExtractedDoc, updatedAt = new Date().
 
 /** 既存 doc の content_hash を返す（未登録なら undefined）。増分判定用。 */
 export function getStoredHash(db: DocDb, path: string): string | undefined {
-  const row = db.prepare('SELECT content_hash FROM doc WHERE path = ?').get(path) as unknown as
+  const row = db.prepare('SELECT content_hash FROM catalog_doc WHERE path = ?').get(path) as unknown as
     | { content_hash: string }
     | undefined;
   return row?.content_hash;

@@ -6,9 +6,14 @@
  * 将来の変更はこの配列に version を追記する。
  */
 
+import type { DatabaseSync } from 'node:sqlite';
+
 export interface DocMigration {
   readonly version: number;
-  readonly sql: string;
+  /** SQL 一括実行の migration。apply とどちらか一方を必ず持つ。 */
+  readonly sql?: string;
+  /** code migration（存在ガード等、SQL だけで書けない冪等化が要る場合）。 */
+  readonly apply?: (db: DatabaseSync) => void;
 }
 
 const INITIAL = `
@@ -88,9 +93,45 @@ CREATE TABLE doc_section_embedding (
 ) STRICT;
 `;
 
+/**
+ * v5: テーブル名接頭辞移行（catalog.db → catalog_ 前置・2026-08-08）。
+ *
+ * code migration にするのは、ALTER TABLE に IF EXISTS が無く「migration 実行後・記帳前」の
+ * クラッシュ窓で再実行されたとき SQL 直書きだと no such table で起動不能になるため
+ * （trail-caravan-book の 023 と同方針。存在ガードで冪等化する）。
+ * FTS5（doc_fts / doc_section_fts）は contentful のため rename で中身ごと移る。
+ * v1〜v4 の歴史 SQL は旧名のまま凍結し、新規 DB は v1→…→v5 で同じ最終状態に収束する。
+ */
+const V5_TABLE_RENAMES: ReadonlyArray<readonly [string, string]> = [
+  ['doc', 'catalog_doc'],
+  ['doc_relation', 'catalog_doc_relation'],
+  ['doc_embedding', 'catalog_doc_embedding'],
+  ['doc_fts', 'catalog_doc_fts'],
+  ['doc_section_fts', 'catalog_doc_section_fts'],
+  ['doc_section_embedding', 'catalog_doc_section_embedding'],
+];
+
+function applyTablePrefix(db: DatabaseSync): void {
+  const existing = new Set(
+    db
+      .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+      .all()
+      .map((r) => (r as { name: string }).name),
+  );
+  const statements = V5_TABLE_RENAMES.filter(
+    ([from, to]) => existing.has(from) && !existing.has(to),
+  ).map(([from, to]) => `ALTER TABLE ${from} RENAME TO ${to}`);
+  if (statements.length === 0) return;
+  // REFERENCES 句（doc_embedding / doc_section_embedding → doc）の書き換えは
+  // foreign_keys=ON のときだけ行われる。open 経路は ON だが、接続状態へ暗黙依存しない
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec(['BEGIN', ...statements, 'COMMIT'].join(';\n'));
+}
+
 export const MIGRATIONS: readonly DocMigration[] = [
   { version: 1, sql: INITIAL },
   { version: 2, sql: FACET_INDEXES },
   { version: 3, sql: SECTION_FTS },
   { version: 4, sql: SECTION_EMBEDDING },
+  { version: 5, apply: applyTablePrefix },
 ];

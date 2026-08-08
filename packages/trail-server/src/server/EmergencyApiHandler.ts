@@ -36,7 +36,7 @@ const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 /** git の commit hash（短縮 7 桁〜完全 40 桁）。これ以外は git へ渡さない。 */
 const COMMIT_HASH = /^[0-9a-f]{7,40}$/i;
 
-/** viewer 経由であることを emergency_log の detail に残す（VS Code 経由と区別する）。 */
+/** viewer 経由であることを activity_emergency_log の detail に残す（VS Code 経由と区別する）。 */
 const VIA = 'trail-viewer';
 
 /**
@@ -47,7 +47,7 @@ const VIA = 'trail-viewer';
 const MAX_BODY_BYTES = 64 * 1024;
 
 /**
- * セーフポイント照合時の取得件数。`safe_points` の保持上限（500）を上回る値にして、
+ * セーフポイント照合時の取得件数。`activity_safe_points` の保持上限（500）を上回る値にして、
  * 「一覧の後ろにある古いセーフポイントだけ復旧できない」取りこぼしを防ぐ。
  * UI 表示の 50 件とは別（UI は新しい順の表示都合、こちらは境界検査）。
  */
@@ -368,7 +368,7 @@ export class EmergencyApiHandler {
   }
 
   /**
-   * emergency_log への記録は**副次効果**。主効果（台帳・ブランチ）は既に成立しているため、
+   * activity_emergency_log への記録は**副次効果**。主効果（台帳・ブランチ）は既に成立しているため、
    * 記録失敗で操作全体を失敗扱いにしない。ただし無言にはせず時刻付きで残す（silent catch 禁止）。
    */
   private record(event: EmergencyEventName, reason: string, detail: Record<string, unknown>): void {

@@ -64,8 +64,8 @@ export function getReviewHistory(input: {
               rf.target_file_path, rf.target_symbol,
               rf.addressed_commit_sha, rf.addressed_at, rf.recorded_at,
               rf.finding_entity_id
-       FROM memory_reviews r
-       JOIN memory_review_findings rf ON rf.review_id = r.id
+       FROM caravan_reviews r
+       JOIN caravan_review_findings rf ON rf.review_id = r.id
        ${where}
        ORDER BY r.reviewed_at DESC, rf.finding_index ASC
        LIMIT ?`,
@@ -129,7 +129,7 @@ export function getReviewHistory(input: {
       let edgeRows: ReturnType<MemoryDbConnection['exec']>;
       try {
         edgeRows = db.exec(
-          `SELECT object_entity_id FROM memory_edges
+          `SELECT object_entity_id FROM caravan_edges
            WHERE subject_entity_id = ? AND predicate = 'precedes' AND valid_to IS NULL`,
           [entityId],
         );

@@ -58,11 +58,11 @@ export async function ingestDocs(db: DocDb, docsRoot: string, opts: IngestOption
 
   let removed = 0;
   if (opts.prune) {
-    const existing = (db.prepare('SELECT path FROM doc').all() as unknown as { path: string }[]).map((r) => r.path);
-    const delDoc = db.prepare('DELETE FROM doc WHERE path = ?'); // doc_embedding は FK CASCADE
-    const delRel = db.prepare('DELETE FROM doc_relation WHERE from_path = ?');
-    const delFts = db.prepare('DELETE FROM doc_fts WHERE path = ?');
-    const delSectionFts = db.prepare('DELETE FROM doc_section_fts WHERE path = ?');
+    const existing = (db.prepare('SELECT path FROM catalog_doc').all() as unknown as { path: string }[]).map((r) => r.path);
+    const delDoc = db.prepare('DELETE FROM catalog_doc WHERE path = ?'); // catalog_doc_embedding は FK CASCADE
+    const delRel = db.prepare('DELETE FROM catalog_doc_relation WHERE from_path = ?');
+    const delFts = db.prepare('DELETE FROM catalog_doc_fts WHERE path = ?');
+    const delSectionFts = db.prepare('DELETE FROM catalog_doc_section_fts WHERE path = ?');
     withTx(db, () => {
       for (const p of existing) {
         if (seen.has(p)) continue;

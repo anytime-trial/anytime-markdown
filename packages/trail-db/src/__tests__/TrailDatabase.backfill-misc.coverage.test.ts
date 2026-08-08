@@ -34,7 +34,7 @@ function repoId(db: TrailDatabase, repoName: string): number {
 
 function insertSession(db: TrailDatabase, id: string, filePath = ''): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions
+    `INSERT OR IGNORE INTO activity_sessions
        (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at, source)
      VALUES (?, ?, ?, '', '', '', '2026-01-01T00:00:00.000Z', '2026-01-01T01:00:00.000Z',
@@ -118,7 +118,7 @@ describe('TrailDatabase.backfillMessageCommits', () => {
     // Insert session with a commit but non-existent JSONL (triggers catch in loop)
     insertSession(db, 's-backfill', '/nonexistent/path/session.jsonl');
     inner(db).run(
-      `INSERT OR IGNORE INTO session_commits
+      `INSERT OR IGNORE INTO activity_session_commits
          (session_id, commit_hash, commit_message, author, committed_at, is_ai_assisted,
           files_changed, lines_added, lines_deleted, repo_id)
        VALUES ('s-backfill', 'abc', 'test', 'a', '2026-01-01T00:00:00.000Z', 0, 0, 0, 0, ?)`,

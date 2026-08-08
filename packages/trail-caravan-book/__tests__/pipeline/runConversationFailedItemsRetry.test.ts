@@ -15,9 +15,9 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
+  trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
-    `CREATE TABLE messages (
+    `CREATE TABLE activity_messages (
        uuid TEXT PRIMARY KEY,
        session_id TEXT NOT NULL,
        type TEXT NOT NULL,
@@ -31,7 +31,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
-  trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
+  trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
@@ -44,7 +44,7 @@ function insertMessage(
 ): void {
   const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );
@@ -60,7 +60,7 @@ function insertSidechainMessage(
 ): void {
   const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
      VALUES (?, ?, ?, ?, ?, ?, 1)`,
     [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );
@@ -75,7 +75,7 @@ function insertFailedItem(
 ): void {
   const failedAt = new Date().toISOString();
   memDb.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, '', ?)`,
     [scope, itemKey, failedAt, reason, attemptCount]
   );
@@ -83,7 +83,7 @@ function insertFailedItem(
 
 function getFailedItem(memDb: BetterSqlite3MemoryDb, scope: string, itemKey: string): { attempt_count: number; reason: string } | null {
   const rows = memDb.exec(
-    `SELECT attempt_count, reason FROM memory_failed_items WHERE scope = ? AND item_key = ?`,
+    `SELECT attempt_count, reason FROM caravan_failed_items WHERE scope = ? AND item_key = ?`,
     [scope, itemKey]
   );
   if (rows.length === 0 || (rows[0].values?.length ?? 0) === 0) return null;
@@ -147,11 +147,11 @@ describe('runConversationFailedItemsRetry', () => {
     expect(result.items_recovered).toBe(1);
     expect(result.items_failed).toBe(0);
 
-    // Row should be deleted from memory_failed_items
+    // Row should be deleted from caravan_failed_items
     expect(getFailedItem(memDb, 'conversation_backfill', 'sess_f1:msg_f1')).toBeNull();
 
-    // Entity should be in memory_entities
-    const ents = memDb.exec(`SELECT type, canonical_name FROM memory_entities WHERE type='Tool'`);
+    // Entity should be in caravan_entities
+    const ents = memDb.exec(`SELECT type, canonical_name FROM caravan_entities WHERE type='Tool'`);
     expect(ents[0]?.values?.length ?? 0).toBeGreaterThan(0);
 
     trailDb.close();
@@ -272,7 +272,7 @@ describe('runConversationFailedItemsRetry', () => {
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess_empty');
     trailDb.run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+      `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
        VALUES ('msg_empty', 'sess_empty', 'user', '2026-05-10T10:00:00.000Z', NULL, '', 0)`,
     );
     attachTrailDbFromHandle(memDb, trailDb);
@@ -347,7 +347,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     // pipeline_state for the retry scope should be quarantine
     const stateRows = memDb.exec(
-      `SELECT status FROM memory_pipeline_state WHERE scope = 'conversation_failed_items_retry'`
+      `SELECT status FROM caravan_pipeline_state WHERE scope = 'conversation_failed_items_retry'`
     );
     expect(stateRows[0]?.values[0]?.[0]).toBe('quarantine');
 
@@ -522,7 +522,7 @@ describe('runConversationFailedItemsRetry', () => {
   // ── F12: conversation_incremental scope items are retried (regression) ─────
   // Regression: retry previously defaulted to scope='conversation_backfill' only,
   // so conversation_incremental extraction_failed items were never reprocessed
-  // and accumulated in memory_failed_items forever.
+  // and accumulated in caravan_failed_items forever.
   test('F12: conversation_incremental scope items are picked up and recovered', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
@@ -613,7 +613,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     // Insert a failed item with malformed key (no colon separator)
     memDb.run(
-      `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+      `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
        VALUES ('conversation_backfill', 'malformed-no-colon-key', ?, 'extraction_failed', '', 1)`,
       [new Date().toISOString()],
     );

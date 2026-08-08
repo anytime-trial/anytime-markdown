@@ -27,15 +27,15 @@ function inner(db: TrailDatabase): RawDb {
   return (db as unknown as { db: RawDb }).db;
 }
 
-// flip 後 release_coverage は release_id FK。tag の親 release を作り release_id を返す。
+// flip 後 activity_release_coverage は release_id FK。tag の親 release を作り release_id を返す。
 // Phase H-5: releases.repo_name 列は撤去済。本テストは coverage (release_id ベース) を検証するだけで
 // repo 識別に依存しないため repo_id は省略 (NULL) のままにする。
 function seedReleaseAndGetId(db: TrailDatabase, tag: string): number {
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    `INSERT OR IGNORE INTO activity_releases (tag, released_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
     [tag],
   );
-  const res = inner(db).exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+  const res = inner(db).exec('SELECT release_id FROM activity_releases WHERE tag = ? LIMIT 1', [tag]);
   return Number(res[0]?.values?.[0]?.[0]);
 }
 
@@ -62,7 +62,7 @@ function insertSession(
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '', '', ?, ?, ?, 0, '', 0, ?, ?)`,
@@ -91,10 +91,10 @@ function insertSessionCommit(
     repoName = 'test-repo',
     committedAt = '2026-04-29T00:30:00.000Z',
   } = opts;
-  // Phase H-4: session_commits.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
+  // Phase H-4: activity_session_commits.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits
+    `INSERT OR IGNORE INTO activity_session_commits
        (session_id, commit_hash, commit_message, author, committed_at,
         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id)
      VALUES (?, ?, 'test commit', 'test author', ?, ?, ?, ?, ?, ?)`,
@@ -116,7 +116,7 @@ function insertToolCall(
 ): void {
   const { isError = 0, filePath = null, command = null } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking,
        is_error, error_type, timestamp
@@ -145,7 +145,7 @@ function insertMsg(
     sourceToolAssistantUuid = null,
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, type, timestamp, tool_calls, input_tokens, output_tokens,
        cache_read_tokens, cache_creation_tokens, agent_id, source_tool_assistant_uuid
      ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)`,
@@ -386,7 +386,7 @@ describe('TrailDatabase.getCostOptimization', () => {
   it('returns cost data after inserting session costs', () => {
     insertSession(db, 's1');
     inner(db).run(
-      `INSERT OR REPLACE INTO session_costs
+      `INSERT OR REPLACE INTO activity_session_costs
          (session_id, model, input_tokens, output_tokens,
           cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
        VALUES (?, 'claude-opus-4', 1000, 500, 0, 0, 0.025)`,
@@ -414,7 +414,7 @@ describe('TrailDatabase.getCoverageSummary', () => {
   it('returns coverage row when inserted', () => {
     const relId = seedReleaseAndGetId(db, 'v1.0.0');
     inner(db).run(
-      `INSERT OR IGNORE INTO release_coverage (
+      `INSERT OR IGNORE INTO activity_release_coverage (
          release_id, package, file_path,
          lines_total, lines_covered, lines_pct,
          statements_total, statements_covered, statements_pct,
@@ -433,7 +433,7 @@ describe('TrailDatabase.getCoverageSummary', () => {
   it('only returns __total__ rows (not per-file rows)', () => {
     const relId = seedReleaseAndGetId(db, 'v2.0.0');
     inner(db).run(
-      `INSERT OR IGNORE INTO release_coverage (
+      `INSERT OR IGNORE INTO activity_release_coverage (
          release_id, package, file_path,
          lines_total, lines_covered, lines_pct,
          statements_total, statements_covered, statements_pct,
@@ -443,7 +443,7 @@ describe('TrailDatabase.getCoverageSummary', () => {
       [relId],
     );
     inner(db).run(
-      `INSERT OR IGNORE INTO release_coverage (
+      `INSERT OR IGNORE INTO activity_release_coverage (
          release_id, package, file_path,
          lines_total, lines_covered, lines_pct,
          statements_total, statements_covered, statements_pct,
@@ -581,7 +581,7 @@ describe('TrailDatabase.getQualityMetricsInputs with messages', () => {
     });
     // Insert user message
     inner(db).run(
-      `INSERT OR IGNORE INTO messages (
+      `INSERT OR IGNORE INTO activity_messages (
          uuid, session_id, type, timestamp, tool_calls,
          input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens
        ) VALUES (?, ?, 'user', ?, NULL, 0, 0, 0, 0)`,
@@ -589,7 +589,7 @@ describe('TrailDatabase.getQualityMetricsInputs with messages', () => {
     );
     // Insert assistant message after user message
     inner(db).run(
-      `INSERT OR IGNORE INTO messages (
+      `INSERT OR IGNORE INTO activity_messages (
          uuid, session_id, type, timestamp, tool_calls,
          input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens
        ) VALUES (?, ?, 'assistant', ?, NULL, 1000, 500, 0, 0)`,
@@ -614,7 +614,7 @@ describe('TrailDatabase.getQualityMetricsInputs with messages', () => {
       importedAt: '2026-03-02T02:00:00.000Z',
     });
     inner(db).run(
-      `INSERT OR IGNORE INTO messages (
+      `INSERT OR IGNORE INTO activity_messages (
          uuid, session_id, type, timestamp, tool_calls,
          input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens
        ) VALUES (?, ?, 'user', ?, NULL, 0, 0, 0, 0)`,
@@ -632,7 +632,7 @@ describe('TrailDatabase.getQualityMetricsInputs with messages', () => {
     expect(msg!.input_tokens).toBe(0);
   });
 
-  it('returns commits including files when session_commits exist in range', () => {
+  it('returns commits including files when activity_session_commits exist in range', () => {
     insertSession(db, 's3', {
       startTime: '2026-03-03T00:00:00.000Z',
       endTime: '2026-03-03T02:00:00.000Z',

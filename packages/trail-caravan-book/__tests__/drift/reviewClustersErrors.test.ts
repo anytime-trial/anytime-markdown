@@ -77,21 +77,21 @@ describe('detectReviewVsCode - SQL エラーパス', () => {
     // entity を追加
     const entityId = 'ent-overlap';
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Tool', ?, ?, ?, ?, ?)`,
       [entityId, entityId, entityId, TS, TS, TS],
     );
 
     // review と code で異なる値のエッジを挿入
     db.run(
-      `INSERT INTO memory_edges
+      `INSERT INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id, object_literal, source_type, source_ref,
           confidence, confidence_label, modality, valid_from, recorded_at)
        VALUES ('edge-review', ?, 'uses', NULL, 'InterfaceA', 'review', 'ref-r', 0.8, 'EXTRACTED', 'asserted', ?, ?)`,
       [entityId, TS, TS],
     );
     db.run(
-      `INSERT INTO memory_edges
+      `INSERT INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id, object_literal, source_type, source_ref,
           confidence, confidence_label, modality, valid_from, recorded_at)
        VALUES ('edge-code', ?, 'uses', NULL, 'InterfaceB', 'code', 'ref-c', 0.8, 'EXTRACTED', 'asserted', ?, ?)`,

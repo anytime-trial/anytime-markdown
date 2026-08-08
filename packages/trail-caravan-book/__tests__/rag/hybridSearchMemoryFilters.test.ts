@@ -31,7 +31,7 @@ function insertEntity(
 ): void {
   const blob = encodeEmbedding(embedding);
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, summary, aliases_json,
         embedding, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, 'summary', '[]', ?, ?, ?, ?)`,
@@ -133,7 +133,7 @@ describe('hybridSearchMemory - filters and hops', () => {
 
     // edge を挿入 (relates_to はマイグレーション初期データで存在)
     db.run(
-      `INSERT INTO memory_edges
+      `INSERT INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id, source_type, source_ref,
           confidence, confidence_label, modality, valid_from, recorded_at)
        VALUES ('edge-ab', 'ent-a', 'relates_to', 'ent-b', 'conversation', 'ref1', 0.8, 'EXTRACTED', 'asserted', ?, ?)`,
@@ -159,9 +159,9 @@ describe('hybridSearchMemory - filters and hops', () => {
 
   test('bm25Search: FTS テーブルなし の場合は空を返す (hybridSearchMemory 内)', async () => {
     // FTS テーブルを DROP してから呼び出す
-    db.execMany(`DROP TABLE IF EXISTS memory_entities_fts;
-                 DROP TABLE IF EXISTS memory_episodes_fts;
-                 DROP TABLE IF EXISTS memory_drift_events_fts;`);
+    db.execMany(`DROP TABLE IF EXISTS caravan_entities_fts;
+                 DROP TABLE IF EXISTS caravan_episodes_fts;
+                 DROP TABLE IF EXISTS caravan_drift_events_fts;`);
 
     const recentTs = new Date().toISOString();
     insertEntity(db, 'nofts-ent', 'nofts_tool', 'Tool', Float32Array.from([1, 0, 0]), recentTs);

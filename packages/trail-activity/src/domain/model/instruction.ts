@@ -106,7 +106,7 @@ export interface InstructionVerificationRun {
   startedAt: string;
 }
 
-/** モデル別のトークン内訳（session_costs をモデルで畳んだもの）。 */
+/** モデル別のトークン内訳（activity_session_costs をモデルで畳んだもの）。 */
 export interface InstructionTokenUsageByModel {
   model: string;
   inputTokens: number;
@@ -116,7 +116,7 @@ export interface InstructionTokenUsageByModel {
   estimatedCostUsd: number;
 }
 
-/** 指示のトークン消費。`imported=false` は session_costs 未取込（0 件と区別する）。 */
+/** 指示のトークン消費。`imported=false` は activity_session_costs 未取込（0 件と区別する）。 */
 export interface InstructionTokenUsage {
   imported: boolean;
   inputTokens: number;
@@ -128,7 +128,7 @@ export interface InstructionTokenUsage {
 }
 
 /**
- * 一覧の 1 行。所属セッションの flight_reviews を畳んで導出する
+ * 一覧の 1 行。所属セッションの caravan_flight_reviews を畳んで導出する
  * （導出は AssembleInstructionRecord の純粋関数が正本）。
  */
 export interface InstructionRecord {

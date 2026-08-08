@@ -16,7 +16,7 @@ const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb })
 
 const insertSession = (db: TrailDatabase, sessionId: string, startTime: string, endTime: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, ?, 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, ?, 0, '', 0, '')`,
     [sessionId, sessionId, startTime, endTime],
   );
 };
@@ -46,7 +46,7 @@ const commitWithMessage = (
   return hash;
 };
 
-// Phase H-4: session_commits / session_commit_resolutions から repo_name 列を撤去した。
+// Phase H-4: activity_session_commits / activity_session_commit_resolutions から repo_name 列を撤去した。
 // repo 名は repo_id 経由で repos から復元する。
 const getCommitRows = (
   db: TrailDatabase,
@@ -54,7 +54,7 @@ const getCommitRows = (
 ): Array<{ commit_hash: string; repo_name: string }> => {
   const r = inner(db).exec(
     `SELECT sc.commit_hash, COALESCE(rp.repo_name, '') AS repo_name
-       FROM session_commits sc LEFT JOIN repos rp ON rp.repo_id = sc.repo_id
+       FROM activity_session_commits sc LEFT JOIN activity_repos rp ON rp.repo_id = sc.repo_id
       WHERE sc.session_id = ? ORDER BY sc.commit_hash`,
     [sessionId],
   );
@@ -71,7 +71,7 @@ const getResolutionRows = (
 ): Array<{ repo_name: string; resolved_at: string }> => {
   const r = inner(db).exec(
     `SELECT COALESCE(rp.repo_name, '') AS repo_name, scr.resolved_at
-       FROM session_commit_resolutions scr LEFT JOIN repos rp ON rp.repo_id = scr.repo_id
+       FROM activity_session_commit_resolutions scr LEFT JOIN activity_repos rp ON rp.repo_id = scr.repo_id
       WHERE scr.session_id = ? ORDER BY rp.repo_name`,
     [sessionId],
   );
@@ -96,7 +96,7 @@ describe('TrailDatabase.resolveCommits multi-repo', () => {
     try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
-  it('populates repo_name on session_commits when called with repoName', () => {
+  it('populates repo_name on activity_session_commits when called with repoName', () => {
     const sessionId = '11111111-1111-4111-8111-111111111111';
     const startTime = '2026-04-29T00:00:00.000Z';
     const endTime = '2026-04-29T01:00:00.000Z';
@@ -123,11 +123,11 @@ describe('TrailDatabase.resolveCommits multi-repo', () => {
   });
 
   it('returns repo_name with commit files for remote sync', () => {
-    // Phase H-4: commit_files.repo_name 列は撤去済。repo 帰属は repo_id で保存し、getCommitFiles は
+    // Phase H-4: activity_commit_files.repo_name 列は撤去済。repo 帰属は repo_id で保存し、getCommitFiles は
     // repos を JOIN して repo_name を復元する (Supabase ミラーへ運ぶ契約)。
     const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-a');
     inner(db).run(
-      `INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id) VALUES ('hash-a', 'a.txt', ?)`,
+      `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES ('hash-a', 'a.txt', ?)`,
       [repoId],
     );
 
@@ -136,7 +136,7 @@ describe('TrailDatabase.resolveCommits multi-repo', () => {
     ]);
   });
 
-  it('writes session_commit_resolutions for the resolved (session, repo) pair', () => {
+  it('writes activity_session_commit_resolutions for the resolved (session, repo) pair', () => {
     const sessionId = '22222222-2222-4222-8222-222222222222';
     insertSession(db, sessionId, '2026-04-29T00:00:00.000Z', '2026-04-29T01:00:00.000Z');
 

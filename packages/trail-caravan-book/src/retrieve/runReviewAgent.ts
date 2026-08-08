@@ -24,7 +24,7 @@ export function runReviewAgent(input: RunReviewAgentInput): RunReviewAgentResult
 
   try {
     db.run(
-      `INSERT INTO memory_review_runs
+      `INSERT INTO caravan_review_runs
          (id, trigger_kind, target_kind, target_refs_json, model, prompt_kind,
           prompt_hash, started_at, finished_at, duration_ms, status,
           findings_count, findings_inserted, findings_merged,

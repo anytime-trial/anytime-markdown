@@ -30,7 +30,7 @@ function truncateToBytes(str: string, maxBytes: number): string {
  * Each episode starts at a 'user' message and ends just before the next 'user'
  * message in the same session. Leading non-user messages are discarded.
  *
- * Blocks whose messages carry no text at all are dropped. trail.messages keeps
+ * Blocks whose messages carry no text at all are dropped. trail.activity_messages keeps
  * tool results in 'user' rows with an empty user_content (328,662 of 352,212
  * user rows as of 2026-08-06). Joining those produced episodes whose
  * raw_excerpt was nothing but '\n---\n' separators — 84,365 of 126,101 stored

@@ -18,7 +18,7 @@ const insertSession = (
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner.run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '0', '', '', ?, ?, 0, '', 0, '', ?)`,
@@ -35,7 +35,7 @@ const insertMessage = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, parent_uuid, type, timestamp, subagent_type, source_tool_assistant_uuid
      ) VALUES (?, ?, NULL, 'assistant', ?, ?, ?)`,
     [uuid, sessionId, timestamp, opts.subagentType ?? null, opts.sourceToolAssistantUuid ?? null],
@@ -53,7 +53,7 @@ const insertToolCall = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
      ) VALUES (?, ?, 0, ?, ?, ?, NULL, NULL, NULL, 0, NULL, 0, 0, NULL, ?)`,

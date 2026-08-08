@@ -24,8 +24,8 @@ export interface PrReviewFindingAnalyzerOptions {
 
 /**
  * `pr_review_imported` を購読し、PR review の body + コメントから finding を抽出して
- * `ingestPrReview`（trail-caravan-book）で **review 本体と同時に** `memory_reviews` /
- * `memory_review_findings` へ書き込む (Step 5: activity.db から caravan-book.db への付け替え)。
+ * `ingestPrReview`（trail-caravan-book）で **review 本体と同時に** `caravan_reviews` /
+ * `caravan_review_findings` へ書き込む (Step 5: activity.db から caravan-book.db への付け替え)。
  *
  * - `ingestPrReview` は bodyHash 一致で即 skip する冪等 API のため、review 行を先に空
  *   findings で作ってから findings だけを追い書きする 2 段呼び出しは成立しない

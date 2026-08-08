@@ -37,7 +37,7 @@ function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
   fs.mkdirSync(dbDir, { recursive: true });
   new DatabaseSync(path.join(dbDir, 'activity.db')).close();
   const db = new DatabaseSync(path.join(dbDir, 'caravan-book.db'));
-  db.exec(`CREATE TABLE doctrine_judgments (
+  db.exec(`CREATE TABLE caravan_doctrine_judgments (
     id INTEGER PRIMARY KEY,
     session_id TEXT NOT NULL,
     subject TEXT NOT NULL,
@@ -47,8 +47,8 @@ function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
     judged_at TEXT NOT NULL
     ${withColumn ? `, underspecified_points_json TEXT NOT NULL DEFAULT '[]'` : ''}
   )`);
-  db.exec(`CREATE TABLE instructions (id TEXT PRIMARY KEY, summary TEXT, origin_prompt TEXT, started_at TEXT, closed_at TEXT)`);
-  db.exec(`CREATE TABLE instruction_sessions (session_id TEXT PRIMARY KEY, instruction_id TEXT)`);
+  db.exec(`CREATE TABLE caravan_instructions (id TEXT PRIMARY KEY, summary TEXT, origin_prompt TEXT, started_at TEXT, closed_at TEXT)`);
+  db.exec(`CREATE TABLE caravan_instruction_sessions (session_id TEXT PRIMARY KEY, instruction_id TEXT)`);
   judgments.forEach((j, i) => {
     const cols = ['id', 'session_id', 'subject', 'agent_judgment', 'coverage', 'human_decision', 'judged_at'];
     const vals = [i + 1, j.sessionId, j.subject ?? 'S', j.agentJudgment ?? 'approve', 'covered', j.humanDecision ?? null, j.judgedAt ?? '2026-08-08T00:00:00.000Z'];
@@ -56,11 +56,11 @@ function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
       cols.push('underspecified_points_json');
       vals.push(j.points ?? '[]');
     }
-    db.prepare(`INSERT INTO doctrine_judgments (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...vals);
+    db.prepare(`INSERT INTO caravan_doctrine_judgments (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...vals);
   });
   for (const ins of instructions) {
-    db.prepare(`INSERT INTO instructions VALUES (?,?,?,?,NULL)`).run(ins.id, ins.summary ?? '', ins.prompt, '2026-08-08T00:00:00.000Z');
-    db.prepare(`INSERT INTO instruction_sessions VALUES (?,?)`).run(ins.sessionId, ins.id);
+    db.prepare(`INSERT INTO caravan_instructions VALUES (?,?,?,?,NULL)`).run(ins.id, ins.summary ?? '', ins.prompt, '2026-08-08T00:00:00.000Z');
+    db.prepare(`INSERT INTO caravan_instruction_sessions VALUES (?,?)`).run(ins.sessionId, ins.id);
   }
   db.close();
 }

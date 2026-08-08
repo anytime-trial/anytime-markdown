@@ -57,7 +57,7 @@ function makeClaim(overrides: Partial<Claim> = {}): Claim {
 // ── upsertSpecDoc ─────────────────────────────────────────────────────────────
 
 describe('upsertSpecDoc', () => {
-  test('new doc → memory_spec_documents + Concept entity + spec_doc_entities', () => {
+  test('new doc → caravan_spec_documents + Concept entity + spec_doc_entities', () => {
     const db = makeDb();
     try {
       const parsed = makeParsedSpec();
@@ -66,9 +66,9 @@ describe('upsertSpecDoc', () => {
       expect(result.specDocId).toBeTruthy();
       expect(result.specEntityId).toBeTruthy();
 
-      // memory_spec_documents
+      // caravan_spec_documents
       const docRows = db.exec(
-        `SELECT rel_path, type, title, source_hash FROM memory_spec_documents WHERE id = ?`,
+        `SELECT rel_path, type, title, source_hash FROM caravan_spec_documents WHERE id = ?`,
         [result.specDocId],
       );
       expect(docRows[0]?.values).toHaveLength(1);
@@ -79,7 +79,7 @@ describe('upsertSpecDoc', () => {
 
       // Concept entity
       const entRows = db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE id = ?`,
+        `SELECT type, canonical_name FROM caravan_entities WHERE id = ?`,
         [result.specEntityId],
       );
       expect(entRows[0]?.values).toHaveLength(1);
@@ -88,7 +88,7 @@ describe('upsertSpecDoc', () => {
 
       // spec_doc_entities
       const sdeRows = db.exec(
-        `SELECT spec_doc_id, entity_id FROM memory_spec_doc_entities`,
+        `SELECT spec_doc_id, entity_id FROM caravan_spec_doc_entities`,
       );
       expect(sdeRows[0]?.values).toHaveLength(1);
       expect(sdeRows[0].values[0][0]).toBe(result.specDocId);
@@ -111,7 +111,7 @@ describe('upsertSpecDoc', () => {
       expect(r1.specEntityId).toBe(r2.specEntityId);
 
       const rows = db.exec(
-        `SELECT source_hash FROM memory_spec_documents WHERE id = ?`,
+        `SELECT source_hash FROM caravan_spec_documents WHERE id = ?`,
         [r1.specDocId],
       );
       expect(rows[0]?.values[0][0]).toBe('sha-v2');
@@ -131,7 +131,7 @@ describe('upsertSpecDoc', () => {
       upsertSpecDoc({ db, parsed, source_hash: 'sha-v2', recordedAt: TS });
 
       const rows = db.exec(
-        `SELECT summary, source_hash FROM memory_spec_documents WHERE id = ?`,
+        `SELECT summary, source_hash FROM caravan_spec_documents WHERE id = ?`,
         [specDocId],
       );
       // summary は温存、他カラム（source_hash）は更新
@@ -158,7 +158,7 @@ describe('upsertSpecDoc', () => {
       const result = upsertSpecDoc({ db, parsed, source_hash: 'sha-upd', recordedAt: TS });
 
       const rows = db.exec(
-        `SELECT updated_at FROM memory_spec_documents WHERE id = ?`,
+        `SELECT updated_at FROM caravan_spec_documents WHERE id = ?`,
         [result.specDocId],
       );
       expect(rows[0]?.values[0][0]).toBe('2026-05-10T00:00:00.000Z');
@@ -174,7 +174,7 @@ describe('upsertSpecDoc', () => {
       const result = upsertSpecDoc({ db, parsed, source_hash: 'sha-date', recordedAt: TS });
 
       const rows = db.exec(
-        `SELECT updated_at FROM memory_spec_documents WHERE id = ?`,
+        `SELECT updated_at FROM caravan_spec_documents WHERE id = ?`,
         [result.specDocId],
       );
       expect(rows[0]?.values[0][0]).toBe('2026-05-01T00:00:00.000Z');
@@ -199,7 +199,7 @@ describe('upsertSpecDoc', () => {
       const result = upsertSpecDoc({ db, parsed, source_hash: 'sha-c4', recordedAt: TS });
 
       const rows = db.exec(
-        `SELECT c4_scope_json FROM memory_spec_documents WHERE id = ?`,
+        `SELECT c4_scope_json FROM caravan_spec_documents WHERE id = ?`,
         [result.specDocId],
       );
       const c4Json = JSON.parse(rows[0]?.values[0][0] as string);
@@ -225,7 +225,7 @@ describe('upsertSpecDoc', () => {
       const result = upsertSpecDoc({ db, parsed, source_hash: 'sha-noc4', recordedAt: TS });
 
       const rows = db.exec(
-        `SELECT c4_scope_json FROM memory_spec_documents WHERE id = ?`,
+        `SELECT c4_scope_json FROM caravan_spec_documents WHERE id = ?`,
         [result.specDocId],
       );
       expect(JSON.parse(rows[0]?.values[0][0] as string)).toEqual([]);
@@ -271,7 +271,7 @@ describe('updateSpecDocSummary', () => {
 
       updateSpecDocSummary(db, specDocId, 'This is the summary.');
 
-      const rows = db.exec(`SELECT summary FROM memory_spec_documents WHERE id = ?`, [specDocId]);
+      const rows = db.exec(`SELECT summary FROM caravan_spec_documents WHERE id = ?`, [specDocId]);
       expect(rows[0]?.values[0][0]).toBe('This is the summary.');
     } finally {
       db.close();
@@ -287,7 +287,7 @@ describe('updateSpecDocSummary', () => {
       updateSpecDocSummary(db, specDocId, 'Old summary');
       updateSpecDocSummary(db, specDocId, 'New summary');
 
-      const rows = db.exec(`SELECT summary FROM memory_spec_documents WHERE id = ?`, [specDocId]);
+      const rows = db.exec(`SELECT summary FROM caravan_spec_documents WHERE id = ?`, [specDocId]);
       expect(rows[0]?.values[0][0]).toBe('New summary');
     } finally {
       db.close();
@@ -312,7 +312,7 @@ describe('upsertSpecClaims', () => {
 
       // Check edge source_type
       const edgeRows = db.exec(
-        `SELECT source_type, predicate, confidence, modality FROM memory_edges WHERE source_ref = ?`,
+        `SELECT source_type, predicate, confidence, modality FROM caravan_edges WHERE source_ref = ?`,
         [`spec_doc#${specDocId}`],
       );
       expect(edgeRows[0]?.values).toHaveLength(1);
@@ -350,7 +350,7 @@ describe('upsertSpecClaims', () => {
       upsertSpecClaims({ db, specDocId, specEntityId, claims: [claim], recordedAt: TS });
       upsertSpecClaims({ db, specDocId, specEntityId, claims: [claim], recordedAt: TS });
 
-      const edgeCount = db.exec(`SELECT COUNT(*) FROM memory_edges WHERE source_type = 'spec'`);
+      const edgeCount = db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE source_type = 'spec'`);
       expect(edgeCount[0]?.values[0][0]).toBe(1);
     } finally {
       db.close();
@@ -366,7 +366,7 @@ describe('upsertSpecClaims', () => {
       const claim = makeClaim({
         subject: { name: 'FancyThing', type: 'UnknownType' },
         object: { name: 'OtherThing', type: 'AlsoUnknown' },
-        predicate: 'uses', // must be registered in memory_relation_types
+        predicate: 'uses', // must be registered in caravan_relation_types
       });
       const result = upsertSpecClaims({ db, specDocId, specEntityId, claims: [claim], recordedAt: TS });
 
@@ -374,7 +374,7 @@ describe('upsertSpecClaims', () => {
 
       // Both entities should be Concept
       const entRows = db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE canonical_name IN ('FancyThing', 'OtherThing') ORDER BY canonical_name`,
+        `SELECT type, canonical_name FROM caravan_entities WHERE canonical_name IN ('FancyThing', 'OtherThing') ORDER BY canonical_name`,
       );
       expect(entRows[0]?.values).toHaveLength(2);
       for (const row of entRows[0].values) {
@@ -391,7 +391,7 @@ describe('upsertSpecClaims', () => {
       const parsed = makeParsedSpec();
       const { specDocId, specEntityId } = upsertSpecDoc({ db, parsed, source_hash: 'sha-multi', recordedAt: TS });
 
-      // All predicates must be in memory_relation_types
+      // All predicates must be in caravan_relation_types
       const claims: Claim[] = [
         makeClaim({ subject: { name: 'pkg-a', type: 'Package' }, object: { name: 'lib-x', type: 'Library' }, predicate: 'depends_on' }),
         makeClaim({ subject: { name: 'pkg-a', type: 'Package' }, object: { name: 'tool-y', type: 'Tool' }, predicate: 'uses' }),
@@ -411,7 +411,7 @@ describe('upsertSpecClaims', () => {
       const parsed = makeParsedSpec();
       const { specDocId, specEntityId } = upsertSpecDoc({ db, parsed, source_hash: 'sha-clamp', recordedAt: TS });
 
-      // Use registered predicates only (memory_relation_types FK constraint)
+      // Use registered predicates only (caravan_relation_types FK constraint)
       const claims: Claim[] = [
         makeClaim({ confidence: 1.5, predicate: 'uses' }), // clamped to 1.0
         makeClaim({
@@ -424,7 +424,7 @@ describe('upsertSpecClaims', () => {
       upsertSpecClaims({ db, specDocId, specEntityId, claims, recordedAt: TS });
 
       const edgeRows = db.exec(
-        `SELECT predicate, confidence FROM memory_edges WHERE source_type = 'spec' ORDER BY predicate`,
+        `SELECT predicate, confidence FROM caravan_edges WHERE source_type = 'spec' ORDER BY predicate`,
       );
       for (const row of edgeRows[0]?.values ?? []) {
         const conf = Number(row[1]);
@@ -445,7 +445,7 @@ describe('upsertSpecClaims', () => {
       const allowedTypes = ['Person', 'Project', 'Package', 'File', 'Library', 'Tool', 'Concept',
         'Decision', 'Bug', 'Task', 'Skill', 'Rule', 'Commit', 'Question'];
 
-      // Use 'uses' predicate for all (it is registered in memory_relation_types)
+      // Use 'uses' predicate for all (it is registered in caravan_relation_types)
       for (let i = 0; i < allowedTypes.length; i++) {
         const t = allowedTypes[i];
         const claim = makeClaim({
@@ -458,7 +458,7 @@ describe('upsertSpecClaims', () => {
 
       for (const t of allowedTypes) {
         const rows = db.exec(
-          `SELECT COUNT(*) FROM memory_entities WHERE type = ? AND canonical_name LIKE 'subj-%'`,
+          `SELECT COUNT(*) FROM caravan_entities WHERE type = ? AND canonical_name LIKE 'subj-%'`,
           [t],
         );
         expect(rows[0]?.values[0][0] as number).toBeGreaterThanOrEqual(1);

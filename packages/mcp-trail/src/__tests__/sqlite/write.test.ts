@@ -13,12 +13,12 @@ import {
   removeRelationshipDirect,
 } from '../../sqlite/write';
 
-// Phase H-3: current_code_graph_communities から repo_name 列を撤去し repo_id PK にしたため、
+// Phase H-3: activity_current_code_graph_communities から repo_name 列を撤去し repo_id PK にしたため、
 // fixture も repo_id PK スキーマで作る。write の resolveRepoId が repos へ 'test-repo' を upsert する。
 function createTestDb(includeMappingsJson = false): Database {
   const db = new BetterSqlite3(':memory:');
   const communitySchema = includeMappingsJson
-    ? `CREATE TABLE current_code_graph_communities (
+    ? `CREATE TABLE activity_current_code_graph_communities (
         repo_id INTEGER NOT NULL,
         community_id INTEGER NOT NULL,
         label TEXT,
@@ -29,7 +29,7 @@ function createTestDb(includeMappingsJson = false): Database {
         updated_at TEXT,
         PRIMARY KEY (repo_id, community_id)
       );`
-    : `CREATE TABLE current_code_graph_communities (
+    : `CREATE TABLE activity_current_code_graph_communities (
         repo_id INTEGER NOT NULL,
         community_id INTEGER NOT NULL,
         label TEXT,
@@ -42,12 +42,12 @@ function createTestDb(includeMappingsJson = false): Database {
 
   db.exec(`
     ${communitySchema}
-    CREATE TABLE repos (
+    CREATE TABLE activity_repos (
       repo_id INTEGER PRIMARY KEY,
       repo_name TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
     );
-    CREATE TABLE c4_manual_elements (
+    CREATE TABLE activity_c4_manual_elements (
       repo_id INTEGER NOT NULL,
       element_id TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -59,7 +59,7 @@ function createTestDb(includeMappingsJson = false): Database {
       updated_at TEXT,
       PRIMARY KEY (repo_id, element_id)
     );
-    CREATE TABLE c4_manual_relationships (
+    CREATE TABLE activity_c4_manual_relationships (
       repo_id INTEGER NOT NULL,
       rel_id TEXT NOT NULL,
       from_id TEXT NOT NULL,
@@ -69,7 +69,7 @@ function createTestDb(includeMappingsJson = false): Database {
       updated_at TEXT,
       PRIMARY KEY (repo_id, rel_id)
     );
-    CREATE TABLE c4_manual_groups (
+    CREATE TABLE activity_c4_manual_groups (
       repo_id INTEGER NOT NULL,
       group_id TEXT NOT NULL,
       member_ids TEXT NOT NULL DEFAULT '[]',
@@ -95,7 +95,7 @@ describe('upsertCommunitySummariesDirect', () => {
     expect(result.updated).toBe(0);
     const row = get<{ name: string; summary: string }>(
       db,
-      'SELECT name, summary FROM current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM repos WHERE repo_name=?) AND community_id=?',
+      'SELECT name, summary FROM activity_current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM activity_repos WHERE repo_name=?) AND community_id=?',
       [REPO, 1],
     );
     expect(row).toBeDefined();
@@ -109,7 +109,7 @@ describe('upsertCommunitySummariesDirect', () => {
     expect(result.updated).toBe(1);
     const row = get<{ name: string; summary: string }>(
       db,
-      'SELECT name, summary FROM current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM repos WHERE repo_name=?) AND community_id=?',
+      'SELECT name, summary FROM activity_current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM activity_repos WHERE repo_name=?) AND community_id=?',
       [REPO, 1],
     );
     expect(row!.name).toBe('New');
@@ -120,14 +120,14 @@ describe('upsertCommunitySummariesDirect', () => {
 describe('upsertCommunityMappingsDirect', () => {
   test('mappings_json カラムがなければ ALTER で追加される', () => {
     const db = createTestDb(false);
-    const colsBefore = all<{ name: string }>(db, 'PRAGMA table_info(current_code_graph_communities)');
+    const colsBefore = all<{ name: string }>(db, 'PRAGMA table_info(activity_current_code_graph_communities)');
     expect(colsBefore.some((c) => c.name === 'mappings_json')).toBe(false);
 
     upsertCommunityMappingsDirect(db, REPO, [
       { communityId: 1, mappings: [{ elementId: 'e1', elementType: 'Container', role: 'primary' }] },
     ]);
 
-    const colsAfter = all<{ name: string }>(db, 'PRAGMA table_info(current_code_graph_communities)');
+    const colsAfter = all<{ name: string }>(db, 'PRAGMA table_info(activity_current_code_graph_communities)');
     expect(colsAfter.some((c) => c.name === 'mappings_json')).toBe(true);
     db.close();
   });
@@ -138,7 +138,7 @@ describe('upsertCommunityMappingsDirect', () => {
     upsertCommunityMappingsDirect(db, REPO, [{ communityId: 1, mappings }]);
     const row = get<{ mappings_json: string }>(
       db,
-      'SELECT mappings_json FROM current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM repos WHERE repo_name=?) AND community_id=?',
+      'SELECT mappings_json FROM activity_current_code_graph_communities WHERE repo_id=(SELECT repo_id FROM activity_repos WHERE repo_name=?) AND community_id=?',
       [REPO, 1],
     );
     expect(row).toBeDefined();
@@ -178,8 +178,8 @@ describe('addElementDirect', () => {
   test('SELECT で取得できる', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'API', external: false, parentId: null, description: 'desc', serviceType: 'web' });
     // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
-    const repoIdRow = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name=?', [REPO]);
-    const row = get<Record<string, unknown>>(db, 'SELECT * FROM c4_manual_elements WHERE repo_id=? AND element_id=?', [repoIdRow!.repo_id, id]);
+    const repoIdRow = get<{ repo_id: number }>(db, 'SELECT repo_id FROM activity_repos WHERE repo_name=?', [REPO]);
+    const row = get<Record<string, unknown>>(db, 'SELECT * FROM activity_c4_manual_elements WHERE repo_id=? AND element_id=?', [repoIdRow!.repo_id, id]);
     expect(row).toBeDefined();
     expect(row!.name).toBe('API');
     expect(row!.type).toBe('Container');
@@ -190,8 +190,8 @@ describe('addElementDirect', () => {
   test('external true -> 1, false -> 0', () => {
     const { id: id1 } = addElementDirect(db, REPO, { type: 'Container', name: 'Ext', external: true, parentId: null });
     const { id: id2 } = addElementDirect(db, REPO, { type: 'Container', name: 'Int', external: false, parentId: null });
-    const r1 = get<{ external: number }>(db, 'SELECT external FROM c4_manual_elements WHERE element_id=?', [id1]);
-    const r2 = get<{ external: number }>(db, 'SELECT external FROM c4_manual_elements WHERE element_id=?', [id2]);
+    const r1 = get<{ external: number }>(db, 'SELECT external FROM activity_c4_manual_elements WHERE element_id=?', [id1]);
+    const r2 = get<{ external: number }>(db, 'SELECT external FROM activity_c4_manual_elements WHERE element_id=?', [id2]);
     expect(r1!.external).toBe(1);
     expect(r2!.external).toBe(0);
   });
@@ -205,7 +205,7 @@ describe('updateElementDirect', () => {
   test('name のみ更新（description は変わらない）', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'Old', external: false, parentId: null, description: 'Desc' });
     updateElementDirect(db, REPO, id, { name: 'New' });
-    const row = get<{ name: string; description: string }>(db, 'SELECT name, description FROM c4_manual_elements WHERE element_id=?', [id]);
+    const row = get<{ name: string; description: string }>(db, 'SELECT name, description FROM activity_c4_manual_elements WHERE element_id=?', [id]);
     expect(row!.name).toBe('New');
     expect(row!.description).toBe('Desc');
   });
@@ -213,35 +213,35 @@ describe('updateElementDirect', () => {
   test('changes 空 -> no-op', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'Same', external: false, parentId: null });
     updateElementDirect(db, REPO, id, {});
-    const row = get<{ name: string }>(db, 'SELECT name FROM c4_manual_elements WHERE element_id=?', [id]);
+    const row = get<{ name: string }>(db, 'SELECT name FROM activity_c4_manual_elements WHERE element_id=?', [id]);
     expect(row!.name).toBe('Same');
   });
 
   test('description を更新できる', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: false, parentId: null, description: 'old desc' });
     updateElementDirect(db, REPO, id, { description: 'new desc' });
-    const row = get<{ description: string }>(db, 'SELECT description FROM c4_manual_elements WHERE element_id=?', [id]);
+    const row = get<{ description: string }>(db, 'SELECT description FROM activity_c4_manual_elements WHERE element_id=?', [id]);
     expect(row!.description).toBe('new desc');
   });
 
   test('external を true → false に更新できる', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: true, parentId: null });
     updateElementDirect(db, REPO, id, { external: false });
-    const row = get<{ external: number }>(db, 'SELECT external FROM c4_manual_elements WHERE element_id=?', [id]);
+    const row = get<{ external: number }>(db, 'SELECT external FROM activity_c4_manual_elements WHERE element_id=?', [id]);
     expect(row!.external).toBe(0);
   });
 
   test('external を false → true に更新できる', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: false, parentId: null });
     updateElementDirect(db, REPO, id, { external: true });
-    const row = get<{ external: number }>(db, 'SELECT external FROM c4_manual_elements WHERE element_id=?', [id]);
+    const row = get<{ external: number }>(db, 'SELECT external FROM activity_c4_manual_elements WHERE element_id=?', [id]);
     expect(row!.external).toBe(1);
   });
 
   test('serviceType を更新できる', () => {
     const { id } = addElementDirect(db, REPO, { type: 'Container', name: 'E', external: false, parentId: null, serviceType: 'web' });
     updateElementDirect(db, REPO, id, { serviceType: 'grpc' });
-    const row = get<{ service_type: string }>(db, 'SELECT service_type FROM c4_manual_elements WHERE element_id=?', [id]);
+    const row = get<{ service_type: string }>(db, 'SELECT service_type FROM activity_c4_manual_elements WHERE element_id=?', [id]);
     expect(row!.service_type).toBe('grpc');
   });
 
@@ -250,7 +250,7 @@ describe('updateElementDirect', () => {
     updateElementDirect(db, REPO, id, { name: 'Updated', description: 'new desc', external: true, serviceType: 'grpc' });
     const row = get<{ name: string; description: string; external: number; service_type: string }>(
       db,
-      'SELECT name, description, external, service_type FROM c4_manual_elements WHERE element_id=?',
+      'SELECT name, description, external, service_type FROM activity_c4_manual_elements WHERE element_id=?',
       [id],
     );
     expect(row!.name).toBe('Updated');
@@ -272,9 +272,9 @@ describe('removeElementDirect', () => {
 
     removeElementDirect(db, REPO, fromId);
 
-    const el = get(db, 'SELECT * FROM c4_manual_elements WHERE element_id=?', [fromId]);
+    const el = get(db, 'SELECT * FROM activity_c4_manual_elements WHERE element_id=?', [fromId]);
     expect(el).toBeUndefined();
-    const rel = get(db, 'SELECT * FROM c4_manual_relationships WHERE rel_id=?', [relId]);
+    const rel = get(db, 'SELECT * FROM activity_c4_manual_relationships WHERE rel_id=?', [relId]);
     expect(rel).toBeUndefined();
   });
 });
@@ -291,7 +291,7 @@ describe('addGroupDirect', () => {
 
   test('member_ids が JSON で保存される', () => {
     const { id } = addGroupDirect(db, REPO, { memberIds: ['e1', 'e2'], label: 'G1' });
-    const row = get<{ member_ids: string; label: string }>(db, 'SELECT member_ids, label FROM c4_manual_groups WHERE group_id=?', [id]);
+    const row = get<{ member_ids: string; label: string }>(db, 'SELECT member_ids, label FROM activity_c4_manual_groups WHERE group_id=?', [id]);
     expect(JSON.parse(row!.member_ids)).toEqual(['e1', 'e2']);
     expect(row!.label).toBe('G1');
   });
@@ -305,21 +305,21 @@ describe('updateGroupDirect', () => {
   test('memberIds 更新', () => {
     const { id } = addGroupDirect(db, REPO, { memberIds: ['e1'] });
     updateGroupDirect(db, REPO, id, { memberIds: ['e1', 'e2', 'e3'] });
-    const row = get<{ member_ids: string }>(db, 'SELECT member_ids FROM c4_manual_groups WHERE group_id=?', [id]);
+    const row = get<{ member_ids: string }>(db, 'SELECT member_ids FROM activity_c4_manual_groups WHERE group_id=?', [id]);
     expect(JSON.parse(row!.member_ids)).toEqual(['e1', 'e2', 'e3']);
   });
 
   test('label null 更新', () => {
     const { id } = addGroupDirect(db, REPO, { memberIds: [], label: 'Labeled' });
     updateGroupDirect(db, REPO, id, { label: null });
-    const row = get<{ label: string | null }>(db, 'SELECT label FROM c4_manual_groups WHERE group_id=?', [id]);
+    const row = get<{ label: string | null }>(db, 'SELECT label FROM activity_c4_manual_groups WHERE group_id=?', [id]);
     expect(row!.label).toBeNull();
   });
 
   test('body が空オブジェクト（label キーなし・memberIds なし）は no-op', () => {
     const { id } = addGroupDirect(db, REPO, { memberIds: ['e1'], label: 'OriginalLabel' });
     updateGroupDirect(db, REPO, id, {});
-    const row = get<{ member_ids: string; label: string }>(db, 'SELECT member_ids, label FROM c4_manual_groups WHERE group_id=?', [id]);
+    const row = get<{ member_ids: string; label: string }>(db, 'SELECT member_ids, label FROM activity_c4_manual_groups WHERE group_id=?', [id]);
     expect(JSON.parse(row!.member_ids)).toEqual(['e1']);
     expect(row!.label).toBe('OriginalLabel');
   });
@@ -333,7 +333,7 @@ describe('removeGroupDirect', () => {
   test('削除確認', () => {
     const { id } = addGroupDirect(db, REPO, { memberIds: [] });
     removeGroupDirect(db, REPO, id);
-    const row = get(db, 'SELECT * FROM c4_manual_groups WHERE group_id=?', [id]);
+    const row = get(db, 'SELECT * FROM activity_c4_manual_groups WHERE group_id=?', [id]);
     expect(row).toBeUndefined();
   });
 });
@@ -350,7 +350,7 @@ describe('addRelationshipDirect', () => {
 
   test('SELECT で取得できる', () => {
     const { id } = addRelationshipDirect(db, REPO, { fromId: 'e1', toId: 'e2', label: 'uses', technology: 'HTTP' });
-    const row = get<Record<string, unknown>>(db, 'SELECT * FROM c4_manual_relationships WHERE rel_id=?', [id]);
+    const row = get<Record<string, unknown>>(db, 'SELECT * FROM activity_c4_manual_relationships WHERE rel_id=?', [id]);
     expect(row).toBeDefined();
     expect(row!.from_id).toBe('e1');
     expect(row!.to_id).toBe('e2');
@@ -367,7 +367,7 @@ describe('removeRelationshipDirect', () => {
   test('削除確認', () => {
     const { id } = addRelationshipDirect(db, REPO, { fromId: 'e1', toId: 'e2' });
     removeRelationshipDirect(db, REPO, id);
-    const row = get(db, 'SELECT * FROM c4_manual_relationships WHERE rel_id=?', [id]);
+    const row = get(db, 'SELECT * FROM activity_c4_manual_relationships WHERE rel_id=?', [id]);
     expect(row).toBeUndefined();
   });
 });

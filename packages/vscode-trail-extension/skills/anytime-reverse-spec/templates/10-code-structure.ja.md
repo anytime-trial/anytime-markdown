@@ -53,7 +53,7 @@ excerpt: "{{repoName}} のビルドシステム・モジュール階層・デザ
 ## 2. 主要モジュール階層
 
 <!--
-ガイダンス: Trail DB current_code_graphs.graph_json の fanIn 上位ファイルをパッケージ別にグルーピングして flowchart で描画する。
+ガイダンス: Trail DB activity_current_code_graphs.graph_json の fanIn 上位ファイルをパッケージ別にグルーピングして flowchart で描画する。
 - ノードはファイル（label = ファイル名）、パッケージは subgraph
 - エッジは fanIn ≥ {{threshold}} の依存のみ表示
 - ノード数 15 超なら fanIn 上位のみに絞る

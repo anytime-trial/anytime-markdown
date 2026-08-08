@@ -48,7 +48,7 @@ function insertSession(
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '', '', '', ?, ?, 0, '', 0, '', ?)`,
@@ -90,7 +90,7 @@ function insertMsg(
     subagentType = null,
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, parent_uuid, type, timestamp, tool_calls,
        git_branch, input_tokens, cache_read_tokens, cache_creation_tokens,
        stop_reason, is_meta, subagent_type
@@ -137,7 +137,7 @@ function insertToolCall(
     turnExecMs = null,
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking,
        is_error, error_type, timestamp
@@ -297,7 +297,7 @@ describe('TrailDatabase message helpers', () => {
       insertSession(db, 's1');
       // Add a session_commit to trigger the INNER JOIN
       inner(db).run(
-        `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, commit_message, author, committed_at, is_ai_assisted, files_changed, lines_added, lines_deleted) VALUES (?, 'abc123', 'fix', 'user', '2026-04-29T00:00:00.000Z', 1, 1, 10, 2)`,
+        `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, commit_message, author, committed_at, is_ai_assisted, files_changed, lines_added, lines_deleted) VALUES (?, 'abc123', 'fix', 'user', '2026-04-29T00:00:00.000Z', 1, 1, 10, 2)`,
         ['s1'],
       );
       const unresolved = db.getUnresolvedMessageCommitSessions();
@@ -308,7 +308,7 @@ describe('TrailDatabase message helpers', () => {
     it('does not return resolved sessions', () => {
       insertSession(db, 's1');
       inner(db).run(
-        `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, commit_message, author, committed_at, is_ai_assisted, files_changed, lines_added, lines_deleted) VALUES (?, 'abc123', 'fix', 'user', '2026-04-29T00:00:00.000Z', 1, 1, 10, 2)`,
+        `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, commit_message, author, committed_at, is_ai_assisted, files_changed, lines_added, lines_deleted) VALUES (?, 'abc123', 'fix', 'user', '2026-04-29T00:00:00.000Z', 1, 1, 10, 2)`,
         ['s1'],
       );
       db.markMessageCommitsResolved('s1', '2026-04-29T01:00:00.000Z');
@@ -358,7 +358,7 @@ describe('TrailDatabase message helpers', () => {
 
   // ─── getSkillsBySession ───────────────────────────────────────────
   describe('getSkillsBySession', () => {
-    it('returns skill names from message_tool_calls', () => {
+    it('returns skill names from activity_message_tool_calls', () => {
       insertSession(db, 's1');
       insertMsg(db, 'm1', 's1');
       insertToolCall(db, 's1', 'm1', 0, 'Read', { skillName: 'resolve-issues' });
@@ -373,11 +373,11 @@ describe('TrailDatabase message helpers', () => {
         { id: 'c1', name: 'Read', input: { file_path: 'foo.ts' }, skill: 'my-skill' },
       ]);
       inner(db).run(
-        `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, tool_calls, is_sidechain)
+        `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, tool_calls, is_sidechain)
          VALUES ('m1', 's1', 'assistant', '2026-04-29T00:10:00.000Z', ?, 0)`,
         [toolCallsJson],
       );
-      // No message_tool_calls row with skill_name
+      // No activity_message_tool_calls row with skill_name
       const result = db.getSkillsBySession('s1');
       // The fallback uses extractSkillName which looks for 'skill' field in tool_calls
       // It may or may not be present depending on impl, but should not throw
@@ -392,7 +392,7 @@ describe('TrailDatabase message helpers', () => {
 
   // ─── getTurnExecMsBySession ───────────────────────────────────────
   describe('getTurnExecMsBySession', () => {
-    it('returns turn_exec_ms from message_tool_calls', () => {
+    it('returns turn_exec_ms from activity_message_tool_calls', () => {
       insertSession(db, 's1');
       insertMsg(db, 'm1', 's1');
       insertToolCall(db, 's1', 'm1', 0, 'Read', { turnExecMs: 1500 });
@@ -415,7 +415,7 @@ describe('TrailDatabase message helpers', () => {
         // needs tool_use_result to trigger the fallback path
       });
       // Do NOT insert tool call row → forces fallback path
-      // The fallback checks if message_tool_calls has no row for m1 first
+      // The fallback checks if activity_message_tool_calls has no row for m1 first
       const result = db.getTurnExecMsBySession('s1');
       // May compute 2000ms from timestamps
       // If no turn_exec_ms row, and fallback fires: should be 2000

@@ -2,7 +2,7 @@
 //
 // フック（短命プロセス）は activity.db を直接開かず、`<git-common-dir>/anytime/emergency-spool.jsonl`
 // へ追記だけ行う。trail 拡張が定期 drain して S1 既存の `/api/trail/emergency-log` 経路で
-// emergency_log へ記録する（要件書 §12.4）。rename 先行 drain の機構は jsonlSpool（汎用）へ
+// activity_emergency_log へ記録する（要件書 §12.4）。rename 先行 drain の機構は jsonlSpool（汎用）へ
 // 抽出した（Stop フック記録の spool 化で共用するため）。本ファイルはイベント型・検証・
 // パスのみを持つ。
 import { join } from 'node:path';

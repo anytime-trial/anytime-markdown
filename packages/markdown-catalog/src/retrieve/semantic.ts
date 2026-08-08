@@ -1,5 +1,5 @@
 /**
- * 意味検索。クエリを embed して全 doc_embedding と cosine top-k（170 件規模はブルートフォースで sub-ms）。
+ * 意味検索。クエリを embed して全 catalog_doc_embedding と cosine top-k（170 件規模はブルートフォースで sub-ms）。
  */
 
 import type { DocDb } from '../db/open';
@@ -26,8 +26,8 @@ export async function searchSemantic(db: DocDb, embed: EmbedFn, query: string, k
   const rows = db
     .prepare(
       `SELECT e.path AS path, e.vec AS vec, d.title AS title, d.category AS category
-       FROM doc_embedding AS e
-       LEFT JOIN doc AS d ON d.path = e.path`,
+       FROM catalog_doc_embedding AS e
+       LEFT JOIN catalog_doc AS d ON d.path = e.path`,
     )
     .all() as unknown as EmbRow[];
 

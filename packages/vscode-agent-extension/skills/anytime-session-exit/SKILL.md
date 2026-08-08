@@ -1,6 +1,6 @@
 ---
 name: anytime-session-exit
-description: セッションの作業を締めて完了報告を書く時、タスクの完了・部分完了・未達を報告する時、「デブリーフ」「debrief」「振り返りブロック」の指示があった時に使用する。最終応答に構造化デブリーフブロック（達成度・未解決事項・次回の懸念点）を出力し、Trail の運航後レビュー（flight_reviews）へ自己評価として取り込ませる。
+description: セッションの作業を締めて完了報告を書く時、タスクの完了・部分完了・未達を報告する時、「デブリーフ」「debrief」「振り返りブロック」の指示があった時に使用する。最終応答に構造化デブリーフブロック（達成度・未解決事項・次回の懸念点）を出力し、Trail の運航後レビュー（caravan_flight_reviews）へ自己評価として取り込ませる。
 ---
 
 # anytime-session-exit — セッション終了時の構造化自己評価
@@ -9,7 +9,7 @@ description: セッションの作業を締めて完了報告を書く時、タ�
 
 ## Overview
 
-Anytime Trail は Stop フック経由でセッションの transcript を集計し、`flight_reviews` テーブルへ運航後レビューを記録する（Phase 6）。機械集計だけでは成否（outcome）を断定できないため、機体（このセッション）が最終応答に **debrief ブロック**を出力すると、それが自己評価（`outcome_source='self'`）としてデフォルト値になる。人間は後から Viewer で訂正できる（訂正が常に優先される）。
+Anytime Trail は Stop フック経由でセッションの transcript を集計し、`caravan_flight_reviews` テーブルへ運航後レビューを記録する（Phase 6）。機械集計だけでは成否（outcome）を断定できないため、機体（このセッション）が最終応答に **debrief ブロック**を出力すると、それが自己評価（`outcome_source='self'`）としてデフォルト値になる。人間は後から Viewer で訂正できる（訂正が常に優先される）。
 
 ## 出力形式
 

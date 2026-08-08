@@ -35,31 +35,31 @@ async function buildFixture(opts: FixtureOptions): Promise<{ db: MemoryDbConnect
   const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   const trail = BetterSqlite3MemoryDb.openInMemory();
-  trail.run(`CREATE TABLE repos (
+  trail.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
   ) STRICT`);
-  trail.run(`CREATE TABLE commit_files (
+  trail.run(`CREATE TABLE activity_commit_files (
     id INTEGER PRIMARY KEY, commit_hash TEXT NOT NULL, file_path TEXT NOT NULL, repo_id INTEGER NOT NULL
   ) STRICT`);
-  trail.run(`CREATE TABLE sessions (
+  trail.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY, repo_id INTEGER
   ) STRICT`);
 
   const repoIds: Record<string, number> = {};
   let hash = 0;
   for (const [repoName, files] of Object.entries(opts.repos)) {
-    trail.run(`INSERT INTO repos (repo_name, created_at) VALUES (?, ?)`, [repoName, TS]);
-    const row = trail.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+    trail.run(`INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?)`, [repoName, TS]);
+    const row = trail.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
     const repoId = Number(row[0]?.values?.[0]?.[0] ?? 0);
     repoIds[repoName] = repoId;
     for (const file of files) {
-      trail.run(`INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`, [
+      trail.run(`INSERT INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`, [
         `c${hash++}`, file, repoId,
       ]);
     }
   }
   for (const [sessionId, repoName] of Object.entries(opts.sessions ?? {})) {
-    trail.run(`INSERT INTO sessions (id, repo_id) VALUES (?, ?)`, [sessionId, repoIds[repoName]]);
+    trail.run(`INSERT INTO activity_sessions (id, repo_id) VALUES (?, ?)`, [sessionId, repoIds[repoName]]);
   }
 
   attachTrailDbFromHandle(db, trail);
@@ -67,12 +67,12 @@ async function buildFixture(opts: FixtureOptions): Promise<{ db: MemoryDbConnect
   for (const review of opts.reviews) {
     const reviewEntity = entityId('Concept', `rev-${review.id}`);
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Concept', ?, ?, ?, ?, ?)`,
       [reviewEntity, `rev-${review.id}`, review.id, TS, TS, TS],
     );
     db.run(
-      `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, workspace, reviewed_at, recorded_at)
+      `INSERT INTO caravan_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, workspace, reviewed_at, recorded_at)
        VALUES (?, ?, ?, ?, 'code', ?, ?, ?, ?)`,
       [review.id, review.sourceKind, review.sourceRef, reviewEntity, review.id, review.workspace ?? '', TS, TS],
     );
@@ -80,12 +80,12 @@ async function buildFixture(opts: FixtureOptions): Promise<{ db: MemoryDbConnect
     for (const finding of review.findings) {
       const findingEntity = entityId('Concept', `f-${finding.id}`);
       db.run(
-        `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+        `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
          VALUES (?, 'Concept', ?, ?, ?, ?, ?)`,
         [findingEntity, `f-${finding.id}`, finding.id, TS, TS, TS],
       );
       db.run(
-        `INSERT INTO memory_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, severity, finding_text, recorded_at)
+        `INSERT INTO caravan_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, severity, finding_text, recorded_at)
          VALUES (?, ?, ?, ?, ?, 'warn', 'text', ?)`,
         [finding.id, review.id, findingEntity, index++, finding.targetFilePath, TS],
       );
@@ -103,14 +103,14 @@ async function buildFixture(opts: FixtureOptions): Promise<{ db: MemoryDbConnect
 }
 
 function readFinding(db: MemoryDbConnection, id: string) {
-  const rows = db.exec(`SELECT target_file_path, target_repo FROM memory_review_findings WHERE id = ?`, [id]);
+  const rows = db.exec(`SELECT target_file_path, target_repo FROM caravan_review_findings WHERE id = ?`, [id]);
   const value = rows[0]?.values?.[0] ?? [];
   return { path: value[0] === null || value[0] === undefined ? null : String(value[0]),
            repo: value[1] === null || value[1] === undefined ? null : String(value[1]) };
 }
 
 function readWorkspace(db: MemoryDbConnection, id: string): string {
-  const rows = db.exec(`SELECT workspace FROM memory_reviews WHERE id = ?`, [id]);
+  const rows = db.exec(`SELECT workspace FROM caravan_reviews WHERE id = ?`, [id]);
   return String(rows[0]?.values?.[0]?.[0] ?? '');
 }
 

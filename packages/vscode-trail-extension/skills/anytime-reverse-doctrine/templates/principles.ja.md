@@ -10,7 +10,7 @@ excerpt: "{{200 文字以内。抽出した原則の要旨}}"
 extractedAt: "{{ISO 8601}}"
 commitRange: "{{from}}..{{HEAD}}"
 sources:
-    - "{{使用した入力ソース（例: git log / spec / memory_reviews）}}"
+    - "{{使用した入力ソース（例: git log / spec / caravan_reviews）}}"
 ---
 
 # {{リポジトリ名}} 設計哲学・製品原則

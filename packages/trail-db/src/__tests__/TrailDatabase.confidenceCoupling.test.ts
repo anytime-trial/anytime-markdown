@@ -14,11 +14,11 @@ const insertSessionCommit = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
   inner.run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, committed_at)
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, committed_at)
      VALUES (?, ?, ?)`,
     [sessionId, hash, committedAt],
   );
@@ -27,7 +27,7 @@ const insertSessionCommit = (
 const insertCommitFile = (db: TrailDatabase, hash: string, filePath: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`,
     [hash, filePath],
   );
 };

@@ -100,7 +100,7 @@ describe('persistEpisodeFacts', () => {
       expect(stats.edges_invalidated).toBe(0);
 
       // episode row must be inserted
-      expect(countRows(db, 'memory_episodes')).toBe(1);
+      expect(countRows(db, 'caravan_episodes')).toBe(1);
     } finally {
       db.close();
     }
@@ -122,8 +122,8 @@ describe('persistEpisodeFacts', () => {
 
       expect(stats.entities_inserted).toBe(2);
       expect(stats.entities_updated).toBe(0);
-      expect(countRows(db, 'memory_entities')).toBe(2);
-      expect(countRows(db, 'memory_episode_entities')).toBe(2);
+      expect(countRows(db, 'caravan_entities')).toBe(2);
+      expect(countRows(db, 'caravan_episode_entities')).toBe(2);
     } finally {
       db.close();
     }
@@ -147,7 +147,7 @@ describe('persistEpisodeFacts', () => {
       expect(s2.entities_inserted).toBe(0);
 
       // Still only 1 entity (upsert)
-      expect(countRows(db, 'memory_entities')).toBe(1);
+      expect(countRows(db, 'caravan_entities')).toBe(1);
     } finally {
       db.close();
     }
@@ -176,7 +176,7 @@ describe('persistEpisodeFacts', () => {
 
       expect(stats.edges_inserted).toBe(1);
 
-      const edgeRows = db.exec(`SELECT predicate, source_type FROM memory_edges`);
+      const edgeRows = db.exec(`SELECT predicate, source_type FROM caravan_edges`);
       expect(edgeRows[0]?.values).toHaveLength(1);
       expect(edgeRows[0].values[0][0]).toBe('depends_on');
       expect(edgeRows[0].values[0][1]).toBe('conversation');
@@ -209,7 +209,7 @@ describe('persistEpisodeFacts', () => {
 
       // auto-upserted-lib entity should exist
       const entRows = db.exec(
-        `SELECT type, canonical_name FROM memory_entities WHERE canonical_name = ?`,
+        `SELECT type, canonical_name FROM caravan_entities WHERE canonical_name = ?`,
         ['auto-upserted-lib'],
       );
       expect(entRows[0]?.values).toHaveLength(1);
@@ -234,7 +234,7 @@ describe('persistEpisodeFacts', () => {
       expect(stats.edges_inserted).toBe(1);
 
       const edgeRows = db.exec(
-        `SELECT predicate FROM memory_edges ORDER BY predicate`,
+        `SELECT predicate FROM caravan_edges ORDER BY predicate`,
       );
       const predicates = edgeRows[0]?.values.map((r) => r[0]);
       expect(predicates).toContain('asked_by');
@@ -242,7 +242,7 @@ describe('persistEpisodeFacts', () => {
 
       // Question entity exists
       const qRows = db.exec(
-        `SELECT type FROM memory_entities WHERE type = 'Question'`,
+        `SELECT type FROM caravan_entities WHERE type = 'Question'`,
       );
       expect(qRows[0]?.values).toHaveLength(1);
     } finally {
@@ -262,8 +262,8 @@ describe('persistEpisodeFacts', () => {
       persistEpisodeFacts({ db, episode, extracted, recordedAt: TS, logger });
       persistEpisodeFacts({ db, episode, extracted, recordedAt: TS, logger });
 
-      expect(countRows(db, 'memory_episodes')).toBe(1);
-      expect(countRows(db, 'memory_entities')).toBe(1);
+      expect(countRows(db, 'caravan_episodes')).toBe(1);
+      expect(countRows(db, 'caravan_entities')).toBe(1);
     } finally {
       db.close();
     }
@@ -329,13 +329,13 @@ describe('persistEpisodeFacts', () => {
       expect(stats.entities_inserted).toBe(3);
       expect(stats.edges_inserted).toBe(1);
       // episode_entities: 3 entities (pkg-1, pkg-2, concept-x)
-      expect(countRows(db, 'memory_episode_entities')).toBe(3);
+      expect(countRows(db, 'caravan_episode_entities')).toBe(3);
     } finally {
       db.close();
     }
   });
 
-  test('ollama summary is persisted to memory_episodes.summary', () => {
+  test('ollama summary is persisted to caravan_episodes.summary', () => {
     const db = makeDb();
     try {
       const logger = makeLogger();
@@ -345,7 +345,7 @@ describe('persistEpisodeFacts', () => {
       persistEpisodeFacts({ db, episode, extracted, recordedAt: TS, logger });
 
       const epId = episodeId(episode.session_id, episode.message_uuid_start);
-      const rows = db.exec(`SELECT summary FROM memory_episodes WHERE id = ?`, [epId]);
+      const rows = db.exec(`SELECT summary FROM caravan_episodes WHERE id = ?`, [epId]);
       expect(rows[0]?.values[0][0]).toBe('ユーザーは ollama 要約の保存有無を調査した。');
     } finally {
       db.close();
@@ -375,7 +375,7 @@ describe('persistEpisodeFacts', () => {
       });
 
       const epId = episodeId(episode1.session_id, episode1.message_uuid_start);
-      const rows = db.exec(`SELECT summary FROM memory_episodes WHERE id = ?`, [epId]);
+      const rows = db.exec(`SELECT summary FROM caravan_episodes WHERE id = ?`, [epId]);
       expect(rows[0]?.values[0][0]).toBe('更新後要約');
     } finally {
       db.close();
@@ -406,7 +406,7 @@ describe('persistEpisodeFacts', () => {
       });
 
       const epId = episodeId(episode1.session_id, episode1.message_uuid_start);
-      const rows = db.exec(`SELECT summary, message_uuid_end FROM memory_episodes WHERE id = ?`, [epId]);
+      const rows = db.exec(`SELECT summary, message_uuid_end FROM caravan_episodes WHERE id = ?`, [epId]);
       // summary は温存、他カラム（message_uuid_end）は更新される
       expect(rows[0]?.values[0][0]).toBe('良い要約');
       expect(rows[0]?.values[0][1]).toBe('end-uuid-p2');
@@ -427,7 +427,7 @@ describe('persistEpisodeFacts', () => {
 
       const epId = episodeId(episode1.session_id, episode1.message_uuid_start);
       const rows = db.exec(
-        `SELECT raw_excerpt, message_uuid_end FROM memory_episodes WHERE id = ?`,
+        `SELECT raw_excerpt, message_uuid_end FROM caravan_episodes WHERE id = ?`,
         [epId],
       );
       expect(rows[0]?.values[0][0]).toBe('updated excerpt');

@@ -228,7 +228,7 @@ async function loadEpisodes(trailPath: string, count: number): Promise<SampleEpi
   const stmt = trail.prepare(
     `SELECT m.uuid, m.session_id, m.type, m.timestamp,
             COALESCE(SUBSTR(m.text_content,1,2048), SUBSTR(m.user_content,1,2048), '') AS text_excerpt
-     FROM messages m
+     FROM activity_messages m
      WHERE m.timestamp IS NOT NULL AND m.timestamp >= ?
        AND m.type IN ('user','assistant','system')
      ORDER BY m.session_id, m.timestamp`,

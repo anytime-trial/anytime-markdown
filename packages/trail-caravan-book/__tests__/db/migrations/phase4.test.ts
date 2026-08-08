@@ -13,7 +13,7 @@ const TS = '2026-01-01T00:00:00.000Z';
 
 function insertEntity(db: MemoryDbConnection, id: string, canonicalName: string): void {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, ?, ?, ?)`,
     [id, canonicalName, canonicalName, TS, TS, TS],
@@ -28,7 +28,7 @@ function insertDriftEvent(
   severity = 'warn',
 ): void {
   db.run(
-    `INSERT INTO memory_drift_events
+    `INSERT INTO caravan_drift_events
        (id, subject_entity_id, predicate, drift_type, severity, detected_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [id, entityId, 'test-predicate', driftType, severity, TS],
@@ -54,10 +54,10 @@ describe('Phase 4 migration (009_phase4)', () => {
 
   // ── Table creation ──────────────────────────────────────────────────────────
 
-  test('memory_drift_events table is created', async () => {
+  test('caravan_drift_events table is created', async () => {
     const { db, close } = await openFresh();
     const result = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_drift_events'",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='caravan_drift_events'",
     );
     expect(result[0]?.values?.length).toBe(1);
     close();
@@ -97,7 +97,7 @@ describe('Phase 4 migration (009_phase4)', () => {
     insertEntity(db, 'ent-dt-1', 'concept-dt-1');
     expect(() => {
       db.run(
-        `INSERT INTO memory_drift_events
+        `INSERT INTO caravan_drift_events
            (id, subject_entity_id, predicate, drift_type, severity, detected_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['evt-bad-dt', 'ent-dt-1', 'pred', 'unknown', 'warn', TS],
@@ -125,7 +125,7 @@ describe('Phase 4 migration (009_phase4)', () => {
     insertEntity(db, 'ent-sev-1', 'concept-sev-1');
     expect(() => {
       db.run(
-        `INSERT INTO memory_drift_events
+        `INSERT INTO caravan_drift_events
            (id, subject_entity_id, predicate, drift_type, severity, detected_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['evt-bad-sev', 'ent-sev-1', 'pred', 'spec_vs_code', 'critical', TS],
@@ -141,7 +141,7 @@ describe('Phase 4 migration (009_phase4)', () => {
     insertEntity(db, 'ent-ts-1', 'concept-ts-1');
     expect(() => {
       db.run(
-        `INSERT INTO memory_drift_events
+        `INSERT INTO caravan_drift_events
            (id, subject_entity_id, predicate, drift_type, severity, detected_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['evt-bad-ts', 'ent-ts-1', 'pred', 'spec_vs_code', 'warn', '2026-01-01'],

@@ -6,7 +6,7 @@ import seedrandom from 'seedrandom';
 
 // Louvain の rng を seedrandom で固定して決定論化する。
 // シード未固定だと同一入力でも community_id 採番順が変動し、
-// current_code_graph_communities.mappings_json が再解析のたびに失われる事故が起きる。
+// activity_current_code_graph_communities.mappings_json が再解析のたびに失われる事故が起きる。
 // `v1` サフィックスは将来意図的にクラスタリング結果を変えたい時の踏み台。
 const LOUVAIN_SEED = 'anytime-trail:louvain:v1';
 

@@ -51,7 +51,7 @@ export async function runRagFtsRebuild(
 
   // CAS: pipeline_state を確認し、running なら skip
   const currentStatus = db.exec(
-    `SELECT status FROM memory_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
+    `SELECT status FROM caravan_pipeline_state WHERE scope = 'rag_fts_rebuild'`,
   );
   const status = currentStatus[0]?.values[0]?.[0] as string | undefined;
   if (status === 'running') {
@@ -61,7 +61,7 @@ export async function runRagFtsRebuild(
 
   // running に遷移
   db.run(
-    `INSERT INTO memory_pipeline_state(scope, status, last_processed_at, error_detail)
+    `INSERT INTO caravan_pipeline_state(scope, status, last_processed_at, error_detail)
        VALUES ('rag_fts_rebuild', 'running', '', '')
      ON CONFLICT(scope) DO UPDATE SET status = 'running', error_detail = ''`,
   );
@@ -99,7 +99,7 @@ export async function runRagFtsRebuild(
 
     // 1. entities (valid_until IS NULL のみ)
     const entityRows = db.exec(
-      `SELECT id FROM memory_entities WHERE valid_until IS NULL ORDER BY id`,
+      `SELECT id FROM caravan_entities WHERE valid_until IS NULL ORDER BY id`,
     );
     rebuildPhase(
       (entityRows[0]?.values ?? []).map((r) => r[0] as string),
@@ -108,7 +108,7 @@ export async function runRagFtsRebuild(
     );
 
     // 2. episodes
-    const episodeRows = db.exec(`SELECT id FROM memory_episodes ORDER BY id`);
+    const episodeRows = db.exec(`SELECT id FROM caravan_episodes ORDER BY id`);
     rebuildPhase(
       (episodeRows[0]?.values ?? []).map((r) => r[0] as string),
       'episodes',
@@ -116,7 +116,7 @@ export async function runRagFtsRebuild(
     );
 
     // 3. drift events
-    const driftRows = db.exec(`SELECT id FROM memory_drift_events ORDER BY id`);
+    const driftRows = db.exec(`SELECT id FROM caravan_drift_events ORDER BY id`);
     rebuildPhase(
       (driftRows[0]?.values ?? []).map((r) => r[0] as string),
       'drift',
@@ -126,7 +126,7 @@ export async function runRagFtsRebuild(
     const finishedAt = ts();
     const durationMs = Date.now() - startedMs;
     db.run(
-      `UPDATE memory_pipeline_state
+      `UPDATE caravan_pipeline_state
          SET status = 'idle', last_processed_at = ?
          WHERE scope = 'rag_fts_rebuild'`,
       [finishedAt],
@@ -141,7 +141,7 @@ export async function runRagFtsRebuild(
     const finishedAt = ts();
     const durationMs = Date.now() - startedMs;
     db.run(
-      `UPDATE memory_pipeline_state
+      `UPDATE caravan_pipeline_state
          SET status = 'error', error_detail = ?
          WHERE scope = 'rag_fts_rebuild'`,
       [detail],

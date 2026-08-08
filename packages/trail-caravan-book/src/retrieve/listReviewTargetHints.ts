@@ -59,7 +59,7 @@ export function listReviewTargetHints(input: {
   // High: files from unresolved review_unfixed / recurring_review_finding drift events
   try {
     const driftRows = db.exec(
-      `SELECT DISTINCT detail_json FROM memory_drift_events
+      `SELECT DISTINCT detail_json FROM caravan_drift_events
        WHERE drift_type IN ('review_unfixed', 'recurring_review_finding')
          AND resolved_at IS NULL`,
     );
@@ -81,7 +81,7 @@ export function listReviewTargetHints(input: {
   // 「直近 30 日に regression fix が発生した file」）から外れて high が数百件に膨らむ。
   addScalarRows(
     `SELECT DISTINCT je.value
-     FROM memory_bug_fixes bf, json_each(bf.affected_file_paths_json) je
+     FROM caravan_bug_fixes bf, json_each(bf.affected_file_paths_json) je
      WHERE bf.category = 'regression'
        AND bf.committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days')`,
     'high',
@@ -89,9 +89,9 @@ export function listReviewTargetHints(input: {
     'bug query failed',
   );
 
-  // Medium: spec/code files changed in the last 7 days (memory_code_facts)
+  // Medium: spec/code files changed in the last 7 days (caravan_code_facts)
   addScalarRows(
-    `SELECT DISTINCT file_path FROM memory_code_facts
+    `SELECT DISTINCT file_path FROM caravan_code_facts
      WHERE recorded_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days')
      LIMIT 50`,
     'medium',
@@ -102,9 +102,9 @@ export function listReviewTargetHints(input: {
   // Low: files without a review in the last 90 days
   addScalarRows(
     `SELECT DISTINCT je.value
-     FROM memory_code_facts cf, json_each('["' || REPLACE(cf.file_path, ',', '","') || '"]') je
+     FROM caravan_code_facts cf, json_each('["' || REPLACE(cf.file_path, ',', '","') || '"]') je
      WHERE cf.file_path NOT IN (
-       SELECT DISTINCT rf.target_file_path FROM memory_review_findings rf
+       SELECT DISTINCT rf.target_file_path FROM caravan_review_findings rf
        WHERE rf.recorded_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-90 days')
          AND rf.target_file_path IS NOT NULL
      )

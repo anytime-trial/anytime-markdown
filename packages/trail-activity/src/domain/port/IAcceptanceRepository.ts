@@ -1,4 +1,4 @@
-// 自律受入基盤 S5 (受入台帳): acceptance_records 永続化のポート。
+// 自律受入基盤 S5 (受入台帳): caravan_acceptance_records 永続化のポート。
 // 実装は trail-db の TrailDatabase（副作用: activity.db への書き込み）。
 
 import type {
@@ -17,8 +17,8 @@ export interface IAcceptanceRepository {
   listAcceptanceRecords(filter?: AcceptanceRecordFilter): AcceptanceRecord[];
   /**
    * 経路別見逃し率の算出（読み取りのみ）。
-   * 合格レコードの変更ファイル（commit_files）と、合格後 windowDays 日以内の
-   * fix 系コミット（session_commits.commit_message が 'fix' 始まり）の変更ファイルを突合する近似指標。
+   * 合格レコードの変更ファイル（activity_commit_files）と、合格後 windowDays 日以内の
+   * fix 系コミット（activity_session_commits.commit_message が 'fix' 始まり）の変更ファイルを突合する近似指標。
    */
   computeAcceptanceMissRate(windowDays?: number): AcceptanceMissRate[];
 }

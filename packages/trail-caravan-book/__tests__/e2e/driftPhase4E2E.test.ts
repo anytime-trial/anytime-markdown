@@ -38,7 +38,7 @@ function nextId(prefix: string): string {
 
 function insertEntity(d: BetterSqlite3MemoryDb, id: string, type = 'Package'): void {
   d.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [id, type, id, id, NOW, NOW, NOW],
@@ -58,7 +58,7 @@ function insertEdge(
   const eid = nextId('edge');
   insertEntity(d, opts.subject);
   d.run(
-    `INSERT INTO memory_edges
+    `INSERT INTO caravan_edges
        (id, subject_entity_id, predicate, object_entity_id, object_literal,
         valid_from, valid_to, recorded_at, source_type, source_ref,
         confidence, confidence_label, modality, attributes_json)
@@ -80,7 +80,7 @@ function insertBugFix(
   const id = nextId('bf');
   insertEntity(d, opts.bugEntityId, 'Bug');
   d.run(
-    `INSERT INTO memory_bug_fixes
+    `INSERT INTO caravan_bug_fixes
        (id, commit_sha, bug_entity_id, package, category, subject_summary,
         affected_file_paths_json, committed_at, recorded_at)
      VALUES (?, ?, ?, 'web-app', ?, 'fix summary', ?, ?, ?)`,
@@ -94,7 +94,7 @@ function insertReview(d: BetterSqlite3MemoryDb): string {
   const rentId = nextId('rev-ent');
   insertEntity(d, rentId, 'Review');
   d.run(
-    `INSERT INTO memory_reviews
+    `INSERT INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
      VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?)`,
     [rid, rid, rentId, NOW, NOW],
@@ -116,7 +116,7 @@ function insertReviewFinding(
   const id = nextId('rf');
   const fidx = seq;
   d.run(
-    `INSERT INTO memory_review_findings
+    `INSERT INTO caravan_review_findings
        (id, review_id, finding_entity_id, finding_index, target_file_path,
         severity, category, finding_text, recorded_at, addressed_at)
      VALUES (?, ?, ?, ?, ?, 'warn', ?, 'test finding', ?, ?)`,
@@ -141,7 +141,7 @@ function insertQuestion(
 ): void {
   const eid = nextId('q');
   d.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at,
         attributes_json, embedding)
      VALUES (?, 'Question', ?, ?, ?, ?, ?, ?, ?)`,
@@ -218,8 +218,8 @@ describe('runDriftDetection E2E — Phase 4', () => {
     expect(result2.events_inserted).toBe(0);
   });
 
-  it('drift events persisted in memory_drift_events', () => {
-    const rows = db.exec(`SELECT COUNT(*) FROM memory_drift_events WHERE resolved_at IS NULL`);
+  it('drift events persisted in caravan_drift_events', () => {
+    const rows = db.exec(`SELECT COUNT(*) FROM caravan_drift_events WHERE resolved_at IS NULL`);
     const count = rows[0]?.values?.[0]?.[0] as number;
     expect(count).toBeGreaterThan(0);
   });

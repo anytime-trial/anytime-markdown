@@ -54,7 +54,7 @@ function insertSession(
     importedAt = '2026-01-01T01:00:00.000Z',
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions
+    `INSERT OR IGNORE INTO activity_sessions
        (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at, source)
      VALUES (?, ?, ?, '', '', '', ?, ?, 0, ?, 0, ?, ?)`,
@@ -84,7 +84,7 @@ function insertMessage(
     outputTokens = 0,
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO messages
+    `INSERT OR IGNORE INTO activity_messages
        (uuid, session_id, type, timestamp, text_content, user_content, tool_calls,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, stop_reason)
      VALUES (?, ?, ?, ?, ?, null, ?, ?, ?, 0, 0, null)`,
@@ -110,7 +110,7 @@ function insertToolCall(
   timestamp = '2026-01-01T00:10:00.000Z',
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls
+    `INSERT OR IGNORE INTO activity_message_tool_calls
        (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
      VALUES (?, ?, 0, ?, ?, ?)`,
     [sessionId, messageUuid, callIndex, toolName, timestamp],
@@ -165,7 +165,7 @@ describe('parseCategory — valid categories stored in DB', () => {
   it('returns "logic" for logic category', () => {
     const rId = repoId(db, 'repo');
     inner(db).run(
-      `INSERT OR REPLACE INTO current_file_analysis
+      `INSERT OR REPLACE INTO activity_current_file_analysis
          (repo_id, file_path, category, importance_score, fan_in_total,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count,
           is_barrel, centrality_score, analyzed_at)
@@ -180,7 +180,7 @@ describe('parseCategory — valid categories stored in DB', () => {
   it('returns "ui" for ui category', () => {
     const rId = repoId(db, 'repo');
     inner(db).run(
-      `INSERT OR REPLACE INTO current_file_analysis
+      `INSERT OR REPLACE INTO activity_current_file_analysis
          (repo_id, file_path, category, importance_score, fan_in_total,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count,
           is_barrel, centrality_score, analyzed_at)
@@ -377,7 +377,7 @@ describe('extractAgentInfo — via backfillSubagentTypePublic with malformed too
     insertSession(db, 's-agent');
     // Insert a message with malformed tool_calls JSON directly
     inner(db).run(
-      `INSERT OR IGNORE INTO messages
+      `INSERT OR IGNORE INTO activity_messages
          (uuid, session_id, type, timestamp, text_content, user_content, tool_calls,
           input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, stop_reason)
        VALUES ('m-bad', 's-agent', 'assistant', '2026-01-01T00:01:00.000Z',
@@ -486,7 +486,7 @@ describe('computeDateInSqliteTz and computeWeekInSqliteTz — via getCombinedDat
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Line 1436: fetchInBatches — large message_tool_calls set (>999 items)
+// Line 1436: fetchInBatches — large activity_message_tool_calls set (>999 items)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('fetchInBatches — large message set (>999 items)', () => {
@@ -563,7 +563,7 @@ describe('migrateReleasesFlip — no-op on fresh DB (flip already done)', () => 
   afterEach(() => db.close());
 
   it('fresh DB has no prev_tag column (flip is no-op), releases table works', () => {
-    const releases = inner(db).exec("SELECT COUNT(*) FROM releases");
+    const releases = inner(db).exec("SELECT COUNT(*) FROM activity_releases");
     expect(releases[0]?.values?.[0]?.[0]).toBe(0);
   });
 });
@@ -579,21 +579,21 @@ describe('repo normalization migrations — fresh DB (all no-op)', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('fresh DB has session_commits table with repo_id (no flip needed)', () => {
-    const res = inner(db).exec("PRAGMA table_info('session_commits')");
+  it('fresh DB has activity_session_commits table with repo_id (no flip needed)', () => {
+    const res = inner(db).exec("PRAGMA table_info('activity_session_commits')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).toContain('repo_id');
     expect(cols).not.toContain('repo_name');
   });
 
-  it('fresh DB has c4_manual_elements without repo_name (no flip needed)', () => {
-    const res = inner(db).exec("PRAGMA table_info('c4_manual_elements')");
+  it('fresh DB has activity_c4_manual_elements without repo_name (no flip needed)', () => {
+    const res = inner(db).exec("PRAGMA table_info('activity_c4_manual_elements')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).toContain('repo_id');
   });
 
-  it('fresh DB has current_code_graphs with repo_id as PK (no flip needed)', () => {
-    const res = inner(db).exec("PRAGMA table_info('current_code_graphs')");
+  it('fresh DB has activity_current_code_graphs with repo_id as PK (no flip needed)', () => {
+    const res = inner(db).exec("PRAGMA table_info('activity_current_code_graphs')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).toContain('repo_id');
   });
@@ -608,26 +608,26 @@ describe('Phase H drop repo_name migrations — all no-op on fresh DB', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('current_code_graphs has no repo_name column (H-3 already applied)', () => {
-    const res = inner(db).exec("PRAGMA table_info('current_code_graphs')");
+  it('activity_current_code_graphs has no repo_name column (H-3 already applied)', () => {
+    const res = inner(db).exec("PRAGMA table_info('activity_current_code_graphs')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });
 
   it('sessions has no repo_name column (H-4 already applied)', () => {
-    const res = inner(db).exec("PRAGMA table_info('sessions')");
+    const res = inner(db).exec("PRAGMA table_info('activity_sessions')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });
 
-  it('c4_manual_elements has no repo_name column (H-2 already applied)', () => {
-    const res = inner(db).exec("PRAGMA table_info('c4_manual_elements')");
+  it('activity_c4_manual_elements has no repo_name column (H-2 already applied)', () => {
+    const res = inner(db).exec("PRAGMA table_info('activity_c4_manual_elements')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });
 
   it('releases table has no repo_name column (H-5 already applied)', () => {
-    const res = inner(db).exec("PRAGMA table_info('releases')");
+    const res = inner(db).exec("PRAGMA table_info('activity_releases')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });
@@ -642,14 +642,14 @@ describe('Phase H-4 dropSessionCommitRepoNameColumn — no-op on fresh DB', () =
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('commit_files has no repo_name column (H-4 already applied)', () => {
-    const res = inner(db).exec("PRAGMA table_info('commit_files')");
+  it('activity_commit_files has no repo_name column (H-4 already applied)', () => {
+    const res = inner(db).exec("PRAGMA table_info('activity_commit_files')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });
 
-  it('session_commits has no repo_name column (H-4 already applied)', () => {
-    const res = inner(db).exec("PRAGMA table_info('session_commits')");
+  it('activity_session_commits has no repo_name column (H-4 already applied)', () => {
+    const res = inner(db).exec("PRAGMA table_info('activity_session_commits')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });
@@ -662,19 +662,19 @@ describe('Phase H-4 dropSessionCommitRepoNameColumn — no-op on fresh DB', () =
 // Lines 3351-3403: dropDerivedRepoNameColumn — no-op on fresh DB
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Phase H-1/F: dora_metrics and release tables — no-op on fresh DB', () => {
+describe('Phase H-1/F: activity_dora_metrics and release tables — no-op on fresh DB', () => {
   let db: TrailDatabase;
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('dora_metrics table has no repo_name column if it exists (H-1 applied)', () => {
-    const res = inner(db).exec("SELECT name FROM sqlite_master WHERE type='table' AND name='dora_metrics'");
+  it('activity_dora_metrics table has no repo_name column if it exists (H-1 applied)', () => {
+    const res = inner(db).exec("SELECT name FROM sqlite_master WHERE type='table' AND name='activity_dora_metrics'");
     if ((res[0]?.values ?? []).length === 0) {
       // table not yet created (no dora data) — no-op branch was taken
       expect(true).toBe(true);
       return;
     }
-    const colRes = inner(db).exec("PRAGMA table_info('dora_metrics')");
+    const colRes = inner(db).exec("PRAGMA table_info('activity_dora_metrics')");
     const cols = (colRes[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });
@@ -702,7 +702,7 @@ describe('migrateReleaseChildrenReleaseId — fresh DB has release_id already', 
   });
 
   it('releases has no repo_name (backfillReleaseRepoIds returns early)', () => {
-    const res = inner(db).exec("PRAGMA table_info('releases')");
+    const res = inner(db).exec("PRAGMA table_info('activity_releases')");
     const cols = (res[0]?.values ?? []).map((r) => r[1] as string);
     expect(cols).not.toContain('repo_name');
   });

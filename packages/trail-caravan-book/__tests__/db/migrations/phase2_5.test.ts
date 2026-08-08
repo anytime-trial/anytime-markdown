@@ -27,11 +27,11 @@ describe('Phase 2.5 migration', () => {
     return openMemoryCoreDb(tmpDb);
   }
 
-  test('memory_bug_fixes table is created', async () => {
+  test('caravan_bug_fixes table is created', async () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_bug_fixes'"
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='caravan_bug_fixes'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -42,7 +42,7 @@ describe('Phase 2.5 migration', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'fixes'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'fixes'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -53,7 +53,7 @@ describe('Phase 2.5 migration', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'affects'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'affects'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -64,7 +64,7 @@ describe('Phase 2.5 migration', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'caused_by'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'caused_by'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -75,7 +75,7 @@ describe('Phase 2.5 migration', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'introduced_by'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'introduced_by'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -116,7 +116,7 @@ describe('Phase 2.5 migration', () => {
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_bug_fixes
+        `INSERT INTO caravan_bug_fixes
            (id, commit_sha, bug_entity_id, package, category, subject_summary,
             committed_at, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

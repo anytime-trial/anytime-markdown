@@ -23,7 +23,7 @@ export function linkRootCauseEpisode(input: LinkRootCauseInput): LinkRootCauseRe
   let episodeId: string | null = null;
   try {
     const result = db.exec(
-      `SELECT id FROM memory_episodes
+      `SELECT id FROM caravan_episodes
        WHERE session_id = ? AND valid_from <= ?
        ORDER BY valid_from DESC LIMIT 1`,
       [sessionId, committedAt]
@@ -44,7 +44,7 @@ export function linkRootCauseEpisode(input: LinkRootCauseInput): LinkRootCauseRe
 
   try {
     db.run(
-      `UPDATE memory_bug_fixes SET root_cause_episode_id = ? WHERE id = ?`,
+      `UPDATE caravan_bug_fixes SET root_cause_episode_id = ? WHERE id = ?`,
       [episodeId, bugFixId]
     );
   } catch (err) {

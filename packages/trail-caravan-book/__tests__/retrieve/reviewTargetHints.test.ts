@@ -33,7 +33,7 @@ describe('listReviewTargetHints の優先度配分', () => {
     } as unknown as MemoryLogger;
 
     handle.db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES ('ent-bug', 'File', 'bug/anchor.ts', 'anchor.ts', ?, ?, ?)`,
       [iso(0), iso(0), iso(0)],
@@ -48,7 +48,7 @@ describe('listReviewTargetHints の優先度配分', () => {
   function insertRegressionFixes(count: number, category = 'regression'): void {
     for (let i = 0; i < count; i++) {
       handle.db.run(
-        `INSERT INTO memory_bug_fixes
+        `INSERT INTO caravan_bug_fixes
            (id, commit_sha, bug_entity_id, package, category, subject_summary,
             affected_file_paths_json, committed_at, recorded_at)
          VALUES (?, ?, 'ent-bug', 'pkg', ?, 'fix', ?, ?, ?)`,
@@ -60,7 +60,7 @@ describe('listReviewTargetHints の優先度配分', () => {
   function insertCodeFacts(count: number, daysAgo: number, prefix: string): void {
     for (let i = 0; i < count; i++) {
       handle.db.run(
-        `INSERT INTO memory_code_facts
+        `INSERT INTO caravan_code_facts
            (id, repo_name, file_path, fact_type, fact_value, recorded_at)
          VALUES (?, 'repo', ?, 'imports', 'x', ?)`,
         [`cf-${prefix}-${i}`, `src/${prefix}${i}.ts`, iso(daysAgo)],

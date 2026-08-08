@@ -27,7 +27,7 @@ function insertEntity(
 ): void {
   const blob = encodeEmbedding(embedding);
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, summary, aliases_json,
         embedding, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Function', ?, ?, ?, '[]', ?, ?, ?, ?)`,
@@ -142,9 +142,9 @@ describe('hybridSearchMemory', () => {
 
   test('FTS5 が利用不可な接続では vec のみで結果を返す', async () => {
     // FTS テーブルを DROP して FTS5 が利用不可な状況をシミュレート
-    db.execMany(`DROP TABLE IF EXISTS memory_entities_fts;
-                 DROP TABLE IF EXISTS memory_episodes_fts;
-                 DROP TABLE IF EXISTS memory_drift_events_fts;`);
+    db.execMany(`DROP TABLE IF EXISTS caravan_entities_fts;
+                 DROP TABLE IF EXISTS caravan_episodes_fts;
+                 DROP TABLE IF EXISTS caravan_drift_events_fts;`);
 
     insertEntity(db, 'e1', 'n1', 'name1', 'summary', Float32Array.from([1, 0, 0]));
 

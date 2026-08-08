@@ -52,7 +52,7 @@ function upsertPipelineState(
 ): void {
   const { status, last_processed_at, error_detail } = opts;
   db.run(
-    `INSERT INTO memory_pipeline_state
+    `INSERT INTO caravan_pipeline_state
        (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(scope) DO UPDATE SET
@@ -69,7 +69,7 @@ function upsertPipelineState(
 function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
   const sinceFromDays = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
   const rows = db.exec(
-    `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
+    `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`,
     [SCOPE]
   );
   const lastProcessedAt = (rows[0]?.values?.[0]?.[0] as string | undefined) ?? '';
@@ -86,7 +86,7 @@ function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
 function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT(scope, item_key) DO UPDATE SET
        attempt_count = attempt_count + 1,
@@ -210,7 +210,7 @@ export async function runConversationBackfill(opts: {
 
   // ── 1. Compute sinceISO: max(sinceDays前, last_processed_at) ─────────────
   // Resume from last_processed_at when it's set, so re-runs after VS Code
-  // reload don't re-scan sessions whose episodes are already in memory_episodes.
+  // reload don't re-scan sessions whose episodes are already in caravan_episodes.
   const sinceISO = computeSinceISO(db, sinceDays);
 
   // ── 2. Insert pipeline_run + mark state as running ───────────────────────
@@ -245,14 +245,14 @@ export async function runConversationBackfill(opts: {
     (sum, { messages }) => sum + splitEpisodes(messages).length, 0
   );
 
-  // Preload episode ids that already exist in memory_episodes (within sinceISO window).
+  // Preload episode ids that already exist in caravan_episodes (within sinceISO window).
   // When backfill is interrupted (VS Code reload, OS shutdown), persistEpisodeFacts
   // is idempotent but extractFactsFromEpisode is not — re-running the LLM extraction
   // on thousands of already-persisted episodes wastes ~10s/episode. Skipping them
   // makes the next backfill effectively a resume.
   const existingIds = new Set<string>();
   const existsRows = db.exec(
-    `SELECT id FROM memory_episodes WHERE valid_from >= ?`,
+    `SELECT id FROM caravan_episodes WHERE valid_from >= ?`,
     [sinceISO]
   );
   for (const row of existsRows[0]?.values ?? []) {
@@ -442,7 +442,7 @@ export async function runConversationBackfill(opts: {
 
   // Also advance incremental cursor so it skips backfilled data
   db.run(
-    `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+    `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
      VALUES ('conversation_incremental', 'idle', ?, '')
      ON CONFLICT(scope) DO UPDATE SET
        last_processed_at = CASE

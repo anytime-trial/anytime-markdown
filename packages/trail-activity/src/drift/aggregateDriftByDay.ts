@@ -3,7 +3,7 @@ import { toLocalDateString } from '../hotspot/bucketing';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_TIMEZONE = 'Asia/Tokyo';
 
-/** memory_drift_events の 1 行（履歴集計に必要な列のみ） */
+/** caravan_drift_events の 1 行（履歴集計に必要な列のみ） */
 export type DriftEventTimes = {
   detectedAt: string;
   /** 未解決は null */

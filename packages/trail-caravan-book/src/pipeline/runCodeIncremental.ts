@@ -7,8 +7,8 @@ import { ingestAstFacts, type AstFactInput } from '../ingest/code/astFunctionLev
 import { ingestDecisionComments, type DecisionCommentItem } from '../ingest/code/extractComments';
 import { extractCommitRationale } from '../ingest/code/extractCommitRationale';
 import { noopLogger, type MemoryLogger } from '../logger';
-// typescript / analyzeWithProgram への依存は撤去。code graph は trail-db の current_graphs、
-// decision comment は trail-db の code_decision_comments（analyze-child が永続化）から読む。
+// typescript / analyzeWithProgram への依存は撤去。code graph は trail-db の activity_current_graphs、
+// decision comment は trail-db の activity_code_decision_comments（analyze-child が永続化）から読む。
 
 const SCOPE = 'code_incremental';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
@@ -25,7 +25,7 @@ export interface CodeIncrementalResult {
 
 function readPipelineState(db: MemoryDbConnection): { last_processed_at: string } {
   const stmt = db.prepare(
-    `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`
+    `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`
   );
   try {
     const row = stmt.get(SCOPE);
@@ -42,7 +42,7 @@ function upsertPipelineState(
 ): void {
   const { status, last_processed_at, error_detail } = opts;
   db.run(
-    `INSERT INTO memory_pipeline_state
+    `INSERT INTO caravan_pipeline_state
        (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(scope) DO UPDATE SET
@@ -58,12 +58,12 @@ function upsertPipelineState(
 
 
 /**
- * Incremental pipeline that reads `trail.current_code_graphs` and runs the
+ * Incremental pipeline that reads `trail.activity_current_code_graphs` and runs the
  * code ingest pipeline (fromTrailGraph, ingestAstFacts, ingestDecisionComments,
  * extractCommitRationale) when the graph has been updated since the last run.
  *
- * typescript には依存しない。生 TrailGraph は `trail.current_graphs` から、decision
- * comment は `trail.code_decision_comments`（analyze-child が永続化）から読む。
+ * typescript には依存しない。生 TrailGraph は `trail.activity_current_graphs` から、decision
+ * comment は `trail.activity_code_decision_comments`（analyze-child が永続化）から読む。
  *
  * The trail DB must already be ATTACHed as "trail" on `db`.
  */
@@ -83,13 +83,13 @@ export async function runCodeIncremental(opts: {
   // ── 1. Read last_processed_at ────────────────────────────────────────────
   const { last_processed_at } = readPipelineState(db);
 
-  // ── 2. Read current_code_graphs.updated_at ───────────────────────────────
+  // ── 2. Read activity_current_code_graphs.updated_at ───────────────────────────────
   let graphUpdatedAt: string | null = null;
-  // Phase H-3: trail.current_code_graphs から repo_name 列を撤去した。attach 済 trail スキーマの
+  // Phase H-3: trail.activity_current_code_graphs から repo_name 列を撤去した。attach 済 trail スキーマの
   // repos を JOIN して repo_name → repo_id を解決し、repo_id で絞る (クロス DB JOIN)。
   const stmt = db.prepare(
-    `SELECT g.updated_at FROM trail.current_code_graphs g
-       JOIN trail.repos r ON r.repo_id = g.repo_id
+    `SELECT g.updated_at FROM trail.activity_current_code_graphs g
+       JOIN trail.activity_repos r ON r.repo_id = g.repo_id
       WHERE r.repo_name = ?`
   );
   try {
@@ -134,13 +134,13 @@ export async function runCodeIncremental(opts: {
 
   const recordedAt = new Date().toISOString();
 
-  // ── 5. 生 TrailGraph を trail.current_graphs から読む ───────────────────────
+  // ── 5. 生 TrailGraph を trail.activity_current_graphs から読む ───────────────────────
   // 旧版は analyzeWithProgram で TS 再解析していたが、同じ graph は analyze-child が
-  // current_graphs に保存済み。typescript 依存を断つため DB から読む。
+  // activity_current_graphs に保存済み。typescript 依存を断つため DB から読む。
   let graph: AstFactInput['graph'] | null = null;
   const graphStmt = db.prepare(
-    `SELECT g.graph_json FROM trail.current_graphs g
-       JOIN trail.repos r ON r.repo_id = g.repo_id
+    `SELECT g.graph_json FROM trail.activity_current_graphs g
+       JOIN trail.activity_repos r ON r.repo_id = g.repo_id
       WHERE r.repo_name = ?`
   );
   try {
@@ -148,7 +148,7 @@ export async function runCodeIncremental(opts: {
     if (row) graph = JSON.parse(row['graph_json'] as string) as AstFactInput['graph'];
   } catch (err) {
     logger.error(
-      `[anytime-memory] runCodeIncremental: failed to read/parse current_graphs (repo="${repoName}")`,
+      `[anytime-memory] runCodeIncremental: failed to read/parse activity_current_graphs (repo="${repoName}")`,
       err
     );
   } finally {
@@ -183,18 +183,18 @@ export async function runCodeIncremental(opts: {
     }
   } else {
     logger.warn?.(
-      `[anytime-memory] runCodeIncremental: current_graphs に TrailGraph が無いため ingestAstFacts をスキップ (repo="${repoName}")`
+      `[anytime-memory] runCodeIncremental: activity_current_graphs に TrailGraph が無いため ingestAstFacts をスキップ (repo="${repoName}")`
     );
   }
 
-  // ── 8. ingestDecisionComments（trail.code_decision_comments を読む）─────────
+  // ── 8. ingestDecisionComments（trail.activity_code_decision_comments を読む）─────────
   // decision comment の AST 走査は analyze-child へ移設済み。ここでは抽出済みデータを
   // trail-db から読み memory DB へ ingest するのみ（typescript 非依存）。
   try {
     const cStmt = db.prepare(
       `SELECT c.file_path, c.line, c.comment_text, c.symbol_name
-         FROM trail.code_decision_comments c
-         JOIN trail.repos r ON r.repo_id = c.repo_id
+         FROM trail.activity_code_decision_comments c
+         JOIN trail.activity_repos r ON r.repo_id = c.repo_id
         WHERE r.repo_name = ?`
     );
     let comments: DecisionCommentItem[] = [];

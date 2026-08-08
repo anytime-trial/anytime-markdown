@@ -14,7 +14,7 @@ import { ingestTargetSql } from './messageFilter';
  * any cursor advancement based on it would silently skip every older
  * session via WHERE timestamp >= cursor on resume.
  *
- * Assumes trail.sessions and trail.messages are already ATTACHed via
+ * Assumes trail.activity_sessions and trail.activity_messages are already ATTACHed via
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
  */
 export function listSessionIdsSince(
@@ -23,8 +23,8 @@ export function listSessionIdsSince(
 ): string[] {
   const stmt = db.prepare(
     `SELECT m.session_id, MIN(m.timestamp) AS min_ts
-     FROM trail.messages m
-     JOIN trail.sessions s ON s.id = m.session_id
+     FROM trail.activity_messages m
+     JOIN trail.activity_sessions s ON s.id = m.session_id
      WHERE m.timestamp IS NOT NULL
        AND m.timestamp >= ?
        AND ${ingestTargetSql('m')}
@@ -42,7 +42,7 @@ export function listSessionIdsSince(
 /**
  * Returns all qualifying messages for a single session, ordered by timestamp.
  *
- * Assumes trail.sessions and trail.messages are already ATTACHed via
+ * Assumes trail.activity_sessions and trail.activity_messages are already ATTACHed via
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
  */
 export function readMessagesForSession(
@@ -50,7 +50,7 @@ export function readMessagesForSession(
   sessionId: string,
   sinceISO: string
 ): Message[] {
-  // trail.messages は assistant 行に text_content、user 行に user_content を
+  // trail.activity_messages は assistant 行に text_content、user 行に user_content を
   // 入れている (trail-db importSession の規約)。message_excerpt 列は存在しない
   // ため COALESCE(text_content, user_content) で抽出する。
   const stmt = db.prepare(
@@ -62,7 +62,7 @@ export function readMessagesForSession(
        COALESCE(SUBSTR(m.text_content, 1, 2048),
                 SUBSTR(m.user_content, 1, 2048),
                 '') AS text_excerpt
-     FROM trail.messages m
+     FROM trail.activity_messages m
      WHERE m.session_id = ?
        AND m.timestamp IS NOT NULL
        AND m.timestamp >= ?
@@ -106,7 +106,7 @@ export function readMessagesForSession(
  * while an iterator is open ("database connection is busy"), and the caller
  * does heavy DB writes between yields.
  *
- * Assumes trail.sessions and trail.messages are already ATTACHed via
+ * Assumes trail.activity_sessions and trail.activity_messages are already ATTACHed via
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
  */
 export function* readMessagesSince(

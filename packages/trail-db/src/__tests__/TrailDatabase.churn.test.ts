@@ -12,7 +12,7 @@ function insertSession(db: TrailDatabase, sessionId: string, repoName: string): 
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, repo_id, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, repo_id, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
      VALUES (?, ?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId, repoId],
   );
@@ -20,14 +20,14 @@ function insertSession(db: TrailDatabase, sessionId: string, repoName: string): 
 
 function insertSessionCommit(db: TrailDatabase, sessionId: string, hash: string, at: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, commit_message, committed_at) VALUES (?, ?, 'msg', ?)`,
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at) VALUES (?, ?, 'msg', ?)`,
     [sessionId, hash, at],
   );
 }
 
 function insertCommitFile(db: TrailDatabase, hash: string, filePath: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`,
     [hash, filePath],
   );
 }

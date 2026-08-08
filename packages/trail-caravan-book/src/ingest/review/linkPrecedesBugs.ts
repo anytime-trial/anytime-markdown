@@ -31,13 +31,13 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
   }>;
 
   try {
-    // 「いつレビューが行われたか」は memory_reviews.reviewed_at を使う。
-    // memory_review_findings.recorded_at は ingest 時刻なので、re-ingest 後に
+    // 「いつレビューが行われたか」は caravan_reviews.reviewed_at を使う。
+    // caravan_review_findings.recorded_at は ingest 時刻なので、re-ingest 後に
     // 全 finding が「今日」付けとなり、過去の bug が future として検索されないため誤り。
     const result = db.exec(`
       SELECT rf.id, rf.finding_entity_id, rf.target_file_path, rf.target_symbol, r.reviewed_at
-      FROM memory_review_findings rf
-      JOIN memory_reviews r ON r.id = rf.review_id
+      FROM caravan_review_findings rf
+      JOIN caravan_reviews r ON r.id = rf.review_id
       WHERE rf.severity IN ('warn', 'error')
         AND (rf.target_file_path IS NOT NULL OR rf.target_symbol IS NOT NULL)
     `);
@@ -68,7 +68,7 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
       // Query candidate bugs within the window (reviewed_at 後 windowDays 日以内に commit された bug)
       const bugResult = db.exec(
         `SELECT bf.id, bf.bug_entity_id, bf.committed_at, bf.affected_file_paths_json, bf.subject_summary
-         FROM memory_bug_fixes bf
+         FROM caravan_bug_fixes bf
          WHERE bf.committed_at > ?
            AND bf.committed_at <= datetime(?, '+' || ? || ' days')`,
         [finding.reviewed_at, finding.reviewed_at, effectiveWindowDays]
@@ -109,7 +109,7 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
 
         const edgeId = entityId('edge', `precedes:${finding.finding_entity_id}:${bugEntityId}`);
         db.run(
-          `INSERT OR IGNORE INTO memory_edges
+          `INSERT OR IGNORE INTO caravan_edges
               (id, subject_entity_id, predicate, object_entity_id,
                valid_from, valid_to, recorded_at,
                source_type, source_ref,

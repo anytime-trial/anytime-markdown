@@ -8,9 +8,9 @@ import { noopLogger, type MemoryLogger } from '../logger';
 
 export interface SpecReconciliationResult {
   status: 'success' | 'error';
-  /** memory_spec_documents に登録されていた件数 */
+  /** caravan_spec_documents に登録されていた件数 */
   scanned: number;
-  /** specRoot から消えていて削除した memory_spec_documents 行数 */
+  /** specRoot から消えていて削除した caravan_spec_documents 行数 */
   removed_docs: number;
   /** 無効化した spec_doc Concept entity 数 */
   soft_deleted_doc_entities: number;
@@ -39,7 +39,7 @@ export interface SpecReconciliationInput {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /**
- * memory_edge_invalidations.reason の CHECK 制約が許す値のうち、spec 側の変更に
+ * caravan_edge_invalidations.reason の CHECK 制約が許す値のうち、spec 側の変更に
  * 対応するもの。
  *
  * SHORTCUT: 削除専用の reason を足さず既存の 'spec_updated' に相乗りする.
@@ -84,7 +84,7 @@ function specRootHasMarkdown(specRoot: string): boolean {
 }
 
 function listSpecDocs(db: MemoryDbConnection): SpecDocRow[] {
-  const stmt = db.prepare('SELECT id, rel_path FROM memory_spec_documents');
+  const stmt = db.prepare('SELECT id, rel_path FROM caravan_spec_documents');
   try {
     return stmt.all().map((row) => ({
       id: String(row['id']),
@@ -98,7 +98,7 @@ function listSpecDocs(db: MemoryDbConnection): SpecDocRow[] {
 /**
  * 消えたドキュメントだけにぶら下がる spec_doc entity を返す。
  *
- * memory_spec_doc_entities には upsertSpecDoc が作る spec_doc entity のほかに、
+ * caravan_spec_doc_entities には upsertSpecDoc が作る spec_doc entity のほかに、
  * linkByC4Scope が解決した C4 要素 entity（Package / Concept）も入る。後者はコード
  * 由来の生きた根拠を持ちうるので、ここでは attributes_json の kind で spec_doc に
  * 限定し、それ以外は根拠チェック（hasRemainingEvidence）側へ委ねる。
@@ -109,8 +109,8 @@ function exclusiveSpecDocEntityIds(
 ): string[] {
   const stmt = db.prepare(
     `SELECT sde.spec_doc_id AS spec_doc_id, sde.entity_id AS entity_id
-       FROM memory_spec_doc_entities sde
-       JOIN memory_entities e ON e.id = sde.entity_id
+       FROM caravan_spec_doc_entities sde
+       JOIN caravan_entities e ON e.id = sde.entity_id
       WHERE json_extract(e.attributes_json, '$.kind') = 'spec_doc'`,
   );
   const deadOnly = new Set<string>();
@@ -134,7 +134,7 @@ function exclusiveSpecDocEntityIds(
  * （drift/recurringQuestions 等）へ無効 entity を押し込まないため。
  */
 function softDeleteEntity(db: MemoryDbConnection, entityId: string, recordedAt: string): boolean {
-  db.run('UPDATE memory_entities SET valid_until = ? WHERE id = ? AND valid_until IS NULL', [
+  db.run('UPDATE caravan_entities SET valid_until = ? WHERE id = ? AND valid_until IS NULL', [
     recordedAt,
     entityId,
   ]);
@@ -171,14 +171,14 @@ function invalidateSpecEdges(
   const touchedEntityIds = new Set<string>();
   let count = 0;
   const stmt = db.prepare(
-    `SELECT id, subject_entity_id, object_entity_id FROM memory_edges
+    `SELECT id, subject_entity_id, object_entity_id FROM caravan_edges
       WHERE source_type = 'spec' AND valid_to IS NULL AND source_ref IN (?, ?)`,
   );
   try {
     for (const [docId, relPath] of deadDocs) {
       for (const row of stmt.all(`spec_doc#${docId}`, docId)) {
         const edgeId = String(row['id']);
-        db.run('UPDATE memory_edges SET valid_to = ? WHERE id = ? AND valid_to IS NULL', [
+        db.run('UPDATE caravan_edges SET valid_to = ? WHERE id = ? AND valid_to IS NULL', [
           recordedAt,
           edgeId,
         ]);
@@ -189,7 +189,7 @@ function invalidateSpecEdges(
           .digest('hex')
           .slice(0, 16);
         db.run(
-          `INSERT INTO memory_edge_invalidations
+          `INSERT INTO caravan_edge_invalidations
              (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
            VALUES (?, ?, ?, ?, NULL, ?)`,
           [invalidationId, edgeId, recordedAt, INVALIDATION_REASON, `${REMOVAL_DETAIL_PREFIX}${relPath}`],
@@ -206,11 +206,11 @@ function invalidateSpecEdges(
   return { count, touchedEntityIds };
 }
 
-/** ドキュメント登録行を削除する（memory_spec_doc_entities は ON DELETE CASCADE） */
+/** ドキュメント登録行を削除する（caravan_spec_doc_entities は ON DELETE CASCADE） */
 function removeSpecDocRows(db: MemoryDbConnection, deadDocIds: Iterable<string>): number {
   let removed = 0;
   for (const docId of deadDocIds) {
-    db.run('DELETE FROM memory_spec_documents WHERE id = ?', [docId]);
+    db.run('DELETE FROM caravan_spec_documents WHERE id = ?', [docId]);
     removed += db.getRowsModified();
   }
   return removed;
@@ -225,11 +225,11 @@ function softDeleteOrphanEntities(
 ): number {
   const stmts: EvidenceStatements = {
     edge: db.prepare(
-      `SELECT 1 FROM memory_edges
+      `SELECT 1 FROM caravan_edges
         WHERE (subject_entity_id = ? OR object_entity_id = ?) AND valid_to IS NULL LIMIT 1`,
     ),
-    episode: db.prepare('SELECT 1 FROM memory_episode_entities WHERE entity_id = ? LIMIT 1'),
-    spec: db.prepare('SELECT 1 FROM memory_spec_doc_entities WHERE entity_id = ? LIMIT 1'),
+    episode: db.prepare('SELECT 1 FROM caravan_episode_entities WHERE entity_id = ? LIMIT 1'),
+    spec: db.prepare('SELECT 1 FROM caravan_spec_doc_entities WHERE entity_id = ? LIMIT 1'),
   };
   let count = 0;
   try {
@@ -249,7 +249,7 @@ function softDeleteOrphanEntities(
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 /**
- * memory_spec_documents を specRoot の実ファイルと突き合わせ、消えたドキュメントと
+ * caravan_spec_documents を specRoot の実ファイルと突き合わせ、消えたドキュメントと
  * その派生データを掃除する。
  *
  * discoverChangedSpecs は「今あるファイル」しか見ないため、リネーム・削除された
@@ -257,16 +257,16 @@ function softDeleteOrphanEntities(
  * 判定し続ける。本関数がその削除側を担う。
  *
  * 副作用（永続化あり）:
- * - memory_spec_documents の行を DELETE（memory_spec_doc_entities は CASCADE）
+ * - caravan_spec_documents の行を DELETE（caravan_spec_doc_entities は CASCADE）
  * - spec_doc entity と根拠を失った entity に valid_until を立てる（soft delete）
- * - 該当 spec edge に valid_to を立て、memory_edge_invalidations へ記録する
+ * - 該当 spec edge に valid_to を立て、caravan_edge_invalidations へ記録する
  *
  * 実体（履歴）は entity / edge 側に残す。消すのはファイルシステムのミラーである
  * ドキュメント登録行だけ。**ファイルが戻ったときの巻き戻しは ingest 側
  * （ingest/spec/reviveValidity.ts）が担う** — 不変条件がこの 2 ファイルに分かれて
  * いるので、片方だけ変更しないこと。
  *
- * FTS インデックス（memory_entities_fts）には触れない。hybridSearchMemory が
+ * FTS インデックス（caravan_entities_fts）には触れない。hybridSearchMemory が
  * MATCH の結果を `valid_until IS NULL` で絞るため無効化した entity は検索結果へ
  * 出ず、contentless FTS5 への大量 rowid 差分削除は DB を破損させた実績がある
  * （2026-08-06）。索引の掃除が要るなら全再構築（runRagFtsRebuild）で行う。

@@ -24,7 +24,7 @@ export function linkReviewToCommit(input: LinkReviewToCommitInput): LinkReviewTo
   try {
     findingRows = db.exec(
       `SELECT addressed_commit_sha, finding_entity_id
-       FROM memory_review_findings WHERE id = ?`,
+       FROM caravan_review_findings WHERE id = ?`,
       [finding_id],
     );
   } catch (err) {
@@ -46,7 +46,7 @@ export function linkReviewToCommit(input: LinkReviewToCommitInput): LinkReviewTo
 
   try {
     db.run(
-      `UPDATE memory_review_findings
+      `UPDATE caravan_review_findings
        SET addressed_commit_sha = ?, addressed_at = ?
        WHERE id = ?`,
       [commit_sha, addressed_at, finding_id],
@@ -64,7 +64,7 @@ export function linkReviewToCommit(input: LinkReviewToCommitInput): LinkReviewTo
     const edgeId = entityId('edge', `addresses:${commitEntityId}:${findingEntityId}`);
     const now = new Date().toISOString();
     db.run(
-      `INSERT OR IGNORE INTO memory_edges
+      `INSERT OR IGNORE INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id,
           valid_from, valid_to, recorded_at,
           source_type, source_ref, confidence, confidence_label, modality)

@@ -32,7 +32,7 @@ export type ParsedReviewDoc = {
   bodyExcerpt: string;
 };
 
-/** memory_reviews.body_excerpt に入れる本文の上限（parseReviewSession と揃える）。 */
+/** caravan_reviews.body_excerpt に入れる本文の上限（parseReviewSession と揃える）。 */
 const BODY_EXCERPT_MAX = 4096;
 
 export function parseReviewDoc(input: {

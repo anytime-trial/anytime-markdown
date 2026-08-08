@@ -16,9 +16,9 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
+  trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
-    `CREATE TABLE messages (
+    `CREATE TABLE activity_messages (
        uuid TEXT PRIMARY KEY,
        session_id TEXT NOT NULL,
        type TEXT NOT NULL,
@@ -32,7 +32,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
-  trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
+  trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
@@ -45,7 +45,7 @@ function insertMessage(
 ): void {
   const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );
@@ -101,12 +101,12 @@ describe('runConversationIncremental', () => {
 
     // cursor は前進しない (first run の epoch 既定のまま = 空文字)
     const state = memDb.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     expect(state[0]?.values?.[0]?.[0]).toBe('');
 
     const run = memDb.exec(
-      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_incremental'`
+      `SELECT status FROM caravan_pipeline_runs WHERE scope = 'conversation_incremental'`
     );
     expect(run[0]?.values?.[0]?.[0]).toBe('partial');
 
@@ -140,7 +140,7 @@ describe('runConversationIncremental', () => {
     expect(result1.items_processed).toBe(1);
     // cursor 据え置き (未処理 episode の取りこぼし防止)
     const cur1 = memDb.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     expect(cur1[0]?.values?.[0]?.[0]).toBe('');
 
@@ -155,7 +155,7 @@ describe('runConversationIncremental', () => {
     expect(result2.items_skipped).toBeGreaterThanOrEqual(1);
     // 今度は cursor が前進する
     const cur2 = memDb.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     expect(cur2[0]?.values?.[0]?.[0] as string).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
@@ -187,7 +187,7 @@ describe('runConversationIncremental', () => {
 
     // pipeline_state should be updated
     const stateRows = memDb.exec(
-      `SELECT scope, status, last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT scope, status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     expect(stateRows[0]?.values).toHaveLength(1);
     const stateRow = stateRows[0].values[0];
@@ -197,7 +197,7 @@ describe('runConversationIncremental', () => {
 
     // pipeline_run row should exist with status=success
     const runRows = memDb.exec(
-      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_incremental'`
+      `SELECT status FROM caravan_pipeline_runs WHERE scope = 'conversation_incremental'`
     );
     expect(runRows[0]?.values[0]?.[0]).toBe('success');
 
@@ -278,7 +278,7 @@ describe('runConversationIncremental', () => {
 
     // failed_items table should have 1 row
     const failRows = memDb.exec(
-      `SELECT COUNT(*) FROM memory_failed_items WHERE scope = 'conversation_incremental'`
+      `SELECT COUNT(*) FROM caravan_failed_items WHERE scope = 'conversation_incremental'`
     );
     expect(failRows[0]?.values[0]?.[0]).toBeGreaterThanOrEqual(1);
 
@@ -325,7 +325,7 @@ describe('runConversationIncremental', () => {
     expect(result.items_failed).toBeGreaterThanOrEqual(3);
 
     const stateRows = memDb.exec(
-      `SELECT status FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT status FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     expect(stateRows[0]?.values[0]?.[0]).toBe('quarantine');
 
@@ -344,7 +344,7 @@ describe('runConversationIncremental', () => {
     // Seed an existing cursor so we can assert it doesn't move mid-run.
     const initialCursor = '2026-01-01T00:00:00.000Z';
     memDb.run(
-      `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+      `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
        VALUES ('conversation_incremental', 'idle', ?, '')`,
       [initialCursor]
     );
@@ -366,12 +366,12 @@ describe('runConversationIncremental', () => {
     const snapshots: Snapshot[] = [];
     const save = (): void => {
       const runRows = memDb.exec(
-        `SELECT items_processed FROM pipeline_runs
+        `SELECT items_processed FROM caravan_pipeline_runs
          WHERE scope = 'conversation_incremental'
          ORDER BY started_at DESC LIMIT 1`
       );
       const stateRows = memDb.exec(
-        `SELECT last_processed_at FROM memory_pipeline_state
+        `SELECT last_processed_at FROM caravan_pipeline_state
          WHERE scope = 'conversation_incremental'`
       );
       snapshots.push({
@@ -415,7 +415,7 @@ describe('runConversationIncremental', () => {
 
     const initialCursor = '2026-01-01T00:00:00.000Z';
     memDb.run(
-      `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+      `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
        VALUES ('conversation_incremental', 'idle', ?, '')`,
       [initialCursor]
     );
@@ -436,7 +436,7 @@ describe('runConversationIncremental', () => {
     const cursorSnapshots: string[] = [];
     const save = (): void => {
       const rows = memDb.exec(
-        `SELECT last_processed_at FROM memory_pipeline_state
+        `SELECT last_processed_at FROM caravan_pipeline_state
          WHERE scope = 'conversation_incremental'`
       );
       cursorSnapshots.push((rows[0]?.values[0]?.[0] as string) ?? '');
@@ -469,7 +469,7 @@ describe('runConversationIncremental', () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
 
-    // 3 user messages in trail + matching memory_episodes rows (as if a
+    // 3 user messages in trail + matching caravan_episodes rows (as if a
     // prior run had already persisted them, then the cursor was lost).
     for (let i = 0; i < 3; i++) {
       const sessId = `sess_pre_${i}`;
@@ -479,7 +479,7 @@ describe('runConversationIncremental', () => {
       insertMessage(trailDb, msgUuid, sessId, 'user', ts, `pre msg ${i}`);
       const epId = episodeId(sessId, msgUuid);
       memDb.run(
-        `INSERT INTO memory_episodes
+        `INSERT INTO caravan_episodes
            (id, session_id, message_uuid_start, message_uuid_end,
             agent_runtime, model, valid_from, recorded_at, raw_excerpt)
          VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, '')`,
@@ -503,7 +503,7 @@ describe('runConversationIncremental', () => {
     // last_processed_at must still advance even though every episode was
     // skipped (otherwise convTotalEstimate stays high after reload).
     const stateRows = memDb.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     const lastProcessedAt = stateRows[0]?.values[0]?.[0] as string;
     expect(lastProcessedAt > '2026-02-01T02:00:00.000Z').toBe(true);
@@ -537,7 +537,7 @@ describe('runConversationIncremental', () => {
 
     const rows = memDb.exec(
       `SELECT started_at, last_heartbeat_at
-         FROM pipeline_runs
+         FROM caravan_pipeline_runs
         WHERE scope = 'conversation_incremental'`
     );
     expect(rows[0]?.values).toHaveLength(1);
@@ -625,7 +625,7 @@ describe('runConversationIncremental', () => {
     expect(errors).toHaveLength(1);
 
     const state = memDb.exec(
-      `SELECT status, last_processed_at, error_detail FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT status, last_processed_at, error_detail FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     expect(state[0]?.values?.[0]?.[0]).toBe('error');
     // カーソルは前進しない（次 run が未処理セッションを取りこぼさないため）。
@@ -633,7 +633,7 @@ describe('runConversationIncremental', () => {
     expect(String(state[0]?.values?.[0]?.[2])).toContain('injected fatal');
 
     const run = memDb.exec(
-      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_incremental'`
+      `SELECT status FROM caravan_pipeline_runs WHERE scope = 'conversation_incremental'`
     );
     expect(run[0]?.values?.[0]?.[0]).toBe('error');
 

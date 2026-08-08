@@ -42,7 +42,7 @@ function insertSession(db: TrailDatabase, id: string, opts: {
     endTime = '2026-01-15T01:00:00.000Z',
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions
+    `INSERT OR IGNORE INTO activity_sessions
        (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at, source)
      VALUES (?, ?, ?, '', '', ?, ?, ?, 0, ?, 0, '2026-01-15T01:00:00.000Z', ?)`,
@@ -69,7 +69,7 @@ function insertAssistantMsg(db: TrailDatabase, uuid: string, sessionId: string, 
     model = 'claude-sonnet-4-6',
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO messages
+    `INSERT OR IGNORE INTO activity_messages
        (uuid, session_id, type, model, timestamp, tool_calls,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens)
      VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?, ?, ?)`,
@@ -133,7 +133,7 @@ describe('TrailDatabase.getAllSessionCosts', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('returns empty array when no session_costs', () => {
+  it('returns empty array when no activity_session_costs', () => {
     expect(db.getAllSessionCosts()).toEqual([]);
   });
 
@@ -160,7 +160,7 @@ describe('TrailDatabase.getAllDailyCounts', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('returns empty array when no daily_counts', () => {
+  it('returns empty array when no activity_daily_counts', () => {
     expect(db.getAllDailyCounts()).toEqual([]);
   });
 
@@ -194,12 +194,12 @@ describe('TrailDatabase.getAllMessageToolCalls', () => {
   it('returns all tool calls without cutoff', () => {
     insertSession(db, 's1');
     inner(db).run(
-      `INSERT OR IGNORE INTO messages
+      `INSERT OR IGNORE INTO activity_messages
          (uuid, session_id, type, model, timestamp, input_tokens, output_tokens)
        VALUES ('m1', 's1', 'assistant', 'claude-sonnet-4-6', '2026-01-10T00:00:00.000Z', 10, 5)`,
     );
     inner(db).run(
-      `INSERT OR IGNORE INTO message_tool_calls
+      `INSERT OR IGNORE INTO activity_message_tool_calls
          (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
        VALUES ('s1', 'm1', 0, 0, 'bash', '2026-01-10T00:00:00.000Z')`,
     );
@@ -211,13 +211,13 @@ describe('TrailDatabase.getAllMessageToolCalls', () => {
   it('filters by cutoff timestamp', () => {
     insertSession(db, 's1');
     inner(db).run(
-      `INSERT OR IGNORE INTO messages
+      `INSERT OR IGNORE INTO activity_messages
          (uuid, session_id, type, model, timestamp, input_tokens, output_tokens)
        VALUES ('m-old', 's1', 'assistant', 'claude-sonnet-4-6', '2026-01-01T00:00:00.000Z', 10, 5),
               ('m-new', 's1', 'assistant', 'claude-sonnet-4-6', '2026-06-01T00:00:00.000Z', 10, 5)`,
     );
     inner(db).run(
-      `INSERT OR IGNORE INTO message_tool_calls
+      `INSERT OR IGNORE INTO activity_message_tool_calls
          (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
        VALUES ('s1', 'm-old', 0, 0, 'read_file', '2026-01-01T00:00:00.000Z'),
               ('s1', 'm-new', 1, 0, 'write_file', '2026-06-01T00:00:00.000Z')`,
@@ -248,7 +248,7 @@ describe('TrailDatabase.getDailyTokensToday', () => {
     // Use 'now' equivalent — we just insert and check the return type/behavior
     const today = new Date().toISOString();
     inner(db).run(
-      `INSERT OR IGNORE INTO messages
+      `INSERT OR IGNORE INTO activity_messages
          (uuid, session_id, type, model, timestamp, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens)
        VALUES ('today-msg', 's-today', 'assistant', 'claude-sonnet-4-6', ?, 1000, 500, 0, 0)`,
       [today],
@@ -314,7 +314,7 @@ describe('TrailDatabase.rebuildSessionStatsPublic', () => {
     insertAssistantMsg(db, 'm1', 's1', { inputTokens: 500, outputTokens: 0, cacheReadTokens: 100 });
     db.rebuildSessionStatsPublic();
     const result = inner(db).exec(
-      `SELECT peak_context_tokens FROM sessions WHERE id = 's1'`,
+      `SELECT peak_context_tokens FROM activity_sessions WHERE id = 's1'`,
     );
     const val = Number(result[0]?.values[0]?.[0] ?? 0);
     // peak = max(input + cache_read + cache_creation) = 500 + 100 + 0 = 600
@@ -324,13 +324,13 @@ describe('TrailDatabase.rebuildSessionStatsPublic', () => {
   it('sets interruption_reason=max_tokens for sessions ending with max_tokens', () => {
     insertSession(db, 's-maxtoken');
     inner(db).run(
-      `INSERT OR IGNORE INTO messages
+      `INSERT OR IGNORE INTO activity_messages
          (uuid, session_id, type, model, timestamp, stop_reason, input_tokens, output_tokens)
        VALUES ('m-max', 's-maxtoken', 'assistant', 'claude-sonnet-4-6', '2026-01-15T00:10:00.000Z', 'max_tokens', 100, 50)`,
     );
     db.rebuildSessionStatsPublic();
     const result = inner(db).exec(
-      `SELECT interruption_reason FROM sessions WHERE id = 's-maxtoken'`,
+      `SELECT interruption_reason FROM activity_sessions WHERE id = 's-maxtoken'`,
     );
     expect(result[0]?.values[0]?.[0]).toBe('max_tokens');
   });

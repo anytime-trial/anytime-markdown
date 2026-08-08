@@ -20,7 +20,7 @@ export interface LepRunOnceResult {
 }
 
 /**
- * Wave 1/2/4 の analyzer 実行を `pipeline_runs` へ記録するためのファクトリ。
+ * Wave 1/2/4 の analyzer 実行を `caravan_pipeline_runs` へ記録するためのファクトリ。
  * null を返すと当該実行は記録しない（caravan-book.db 不在時など）。
  */
 export type PipelineRunLedgerFactory = (

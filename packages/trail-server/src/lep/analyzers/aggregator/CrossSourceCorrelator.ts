@@ -30,7 +30,7 @@ export interface CrossSourceDataSource {
 export interface CrossSourceCorrelatorOptions {
   readonly trailDb: CrossSourceDataSource;
   /**
-   * PR review (`memory_reviews` / `memory_review_findings`, source_kind='pr_comment') を
+   * PR review (`caravan_reviews` / `caravan_review_findings`, source_kind='pr_comment') を
    * 読む口。caravan-book.db 未接続 (Step 5 移行後、memoryDbPath 未構成)ならこの analyzer は
    * PR review 相関を空 (0 件) として扱う。
    */
@@ -42,12 +42,12 @@ export interface CrossSourceCorrelatorOptions {
 }
 
 /**
- * Layer 4 (Aggregator) Analyzer: 複数ソース横断の相関を算出し `cross_source_correlations` へ
+ * Layer 4 (Aggregator) Analyzer: 複数ソース横断の相関を算出し `activity_cross_source_correlations` へ
  * 洗い替えで書き込む (Step 4d)。LEP の価値の核心 — analyzer を 1 個足すだけで cross-source 指標が書ける。
  *
  * - tier=4 / inputMode='self-read' / `wave_start:derived` 購読 (DoraMetricsAggregator と同じ)
  * - LLM 不要 (突合のみ)
- * - PR review が 0 件なら即 [] を書いて return (重い session_commits / commit_files の読込を回避)
+ * - PR review が 0 件なら即 [] を書いて return (重い activity_session_commits / activity_commit_files の読込を回避)
  * - 実証目的: 相関 0 件でも例外なく完了する (空振りは repo 状況依存であり失敗ではない)
  */
 export class CrossSourceCorrelator implements Analyzer {

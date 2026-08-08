@@ -278,7 +278,7 @@ export function fileAcceptanceTicket({ ticketsDir, commit, routeResult, farmSumm
     "",
     `ファーム結果: ${farmSummary}`,
     "",
-    "受入合否は本チケットの確認完了後、台帳（acceptance_records の commit×human）へ人が記録する。",
+    "受入合否は本チケットの確認完了後、台帳（caravan_acceptance_records の commit×human）へ人が記録する。",
     "",
     "## 作業タスクリスト (Subtasks)",
     "",

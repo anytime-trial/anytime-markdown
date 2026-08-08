@@ -14,9 +14,9 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
+  trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
-    `CREATE TABLE messages (
+    `CREATE TABLE activity_messages (
        uuid TEXT PRIMARY KEY,
        session_id TEXT NOT NULL,
        type TEXT NOT NULL,
@@ -36,11 +36,11 @@ function insertTrailUserMessage(
   timestamp: string,
 ): void {
   trailDb.run(
-    `INSERT OR IGNORE INTO sessions VALUES (?)`,
+    `INSERT OR IGNORE INTO activity_sessions VALUES (?)`,
     [sessionId],
   );
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, 'user', ?, NULL, ?)`,
     [uuid, sessionId, timestamp, `body ${uuid}`],
   );
@@ -53,9 +53,9 @@ function insertTrailMessageRaw(
   timestamp: string,
   opts: { userContent: string | null; isSidechain?: number },
 ): void {
-  trailDb.run(`INSERT OR IGNORE INTO sessions VALUES (?)`, [sessionId]);
+  trailDb.run(`INSERT OR IGNORE INTO activity_sessions VALUES (?)`, [sessionId]);
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
      VALUES (?, ?, 'user', ?, NULL, ?, ?)`,
     [uuid, sessionId, timestamp, opts.userContent, opts.isSidechain ?? 0],
   );
@@ -70,7 +70,7 @@ function preInsertEpisode(
   // 簡単な決定論的 ID。実装と同じ episodeId 関数は使わずに済むよう uuid を流用。
   const id = `${sessionId}:${msgUuid}`;
   memDb.run(
-    `INSERT INTO memory_episodes
+    `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end,
         agent_runtime, model, valid_from, recorded_at, raw_excerpt)
      VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, '')`,

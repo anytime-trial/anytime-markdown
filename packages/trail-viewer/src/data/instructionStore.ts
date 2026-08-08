@@ -50,7 +50,7 @@ export interface InstructionTokenUsageByModelDto {
   readonly estimatedCostUsd: number;
 }
 
-/** `imported=false` は session_costs 未取込。0 件と区別する。 */
+/** `imported=false` は activity_session_costs 未取込。0 件と区別する。 */
 export interface InstructionTokenUsageDto {
   readonly imported: boolean;
   readonly inputTokens: number;

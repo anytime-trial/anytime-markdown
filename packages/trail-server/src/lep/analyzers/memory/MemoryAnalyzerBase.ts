@@ -14,7 +14,7 @@ import type { MemoryWaveSessionProvider } from './MemoryWaveSessionProvider';
  *
  * 各 analyzer は trail-caravan-book の特定 scope を 1 つ担当する薄いラッパで、共有
  * {@link MemoryWaveSessionProvider} からセッションを取得して scope メソッドを呼ぶ。
- * cursor 管理 (`memory_pipeline_state`) は trail-caravan-book 側 (run*Incremental) に閉じている。
+ * cursor 管理 (`caravan_pipeline_state`) は trail-caravan-book 側 (run*Incremental) に閉じている。
  *
  * `wave_start:memory` を購読する (Wave 3 開始時に発火)。stage=memory の単独実行
  * (Wave 1/2 skip で `wave_complete:primary` が出ない) でも発火するため、stage に依存しない。
@@ -39,7 +39,7 @@ export abstract class MemoryAnalyzerBase implements Analyzer {
     if (e.kind !== 'wave_start' || e.wave !== 'memory') return;
 
     // Pre-flight: LLM を要する analyzer は availability を満たさなければ skip する。
-    // run*Incremental を呼ばないため cursor (memory_pipeline_state) は前進せず、
+    // run*Incremental を呼ばないため cursor (caravan_pipeline_state) は前進せず、
     // Ollama 復旧後の次 run で取りこぼしを回収する (high water mark 保護)。
     if (this.requiresLlm) {
       const availability = await this.provider.getAvailability();

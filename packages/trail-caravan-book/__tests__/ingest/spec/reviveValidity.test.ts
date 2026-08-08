@@ -33,7 +33,7 @@ function writeSpec(root: string, relPath: string): void {
 }
 
 function validUntil(db: BetterSqlite3MemoryDb, id: string): unknown {
-  return db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get(id)?.['valid_until'];
+  return db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get(id)?.['valid_until'];
 }
 
 describe('reviveSpecDocValidity（設計書の復活）', () => {
@@ -58,7 +58,7 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
     writeSpec(specRoot, 'target.ja.md');
     const target = upsertSpecDoc({ db, parsed: parsedSpec('target.ja.md'), source_hash: 'h', recordedAt: AT });
     db.run(
-      `INSERT OR IGNORE INTO memory_relation_types (predicate, cardinality, directionality, description)
+      `INSERT OR IGNORE INTO caravan_relation_types (predicate, cardinality, directionality, description)
        VALUES ('must', 'multiple_active', 'subject_to_object', 'test')`,
     );
     upsertSpecClaims({
@@ -78,7 +78,7 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
     });
 
     const edgeIdRow = db.prepare(
-      `SELECT id FROM memory_edges WHERE source_ref = ?`,
+      `SELECT id FROM caravan_edges WHERE source_ref = ?`,
     ).get(`spec_doc#${target.specDocId}`);
     const edgeId = String(edgeIdRow?.['id']);
     expect(edgeId).not.toBe('undefined');
@@ -88,7 +88,7 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
     const removed = runSpecReconciliation({ db, specRoot, recordedAt: REMOVED_AT });
     expect(removed.removed_docs).toBe(1);
     expect(validUntil(db, target.specEntityId)).toBe(REMOVED_AT);
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get(edgeId)?.['valid_to']).toBe(REMOVED_AT);
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get(edgeId)?.['valid_to']).toBe(REMOVED_AT);
 
     // 2. ファイルが戻る → 再 ingest
     writeSpec(specRoot, 'target.ja.md');
@@ -97,8 +97,8 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
 
     // 3. 無効化が剥がれている（ゴーストにならない）
     expect(validUntil(db, target.specEntityId)).toBeNull();
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get(edgeId)?.['valid_to']).toBeNull();
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(2);
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get(edgeId)?.['valid_to']).toBeNull();
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_spec_documents').get()?.['n']).toBe(2);
 
     db.close();
   });
@@ -110,7 +110,7 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
     writeSpec(specRoot, 'target.ja.md');
     const target = upsertSpecDoc({ db, parsed: parsedSpec('target.ja.md'), source_hash: 'h', recordedAt: AT });
     db.run(
-      `INSERT OR IGNORE INTO memory_relation_types (predicate, cardinality, directionality, description)
+      `INSERT OR IGNORE INTO caravan_relation_types (predicate, cardinality, directionality, description)
        VALUES ('must', 'multiple_active', 'subject_to_object', 'test')`,
     );
     upsertSpecClaims({
@@ -129,7 +129,7 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
       recordedAt: AT,
     });
     const subjectId = String(
-      db.prepare("SELECT id FROM memory_entities WHERE canonical_name = 'only-here-subject'").get()?.['id'],
+      db.prepare("SELECT id FROM caravan_entities WHERE canonical_name = 'only-here-subject'").get()?.['id'],
     );
 
     rmSync(join(specRoot, 'target.ja.md'));
@@ -152,23 +152,23 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
     writeSpec(specRoot, 'target.ja.md');
     const target = upsertSpecDoc({ db, parsed: parsedSpec('target.ja.md'), source_hash: 'h', recordedAt: AT });
     db.run(
-      `INSERT OR IGNORE INTO memory_relation_types (predicate, cardinality, directionality, description)
+      `INSERT OR IGNORE INTO caravan_relation_types (predicate, cardinality, directionality, description)
        VALUES ('must', 'multiple_active', 'subject_to_object', 'test')`,
     );
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES ('sup-a', 'Concept', 'sup-a', 'sup-a', ?, ?, ?)`,
       [AT, AT, AT],
     );
     db.run(
-      `INSERT INTO memory_edges
+      `INSERT INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id, valid_from, valid_to, recorded_at,
           source_type, source_ref, confidence, confidence_label, modality, attributes_json)
        VALUES ('edge-superseded', 'sup-a', 'must', 'sup-a', ?, ?, ?, 'spec', ?, 1.0, 'EXTRACTED', 'mandatory', '{}')`,
       [AT, AT, AT, `spec_doc#${target.specDocId}`],
     );
     db.run(
-      `INSERT INTO memory_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
+      `INSERT INTO caravan_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
        VALUES ('inv-1', 'edge-superseded', ?, 'rule_exclusive', NULL, '')`,
       [AT],
     );
@@ -178,7 +178,7 @@ describe('reviveSpecDocValidity（設計書の復活）', () => {
     writeSpec(specRoot, 'target.ja.md');
     upsertSpecDoc({ db, parsed: parsedSpec('target.ja.md'), source_hash: 'h2', recordedAt: REVIVED_AT });
 
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-superseded')?.['valid_to']).toBe(AT);
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get('edge-superseded')?.['valid_to']).toBe(AT);
 
     db.close();
   });

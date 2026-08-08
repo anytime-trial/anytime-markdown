@@ -17,8 +17,8 @@ function writePackage(root: string, name: string): void {
 function createManualElementsDb(): Database.Database {
   const db = new Database(':memory:');
   db.exec(`
-    CREATE TABLE repos(repo_id INTEGER, repo_name TEXT);
-    CREATE TABLE c4_manual_elements(
+    CREATE TABLE activity_repos(repo_id INTEGER, repo_name TEXT);
+    CREATE TABLE activity_c4_manual_elements(
       repo_id INTEGER,
       element_id TEXT,
       type TEXT,
@@ -30,7 +30,7 @@ function createManualElementsDb(): Database.Database {
       updated_at TEXT
     );
   `);
-  db.prepare('INSERT INTO repos(repo_id, repo_name) VALUES (?, ?)').run(1, 'anytime-markdown');
+  db.prepare('INSERT INTO activity_repos(repo_id, repo_name) VALUES (?, ?)').run(1, 'anytime-markdown');
   return db;
 }
 
@@ -94,11 +94,11 @@ describe('WorkspaceC4ElementProvider', () => {
     writePackage(root, 'trail-activity');
     const db = createManualElementsDb();
     db.prepare(`
-      INSERT INTO c4_manual_elements(repo_id, element_id, type, name, parent_id)
+      INSERT INTO activity_c4_manual_elements(repo_id, element_id, type, name, parent_id)
       VALUES (?, ?, ?, ?, ?)
     `).run(1, 'pkg_trail-activity', 'component', 'Trail Core (manual)', 'sys_anytime-markdown');
     db.prepare(`
-      INSERT INTO c4_manual_elements(repo_id, element_id, type, name, parent_id)
+      INSERT INTO activity_c4_manual_elements(repo_id, element_id, type, name, parent_id)
       VALUES (?, ?, ?, ?, ?)
     `).run(1, 'ext_supabase', 'system', 'Supabase', null);
 

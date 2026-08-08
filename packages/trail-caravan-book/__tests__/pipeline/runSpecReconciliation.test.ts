@@ -13,7 +13,7 @@ function makeDb(): BetterSqlite3MemoryDb {
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   db.run(
-    `INSERT OR IGNORE INTO memory_relation_types (predicate, cardinality, directionality, description)
+    `INSERT OR IGNORE INTO caravan_relation_types (predicate, cardinality, directionality, description)
      VALUES ('must', 'multiple_active', 'subject_to_object', 'test')`,
   );
   return db;
@@ -21,7 +21,7 @@ function makeDb(): BetterSqlite3MemoryDb {
 
 function insertEntity(db: BetterSqlite3MemoryDb, id: string, type: string, name: string): void {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [id, type, name, name, AT, AT, AT],
@@ -30,20 +30,20 @@ function insertEntity(db: BetterSqlite3MemoryDb, id: string, type: string, name:
 
 function insertSpecDoc(db: BetterSqlite3MemoryDb, docId: string, relPath: string, entityId: string): void {
   db.run(
-    `INSERT INTO memory_spec_documents
+    `INSERT INTO caravan_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, summary, recorded_at)
      VALUES (?, ?, 'spec', ?, '[]', ?, 'hash', '', ?)`,
     [docId, relPath, relPath, AT, AT],
   );
   // upsertSpecDoc と同じ attributes_json（kind=spec_doc）を再現する
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, ?, ?, ?, ?)`,
     [entityId, relPath, relPath, JSON.stringify({ kind: 'spec_doc', rel_path: relPath }), AT, AT, AT],
   );
   db.run(
-    `INSERT INTO memory_spec_doc_entities (spec_doc_id, entity_id, line_hint) VALUES (?, ?, NULL)`,
+    `INSERT INTO caravan_spec_doc_entities (spec_doc_id, entity_id, line_hint) VALUES (?, ?, NULL)`,
     [docId, entityId],
   );
 }
@@ -56,20 +56,20 @@ function linkC4Entity(
   c4EntityId: string,
 ): void {
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Package', ?, ?, '{}', ?, ?, ?)`,
     [c4EntityId, c4EntityId, c4EntityId, AT, AT, AT],
   );
   db.run(
-    `INSERT INTO memory_edges
+    `INSERT INTO caravan_edges
        (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at,
         source_type, source_ref, confidence, confidence_label, modality, attributes_json)
      VALUES (?, ?, 'mentioned_in', ?, ?, ?, 'spec', ?, 1.0, 'EXTRACTED', 'asserted', '{}')`,
     [`edge-c4-${docId}`, specEntityId, c4EntityId, AT, AT, docId],
   );
   db.run(
-    `INSERT OR IGNORE INTO memory_spec_doc_entities (spec_doc_id, entity_id, line_hint) VALUES (?, ?, NULL)`,
+    `INSERT OR IGNORE INTO caravan_spec_doc_entities (spec_doc_id, entity_id, line_hint) VALUES (?, ?, NULL)`,
     [docId, c4EntityId],
   );
 }
@@ -82,7 +82,7 @@ function insertSpecEdge(
   objectId: string,
 ): void {
   db.run(
-    `INSERT INTO memory_edges
+    `INSERT INTO caravan_edges
        (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at,
         source_type, source_ref, confidence, confidence_label, modality, attributes_json)
      VALUES (?, ?, 'must', ?, ?, ?, 'spec', ?, 1.0, 'EXTRACTED', 'mandatory', '{}')`,
@@ -117,8 +117,8 @@ describe('runSpecReconciliation', () => {
     expect(result.status).toBe('success');
     expect(result.scanned).toBe(1);
     expect(result.removed_docs).toBe(0);
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(1);
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('ent-live')?.['valid_until']).toBeNull();
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_spec_documents').get()?.['n']).toBe(1);
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('ent-live')?.['valid_until']).toBeNull();
 
     db.close();
   });
@@ -134,15 +134,15 @@ describe('runSpecReconciliation', () => {
     expect(result.removed_docs).toBe(1);
     expect(result.soft_deleted_doc_entities).toBe(1);
 
-    const remaining = db.prepare('SELECT id FROM memory_spec_documents').all();
+    const remaining = db.prepare('SELECT id FROM caravan_spec_documents').all();
     expect(remaining.map((r) => r['id'])).toEqual(['doc-live']);
 
     // リンク行は ON DELETE CASCADE で消える
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_doc_entities WHERE spec_doc_id = ?').get('doc-gone')?.['n']).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_spec_doc_entities WHERE spec_doc_id = ?').get('doc-gone')?.['n']).toBe(0);
 
     // entity は残るが無効化される（履歴を消さない）
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('ent-gone')?.['valid_until']).toBe(NOW);
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('ent-live')?.['valid_until']).toBeNull();
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('ent-gone')?.['valid_until']).toBe(NOW);
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('ent-live')?.['valid_until']).toBeNull();
 
     db.close();
   });
@@ -160,10 +160,10 @@ describe('runSpecReconciliation', () => {
     const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
 
     expect(result.invalidated_edges).toBe(1);
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-gone')?.['valid_to']).toBe(NOW);
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-live')?.['valid_to']).toBeNull();
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get('edge-gone')?.['valid_to']).toBe(NOW);
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get('edge-live')?.['valid_to']).toBeNull();
 
-    const inv = db.prepare('SELECT reason, detail FROM memory_edge_invalidations WHERE edge_id = ?').get('edge-gone');
+    const inv = db.prepare('SELECT reason, detail FROM caravan_edge_invalidations WHERE edge_id = ?').get('edge-gone');
     expect(inv?.['reason']).toBe('spec_updated');
     expect(String(inv?.['detail'])).toContain('gone.ja.md');
 
@@ -184,8 +184,8 @@ describe('runSpecReconciliation', () => {
     const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
 
     expect(result.soft_deleted_orphan_entities).toBe(1);
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('claim-orphan')?.['valid_until']).toBe(NOW);
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('claim-kept')?.['valid_until']).toBeNull();
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('claim-orphan')?.['valid_until']).toBe(NOW);
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('claim-kept')?.['valid_until']).toBeNull();
 
     db.close();
   });
@@ -199,18 +199,18 @@ describe('runSpecReconciliation', () => {
     insertEntity(db, 'claim-other', 'Concept', 'claim-other');
     insertSpecEdge(db, 'edge-1', 'doc-gone', 'claim-known', 'claim-other');
     db.run(
-      `INSERT INTO memory_episodes (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model, valid_from, recorded_at, raw_excerpt, summary)
+      `INSERT INTO caravan_episodes (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model, valid_from, recorded_at, raw_excerpt, summary)
        VALUES ('ep-1', 'sess-1', 'u1', 'u2', 'claude_code', 'test-model', ?, ?, 'excerpt', 'summary')`,
       [AT, AT],
     );
     db.run(
-      `INSERT INTO memory_episode_entities (episode_id, entity_id, mention_text) VALUES ('ep-1', 'claim-known', 'claim-known')`,
+      `INSERT INTO caravan_episode_entities (episode_id, entity_id, mention_text) VALUES ('ep-1', 'claim-known', 'claim-known')`,
     );
 
     const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
 
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('claim-known')?.['valid_until']).toBeNull();
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('claim-other')?.['valid_until']).toBe(NOW);
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('claim-known')?.['valid_until']).toBeNull();
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('claim-other')?.['valid_until']).toBe(NOW);
     expect(result.soft_deleted_orphan_entities).toBe(1);
 
     db.close();
@@ -225,7 +225,7 @@ describe('runSpecReconciliation', () => {
 
     expect(result.status).toBe('error');
     expect(result.removed_docs).toBe(0);
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(2);
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_spec_documents').get()?.['n']).toBe(2);
 
     db.close();
   });
@@ -238,7 +238,7 @@ describe('runSpecReconciliation', () => {
 
     expect(result.status).toBe('error');
     expect(result.removed_docs).toBe(0);
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_spec_documents').get()?.['n']).toBe(1);
 
     db.close();
   });
@@ -252,7 +252,7 @@ describe('runSpecReconciliation', () => {
     linkC4Entity(db, 'doc-gone', 'ent-gone', 'pkg-core');
     insertEntity(db, 'file-x', 'File', 'src/x.ts');
     db.run(
-      `INSERT INTO memory_edges
+      `INSERT INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at,
           source_type, source_ref, confidence, confidence_label, modality, attributes_json)
        VALUES ('edge-code', 'pkg-core', 'depends_on', 'file-x', ?, ?, 'code', 'code_graph', 1.0, 'EXTRACTED', 'asserted', '{}')`,
@@ -262,7 +262,7 @@ describe('runSpecReconciliation', () => {
     const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
 
     expect(result.soft_deleted_doc_entities).toBe(1); // ent-gone だけ
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('pkg-core')?.['valid_until']).toBeNull();
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('pkg-core')?.['valid_until']).toBeNull();
 
     db.close();
   });
@@ -277,9 +277,9 @@ describe('runSpecReconciliation', () => {
     const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
 
     expect(result.invalidated_edges).toBe(1);
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-c4-doc-gone')?.['valid_to']).toBe(NOW);
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get('edge-c4-doc-gone')?.['valid_to']).toBe(NOW);
     // 根拠を失った C4 entity は孤立として無効化される
-    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('pkg-orphan')?.['valid_until']).toBe(NOW);
+    expect(db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get('pkg-orphan')?.['valid_until']).toBe(NOW);
 
     db.close();
   });
@@ -294,7 +294,7 @@ describe('runSpecReconciliation', () => {
     const blocked = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
     expect(blocked.status).toBe('error');
     expect(blocked.removed_docs).toBe(0);
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(3);
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_spec_documents').get()?.['n']).toBe(3);
 
     const allowed = runSpecReconciliation({ db, specRoot, recordedAt: NOW, allowBulkRemoval: true });
     expect(allowed.status).toBe('success');
@@ -311,7 +311,7 @@ describe('runSpecReconciliation', () => {
 
     runSpecReconciliation({ db, specRoot, recordedAt: NOW });
 
-    expect(db.prepare('SELECT last_updated_at FROM memory_entities WHERE id = ?').get('ent-gone')?.['last_updated_at']).toBe(AT);
+    expect(db.prepare('SELECT last_updated_at FROM caravan_entities WHERE id = ?').get('ent-gone')?.['last_updated_at']).toBe(AT);
 
     db.close();
   });
@@ -330,9 +330,9 @@ describe('runSpecReconciliation', () => {
 
     expect(result.status).toBe('error');
     expect(result.removed_docs).toBe(0);
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(2);
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-gone')?.['valid_to']).toBeNull();
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_edge_invalidations').get()?.['n']).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_spec_documents').get()?.['n']).toBe(2);
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get('edge-gone')?.['valid_to']).toBeNull();
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_edge_invalidations').get()?.['n']).toBe(0);
 
     db.close();
   });
@@ -345,13 +345,13 @@ describe('runSpecReconciliation', () => {
     insertEntity(db, 'claim-a', 'Concept', 'claim-a');
     insertEntity(db, 'claim-b', 'Concept', 'claim-b');
     insertSpecEdge(db, 'edge-closed', 'doc-gone', 'claim-a', 'claim-b');
-    db.run(`UPDATE memory_edges SET valid_to = ? WHERE id = 'edge-closed'`, ['2026-04-01T00:00:00.000Z']);
+    db.run(`UPDATE caravan_edges SET valid_to = ? WHERE id = 'edge-closed'`, ['2026-04-01T00:00:00.000Z']);
 
     const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
 
     expect(result.invalidated_edges).toBe(0);
-    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-closed')?.['valid_to']).toBe('2026-04-01T00:00:00.000Z');
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_edge_invalidations').get()?.['n']).toBe(0);
+    expect(db.prepare('SELECT valid_to FROM caravan_edges WHERE id = ?').get('edge-closed')?.['valid_to']).toBe('2026-04-01T00:00:00.000Z');
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_edge_invalidations').get()?.['n']).toBe(0);
 
     db.close();
   });

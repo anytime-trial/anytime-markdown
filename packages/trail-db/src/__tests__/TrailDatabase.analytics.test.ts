@@ -45,7 +45,7 @@ function insertSession(
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '', '', ?, ?, ?, 0, '', 0, ?, ?)`,
@@ -83,7 +83,7 @@ function insertMsg(
     cacheCreationTokens = 0,
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, type, timestamp, text_content, user_content, tool_calls,
        input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
        stop_reason
@@ -105,11 +105,11 @@ function insertMsg(
   );
 }
 
-// NOTE: getStats() queries SUM(input_tokens) FROM sessions which does NOT exist in the
-// current schema (input_tokens is on messages/session_costs, not sessions).
+// NOTE: getStats() queries SUM(input_tokens) FROM activity_sessions which does NOT exist in the
+// current schema (input_tokens is on messages/activity_session_costs, not sessions).
 // This appears to be a latent bug — getStats() will throw SqliteError: no such column: input_tokens
 // when called against the current schema.
-// TODO: fix getStats() to query session_costs or aggregate from messages instead.
+// TODO: fix getStats() to query activity_session_costs or aggregate from messages instead.
 describe('TrailDatabase.getStats (schema mismatch — skipped)', () => {
   it.todo('getStats uses input_tokens on sessions table which does not exist in current schema');
 });

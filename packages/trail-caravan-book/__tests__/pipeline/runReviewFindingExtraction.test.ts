@@ -32,13 +32,13 @@ function makeDb(): BetterSqlite3MemoryDb {
 function insertReview(db: BetterSqlite3MemoryDb, id: string, bodyExcerpt: string): string {
   const reviewId = entityId('Review', id);
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Review', ?, 'Session review', ?, ?, ?)`,
     [reviewId, id, AT, AT, AT],
   );
   db.run(
-    `INSERT INTO memory_reviews
+    `INSERT INTO caravan_reviews
        (id, source_kind, source_ref, source_hash, review_entity_id, target_kind, target_refs_json,
         title, reviewer, severity_overall, summary, body_excerpt, reviewed_at, recorded_at)
      VALUES (?, 'session', ?, '', ?, 'code', '[]', 'Session review', 'code-reviewer', 'info', '', ?, ?, ?)`,
@@ -81,7 +81,7 @@ describe('runReviewFindingExtraction', () => {
     expect(result.status).toBe('success');
     expect(result.findings_inserted).toBe(1);
     const row = db.prepare(
-      'SELECT severity, category, target_file_path, extracted_by FROM memory_review_findings WHERE review_id = ?',
+      'SELECT severity, category, target_file_path, extracted_by FROM caravan_review_findings WHERE review_id = ?',
     ).get(reviewId);
     expect(row?.['severity']).toBe('warn');
     expect(row?.['category']).toBe('logic');
@@ -117,7 +117,7 @@ describe('runReviewFindingExtraction', () => {
     expect(result.findings_inserted).toBe(0);
     // 捏造は ungrounded として数える（形式不備・上限超過と混ぜない）
     expect(result.rejected).toEqual({ ungrounded: 1, malformed: 0, overflow: 0 });
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_review_findings WHERE review_id = ?').get(reviewId)?.['n']).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_review_findings WHERE review_id = ?').get(reviewId)?.['n']).toBe(0);
 
     db.close();
   });
@@ -145,7 +145,7 @@ describe('runReviewFindingExtraction', () => {
       recordedAt: NOW,
     });
 
-    const row = db.prepare('SELECT target_file_path FROM memory_review_findings WHERE review_id = ?').get(reviewId);
+    const row = db.prepare('SELECT target_file_path FROM caravan_review_findings WHERE review_id = ?').get(reviewId);
     expect(row?.['target_file_path']).toBeNull();
 
     db.close();
@@ -244,7 +244,7 @@ describe('runReviewFindingExtraction', () => {
       recordedAt: NOW,
     });
 
-    const idx = db.prepare('SELECT finding_index FROM memory_review_findings WHERE review_id = ?').get(reviewId);
+    const idx = db.prepare('SELECT finding_index FROM caravan_review_findings WHERE review_id = ?').get(reviewId);
     // 0 起点だと、後から書式準拠でパースし直した本物の指摘が
     // UNIQUE(review_id, finding_index) + INSERT OR IGNORE で黙って捨てられる
     expect(Number(idx?.['finding_index'])).toBeGreaterThanOrEqual(10000);
@@ -256,12 +256,12 @@ describe('runReviewFindingExtraction', () => {
     const db = makeDb();
     const reviewId = entityId('Review', 'review/a.md');
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Review', 'review/a.md', 'doc', ?, ?, ?)`,
       [reviewId, AT, AT, AT],
     );
     db.run(
-      `INSERT INTO memory_reviews
+      `INSERT INTO caravan_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id, target_kind, target_refs_json,
           title, reviewer, severity_overall, summary, body_excerpt, reviewed_at, recorded_at)
        VALUES (?, 'review_doc', 'review/a.md', 'h', ?, 'code', '[]', 'doc', '', 'info', '', ?, ?, ?)`,
@@ -300,7 +300,7 @@ describe('runReviewFindingExtraction', () => {
     });
 
     expect(result.findings_inserted).toBe(1);
-    expect(db.prepare('SELECT COUNT(*) n FROM memory_review_findings WHERE review_id = ?').get(reviewId)?.['n']).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) n FROM caravan_review_findings WHERE review_id = ?').get(reviewId)?.['n']).toBe(0);
 
     db.close();
   });
@@ -352,12 +352,12 @@ describe('runReviewFindingExtraction', () => {
     const reviewId = insertReview(db, 'sess-e#m1', BODY);
     const findingEntity = entityId('ReviewFinding', `${reviewId}:0`);
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'ReviewFinding', ?, 'f', ?, ?, ?)`,
       [findingEntity, `${reviewId}:0`, AT, AT, AT],
     );
     db.run(
-      `INSERT INTO memory_review_findings
+      `INSERT INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index, category, severity, finding_text, suggestion_text, recorded_at)
        VALUES (?, ?, ?, 0, 'logic', 'error', '既存の指摘', '', ?)`,
       [entityId('finding_row', `${reviewId}:0`), reviewId, findingEntity, AT],

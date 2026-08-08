@@ -166,7 +166,7 @@ describe('TrailDatabase.importAll — phase sequence golden master', () => {
     expect(progress).toContain('Rebuilding daily counts...');
     expect(progress).toContain('Rebuilding session stats...');
     expect(progress).toContain('Backfilling subagent_type...');
-    expect(progress).toContain('Backfilling message_commits...');
+    expect(progress).toContain('Backfilling activity_message_commits...');
   });
 
   it('skips unchanged sessions on the second run and analyzes none', async () => {

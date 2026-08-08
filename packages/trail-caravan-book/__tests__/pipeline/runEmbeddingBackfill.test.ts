@@ -38,7 +38,7 @@ const AT = '2026-01-01T00:00:00.000Z';
 
 function insertEntity(db: BetterSqlite3MemoryDb, id: string, displayName: string, summary = '', embedding?: Float32Array) {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, summary, embedding,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, ?, ?, ?, ?, ?)`,
@@ -48,7 +48,7 @@ function insertEntity(db: BetterSqlite3MemoryDb, id: string, displayName: string
 
 function insertEpisode(db: BetterSqlite3MemoryDb, id: string, excerpt: string, summary = '') {
   db.run(
-    `INSERT INTO memory_episodes
+    `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model,
         valid_from, recorded_at, raw_excerpt, summary)
      VALUES (?, 'sess-1', ?, ?, 'claude_code', 'test-model', ?, ?, ?, ?)`,
@@ -58,7 +58,7 @@ function insertEpisode(db: BetterSqlite3MemoryDb, id: string, excerpt: string, s
 
 function insertSpecDoc(db: BetterSqlite3MemoryDb, id: string, title: string, summary = '') {
   db.run(
-    `INSERT INTO memory_spec_documents
+    `INSERT INTO caravan_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, summary, recorded_at)
      VALUES (?, ?, 'spec', ?, '[]', ?, 'hash', ?, ?)`,
     [id, `${id}.ja.md`, title, AT, summary, AT]
@@ -80,7 +80,7 @@ describe('runEmbeddingBackfill', () => {
     expect(result.items_processed).toBe(2);
     expect(result.items_failed).toBe(0);
 
-    const rows = db.exec('SELECT id, embedding FROM memory_entities ORDER BY id');
+    const rows = db.exec('SELECT id, embedding FROM caravan_entities ORDER BY id');
     for (const row of rows[0].values) {
       expect(row[1]).not.toBeNull();
       expect((row[1] as Uint8Array).byteLength).toBe(4096);
@@ -122,7 +122,7 @@ describe('runEmbeddingBackfill', () => {
     expect(result.status).toBe('partial');
 
     // item_key はテーブル名で修飾する（id はテーブルをまたぐと衝突しうるため）
-    const failed = db.exec("SELECT item_key FROM memory_failed_items WHERE scope='embedding_backfill'");
+    const failed = db.exec("SELECT item_key FROM caravan_failed_items WHERE scope='embedding_backfill'");
     expect(failed[0].values.length).toBe(1);
     expect(failed[0].values[0][0]).toBe('entities:e1');
   });
@@ -140,7 +140,7 @@ describe('runEmbeddingBackfill', () => {
     insertEntity(db, 'e1', 'TypeScript');
     insertEntity(db, 'e2', 'React');
     db.run(
-      `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+      `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
        VALUES ('embedding_backfill', 'entities:e1', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
               ('embedding_backfill', 'entities:e2', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
               ('conversation_incremental', 'e1', '2026-05-12T00:00:00.000Z', 'extraction_failed', '', 1)`,
@@ -150,7 +150,7 @@ describe('runEmbeddingBackfill', () => {
     await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
 
     const remaining = db.exec(
-      "SELECT scope, item_key FROM memory_failed_items ORDER BY scope, item_key"
+      "SELECT scope, item_key FROM caravan_failed_items ORDER BY scope, item_key"
     );
     expect(remaining[0].values).toEqual([['conversation_incremental', 'e1']]);
   });
@@ -165,7 +165,7 @@ describe('runEmbeddingBackfill', () => {
 
     expect(result.items_processed).toBe(3);
     expect(result.processed_by_target).toEqual({ entities: 1, episodes: 1, spec_documents: 1 });
-    for (const table of ['memory_entities', 'memory_episodes', 'memory_spec_documents']) {
+    for (const table of ['caravan_entities', 'caravan_episodes', 'caravan_spec_documents']) {
       const rows = db.exec(`SELECT embedding FROM ${table}`);
       expect(rows[0].values[0][0]).not.toBeNull();
       expect((rows[0].values[0][0] as Uint8Array).byteLength).toBe(4096);
@@ -187,12 +187,12 @@ describe('runEmbeddingBackfill', () => {
     const db = await makeDb();
     insertEntity(db, 'e1', 'Alive');
     insertEntity(db, 'e2', 'Removed');
-    db.run("UPDATE memory_entities SET valid_until = '2026-05-12T00:00:00.000Z' WHERE id = 'e2'");
+    db.run("UPDATE caravan_entities SET valid_until = '2026-05-12T00:00:00.000Z' WHERE id = 'e2'");
 
     const result = await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
 
     expect(result.processed_by_target.entities).toBe(1);
-    const row = db.exec("SELECT embedding FROM memory_entities WHERE id = 'e2'");
+    const row = db.exec("SELECT embedding FROM caravan_entities WHERE id = 'e2'");
     expect(row[0].values[0][0]).toBeNull();
   });
 
@@ -206,7 +206,7 @@ describe('runEmbeddingBackfill', () => {
     // 次回も空のままなので「失敗」に数えると status が恒久的に劣化する
     expect(result.items_failed).toBe(0);
     expect(result.status).toBe('success');
-    const failed = db.exec("SELECT COUNT(*) FROM memory_failed_items WHERE scope='embedding_backfill'");
+    const failed = db.exec("SELECT COUNT(*) FROM caravan_failed_items WHERE scope='embedding_backfill'");
     expect(failed[0].values[0][0]).toBe(0);
   });
 
@@ -214,7 +214,7 @@ describe('runEmbeddingBackfill', () => {
     const db = await makeDb();
     insertEntity(db, 'e1', 'TypeScript');
     db.run(
-      `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+      `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
        VALUES ('embedding_backfill', 'legacy-id', '2026-05-12T00:00:00.000Z', 'embedding_failed', '', 1),
               ('conversation_incremental', 'other-id', '2026-05-12T00:00:00.000Z', 'extraction_failed', '', 1)`,
       []
@@ -222,7 +222,7 @@ describe('runEmbeddingBackfill', () => {
 
     await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
 
-    const remaining = db.exec('SELECT scope, item_key FROM memory_failed_items ORDER BY scope');
+    const remaining = db.exec('SELECT scope, item_key FROM caravan_failed_items ORDER BY scope');
     expect(remaining[0].values).toEqual([['conversation_incremental', 'other-id']]);
   });
 

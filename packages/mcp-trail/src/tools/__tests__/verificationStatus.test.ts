@@ -7,7 +7,7 @@ import { handleGetVerificationStatus } from '../verificationStatus';
 
 // スキーマ正本は packages/trail-activity の CREATE_VERIFICATION_RUNS。テスト fixture 用の複製(列は読取対象のみ揃える)。
 const FIXTURE_DDL = `
-CREATE TABLE verification_runs (
+CREATE TABLE activity_verification_runs (
   id INTEGER PRIMARY KEY,
   session_id TEXT,
   kind TEXT NOT NULL,
@@ -70,7 +70,7 @@ describe('handleGetVerificationStatus', () => {
     const db = new DatabaseSync(dbPath);
     db.exec(FIXTURE_DDL);
     const insert = db.prepare(
-      `INSERT INTO verification_runs
+      `INSERT INTO activity_verification_runs
        (kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, started_at, finished_at)
        VALUES (?, 'demo-pkg', 'cmd', ?, 1, ?, 'clean', ?, '2026-07-06T00:00:00.000Z', '2026-07-06T00:00:01.000Z')`,
     );

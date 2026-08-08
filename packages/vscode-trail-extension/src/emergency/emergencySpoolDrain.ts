@@ -44,7 +44,7 @@ async function postEvent(port: number, ev: EmergencySpoolEvent): Promise<boolean
 }
 
 /**
- * 副作用: spool を読み出して emergency_log へ POST する（1 周期分）。
+ * 副作用: spool を読み出して activity_emergency_log へ POST する（1 周期分）。
  * 失敗イベントは spool へ再追記する（上限規則は appendEmergencySpool 側に従う）。
  * 戻り値は取り込んだ件数（テスト・ログ用）。
  */
@@ -70,7 +70,7 @@ export async function drainOnce(deps: EmergencySpoolDrainDeps): Promise<number> 
     }
   }
   if (ingested > 0) {
-    TrailLogger.info(`emergency spool: ${ingested}/${events.length} 件を emergency_log へ記録した`);
+    TrailLogger.info(`emergency spool: ${ingested}/${events.length} 件を activity_emergency_log へ記録した`);
   }
   return ingested;
 }

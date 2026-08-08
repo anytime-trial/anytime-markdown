@@ -6,13 +6,13 @@ import { parseReviewSessions } from '../../../src/ingest/review/parseReviewSessi
 
 /**
  * Create a minimal trail-caravan-book main DB (no migrations needed — we just need
- * the attach guard to work, which requires memory_failed_items table).
+ * the attach guard to work, which requires caravan_failed_items table).
  */
 function makeMainDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
   db.run(`
-    CREATE TABLE IF NOT EXISTS memory_failed_items (
+    CREATE TABLE IF NOT EXISTS caravan_failed_items (
       scope TEXT NOT NULL,
       item_key TEXT NOT NULL,
       failed_at TEXT NOT NULL,
@@ -31,7 +31,7 @@ function makeMainDb(): BetterSqlite3MemoryDb {
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run(`
-    CREATE TABLE messages (
+    CREATE TABLE activity_messages (
       uuid TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -67,7 +67,7 @@ const DEFAULT_TEXT = 'レビュー本文';
 
 function insertMsg(trailDb: BetterSqlite3MemoryDb, opts: InsertMsgOpts): void {
   trailDb.run(
-    `INSERT INTO messages
+    `INSERT INTO activity_messages
       (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill, is_sidechain)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -807,7 +807,7 @@ describe('parseReviewSessions', () => {
   }, 30000);
 
   // reviewer はブロックのラベル(subagent_type)になる。旧実装は 'unknown' 固定で、
-  // memory_reviews.reviewer が全件空になっていた(RC1)。
+  // caravan_reviews.reviewer が全件空になっていた(RC1)。
   test('sets reviewer from subagent_type label', async () => {
     const mainDb = makeMainDb();
     const trailDb = makeTrailDb();

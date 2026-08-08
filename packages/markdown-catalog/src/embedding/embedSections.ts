@@ -43,20 +43,20 @@ export async function embedSections(db: DocDb, embed: EmbedFn, opts: EmbedOption
   const pending = db
     .prepare(
       `SELECT d.path AS path, f.body AS body
-       FROM doc AS d
+       FROM catalog_doc AS d
        LEFT JOIN (
          SELECT path, MIN(content_hash) AS content_hash, MIN(model) AS model
-         FROM doc_section_embedding GROUP BY path
+         FROM catalog_doc_section_embedding GROUP BY path
        ) AS e ON e.path = d.path
-       LEFT JOIN doc_fts AS f ON f.path = d.path
+       LEFT JOIN catalog_doc_fts AS f ON f.path = d.path
        WHERE e.path IS NULL OR e.content_hash != d.content_hash OR e.model != ?`,
     )
     .all(opts.model) as unknown as PendingRow[];
 
-  const hashOf = db.prepare('SELECT content_hash FROM doc WHERE path = ?');
-  const del = db.prepare('DELETE FROM doc_section_embedding WHERE path = ?');
+  const hashOf = db.prepare('SELECT content_hash FROM catalog_doc WHERE path = ?');
+  const del = db.prepare('DELETE FROM catalog_doc_section_embedding WHERE path = ?');
   const ins = db.prepare(
-    `INSERT INTO doc_section_embedding (path, section_idx, heading, level, model, dim, vec, content_hash)
+    `INSERT INTO catalog_doc_section_embedding (path, section_idx, heading, level, model, dim, vec, content_hash)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 

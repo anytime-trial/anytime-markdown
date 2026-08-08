@@ -15,7 +15,7 @@ export function runAgentRunWatchdog(input: {
   const now = new Date().toISOString();
 
   const rows = db.exec(
-    `SELECT id FROM memory_review_runs
+    `SELECT id FROM caravan_review_runs
      WHERE status = 'running'
        AND julianday(started_at) < julianday(?) - CAST(? AS REAL) / 1440.0`,
     [now, timeoutMinutes],
@@ -25,7 +25,7 @@ export function runAgentRunWatchdog(input: {
 
   for (const id of ids) {
     db.run(
-      `UPDATE memory_review_runs
+      `UPDATE caravan_review_runs
        SET status       = 'error',
            finished_at  = ?,
            error_detail = 'timeout',

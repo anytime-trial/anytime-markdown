@@ -106,7 +106,7 @@ function countRework(block: ContentBlock, editCountByFile: Map<string, number>):
   return 0;
 }
 
-// flight_reviews の started_at / ended_at は UTC ISO 8601 の CHECK 制約を持つ。
+// caravan_flight_reviews の started_at / ended_at は UTC ISO 8601 の CHECK 制約を持つ。
 // 不正な timestamp をそのまま流すと UPSERT が制約違反になり最小行の記録まで失敗するため、
 // 解釈可能な値のみ Z 形式へ正規化し、不正値は集計対象外にする（cross-review 指摘の是正）。
 function normalizeTimestamp(value: unknown): string | null {

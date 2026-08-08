@@ -48,7 +48,7 @@ function makeDb(rowCount: number): MemoryDbConnection {
   }));
   return {
     prepare: (sql: string) => {
-      if (sql.includes('memory_pipeline_state')) {
+      if (sql.includes('caravan_pipeline_state')) {
         return {
           get: () => ({ last_processed_at: '1970-01-01T00:00:00.000Z' }),
           free: () => undefined,

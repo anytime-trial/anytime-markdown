@@ -66,7 +66,7 @@ async function buildSetup(opts: SetupOpts = {}): Promise<SetupResult> {
   const bugEntityId = entityId('Bug', commitSha);
 
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Bug', ?, 'Test Bug', '[]', '[]', '{}', ?, ?, ?)`,
@@ -78,39 +78,39 @@ async function buildSetup(opts: SetupOpts = {}): Promise<SetupResult> {
   const findingEntityId = entityId('Concept', findingCanonicalName);
 
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, 'Test Finding', '[]', '[]', '{}', ?, ?, ?)`,
     [findingEntityId, findingCanonicalName, TS_FINDING, TS_FINDING, TS_FINDING]
   );
 
-  // ── 3. Review entity (FK for memory_reviews) ──────────────────────────────
+  // ── 3. Review entity (FK for caravan_reviews) ──────────────────────────────
   const reviewEntityId = entityId('Concept', 'test-review-entity');
 
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', 'test-review-entity', 'Test Review', '[]', '[]', '{}', ?, ?, ?)`,
     [reviewEntityId, TS_FINDING, TS_FINDING, TS_FINDING]
   );
 
-  // ── 4. memory_reviews row ─────────────────────────────────────────────────
+  // ── 4. caravan_reviews row ─────────────────────────────────────────────────
   const reviewId = 'rv-lpb-test-1';
 
   db.run(
-    `INSERT OR IGNORE INTO memory_reviews
+    `INSERT OR IGNORE INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
      VALUES (?, 'review_doc', 'review/test.md', ?, 'code', 'Test Review', ?, ?)`,
     [reviewId, reviewEntityId, TS_FINDING, TS_FINDING]
   );
 
-  // ── 5. memory_review_findings row ─────────────────────────────────────────
+  // ── 5. caravan_review_findings row ─────────────────────────────────────────
   const findingId = 'rf-lpb-test-1';
 
   db.run(
-    `INSERT OR IGNORE INTO memory_review_findings
+    `INSERT OR IGNORE INTO caravan_review_findings
        (id, review_id, finding_entity_id, finding_index,
         target_file_path, target_symbol, severity, finding_text, recorded_at)
      VALUES (?, ?, ?, 0, ?, ?, ?, 'test finding text', ?)`,
@@ -125,11 +125,11 @@ async function buildSetup(opts: SetupOpts = {}): Promise<SetupResult> {
     ]
   );
 
-  // ── 6. memory_bug_fixes row ───────────────────────────────────────────────
+  // ── 6. caravan_bug_fixes row ───────────────────────────────────────────────
   const bugRowId = 'bf-lpb-test-1';
 
   db.run(
-    `INSERT OR IGNORE INTO memory_bug_fixes
+    `INSERT OR IGNORE INTO caravan_bug_fixes
        (id, commit_sha, bug_entity_id, package, category, subject_summary,
         affected_file_paths_json, committed_at, recorded_at)
      VALUES (?, ?, ?, 'test-pkg', 'logic', ?, ?, ?, ?)`,
@@ -187,7 +187,7 @@ describe('linkPrecedesBugs', () => {
     const edges = db.exec(
       `SELECT predicate, subject_entity_id, object_entity_id,
               confidence, confidence_label, modality, source_type, source_ref
-       FROM memory_edges WHERE predicate = 'precedes'`
+       FROM caravan_edges WHERE predicate = 'precedes'`
     );
     expect(edges[0]?.values?.length).toBe(1);
     const [predicate, subjectId, objectId, confidence, confidenceLabel, modality, sourceType, sourceRef] =
@@ -221,7 +221,7 @@ describe('linkPrecedesBugs', () => {
 
     expect(result.edges_inserted).toBe(0);
 
-    const edges = db.exec(`SELECT COUNT(*) FROM memory_edges WHERE predicate = 'precedes'`);
+    const edges = db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'precedes'`);
     expect(edges[0]?.values[0][0]).toBe(0);
   }, 30000);
 
@@ -260,7 +260,7 @@ describe('linkPrecedesBugs', () => {
     expect(result2.edges_inserted).toBe(0);
 
     // Only 1 edge in total
-    const edges = db.exec(`SELECT COUNT(*) FROM memory_edges WHERE predicate = 'precedes'`);
+    const edges = db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'precedes'`);
     expect(edges[0]?.values[0][0]).toBe(1);
   }, 30000);
 

@@ -267,7 +267,7 @@ export class TrailDataServer {
   private getC4Provider: (() => C4DataProvider | undefined) | undefined;
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
   private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
-  /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
+  /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。activity_current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
   private callHierarchyIndex: CallHierarchyIndex | null = null;
   private callHierarchyIndexRepo: string | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
@@ -321,7 +321,7 @@ export class TrailDataServer {
   private readonly alignmentApi: AlignmentApiHandler;
   private readonly emergencyApi: EmergencyApiHandler;
   /**
-   * Flight Record（flight_reviews / instructions / instruction_sessions）の永続化層。
+   * Flight Record（caravan_flight_reviews / instructions / caravan_instruction_sessions）の永続化層。
    * 保存先は caravan-book.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
    * flight 系エンドポイントはエラーを返す（暗黙の activity.db フォールバックはしない）。
    */
@@ -491,9 +491,9 @@ export class TrailDataServer {
   }
 
   /**
-   * pipeline_run_logs 永続化用の LogService を wire する。設定後は
+   * caravan_pipeline_run_logs 永続化用の LogService を wire する。設定後は
    * `POST /api/logs` が有効化され、内部 logger が
-   * composite (OutputChannel + pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
+   * composite (OutputChannel + caravan_pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
    *
    * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
    */
@@ -1830,14 +1830,14 @@ export class TrailDataServer {
         arr.push(mc.commitHash);
         commitsByMessageUuid.set(mc.messageUuid, arr);
       }
-      // message_commits stores user message UUIDs; map back to the parent assistant UUID
+      // activity_message_commits stores user message UUIDs; map back to the parent assistant UUID
       const commitsByAssistantUuid = new Map<string, string[]>();
       for (const m of rawMessages) {
         const hashes = commitsByMessageUuid.get(m.uuid);
         if (hashes && m.parent_uuid) commitsByAssistantUuid.set(m.parent_uuid, hashes);
       }
-      // Fallback: for sessions where message_commits is not yet backfilled,
-      // match git-commit assistant messages to session_commits by timestamp proximity.
+      // Fallback: for sessions where activity_message_commits is not yet backfilled,
+      // match git-commit assistant messages to activity_session_commits by timestamp proximity.
       if (commitsByAssistantUuid.size === 0) {
         const sessionCommitsList = this.trailDb.getSessionCommits(sessionId);
         if (sessionCommitsList.length > 0) {
@@ -2022,8 +2022,8 @@ export class TrailDataServer {
 
   private handleC4DsmEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): void {
     try {
-      // current: 解析直後のメモリを優先し、なければ SQLite の current_graphs
-      // release: SQLite の release_graphs から取得
+      // current: 解析直後のメモリを優先し、なければ SQLite の activity_current_graphs
+      // release: SQLite の activity_release_graphs から取得
       let matrix: DsmMatrix | undefined;
       if (releaseId === 'current') {
         matrix = this.getC4Provider?.()?.sourceMatrix;
@@ -2084,7 +2084,7 @@ export class TrailDataServer {
         return;
       }
 
-      // 特定リリース要求: release_coverage を repo 帰属確認のうえ取得
+      // 特定リリース要求: activity_release_coverage を repo 帰属確認のうえ取得
       // ファイルスキャンへのフォールバックは行わない（過去スナップショットと現在ファイルが混ざる不整合を防止）
       if (releaseId !== 'current') {
         const releaseTagBelongsToRepo = this.trailDb.getReleases()
@@ -2106,7 +2106,7 @@ export class TrailDataServer {
         return;
       }
 
-      // current 要求: current_coverage を読む (他の current 系と同じく DB-only)。
+      // current 要求: activity_current_coverage を読む (他の current 系と同じく DB-only)。
       if (repoName) {
         const currentRows = this.trailDb.getCurrentCoverage(repoName);
         if (currentRows.length > 0) {
@@ -2134,7 +2134,7 @@ export class TrailDataServer {
         }
       }
 
-      // current_coverage が空 (import 未実行) の場合は他の current 系と同じく空を返す。
+      // activity_current_coverage が空 (import 未実行) の場合は他の current 系と同じく空を返す。
       // 旧 FS フォールバック (packages/*/coverage/coverage-final.json スキャン) は廃止し DB-only に統一。
       // これにより current 系の表示は「DB が単一の真実源」に一本化され、gitRoot 依存も解消する。
       res.writeHead(200, JSON_HEADERS);
@@ -2927,7 +2927,7 @@ export class TrailDataServer {
           if (assessment !== null) {
             flightDb.applySelfAssessmentToFlightReview(sessionId, assessment);
           }
-          // user_feedback_entries は activity.db 残留（移設対象は flight record 3 テーブルのみ）
+          // activity_user_feedback_entries は activity.db 残留（移設対象は flight record 3 テーブルのみ）
           const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
           const candidates = extractLessonCandidates({ lines, feedbackEntries });
           if (candidates.length > 0) {

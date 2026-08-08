@@ -132,7 +132,7 @@ describe('splitEpisodes', () => {
   });
 
   it('drops empty text_excerpts instead of emitting bare separators', () => {
-    // trail.messages の user 行 352,212 件中 328,662 件は tool_result の入れ物で
+    // trail.activity_messages の user 行 352,212 件中 328,662 件は tool_result の入れ物で
     // user_content が空。これを join すると "\n---\n" だけの raw_excerpt になる。
     const messages: Message[] = [
       msg('1', 's1', 'user', '', '2024-01-01T00:00:01.000Z'),

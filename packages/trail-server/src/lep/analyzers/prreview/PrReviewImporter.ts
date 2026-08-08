@@ -9,7 +9,7 @@ import { buildPrReviewSourceRef } from './prReviewMemorySource';
 /** PrReviewImporter が caravan-book.db に必要とする最小データソース (テストで fake 注入)。 */
 export interface PrReviewImporterDataSource {
   /**
-   * `memory_reviews.source_hash` を読む (`source_kind='pr_comment'` AND
+   * `caravan_reviews.source_hash` を読む (`source_kind='pr_comment'` AND
    * `source_ref=sourceRef`)。行が無ければ null。
    */
   getReviewSourceHash(sourceRef: string): string | null;
@@ -23,7 +23,7 @@ export interface PrReviewImporterOptions {
  * Layer 2 Primary Analyzer: `github_pr_review` を購読し caravan-book.db への冪等判定のみ行う。
  *
  * - tier=2 / subscribes=['github_pr_review'] / emits=['pr_review_imported']
- * - 冪等: `memory_reviews.source_hash`（source_kind='pr_comment'）が一致したら
+ * - 冪等: `caravan_reviews.source_hash`（source_kind='pr_comment'）が一致したら
  *   emit を skip（Ingester の再 emit 対策）
  * - 本 analyzer は**永続化しない**。ingestPrReview（trail-caravan-book）は bodyHash 一致で即座に
  *   skip する冪等 API のため、ここで先に `findings: []` で ingestPrReview を呼んでしまうと

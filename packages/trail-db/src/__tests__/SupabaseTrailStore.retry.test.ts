@@ -126,7 +126,7 @@ describe('SupabaseTrailStore のチャンク隔離', () => {
     expect(persisted[0]).toBe('m500');
   });
 
-  it('チャンク失敗を握り潰さず、行数付きで throw する (session_costs)', async () => {
+  it('チャンク失敗を握り潰さず、行数付きで throw する (activity_session_costs)', async () => {
     const rows = Array.from({ length: 501 }, (_, i) => ({
       session_id: `s${i}`, model: 'm', input_tokens: 0, output_tokens: 0,
       cache_read_tokens: 0, cache_creation_tokens: 0, estimated_cost_usd: 0,

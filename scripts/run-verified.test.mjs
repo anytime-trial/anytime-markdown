@@ -26,7 +26,7 @@ function runWrapper(args, envOverrides = {}) {
 
 function readRows() {
   const db = openVerificationLedger(path.join(tmpTrailHome, 'db', 'activity.db'));
-  const rows = db.prepare('SELECT * FROM verification_runs ORDER BY id').all();
+  const rows = db.prepare('SELECT * FROM activity_verification_runs ORDER BY id').all();
   db.close();
   return rows;
 }

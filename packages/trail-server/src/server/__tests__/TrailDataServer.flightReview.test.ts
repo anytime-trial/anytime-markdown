@@ -55,7 +55,7 @@ describe('/api/trail/flight-reviews', () => {
     });
   }
 
-  it('transcript を集計して flight_reviews へ記録し、GET で取得できる', async () => {
+  it('transcript を集計して caravan_flight_reviews へ記録し、GET で取得できる', async () => {
     const transcriptPath = path.join(tmpDir, 'session.jsonl');
     fs.writeFileSync(
       transcriptPath,

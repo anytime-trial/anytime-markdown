@@ -15,12 +15,12 @@ function genId(prefix: string): string {
 function resolveRepoId(db: Database, repoName: string): number {
   run(
     db,
-    `INSERT INTO repos (repo_name, created_at)
+    `INSERT INTO activity_repos (repo_name, created_at)
        VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
      ON CONFLICT(repo_name) DO NOTHING`,
     [repoName],
   );
-  const row = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const row = get<{ repo_id: number }>(db, 'SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   return Number(row?.repo_id ?? 0);
 }
 
@@ -29,20 +29,20 @@ export function upsertCommunitySummariesDirect(
   repoName: string,
   rows: ReadonlyArray<{ communityId: number; name: string; summary: string }>,
 ): { updated: number } {
-  // Phase H-3: current_code_graph_communities から repo_name 列を撤去した。INSERT 列から repo_name を
+  // Phase H-3: activity_current_code_graph_communities から repo_name 列を撤去した。INSERT 列から repo_name を
   // 除き、UPDATE / INSERT の repo フィルタ・PK は resolveRepoId で解決した repo_id = ? で行う。
   const repoId = resolveRepoId(db, repoName);
   let updated = 0;
   for (const row of rows) {
     const result = run(
       db,
-      `UPDATE current_code_graph_communities SET name = ?, summary = ?, updated_at = datetime('now') WHERE repo_id = ? AND community_id = ?`,
+      `UPDATE activity_current_code_graph_communities SET name = ?, summary = ?, updated_at = datetime('now') WHERE repo_id = ? AND community_id = ?`,
       [row.name, row.summary, repoId, row.communityId],
     );
     if (result.changes === 0) {
       run(
         db,
-        `INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, generated_at, updated_at) VALUES (?, ?, '', ?, ?, datetime('now'), datetime('now'))`,
+        `INSERT INTO activity_current_code_graph_communities (repo_id, community_id, label, name, summary, generated_at, updated_at) VALUES (?, ?, '', ?, ?, datetime('now'), datetime('now'))`,
         [repoId, row.communityId, row.name, row.summary],
       );
     } else {
@@ -61,13 +61,13 @@ export function upsertCommunityMappingsDirect(
   }>,
 ): { updated: number; inserted: number } {
   // Ensure mappings_json column exists
-  const cols = all<{ name: string }>(db, 'PRAGMA table_info(current_code_graph_communities)');
+  const cols = all<{ name: string }>(db, 'PRAGMA table_info(activity_current_code_graph_communities)');
   const hasMappingsJson = cols.some((c) => c.name === 'mappings_json');
   if (!hasMappingsJson) {
-    run(db, 'ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
+    run(db, 'ALTER TABLE activity_current_code_graph_communities ADD COLUMN mappings_json TEXT');
   }
 
-  // Phase H-3: current_code_graph_communities から repo_name 列を撤去した。INSERT 列から repo_name を
+  // Phase H-3: activity_current_code_graph_communities から repo_name 列を撤去した。INSERT 列から repo_name を
   // 除き、UPDATE / INSERT の repo フィルタ・PK は resolveRepoId で解決した repo_id = ? で行う。
   const repoId = resolveRepoId(db, repoName);
   let updated = 0;
@@ -76,13 +76,13 @@ export function upsertCommunityMappingsDirect(
     const mappingsJson = JSON.stringify(row.mappings);
     const result = run(
       db,
-      `UPDATE current_code_graph_communities SET mappings_json = ?, updated_at = datetime('now') WHERE repo_id = ? AND community_id = ?`,
+      `UPDATE activity_current_code_graph_communities SET mappings_json = ?, updated_at = datetime('now') WHERE repo_id = ? AND community_id = ?`,
       [mappingsJson, repoId, row.communityId],
     );
     if (result.changes === 0) {
       run(
         db,
-        `INSERT INTO current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, generated_at, updated_at) VALUES (?, ?, '', '', '', ?, datetime('now'), datetime('now'))`,
+        `INSERT INTO activity_current_code_graph_communities (repo_id, community_id, label, name, summary, mappings_json, generated_at, updated_at) VALUES (?, ?, '', '', '', ?, datetime('now'), datetime('now'))`,
         [repoId, row.communityId, mappingsJson],
       );
       inserted++;
@@ -109,7 +109,7 @@ export function addElementDirect(
   const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `INSERT INTO c4_manual_elements (repo_id, element_id, type, name, description, external, parent_id, service_type, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    `INSERT INTO activity_c4_manual_elements (repo_id, element_id, type, name, description, external, parent_id, service_type, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
       repoId,
       elementId,
@@ -154,7 +154,7 @@ export function updateElementDirect(
   const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `UPDATE c4_manual_elements SET ${sets.join(', ')} WHERE repo_id = ? AND element_id = ?`,
+    `UPDATE activity_c4_manual_elements SET ${sets.join(', ')} WHERE repo_id = ? AND element_id = ?`,
     [...params, repoId, id],
   );
 }
@@ -164,10 +164,10 @@ export function removeElementDirect(db: Database, repoName: string, id: string):
   const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `DELETE FROM c4_manual_relationships WHERE repo_id = ? AND (from_id = ? OR to_id = ?)`,
+    `DELETE FROM activity_c4_manual_relationships WHERE repo_id = ? AND (from_id = ? OR to_id = ?)`,
     [repoId, id, id],
   );
-  run(db, `DELETE FROM c4_manual_elements WHERE repo_id = ? AND element_id = ?`, [repoId, id]);
+  run(db, `DELETE FROM activity_c4_manual_elements WHERE repo_id = ? AND element_id = ?`, [repoId, id]);
 }
 
 export function addGroupDirect(
@@ -179,7 +179,7 @@ export function addGroupDirect(
   const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `INSERT INTO c4_manual_groups (repo_id, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+    `INSERT INTO activity_c4_manual_groups (repo_id, group_id, member_ids, label, updated_at) VALUES (?, ?, ?, ?, datetime('now'))`,
     [repoId, groupId, JSON.stringify(body.memberIds), body.label ?? ''],
   );
   return { id: groupId };
@@ -207,7 +207,7 @@ export function updateGroupDirect(
   const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `UPDATE c4_manual_groups SET ${sets.join(', ')} WHERE repo_id = ? AND group_id = ?`,
+    `UPDATE activity_c4_manual_groups SET ${sets.join(', ')} WHERE repo_id = ? AND group_id = ?`,
     [...params, repoId, id],
   );
 }
@@ -215,7 +215,7 @@ export function updateGroupDirect(
 export function removeGroupDirect(db: Database, repoName: string, id: string): void {
   // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
   const repoId = resolveRepoId(db, repoName);
-  run(db, `DELETE FROM c4_manual_groups WHERE repo_id = ? AND group_id = ?`, [repoId, id]);
+  run(db, `DELETE FROM activity_c4_manual_groups WHERE repo_id = ? AND group_id = ?`, [repoId, id]);
 }
 
 export function addRelationshipDirect(
@@ -227,7 +227,7 @@ export function addRelationshipDirect(
   const repoId = resolveRepoId(db, repoName);
   run(
     db,
-    `INSERT INTO c4_manual_relationships (repo_id, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+    `INSERT INTO activity_c4_manual_relationships (repo_id, rel_id, from_id, to_id, label, technology, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
     [repoId, relId, body.fromId, body.toId, body.label ?? null, body.technology ?? null],
   );
   return { id: relId };
@@ -236,5 +236,5 @@ export function addRelationshipDirect(
 export function removeRelationshipDirect(db: Database, repoName: string, id: string): void {
   // Phase H-2: repo_name 列は撤去済。repo フィルタは repo_id = ? で行う。
   const repoId = resolveRepoId(db, repoName);
-  run(db, `DELETE FROM c4_manual_relationships WHERE repo_id = ? AND rel_id = ?`, [repoId, id]);
+  run(db, `DELETE FROM activity_c4_manual_relationships WHERE repo_id = ? AND rel_id = ?`, [repoId, id]);
 }

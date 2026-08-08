@@ -39,7 +39,7 @@ export interface ReviewIncrementalResult {
 // ── Private helpers (same pattern as runBugHistoryIncremental.ts) ─────────────
 
 function readPipelineState(db: MemoryDbConnection, scope: string): string {
-  const stmt = db.prepare(`SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`);
+  const stmt = db.prepare(`SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`);
   try {
     const row = stmt.get(scope);
     if (row) return (row['last_processed_at'] as string) || DEFAULT_SINCE;
@@ -55,7 +55,7 @@ function upsertPipelineState(
   opts: { status: string; last_processed_at?: string; error_detail?: string },
 ): void {
   db.run(
-    `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+    `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(scope) DO UPDATE SET
        status            = excluded.status,
@@ -76,7 +76,7 @@ function recordFailedItem(
   detail: string,
 ): void {
   db.run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT(scope, item_key) DO UPDATE SET
        attempt_count = attempt_count + 1,
@@ -114,7 +114,7 @@ async function processRouteADoc(opts: {
     const sha1 = createHash('sha1').update(content).digest('hex').slice(0, 16);
 
     const existingRows = db.exec(
-      `SELECT source_hash, body_excerpt, workspace FROM memory_reviews
+      `SELECT source_hash, body_excerpt, workspace FROM caravan_reviews
         WHERE source_kind='review_doc' AND source_ref=?`,
       [relPath],
     );
@@ -147,13 +147,13 @@ async function processRouteADoc(opts: {
 
     if (force && existingHash !== null) {
       db.run(
-        `DELETE FROM memory_review_findings WHERE review_id IN (
-           SELECT id FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?
+        `DELETE FROM caravan_review_findings WHERE review_id IN (
+           SELECT id FROM caravan_reviews WHERE source_kind='review_doc' AND source_ref=?
          )`,
         [relPath],
       );
       db.run(
-        `UPDATE memory_reviews SET source_hash='' WHERE source_kind='review_doc' AND source_ref=?`,
+        `UPDATE caravan_reviews SET source_hash='' WHERE source_kind='review_doc' AND source_ref=?`,
         [relPath],
       );
       logger.info(`[anytime-memory] runReviewIncremental: force re-parse, cleared findings file=${relPath}`);
@@ -177,7 +177,7 @@ async function processRouteADoc(opts: {
     // 取込側のワークスペースが自明なのは「いま自分が書いた行」だけ。
     // 未解決行を一括で埋めると他ワークスペース由来の行まで刻印してしまう。
     db.run(
-      `UPDATE memory_reviews SET workspace = ?
+      `UPDATE caravan_reviews SET workspace = ?
         WHERE source_kind = 'review_doc' AND source_ref = ? AND workspace = ''`,
       [opts.workspace, relPath],
     );
@@ -298,8 +298,8 @@ export async function runReviewIncremental(input: {
       : readPipelineState(db, SCOPE_SESSION);
     if (force) {
       db.run(
-        `DELETE FROM memory_review_findings WHERE review_id IN (
-           SELECT id FROM memory_reviews WHERE source_kind='session'
+        `DELETE FROM caravan_review_findings WHERE review_id IN (
+           SELECT id FROM caravan_reviews WHERE source_kind='session'
          )`,
       );
       logger.info('[anytime-memory] runReviewIncremental: force re-parse, cleared all session findings');

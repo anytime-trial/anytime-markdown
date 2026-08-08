@@ -351,12 +351,12 @@ export function parseReviewSessions(input: {
 }): ParsedReviewSession[] {
   const { db, sinceISO, logger } = input;
 
-  // 1. Query trail.messages for review-related messages
+  // 1. Query trail.activity_messages for review-related messages
   const stmt = db.prepare(
     `SELECT m.uuid, m.session_id, m.type, m.timestamp,
             COALESCE(m.text_content, '') AS text_content,
             m.tool_calls, m.subagent_type, m.skill
-     FROM trail.messages m
+     FROM trail.activity_messages m
      WHERE m.timestamp >= ?
        AND (m.subagent_type = 'code-reviewer'
          OR m.subagent_type LIKE '%:code-reviewer'
@@ -388,7 +388,7 @@ export function parseReviewSessions(input: {
   //    本文が 1 文字も無いブロックは登録しない。スキル起動のメッセージ列
   //    （`skill='superpowers:requesting-code-review'` 等）は allowlist に一致する
   //    ものの、レビュー結果ではなく起動の痕跡でしかなく、本文ゼロのまま
-  //    memory_reviews へ入って「タイトルだけの殻」を量産していた（実測 293 件）。
+  //    caravan_reviews へ入って「タイトルだけの殻」を量産していた（実測 293 件）。
   const results: ParsedReviewSession[] = [];
   for (const block of blocks) {
     const session = buildSessionFromBlock(block, logger);

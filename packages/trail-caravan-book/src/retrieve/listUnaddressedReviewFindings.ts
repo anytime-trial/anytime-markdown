@@ -61,7 +61,7 @@ export function listUnaddressedReviewFindings(input: {
               rf.finding_text, rf.suggestion_text,
               rf.target_file_path, rf.target_symbol, rf.checklist_ref,
               rf.extracted_by, rf.recorded_at
-       FROM memory_review_findings rf
+       FROM caravan_review_findings rf
        WHERE ${where}
        ORDER BY rf.recorded_at ASC
        LIMIT ?`,

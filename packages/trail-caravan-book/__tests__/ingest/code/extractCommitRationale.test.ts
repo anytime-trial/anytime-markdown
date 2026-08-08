@@ -27,26 +27,26 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  // Phase H-4: trail.session_commits から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
-  // extractCommitRationale は trail.repos を JOIN して repo_name → repo_id を解決する。
-  trailDb.run(`CREATE TABLE repos (
+  // Phase H-4: trail.activity_session_commits から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
+  // extractCommitRationale は trail.activity_repos を JOIN して repo_name → repo_id を解決する。
+  trailDb.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY,
     repo_name TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
   ) STRICT`);
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
     [REPO]
   );
   trailDb.run(`
-    CREATE TABLE sessions (
+    CREATE TABLE activity_sessions (
       id TEXT PRIMARY KEY,
       started_at TEXT NOT NULL DEFAULT ''
     ) STRICT
   `);
   trailDb.run(`
-    CREATE TABLE session_commits (
-      session_id   TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    CREATE TABLE activity_session_commits (
+      session_id   TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
       commit_hash  TEXT NOT NULL,
       commit_message TEXT NOT NULL DEFAULT '',
       committed_at TEXT,
@@ -59,20 +59,20 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 
 /** Resolve repo_id from repos by name, seeding the row if it does not yet exist. */
 function resolveRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
-  const existing = trailDb.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const existing = trailDb.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   const found = existing[0]?.values?.[0]?.[0];
   if (found !== undefined && found !== null) return Number(found);
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
     [repoName]
   );
-  const row = trailDb.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const row = trailDb.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   return Number(row[0]?.values?.[0]?.[0] ?? 0);
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, sessionId: string): void {
   trailDb.run(
-    `INSERT INTO sessions (id, started_at) VALUES (?, ?)`,
+    `INSERT INTO activity_sessions (id, started_at) VALUES (?, ?)`,
     [sessionId, RECORDED_AT]
   );
 }
@@ -89,7 +89,7 @@ function insertCommit(
 ): void {
   const repoId = resolveRepoId(trailDb, opts.repoName ?? REPO);
   trailDb.run(
-    `INSERT INTO session_commits (session_id, commit_hash, commit_message, committed_at, repo_id)
+    `INSERT INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at, repo_id)
      VALUES (?, ?, ?, ?, ?)`,
     [
       opts.sessionId,
@@ -102,7 +102,7 @@ function insertCommit(
 }
 
 function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
-  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_entities WHERE type = ?`);
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
   try {
     return ((stmt.get(type)?.['c'] as number) ?? 0);
   } finally {
@@ -112,14 +112,14 @@ function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
 
 function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
   if (predicate) {
-    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM memory_edges WHERE predicate = ?`);
+    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_edges WHERE predicate = ?`);
     try {
       return ((stmt.get(predicate)?.['c'] as number) ?? 0);
     } finally {
       stmt.free?.();
     }
   }
-  const result = db.exec(`SELECT COUNT(*) FROM memory_edges`);
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
@@ -157,7 +157,7 @@ describe('extractCommitRationale', () => {
     expect(countEdges(memDb, 'rationale_for')).toBe(1);
 
     // Verify Decision summary contains the rationale text
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('既存 baz 関数が肥大化したため分離する');
 
@@ -190,7 +190,7 @@ describe('extractCommitRationale', () => {
     expect(stats.decisions_inserted).toBe(1);
     expect(stats.edges_inserted).toBe(1);
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('Legacy adapter was causing circular imports');
 
@@ -222,7 +222,7 @@ describe('extractCommitRationale', () => {
     expect(stats.decisions_inserted).toBe(1);
     expect(stats.edges_inserted).toBe(1);
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('デザインシステムに合わせるため統一した');
 
@@ -317,7 +317,7 @@ describe('extractCommitRationale', () => {
     expect(stats.edges_inserted).toBe(1);
 
     const labels = memDb.exec(
-      `SELECT confidence_label FROM memory_edges WHERE predicate = 'rationale_for'`,
+      `SELECT confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`,
     );
     expect(String(labels[0]?.values[0][0])).toBe('INFERRED');
 
@@ -404,7 +404,7 @@ describe('extractCommitRationale', () => {
     expect(stats.commits_processed).toBe(1);
     expect(stats.decisions_inserted).toBe(1);
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('new commit after cursor');
 
@@ -477,7 +477,7 @@ describe('extractCommitRationale', () => {
     const expectedDecisionId = entityId('Decision', expectedCanonName);
 
     const stmt = memDb.prepare(
-      `SELECT id, canonical_name FROM memory_entities WHERE type = 'Decision'`
+      `SELECT id, canonical_name FROM caravan_entities WHERE type = 'Decision'`
     );
     const row = stmt.get();
     stmt.free?.();
@@ -490,7 +490,7 @@ describe('extractCommitRationale', () => {
   });
 
   // ECR-11: edge metadata is correct
-  test('ECR-11: edge has source_type=code, source_ref=session_commits#<hash>, confidence_label=EXTRACTED', async () => {
+  test('ECR-11: edge has source_type=code, source_ref=activity_session_commits#<hash>, confidence_label=EXTRACTED', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
     const commitHash = 'edge0meta0000';
@@ -513,14 +513,14 @@ describe('extractCommitRationale', () => {
 
     const edgeRows = memDb.exec(
       `SELECT source_type, source_ref, confidence_label, confidence, predicate
-         FROM memory_edges WHERE predicate = 'rationale_for'`
+         FROM caravan_edges WHERE predicate = 'rationale_for'`
     );
     expect(edgeRows[0]?.values).toHaveLength(1);
     const [sourceType, sourceRef, confidenceLabel, confidence, predicate] =
       edgeRows[0].values[0];
 
     expect(sourceType).toBe('code');
-    expect(sourceRef).toBe(`session_commits#${commitHash}`);
+    expect(sourceRef).toBe(`activity_session_commits#${commitHash}`);
     expect(confidenceLabel).toBe('EXTRACTED');
     expect(confidence).toBe(1.0);
     expect(predicate).toBe('rationale_for');
@@ -552,9 +552,9 @@ describe('extractCommitRationale', () => {
 
     const rows = memDb.exec(`
       SELECT me_subj.type AS subj_type, me_obj.type AS obj_type
-      FROM memory_edges e
-      JOIN memory_entities me_subj ON me_subj.id = e.subject_entity_id
-      JOIN memory_entities me_obj  ON me_obj.id  = e.object_entity_id
+      FROM caravan_edges e
+      JOIN caravan_entities me_subj ON me_subj.id = e.subject_entity_id
+      JOIN caravan_entities me_obj  ON me_obj.id  = e.object_entity_id
       WHERE e.predicate = 'rationale_for'
     `);
     expect(rows[0]?.values).toHaveLength(1);
@@ -567,14 +567,14 @@ describe('extractCommitRationale', () => {
   });
 
   // ECR-13: write to trail.* is blocked by readonly guard
-  test('ECR-13: guard blocks write to trail.session_commits', async () => {
+  test('ECR-13: guard blocks write to trail.activity_session_commits', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
 
     attachTrailDbFromHandle(memDb, trailDb);
 
     expect(() => {
-      memDb.run(`UPDATE trail.session_commits SET commit_message = 'x' WHERE 1=0`);
+      memDb.run(`UPDATE trail.activity_session_commits SET commit_message = 'x' WHERE 1=0`);
     }).toThrow(/trail.*forbidden|forbidden.*trail/i);
 
     trailDb.close();
@@ -633,7 +633,7 @@ describe('extractCommitRationale', () => {
       logger: silentLogger,
     });
 
-    const rows = memDb.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
     const summary = rows[0]?.values[0][0] as string;
     expect(summary).toContain('line1');
     expect(summary).toContain('line2 continued');
@@ -690,13 +690,13 @@ describe('extractCommitRationale', () => {
 
 function edgeConfidenceLabels(db: BetterSqlite3MemoryDb): string[] {
   const rows = db.exec(
-    `SELECT confidence_label FROM memory_edges WHERE predicate = 'rationale_for'`,
+    `SELECT confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`,
   );
   return (rows[0]?.values ?? []).map((r) => String(r[0]));
 }
 
 function decisionSummaries(db: BetterSqlite3MemoryDb): string[] {
-  const rows = db.exec(`SELECT summary FROM memory_entities WHERE type = 'Decision'`);
+  const rows = db.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
   return (rows[0]?.values ?? []).map((r) => String(r[0]));
 }
 

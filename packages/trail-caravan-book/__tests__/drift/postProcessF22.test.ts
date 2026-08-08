@@ -26,7 +26,7 @@ function insertEntity(
 ): string {
   const eid = opts.id ?? `ent-${++seq}`;
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at, attributes_json)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [eid, opts.type ?? 'ReviewFinding', eid, eid, TS, TS, TS, opts.attrsJson ?? '{}'],
@@ -38,7 +38,7 @@ function insertReview(db: BetterSqlite3MemoryDb, id?: string): string {
   const rid = id ?? `rev-${++seq}`;
   const reviewEntity = insertEntity(db, { id: `rev-ent-${rid}`, type: 'Review' });
   db.run(
-    `INSERT INTO memory_reviews
+    `INSERT INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
      VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?)`,
     [rid, rid, reviewEntity, TS, TS],
@@ -59,7 +59,7 @@ function insertReviewFinding(
 ): string {
   const id = opts.id ?? `rf-${++seq}`;
   db.run(
-    `INSERT INTO memory_review_findings
+    `INSERT INTO caravan_review_findings
        (id, review_id, finding_entity_id, finding_index, target_file_path, category, finding_text, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, 'text', ?)`,
     [
@@ -112,7 +112,7 @@ describe('postProcessF22', () => {
 
     expect(result.findings_suggested).toBe(1);
 
-    const rows = db.exec(`SELECT attributes_json FROM memory_entities WHERE id = ?`, [entity]);
+    const rows = db.exec(`SELECT attributes_json FROM caravan_entities WHERE id = ?`, [entity]);
     const attrs = JSON.parse(rows[0].values[0][0] as string);
     expect(attrs['category_suggested']).toBe('spec');
     expect(attrs['existing']).toBe('value');

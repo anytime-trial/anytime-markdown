@@ -4,7 +4,7 @@ import { type MemoryLogger, noopLogger } from '../logger';
 
 /**
  * LEP の Wave 区分。`system` は analyzer に属さない daemon / 拡張本体の実行を指す。
- * migration 016 で `pipeline_runs.wave` の CHECK 制約と対応させている。
+ * migration 016 で `caravan_pipeline_runs.wave` の CHECK 制約と対応させている。
  */
 export type PipelineWave = 'sources' | 'primary' | 'memory' | 'derived' | 'system';
 
@@ -62,7 +62,7 @@ export function describeError(err: unknown): string {
 }
 
 /**
- * LEP 全 Wave 共通の実行台帳ライター。`pipeline_runs` へ 1 実行 1 行を書く。
+ * LEP 全 Wave 共通の実行台帳ライター。`caravan_pipeline_runs` へ 1 実行 1 行を書く。
  *
  * 台帳は補助機構なので書き込み失敗は呼び出し元へ伝播させない (fail-open)。
  * 記録が落ちても ingest 本体は完走させ、原因追跡のためにログだけ残す。
@@ -116,7 +116,7 @@ export class PipelineRunLedger {
 
     this.write('start', () => {
       this.db.run(
-        `INSERT INTO pipeline_runs
+        `INSERT INTO caravan_pipeline_runs
            (id, scope, wave, tier, started_at, status,
             items_processed, entities_inserted, entities_updated,
             edges_inserted, edges_invalidated, drifts_detected,
@@ -140,7 +140,7 @@ export class PipelineRunLedger {
 
     this.write('heartbeat', () => {
       this.db.run(
-        `UPDATE pipeline_runs SET
+        `UPDATE caravan_pipeline_runs SET
            last_heartbeat_at = ?,
            ${TOTAL_COLUMNS.map((c) => `${c} = ?`).join(',\n           ')}
          WHERE id = ?`,
@@ -168,7 +168,7 @@ export class PipelineRunLedger {
 
     this.write('appendLog', () => {
       this.db.run(
-        `INSERT INTO pipeline_run_logs
+        `INSERT INTO caravan_pipeline_run_logs
            (run_id, timestamp, level, source, component, message, metadata, stack)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -188,7 +188,7 @@ export class PipelineRunLedger {
   /**
    * run を確定する。`errorDetail` は status に関わらず記録するため、部分成功の
    * 理由も残せる。旧実装は UPDATE 文に error_detail を含めておらず、error 行の
-   * 中身が常に空だった（scope 単位の memory_pipeline_state は毎回上書きされる
+   * 中身が常に空だった（scope 単位の caravan_pipeline_state は毎回上書きされる
    * ため、過去の失敗理由はどこにも残らなかった）。
    */
   finish(status: Exclude<PipelineRunStatus, 'running'>, totals: PipelineRunTotals = {}, errorDetail = ''): void {
@@ -202,7 +202,7 @@ export class PipelineRunLedger {
 
     this.write('finish', () => {
       this.db.run(
-        `UPDATE pipeline_runs SET
+        `UPDATE caravan_pipeline_runs SET
            finished_at  = ?,
            status       = ?,
            duration_ms  = ?,

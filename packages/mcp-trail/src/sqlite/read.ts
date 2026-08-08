@@ -9,11 +9,11 @@ import { all, get } from './sqlJsUtil';
  * マッチしない sentinel) を返し、空結果を返させる。
  */
 function lookupRepoId(db: Database, repoName: string): number {
-  const row = get<{ repo_id: number }>(db, 'SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const row = get<{ repo_id: number }>(db, 'SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   return row ? Number(row.repo_id) : -1;
 }
 
-// current_code_graphs.graph_json は trail-activity の StoredCodeGraph 形式。
+// activity_current_code_graphs.graph_json は trail-activity の StoredCodeGraph 形式。
 // import 時の型衝突を避けるため runtime はそのまま JSON.parse、型は構造のみ参照。
 interface StoredCodeGraphJson {
   generatedAt: string;
@@ -114,7 +114,7 @@ export function getC4ModelDirect(db: Database, repoName: string): { model: C4Mod
 
   const graphRow = get<GraphRow>(
     db,
-    'SELECT graph_json FROM current_code_graphs WHERE repo_id = ?',
+    'SELECT graph_json FROM activity_current_code_graphs WHERE repo_id = ?',
     [repoId],
   );
 
@@ -124,7 +124,7 @@ export function getC4ModelDirect(db: Database, repoName: string): { model: C4Mod
 
   const manualElementRows = all<ManualElementRow>(
     db,
-    'SELECT element_id, type, name, description, service_type, external, updated_at FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id',
+    'SELECT element_id, type, name, description, service_type, external, updated_at FROM activity_c4_manual_elements WHERE repo_id = ? ORDER BY element_id',
     [repoId],
   );
 
@@ -141,7 +141,7 @@ export function getC4ModelDirect(db: Database, repoName: string): { model: C4Mod
 
   const manualRelationshipRows = all<ManualRelationshipRow>(
     db,
-    'SELECT rel_id, from_id, to_id, label, technology, updated_at FROM c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
+    'SELECT rel_id, from_id, to_id, label, technology, updated_at FROM activity_c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
     [repoId],
   );
 
@@ -173,7 +173,7 @@ export function listGroupsDirect(db: Database, repoName: string): ListedGroup[] 
   const repoId = lookupRepoId(db, repoName);
   const rows = all<ManualGroupRow>(
     db,
-    'SELECT group_id, member_ids, label FROM c4_manual_groups WHERE repo_id = ? ORDER BY group_id',
+    'SELECT group_id, member_ids, label FROM activity_c4_manual_groups WHERE repo_id = ? ORDER BY group_id',
     [repoId],
   );
 
@@ -192,7 +192,7 @@ export function listRelationshipsDirect(db: Database, repoName: string): ListedR
   const repoId = lookupRepoId(db, repoName);
   const rows = all<ManualRelationshipRow>(
     db,
-    'SELECT rel_id, from_id, to_id, label, technology FROM c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
+    'SELECT rel_id, from_id, to_id, label, technology FROM activity_c4_manual_relationships WHERE repo_id = ? ORDER BY rel_id',
     [repoId],
   );
 
@@ -212,7 +212,7 @@ export function listCommunitiesDirect(db: Database, repoName: string): { communi
   try {
     rows = all<CommunityRowRaw>(
       db,
-      'SELECT community_id, label, name, summary, mappings_json, stable_key FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+      'SELECT community_id, label, name, summary, mappings_json, stable_key FROM activity_current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
       [repoId],
     );
   } catch (err) {
@@ -220,14 +220,14 @@ export function listCommunitiesDirect(db: Database, repoName: string): { communi
     try {
       rows = all<CommunityRowRaw>(
         db,
-        'SELECT community_id, label, name, summary, mappings_json FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+        'SELECT community_id, label, name, summary, mappings_json FROM activity_current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
         [repoId],
       );
     } catch (error_) {
       console.error('[mcp-trail] listCommunitiesDirect: mappings_json column not found, falling back', error_);
       rows = all<CommunityRowRaw>(
         db,
-        'SELECT community_id, label, name, summary FROM current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
+        'SELECT community_id, label, name, summary FROM activity_current_code_graph_communities WHERE repo_id = ? ORDER BY community_id',
         [repoId],
       );
     }
@@ -264,7 +264,7 @@ export function listCommunityNodesDirect(
   const repoId = lookupRepoId(db, repoName);
   const row = get<GraphRow>(
     db,
-    'SELECT graph_json FROM current_code_graphs WHERE repo_id = ?',
+    'SELECT graph_json FROM activity_current_code_graphs WHERE repo_id = ?',
     [repoId],
   );
   if (!row) return { communities: [] };

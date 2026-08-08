@@ -212,7 +212,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       source: r.source ?? 'claude_code',
       synced_at: new Date().toISOString(),
     }));
-    // セッション行は session_costs / messages / message_tool_calls の FK 親。ここを一過性エラーで
+    // セッション行は activity_session_costs / messages / activity_message_tool_calls の FK 親。ここを一過性エラーで
     // 取りこぼすと子テーブルが丸ごと同期不能になるため、必ずリトライを通す。
     await this.runWithRetry('upsert sessions', () =>
       this.ensureClient().from('trail_sessions').upsert(mapped, { onConflict: 'id' }),
@@ -237,7 +237,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       cache_creation_tokens: c.cache_creation_tokens,
       estimated_cost_usd: c.estimated_cost_usd,
     }));
-    await this.runWithRetry('upsert session_costs', () =>
+    await this.runWithRetry('upsert activity_session_costs', () =>
       this.ensureClient()
         .from('trail_session_costs')
         .upsert(mapped, { onConflict: 'session_id,model' }),
@@ -255,13 +255,13 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const { failed } = await this.upsertChunked(
-      'upsert all session_costs',
+      'upsert all activity_session_costs',
       'trail_session_costs',
       rows,
       (r) => ({ ...r }),
       { onConflict: 'session_id,model' },
     );
-    SupabaseTrailStore.throwIfAnyFailed('all session_costs', failed, rows.length);
+    SupabaseTrailStore.throwIfAnyFailed('all activity_session_costs', failed, rows.length);
   }
 
   async upsertDailyCounts(rows: readonly {
@@ -291,7 +291,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   async upsertMessages(rows: readonly MessageRow[]): Promise<readonly string[]> {
     if (rows.length === 0) return [];
     // 部分失敗しても throw せず「リモートに入った uuid」を返す。呼び出し元 (SyncService) は
-    // これを message_tool_calls の FK 親集合として使い、届かなかったメッセージの子行を送らない。
+    // これを activity_message_tool_calls の FK 親集合として使い、届かなかったメッセージの子行を送らない。
     const { succeeded } = await this.upsertChunked(
       'upsert messages',
       'trail_messages',
@@ -345,7 +345,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
 
   async upsertCommitFiles(rows: readonly { repo_id: number; commit_hash: string; file_path: string }[]): Promise<void> {
     if (rows.length === 0) return;
-    // commit_files はコミットが不変なので IGNORE（既存行を上書きしない）。
+    // activity_commit_files はコミットが不変なので IGNORE（既存行を上書きしない）。
     // 受領 row には additive な repo_name 等が含まれ得るため repo_id/commit_hash/file_path のみ送る。
     const { failed } = await this.upsertChunked(
       'upsert trail_commit_files',
@@ -380,7 +380,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   async upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void> {
     if (rows.length === 0) return;
     const { failed } = await this.upsertChunked(
-      'upsert release_files',
+      'upsert activity_release_files',
       'trail_release_files',
       rows,
       (r) => ({
@@ -392,7 +392,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       }),
       { onConflict: 'release_id,file_path' },
     );
-    SupabaseTrailStore.throwIfAnyFailed('release_files', failed, rows.length);
+    SupabaseTrailStore.throwIfAnyFailed('activity_release_files', failed, rows.length);
   }
 
   /**
@@ -419,7 +419,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
 
   /**
    * リポジトリ単位の current TrailGraph を trail_current_graphs に保存する。
-   * 拡張機能のローカル current_graphs と対応する。
+   * 拡張機能のローカル activity_current_graphs と対応する。
    */
   async upsertCurrentGraph(repoId: number, graphJson: string, commitId: string): Promise<void> {
     await this.runWithRetry(`upsert current graph (repo ${repoId})`, () =>
@@ -500,7 +500,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const { failed } = await this.upsertChunked(
-      'upsert current_coverage',
+      'upsert activity_current_coverage',
       'trail_current_coverage',
       rows,
       // additive な repo_name を Supabase に送らないよう除外し repo_id を送る。
@@ -510,7 +510,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       },
       { onConflict: 'repo_id,package,file_path' },
     );
-    SupabaseTrailStore.throwIfAnyFailed('current_coverage', failed, rows.length);
+    SupabaseTrailStore.throwIfAnyFailed('activity_current_coverage', failed, rows.length);
   }
 
   async unsafeClearReleaseCoverage(): Promise<void> {
@@ -526,7 +526,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const { failed } = await this.upsertChunked(
-      'upsert release_coverage',
+      'upsert activity_release_coverage',
       'trail_release_coverage',
       rows,
       (row) => {
@@ -535,7 +535,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       },
       { onConflict: 'release_id,package,file_path' },
     );
-    SupabaseTrailStore.throwIfAnyFailed('release_coverage', failed, rows.length);
+    SupabaseTrailStore.throwIfAnyFailed('activity_release_coverage', failed, rows.length);
   }
 
   async unsafeClearCurrentFileAnalysis(): Promise<void> {
@@ -605,7 +605,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     repo_id: number; graph_json: string; generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    await this.runWithRetry('upsert current_code_graphs', () =>
+    await this.runWithRetry('upsert activity_current_code_graphs', () =>
       this.ensureClient()
         .from('trail_current_code_graphs')
         .upsert(rows.map(({ repo_name: _omit, ...rest }: Record<string, unknown>) => rest), { onConflict: 'repo_id' }),
@@ -620,7 +620,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const { failed } = await this.upsertChunked(
-      'upsert current_code_graph_communities',
+      'upsert activity_current_code_graph_communities',
       'trail_current_code_graph_communities',
       rows,
       (row) => {
@@ -629,7 +629,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       },
       { onConflict: 'repo_id,community_id', chunkSize: 200 },
     );
-    SupabaseTrailStore.throwIfAnyFailed('current_code_graph_communities', failed, rows.length);
+    SupabaseTrailStore.throwIfAnyFailed('activity_current_code_graph_communities', failed, rows.length);
   }
 
   async unsafeClearReleaseCodeGraphs(): Promise<void> {
@@ -641,7 +641,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     release_id: number; graph_json: string; generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    await this.runWithRetry('upsert release_code_graphs', () =>
+    await this.runWithRetry('upsert activity_release_code_graphs', () =>
       this.ensureClient()
         .from('trail_release_code_graphs')
         .upsert(rows.map(({ release_tag: _t, ...rest }: Record<string, unknown>) => rest), { onConflict: 'release_id' }),
@@ -656,7 +656,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }[]): Promise<void> {
     if (rows.length === 0) return;
     const { failed } = await this.upsertChunked(
-      'upsert release_code_graph_communities',
+      'upsert activity_release_code_graph_communities',
       'trail_release_code_graph_communities',
       rows,
       (row) => {
@@ -665,7 +665,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       },
       { onConflict: 'release_id,community_id', chunkSize: 200 },
     );
-    SupabaseTrailStore.throwIfAnyFailed('release_code_graph_communities', failed, rows.length);
+    SupabaseTrailStore.throwIfAnyFailed('activity_release_code_graph_communities', failed, rows.length);
   }
 
   async listManualElements(repoId: number): Promise<readonly ManualElement[]> {

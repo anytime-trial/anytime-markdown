@@ -44,7 +44,7 @@ function codeEdgeId(subjectId: string, predicate: string, objectId: string): str
 }
 
 /**
- * Reads `trail.current_code_graphs` for a given repo and upserts
+ * Reads `trail.activity_current_code_graphs` for a given repo and upserts
  * Package / File entities plus Package→relates_to→File edges into
  * the memory DB.
  *
@@ -65,15 +65,15 @@ export function fromTrailGraph(opts: {
     repo_name: repoName,
   };
 
-  // ── 1. Read graph_json from trail.current_code_graphs ────────────────────
+  // ── 1. Read graph_json from trail.activity_current_code_graphs ────────────────────
   // Use prepare/bind/step instead of parameterized exec() because the
   // installTrailReadonlyGuard wraps db.exec() but drops the params argument.
   let graphJson: string | null = null;
-  // Phase H-3: trail.current_code_graphs から repo_name 列を撤去した。attach 済 trail スキーマの
+  // Phase H-3: trail.activity_current_code_graphs から repo_name 列を撤去した。attach 済 trail スキーマの
   // repos を JOIN して repo_name → repo_id を解決し、repo_id で絞る (クロス DB JOIN)。
   const stmt = db.prepare(
-    `SELECT g.graph_json FROM trail.current_code_graphs g
-       JOIN trail.repos r ON r.repo_id = g.repo_id
+    `SELECT g.graph_json FROM trail.activity_current_code_graphs g
+       JOIN trail.activity_repos r ON r.repo_id = g.repo_id
       WHERE r.repo_name = ?`
   );
   try {
@@ -143,7 +143,7 @@ export function fromTrailGraph(opts: {
 
     try {
       db.run(
-        `INSERT INTO memory_entities
+        `INSERT INTO caravan_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
@@ -162,7 +162,7 @@ export function fromTrailGraph(opts: {
   }
 
   // ── 5. Upsert File entities and insert Package→relates_to→File edges ─────
-  const sourceRef = `current_code_graphs#${repoName}`;
+  const sourceRef = `activity_current_code_graphs#${repoName}`;
 
   for (const node of codeNodes) {
     const fileCanonName = canonicalize(node.id);
@@ -171,7 +171,7 @@ export function fromTrailGraph(opts: {
 
     try {
       db.run(
-        `INSERT INTO memory_entities
+        `INSERT INTO caravan_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
@@ -198,7 +198,7 @@ export function fromTrailGraph(opts: {
 
     try {
       db.run(
-        `INSERT INTO memory_edges
+        `INSERT INTO caravan_edges
            (id, subject_entity_id, predicate, object_entity_id,
             valid_from, recorded_at, source_type, source_ref,
             confidence, confidence_label, modality)

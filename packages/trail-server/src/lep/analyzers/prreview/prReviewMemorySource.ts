@@ -20,12 +20,12 @@ export { buildPrReviewSourceRef, parsePrReviewSourceRef };
 export type { ParsedPrReviewSourceRef };
 
 /**
- * `PrReviewImporter` 用: memory_reviews.source_hash を読む
+ * `PrReviewImporter` 用: caravan_reviews.source_hash を読む
  * (source_kind='pr_comment' AND source_ref=sourceRef)。無ければ null。
  */
 export function readPrReviewSourceHash(memoryDb: MemoryDbConnection, sourceRef: string): string | null {
   const result = memoryDb.exec(
-    `SELECT source_hash FROM memory_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
+    `SELECT source_hash FROM caravan_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
     [sourceRef],
   );
   const row = result[0]?.values?.[0];
@@ -39,10 +39,10 @@ export interface PrReviewMemorySource {
 }
 
 /**
- * caravan-book.db (`memory_reviews` / `memory_review_findings`, source_kind='pr_comment') を
+ * caravan-book.db (`caravan_reviews` / `caravan_review_findings`, source_kind='pr_comment') を
  * activity.db 時代の `PrReviewRow` / `PrReviewFindingRow` 形状へ射影する読み出しアダプタ。
  *
- * `state` は memory_reviews に保存されていない (severity_overall へ置き換わった)ため
+ * `state` は caravan_reviews に保存されていない (severity_overall へ置き換わった)ため
  * 空文字を返す。`computeCrossSourceCorrelations` は state を参照しないため実害はない。
  */
 export function createPrReviewMemorySource(memoryDb: MemoryDbConnection): PrReviewMemorySource {
@@ -50,7 +50,7 @@ export function createPrReviewMemorySource(memoryDb: MemoryDbConnection): PrRevi
     getPrReviews(): PrReviewRow[] {
       const result = memoryDb.exec(
         `SELECT source_ref, reviewer, reviewed_at, source_hash
-           FROM memory_reviews WHERE source_kind='pr_comment' ORDER BY reviewed_at`,
+           FROM caravan_reviews WHERE source_kind='pr_comment' ORDER BY reviewed_at`,
       );
       const rows = result[0]?.values ?? [];
       const out: PrReviewRow[] = [];
@@ -74,8 +74,8 @@ export function createPrReviewMemorySource(memoryDb: MemoryDbConnection): PrRevi
       const result = memoryDb.exec(
         `SELECT f.id, r.source_ref, f.target_file_path, f.target_line_start,
                 f.severity, f.category, f.finding_text, f.recorded_at
-           FROM memory_review_findings f
-           JOIN memory_reviews r ON r.id = f.review_id
+           FROM caravan_review_findings f
+           JOIN caravan_reviews r ON r.id = f.review_id
           WHERE r.source_kind = 'pr_comment'
           ORDER BY f.id`,
       );

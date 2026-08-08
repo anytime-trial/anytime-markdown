@@ -14,7 +14,7 @@ VS Code 拡張機能 (Anytime Trail) で Trail DB に保存されたコードグ
 - 各コミュニティに属する C4 要素の役割（**primary / secondary / dependency**）を判定して `mappings_json` カラムへ保存
 
 > [!IMPORTANT]
-> 本スキルは **Step 1 で必ず `mcp__mcp-trail__analyze_current_code` を実行**して `current_code_graphs` / `current_code_graph_communities` を最新化してから後段の AI 後処理に進む。スキル単体でコードグラフを生成するわけではなく、VS Code 拡張内のパイプラインを MCP 経由で起動する点に注意。
+> 本スキルは **Step 1 で必ず `mcp__mcp-trail__analyze_current_code` を実行**して `activity_current_code_graphs` / `activity_current_code_graph_communities` を最新化してから後段の AI 後処理に進む。スキル単体でコードグラフを生成するわけではなく、VS Code 拡張内のパイプラインを MCP 経由で起動する点に注意。
 
 
 ## 事前準備: VS Code 設定の取得と接続確認
@@ -76,9 +76,9 @@ claude mcp get mcp-trail | grep TRAIL_SERVER_URL
 ## 処理フロー
 
 
-### Step 1: コード解析の実行（current_code_graphs の取得・最新化）
+### Step 1: コード解析の実行（activity_current_code_graphs の取得・最新化）
 
-`mcp__mcp-trail__analyze_current_code` を実行して `current_code_graphs` / `current_code_graph_communities` を最新化する。Trail DB が空でも、最新コミット反映済みでも、**毎回必ず実行**する（後段の Step 2 / Step 3 が参照するグラフを最新化する責務はこの Step にある）。
+`mcp__mcp-trail__analyze_current_code` を実行して `activity_current_code_graphs` / `activity_current_code_graph_communities` を最新化する。Trail DB が空でも、最新コミット反映済みでも、**毎回必ず実行**する（後段の Step 2 / Step 3 が参照するグラフを最新化する責務はこの Step にある）。
 
 - ツール: `mcp__mcp-trail__analyze_current_code`
 - 引数:
@@ -123,7 +123,7 @@ claude mcp get mcp-trail | grep TRAIL_SERVER_URL
 
 ### Step 2: コミュニティ要約（AI 命名）
 
-`current_code_graph_communities` の各コミュニティに `name` + `summary` を生成して書き戻す。
+`activity_current_code_graph_communities` の各コミュニティに `name` + `summary` を生成して書き戻す。
 
 **処理フロー**
 
@@ -290,7 +290,7 @@ role 判定基準:
 
 | 保存先 | 内容 |
 | --- | --- |
-| `activity.db` の `current_code_graphs.graph_json` | コードグラフ本体（Step 1） |
-| `activity.db` の `current_code_graph_communities.name` / `summary` | コミュニティ名と要約（Step 2） |
-| `activity.db` の `current_code_graph_communities.mappings_json` | C4 要素 role マッピング（Step 3） |
+| `activity.db` の `activity_current_code_graphs.graph_json` | コードグラフ本体（Step 1） |
+| `activity.db` の `activity_current_code_graph_communities.name` / `summary` | コミュニティ名と要約（Step 2） |
+| `activity.db` の `activity_current_code_graph_communities.mappings_json` | C4 要素 role マッピング（Step 3） |
 | `${workspaceFolder}/.anytime/.community_summary_cache.json` | コミュニティ要約のキャッシュ（再実行時の高速化用） |

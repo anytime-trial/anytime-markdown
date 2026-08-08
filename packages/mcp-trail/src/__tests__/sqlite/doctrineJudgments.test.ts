@@ -52,7 +52,7 @@ describe('doctrineJudgments', () => {
     expect(result.citationCount).toBe(2);
     expect(result.resolvedCount).toBe(1);
     const row = db
-      .prepare('SELECT citations_json, citation_count, resolved_count FROM doctrine_judgments')
+      .prepare('SELECT citations_json, citation_count, resolved_count FROM caravan_doctrine_judgments')
       .get() as { citations_json: string; citation_count: number; resolved_count: number };
     expect(JSON.parse(row.citations_json)).toHaveLength(2);
     expect(row.citation_count).toBe(2);
@@ -68,7 +68,7 @@ describe('doctrineJudgments', () => {
     });
     recordDoctrineJudgmentDirect(db, judgment({ judgment: 'reject' }));
     const rows = db
-      .prepare('SELECT agent_judgment, human_decision FROM doctrine_judgments')
+      .prepare('SELECT agent_judgment, human_decision FROM caravan_doctrine_judgments')
       .all() as Array<{ agent_judgment: string; human_decision: string | null }>;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual({ agent_judgment: 'reject', human_decision: null });
@@ -192,7 +192,7 @@ describe('doctrineJudgments', () => {
   it('承認状態を持たない旧レコードは canon 接地なしと数える', () => {
     recordDoctrineJudgmentDirect(db, judgment({ subject: '旧記録' }));
     // 本機能より前の citations_json（approval フィールドを持たない）を再現する
-    db.prepare('UPDATE doctrine_judgments SET citations_json = ?').run(
+    db.prepare('UPDATE caravan_doctrine_judgments SET citations_json = ?').run(
       JSON.stringify([{ docPath: '/docs/x.md', section: 'a', quote: 'b', resolved: true, reason: 'ok' }]),
     );
     expect(getDoctrineAgreementDirect(db).canonGroundedRate).toBe(0);
@@ -208,7 +208,7 @@ describe('doctrineJudgments', () => {
       gate: { verdict: 'escalate', reasons: ['severity_high'] },
     });
     const row = db
-      .prepare(`SELECT gate_verdict, gate_reasons_json FROM doctrine_judgments WHERE subject = ?`)
+      .prepare(`SELECT gate_verdict, gate_reasons_json FROM caravan_doctrine_judgments WHERE subject = ?`)
       .get('代行不可') as { gate_verdict: string; gate_reasons_json: string };
     expect(row.gate_verdict).toBe('escalate');
     expect(JSON.parse(row.gate_reasons_json)).toEqual(['severity_high']);
@@ -243,7 +243,7 @@ describe('doctrineJudgments', () => {
         alreadyDelegated: false,
       });
       const row = db
-        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .prepare(`SELECT delegated_at FROM caravan_doctrine_judgments WHERE id = ?`)
         .get(id) as { delegated_at: string };
       expect(row.delegated_at).toBe('2026-08-05T00:00:00.000Z');
     });
@@ -264,7 +264,7 @@ describe('doctrineJudgments', () => {
       });
       expect(() => recordDelegatedApprovalDirect(db, { id })).toThrow(/gate verdict/);
       const row = db
-        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .prepare(`SELECT delegated_at FROM caravan_doctrine_judgments WHERE id = ?`)
         .get(id) as { delegated_at: string | null };
       expect(row.delegated_at).toBeNull();
     });
@@ -303,7 +303,7 @@ describe('doctrineJudgments', () => {
         alreadyDelegated: true,
       });
       const row = db
-        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .prepare(`SELECT delegated_at FROM caravan_doctrine_judgments WHERE id = ?`)
         .get(id) as { delegated_at: string };
       expect(row.delegated_at).toBe('2026-08-05T00:00:00.000Z');
     });
@@ -317,7 +317,7 @@ describe('doctrineJudgments', () => {
       recordDelegatedApprovalDirect(db, { id });
       recordDoctrineJudgmentDirect(db, delegableJudgment('再記録'));
       const row = db
-        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .prepare(`SELECT delegated_at FROM caravan_doctrine_judgments WHERE id = ?`)
         .get(id) as { delegated_at: string | null };
       expect(row.delegated_at).toBeNull();
     });
@@ -354,7 +354,7 @@ describe('doctrineJudgments', () => {
 
   it('gate 列を持たない旧スキーマの DB へ冪等に列追加する', () => {
     const legacy = new BetterSqlite3(':memory:');
-    legacy.exec(`CREATE TABLE doctrine_judgments (
+    legacy.exec(`CREATE TABLE caravan_doctrine_judgments (
       id INTEGER PRIMARY KEY,
       session_id TEXT NOT NULL,
       subject TEXT NOT NULL,
@@ -372,7 +372,7 @@ describe('doctrineJudgments', () => {
     )`);
     legacy
       .prepare(
-        `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, judged_at, created_at, updated_at)
+        `INSERT INTO caravan_doctrine_judgments (session_id, subject, agent_judgment, coverage, judged_at, created_at, updated_at)
          VALUES ('s', '旧行', 'approve', 'covered', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
       )
       .run();
@@ -381,7 +381,7 @@ describe('doctrineJudgments', () => {
     ensureDoctrineJudgmentsTable(legacy);
 
     const columns = (
-      legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+      legacy.prepare(`PRAGMA table_info(caravan_doctrine_judgments)`).all() as Array<{ name: string }>
     ).map((c) => c.name);
     expect(columns).toEqual(
       expect.arrayContaining(['gate_verdict', 'gate_reasons_json', 'delegated_at']),
@@ -391,18 +391,18 @@ describe('doctrineJudgments', () => {
     const fresh = new BetterSqlite3(':memory:');
     ensureDoctrineJudgmentsTable(fresh);
     const freshColumns = (
-      fresh.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+      fresh.prepare(`PRAGMA table_info(caravan_doctrine_judgments)`).all() as Array<{ name: string }>
     ).map((c) => c.name);
     expect(columns).toEqual(freshColumns);
     fresh.close();
     const rows = legacy
-      .prepare(`SELECT subject, gate_verdict, delegated_at FROM doctrine_judgments`)
+      .prepare(`SELECT subject, gate_verdict, delegated_at FROM caravan_doctrine_judgments`)
       .all();
     expect(rows).toEqual([{ subject: '旧行', gate_verdict: null, delegated_at: null }]);
     // 列名・列順だけでなく制約も見る。ALTER 側の CHECK 式が CREATE 側から
     // 剥がれると、移行 DB だけが不正な値を受理する状態になる
     expect(() =>
-      legacy.exec(`UPDATE doctrine_judgments SET delegated_at = 'garbage'`),
+      legacy.exec(`UPDATE caravan_doctrine_judgments SET delegated_at = 'garbage'`),
     ).toThrow(/CHECK constraint failed/);
     legacy.close();
   });
@@ -466,7 +466,7 @@ describe('doctrineJudgments', () => {
       // JSON.parse は成功するため、パース可否だけの防御では素通りする
       recordDoctrineJudgmentDirect(db, judgment());
       db.prepare(
-        `UPDATE doctrine_judgments SET citations_json = '"not-an-array"' WHERE session_id = ?`,
+        `UPDATE caravan_doctrine_judgments SET citations_json = '"not-an-array"' WHERE session_id = ?`,
       ).run('session-1');
 
       const [row] = listDoctrineJudgmentsBySession(db, 'session-1');
@@ -480,7 +480,7 @@ describe('doctrineJudgments', () => {
       // 現行スキーマは json_valid の CHECK を持つが、CHECK 導入前に書かれた行は
       // 素通りしている可能性がある
       const legacy = new BetterSqlite3(':memory:');
-      legacy.exec(`CREATE TABLE doctrine_judgments (
+      legacy.exec(`CREATE TABLE caravan_doctrine_judgments (
         id INTEGER PRIMARY KEY,
         session_id TEXT NOT NULL,
         subject TEXT NOT NULL,
@@ -498,7 +498,7 @@ describe('doctrineJudgments', () => {
       )`);
       legacy
         .prepare(
-          `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, citations_json, judged_at, created_at, updated_at)
+          `INSERT INTO caravan_doctrine_judgments (session_id, subject, agent_judgment, coverage, citations_json, judged_at, created_at, updated_at)
            VALUES ('s', '旧行', 'approve', 'covered', '{壊れた JSON', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
         )
         .run();
@@ -521,14 +521,14 @@ describe('doctrineJudgments', () => {
       expect(
         empty
           .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
-          .all('doctrine_judgments'),
+          .all('caravan_doctrine_judgments'),
       ).toEqual([]);
       empty.close();
     });
 
     it('gate 列が無い旧 DB でも列を追加せず NULL として読む', () => {
       const legacy = new BetterSqlite3(':memory:');
-      legacy.exec(`CREATE TABLE doctrine_judgments (
+      legacy.exec(`CREATE TABLE caravan_doctrine_judgments (
         id INTEGER PRIMARY KEY,
         session_id TEXT NOT NULL,
         subject TEXT NOT NULL,
@@ -546,7 +546,7 @@ describe('doctrineJudgments', () => {
       )`);
       legacy
         .prepare(
-          `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, judged_at, created_at, updated_at)
+          `INSERT INTO caravan_doctrine_judgments (session_id, subject, agent_judgment, coverage, judged_at, created_at, updated_at)
            VALUES ('s', '旧行', 'approve', 'covered', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
         )
         .run();
@@ -556,7 +556,7 @@ describe('doctrineJudgments', () => {
       expect(row?.gateVerdict).toBeNull();
       expect(row?.gateReasons).toEqual([]);
       const columns = (
-        legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+        legacy.prepare(`PRAGMA table_info(caravan_doctrine_judgments)`).all() as Array<{ name: string }>
       ).map((c) => c.name);
       expect(columns).not.toContain('gate_verdict');
       legacy.close();

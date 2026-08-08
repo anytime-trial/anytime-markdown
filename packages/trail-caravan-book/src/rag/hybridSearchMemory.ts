@@ -50,12 +50,12 @@ function bm25Search(
   bm25Limit: number,
   filters: Pick<SearchInput, 'entity_types' | 'since'>,
 ): { id: string; rank: number }[] {
-  if (!tableExists(db, 'memory_entities_fts')) return [];
+  if (!tableExists(db, 'caravan_entities_fts')) return [];
   const ftsQuery = tokenizeForFts5(rawQuery);
   if (!ftsQuery) return [];
 
   const params: (string | number)[] = [ftsQuery];
-  const conds: string[] = ['memory_entities_fts MATCH ?', 'e.valid_until IS NULL'];
+  const conds: string[] = ['caravan_entities_fts MATCH ?', 'e.valid_until IS NULL'];
 
   if (filters.entity_types && filters.entity_types.length > 0) {
     const placeholders = filters.entity_types.map(() => '?').join(', ');
@@ -70,10 +70,10 @@ function bm25Search(
 
   const rows = db.exec(
     `SELECT e.id
-       FROM memory_entities_fts f
-       JOIN memory_entities e ON e.rowid = f.rowid
+       FROM caravan_entities_fts f
+       JOIN caravan_entities e ON e.rowid = f.rowid
       WHERE ${conds.join(' AND ')}
-      ORDER BY bm25(memory_entities_fts) ASC
+      ORDER BY bm25(caravan_entities_fts) ASC
       LIMIT ?`,
     params,
   );
@@ -176,7 +176,7 @@ function hydrateEntities(db: MemoryDbConnection, ids: string[]): SearchEntity[] 
   if (ids.length === 0) return [];
   const placeholders = ids.map(() => '?').join(', ');
   const rows = db.exec(
-    `SELECT id, type, display_name, summary FROM memory_entities
+    `SELECT id, type, display_name, summary FROM caravan_entities
        WHERE id IN (${placeholders}) AND valid_until IS NULL`,
     ids,
   );

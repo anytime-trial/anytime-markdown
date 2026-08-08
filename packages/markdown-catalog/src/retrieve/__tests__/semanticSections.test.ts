@@ -63,7 +63,7 @@ describe('searchSemanticSections', () => {
     await embedSections(db, fakeEmbed, { model: 'model-new' });
     // モデル変更 backfill の途中失敗を模擬: 旧モデルの行を手動投入。
     db.prepare(
-      `INSERT INTO doc_section_embedding (path, section_idx, heading, level, model, dim, vec, content_hash)
+      `INSERT INTO catalog_doc_section_embedding (path, section_idx, heading, level, model, dim, vec, content_hash)
        VALUES ('spec/long.ja.md', 99, '旧モデル節', 1, 'model-old', 2, ?, 'stale-hash')`,
     ).run(new Uint8Array(8));
     const hits = await searchSemanticSections(db, fakeEmbed, '後半の話題', 10, 'model-new');

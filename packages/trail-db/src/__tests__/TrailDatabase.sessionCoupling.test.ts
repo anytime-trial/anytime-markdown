@@ -16,7 +16,7 @@ const insertSession = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     [sessionId, sessionId, startTime],
   );
 };
@@ -24,7 +24,7 @@ const insertSession = (
 const insertMessage = (db: TrailDatabase, uuid: string, sessionId: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, parent_uuid, type, timestamp
      ) VALUES (?, ?, NULL, 'user', ?)`,
     [uuid, sessionId, '2026-04-29T00:00:00.000Z'],
@@ -41,7 +41,7 @@ const insertToolCall = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
      ) VALUES (?, ?, 0, ?, ?, ?, NULL, NULL, NULL, 0, NULL, 0, 0, NULL, ?)`,
@@ -60,7 +60,7 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=session)', () => {
     db.close();
   });
 
-  it('returns session-grain pairs from message_tool_calls', () => {
+  it('returns session-grain pairs from activity_message_tool_calls', () => {
     insertSession(db, 's1', isoDaysAgo(1));
     insertMessage(db, 'm1', 's1');
     insertToolCall(db, 's1', 'm1', 0, 'Edit', 'src/auth.ts');
@@ -157,7 +157,7 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=session)', () => {
     expect(edges[0]).toMatchObject({ source: 'src/a.ts', target: 'src/b.ts' });
   });
 
-  it('excludes static dependency pairs from current_graphs in session granularity', () => {
+  it('excludes static dependency pairs from activity_current_graphs in session granularity', () => {
     insertSession(db, 's1', isoDaysAgo(1));
     insertMessage(db, 'm1', 's1');
     insertToolCall(db, 's1', 'm1', 0, 'Edit', 'src/a.ts');
@@ -197,15 +197,15 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=session)', () => {
     const inner = (db as unknown as { db: SqlJsDb }).db;
     insertSession(db, 's1', isoDaysAgo(1));
     inner.run(
-      `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, committed_at)
+      `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, committed_at)
        VALUES (?, ?, ?)`,
       ['s1', 'h1', isoDaysAgo(1)],
     );
-    inner.run(`INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`, [
+    inner.run(`INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`, [
       'h1',
       'src/a.ts',
     ]);
-    inner.run(`INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`, [
+    inner.run(`INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`, [
       'h1',
       'src/b.ts',
     ]);
@@ -226,7 +226,7 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=session)', () => {
     });
   });
 
-  it('normalizes absolute file_path to repo-relative using current_graphs.metadata.projectRoot', () => {
+  it('normalizes absolute file_path to repo-relative using activity_current_graphs.metadata.projectRoot', () => {
     // Claude Code の Edit/Write ツールは file_path を「絶対パス」で記録する。
     // CodeGraph のノード ID はリポ相対パス前提のため、TrailDatabase 側で正規化する必要がある。
     const projectRoot = '/repo-root';
@@ -278,8 +278,8 @@ describe('TrailDatabase.fetchTemporalCoupling (granularity=session)', () => {
     });
   });
 
-  it('normalizes absolute paths even when repoName mismatches current_graphs.repo_name', () => {
-    // 実運用では CodeGraph 側 repoId と current_graphs.repo_name が揺れることがある。
+  it('normalizes absolute paths even when repoName mismatches activity_current_graphs.repo_name', () => {
+    // 実運用では CodeGraph 側 repoId と activity_current_graphs.repo_name が揺れることがある。
     // listCurrentGraphs() から projectRoot を集めて prefix match する経路をカバー。
     const projectRoot = '/anytime-markdown';
     db.saveCurrentGraph(

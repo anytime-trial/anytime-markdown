@@ -17,7 +17,7 @@ function makeMainDb(): BetterSqlite3MemoryDb {
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run(`
-    CREATE TABLE messages (
+    CREATE TABLE activity_messages (
       uuid TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -37,7 +37,7 @@ function insertMsg(
   opts: { uuid: string; session: string; ts: string; text: string; subagent?: string; skill?: string },
 ): void {
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, subagent_type, skill)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, subagent_type, skill)
      VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
     [opts.uuid, opts.session, opts.ts, opts.text, opts.subagent ?? null, opts.skill ?? null],
   );
@@ -51,13 +51,13 @@ function insertLegacyReview(
 ): string {
   const reviewId = entityId('Review', sourceRef);
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Review', ?, 'Session review', ?, ?, ?)`,
     [reviewId, sourceRef, AT, AT, AT],
   );
   db.run(
-    `INSERT INTO memory_reviews
+    `INSERT INTO caravan_reviews
        (id, source_kind, source_ref, source_hash, review_entity_id, target_kind, target_refs_json,
         title, reviewer, severity_overall, summary, body_excerpt, reviewed_at, recorded_at)
      VALUES (?, 'session', ?, '', ?, 'code', '[]', 'Session review', 'code-reviewer', 'info', '', '', ?, ?)`,
@@ -66,13 +66,13 @@ function insertLegacyReview(
   if (opts.withFinding) {
     const findingEntity = entityId('ReviewFinding', `${reviewId}:0`);
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
          (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'ReviewFinding', ?, 'finding', ?, ?, ?)`,
       [findingEntity, `${reviewId}:0`, AT, AT, AT],
     );
     db.run(
-      `INSERT INTO memory_review_findings
+      `INSERT INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index, category, severity,
           finding_text, suggestion_text, addressed_commit_sha, recorded_at)
        VALUES (?, ?, ?, 0, 'logic', 'error', '既知の指摘', '直す', 'abc123', ?)`,
@@ -100,7 +100,7 @@ describe('runReviewBackfill', () => {
 
     expect(result.status).toBe('success');
     expect(result.bodies_filled).toBe(1);
-    const row = mainDb.prepare('SELECT summary, body_excerpt FROM memory_reviews WHERE id = ?').get(reviewId);
+    const row = mainDb.prepare('SELECT summary, body_excerpt FROM caravan_reviews WHERE id = ?').get(reviewId);
     expect(String(row?.['body_excerpt'])).toContain('こわれている');
     expect(String(row?.['summary'])).toMatch(/^指摘 1 件/);
 
@@ -126,8 +126,8 @@ describe('runReviewBackfill', () => {
 
     expect(result.shells_removed).toBe(1);
     expect(result.shell_entities_invalidated).toBe(1);
-    expect(mainDb.prepare('SELECT COUNT(*) n FROM memory_reviews').get()?.['n']).toBe(0);
-    expect(mainDb.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get(shellId)?.['valid_until']).toBe(NOW);
+    expect(mainDb.prepare('SELECT COUNT(*) n FROM caravan_reviews').get()?.['n']).toBe(0);
+    expect(mainDb.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get(shellId)?.['valid_until']).toBe(NOW);
 
     mainDb.close();
     trailDb.close();
@@ -143,9 +143,9 @@ describe('runReviewBackfill', () => {
     const result = runReviewBackfill({ db: mainDb, recordedAt: NOW });
 
     expect(result.shells_removed).toBe(0);
-    expect(mainDb.prepare('SELECT COUNT(*) n FROM memory_reviews WHERE id = ?').get(reviewId)?.['n']).toBe(1);
+    expect(mainDb.prepare('SELECT COUNT(*) n FROM caravan_reviews WHERE id = ?').get(reviewId)?.['n']).toBe(1);
     expect(
-      mainDb.prepare('SELECT addressed_commit_sha FROM memory_review_findings WHERE review_id = ?').get(reviewId)?.[
+      mainDb.prepare('SELECT addressed_commit_sha FROM caravan_review_findings WHERE review_id = ?').get(reviewId)?.[
         'addressed_commit_sha'
       ],
     ).toBe('abc123');
@@ -167,8 +167,8 @@ describe('runReviewBackfill', () => {
 
     expect(result.bodies_filled).toBe(1);
     expect(result.shells_removed).toBe(2); // 埋める前の状態で数えるので両方が空殻候補
-    expect(mainDb.prepare('SELECT body_excerpt FROM memory_reviews WHERE id = ?').get(filled)?.['body_excerpt']).toBe('');
-    expect(mainDb.prepare('SELECT COUNT(*) n FROM memory_reviews').get()?.['n']).toBe(2);
+    expect(mainDb.prepare('SELECT body_excerpt FROM caravan_reviews WHERE id = ?').get(filled)?.['body_excerpt']).toBe('');
+    expect(mainDb.prepare('SELECT COUNT(*) n FROM caravan_reviews').get()?.['n']).toBe(2);
 
     mainDb.close();
     trailDb.close();

@@ -15,6 +15,8 @@ import {
   CREATE_INSTRUCTION_INDEXES,
   CREATE_INSTRUCTION_SESSIONS,
   CREATE_INSTRUCTIONS,
+  CARAVAN_FLIGHT_RECORD_RENAMES,
+  planTableRenames,
   VERIFICATION_KINDS,
   type AcceptanceMissRate,
   type AcceptanceRecord,
@@ -108,7 +110,7 @@ function toInstruction(row: readonly unknown[]): Instruction {
 }
 
 /**
- * `flight_reviews.workspace_path` はセッションの cwd 由来で、ワークスペース直下とは限らない。
+ * `caravan_flight_reviews.workspace_path` はセッションの cwd 由来で、ワークスペース直下とは限らない。
  * `.git` を持つ最も近い祖先までさかのぼってワークスペース根を決める（worktree は `.git` が
  * ファイルなので存在判定のみで見る）。到達できないパスは記録値のまま返す — 消えた
  * ディレクトリを推測で書き換えるより、記録どおりを見せるほうが原因を追える。
@@ -169,7 +171,7 @@ function matchesInstructionFilter(record: InstructionRecord, filter: Instruction
   ) {
     return false;
   }
-  // endedAt が無い（flight_reviews 未記録）行は期間指定では絞り込めないため、
+  // endedAt が無い（caravan_flight_reviews 未記録）行は期間指定では絞り込めないため、
   // 期間が指定されたときだけ落とす（指定が無ければ進行中の指示として残す）。
   if (filter.since !== undefined && filter.since !== '') {
     if (record.endedAt === null || record.endedAt < filter.since) return false;
@@ -195,7 +197,7 @@ function compareInstructionRecords(a: InstructionRecord, b: InstructionRecord): 
   return a.endedAt > b.endedAt ? -1 : 1;
 }
 
-/** session_costs をまだ引いていない状態。imported=false で「0 件」と区別する。 */
+/** activity_session_costs をまだ引いていない状態。imported=false で「0 件」と区別する。 */
 const EMPTY_TOKEN_USAGE: InstructionTokenUsage = {
   imported: false,
   inputTokens: 0,
@@ -206,7 +208,7 @@ const EMPTY_TOKEN_USAGE: InstructionTokenUsage = {
   byModel: [],
 };
 
-/** flight_reviews の 1 行。列順は listFlightReviews / flightReviewsBySessionIds で共有する。 */
+/** caravan_flight_reviews の 1 行。列順は listFlightReviews / flightReviewsBySessionIds で共有する。 */
 function toFlightReview(row: readonly unknown[]): FlightReview {
   return {
     id: row[0] as number,
@@ -232,12 +234,12 @@ function toFlightReview(row: readonly unknown[]): FlightReview {
 }
 
 /**
- * Flight Record（instructions / instruction_sessions / flight_reviews）の永続化層。
+ * Flight Record（instructions / caravan_instruction_sessions / caravan_flight_reviews）の永続化層。
  *
  * 保存先は **caravan-book.db**（activity.db からの移設・2026-08-07）。Flight Record は
  * セッションの生ログではなく「振り返りで読む蒸留データ」であり、レビュー・バグ修正・
  * 乖離と同じ caravan-book.db 側に置く。セッション由来の参照データ（sessions / repos /
- * session_costs / session_commits / verification_runs 等）は activity.db に残るため、
+ * activity_session_costs / activity_session_commits / activity_verification_runs 等）は activity.db に残るため、
  * activity.db を `trail` alias で ATTACH して読む（MemoryApiHandler と同型）。
  *
  * - activity.db が ATTACH できない構成では、トークン・成果物・検証・リポジトリ名解決が
@@ -305,10 +307,15 @@ export class FlightRecordDatabase {
     // ロック競合は即時失敗ではなく待つ（書き込みは短時間）。
     inner.pragma('busy_timeout = 5000');
     // activity.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON）。
-    // instruction_sessions の FK は宣言のみの運用（tables.ts のコメント参照）で、
+    // caravan_instruction_sessions の FK は宣言のみの運用（tables.ts のコメント参照）で、
     // 孤児リンクを含む既存データのバックフィルを FK 違反で止めないため。
     inner.pragma('foreign_keys = OFF');
     this.db = new SqlJsCompatDatabase(inner, memoryDbPath);
+    // テーブル名接頭辞移行（2026-08-08）: 旧名（instructions 等）が残る DB を caravan_ へ改名する。
+    // ensureTables() より先に走らせないと、IF NOT EXISTS が新名の空テーブルを作り、旧名側の
+    // データと分裂する（split-brain）。FK は宣言のみ運用（上の pragma OFF）だが、REFERENCES 句の
+    // 書き換えは foreign_keys=ON のときだけ行われるため、改名中だけ一時的に ON へ上げる。
+    this.migrateLegacyTableNames(inner);
     this.ensureTables();
     if (this.trailDbPath !== null && fs.existsSync(this.trailDbPath)) {
       try {
@@ -343,6 +350,32 @@ export class FlightRecordDatabase {
     return this.db;
   }
 
+  /** 旧名 FR テーブル（instructions 等）を caravan_ 接頭辞へ改名する（存在ガード付き・冪等）。 */
+  private migrateLegacyTableNames(inner: { pragma: (sql: string, opts?: { simple: boolean }) => unknown }): void {
+    const db = this.ensureDb();
+    const existing = new Set(
+      (db.exec(`SELECT name FROM sqlite_master WHERE type = 'table'`)[0]?.values ?? []).map((r) =>
+        String(r[0]),
+      ),
+    );
+    const statements = planTableRenames(existing, CARAVAN_FLIGHT_RECORD_RENAMES);
+    if (statements.length === 0) return;
+    inner.pragma('foreign_keys = ON');
+    try {
+      db.run('BEGIN');
+      for (const sql of statements) db.run(sql);
+      db.run('COMMIT');
+    } catch (e) {
+      db.run('ROLLBACK');
+      throw e;
+    } finally {
+      inner.pragma('foreign_keys = OFF');
+    }
+    this.logger.info(
+      `[FlightRecordDatabase] renamed legacy flight-record tables: ${statements.join('; ')}`,
+    );
+  }
+
   private ensureTables(): void {
     const db = this.ensureDb();
     db.run(CREATE_INSTRUCTIONS);
@@ -350,7 +383,7 @@ export class FlightRecordDatabase {
     for (const idx of CREATE_INSTRUCTION_INDEXES) db.run(idx);
     db.run(CREATE_FLIGHT_REVIEWS);
     for (const idx of CREATE_FLIGHT_REVIEW_INDEXES) db.run(idx);
-    // 受入台帳（acceptance_records）も判断記録として caravan-book.db 側で所有する（2026-08-07 移設）
+    // 受入台帳（caravan_acceptance_records）も判断記録として caravan-book.db 側で所有する（2026-08-07 移設）
     db.run(CREATE_ACCEPTANCE_RECORDS);
     for (const idx of CREATE_ACCEPTANCE_INDEXES) db.run(idx);
   }
@@ -363,7 +396,7 @@ export class FlightRecordDatabase {
    *
    * 1. trail 側に対象テーブルが実在する場合のみコピーする
    *    - 新規キーは INSERT OR IGNORE
-   *    - flight_reviews の同一 session_id 衝突は、trail 側が manual（人手訂正）で memory 側が
+   *    - caravan_flight_reviews の同一 session_id 衝突は、trail 側が manual（人手訂正）で memory 側が
    *      manual でない場合に限り trail 側の訂正列を採用する（manual > self > machine の
    *      優先順位規約を移行経路にも通す。instructions の id は UUID で「同一 id = 同一宣言」の
    *      ため内容差は生じず、マージ対象にしない）
@@ -397,7 +430,7 @@ export class FlightRecordDatabase {
     try {
       if (present.has('instructions')) {
         db.run(
-          `INSERT OR IGNORE INTO instructions (id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at)
+          `INSERT OR IGNORE INTO caravan_instructions (id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at)
            SELECT id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at FROM trail.instructions`,
         );
         copiedRows['instructions'] = db.getRowsModified();
@@ -405,7 +438,7 @@ export class FlightRecordDatabase {
       // instruction_sessions は instructions の後（参照整合を持つ接続でも成立する順序）
       if (present.has('instruction_sessions')) {
         db.run(
-          `INSERT OR IGNORE INTO instruction_sessions (session_id, instruction_id, sequence, declared_at)
+          `INSERT OR IGNORE INTO caravan_instruction_sessions (session_id, instruction_id, sequence, declared_at)
            SELECT session_id, instruction_id, sequence, declared_at FROM trail.instruction_sessions`,
         );
         copiedRows['instruction_sessions'] = db.getRowsModified();
@@ -413,26 +446,26 @@ export class FlightRecordDatabase {
       // id は移設先で採番し直す（AUTOINCREMENT 由来の欠番を持ち込まない）。冪等キーは session_id UNIQUE。
       if (present.has('flight_reviews')) {
         db.run(
-          `INSERT OR IGNORE INTO flight_reviews (session_id, workspace_path, started_at, ended_at, duration_seconds, outcome, outcome_source, tool_call_count, tool_failure_count, rework_count, unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status, created_at, updated_at)
+          `INSERT OR IGNORE INTO caravan_flight_reviews (session_id, workspace_path, started_at, ended_at, duration_seconds, outcome, outcome_source, tool_call_count, tool_failure_count, rework_count, unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status, created_at, updated_at)
            SELECT session_id, workspace_path, started_at, ended_at, duration_seconds, outcome, outcome_source, tool_call_count, tool_failure_count, rework_count, unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status, created_at, updated_at FROM trail.flight_reviews`,
         );
         copiedRows['flight_reviews'] = db.getRowsModified();
         // 衝突キーの manual 訂正を移送する（機械行が人手訂正に勝ったまま DROP しないため）
         db.run(
-          `UPDATE flight_reviews SET
+          `UPDATE caravan_flight_reviews SET
              outcome = t.outcome, outcome_source = t.outcome_source, tags = t.tags, notes = t.notes,
              unresolved_items = t.unresolved_items, next_concerns = t.next_concerns, updated_at = t.updated_at
            FROM trail.flight_reviews t
-           WHERE flight_reviews.session_id = t.session_id
-             AND t.outcome_source = 'manual' AND flight_reviews.outcome_source != 'manual'`,
+           WHERE caravan_flight_reviews.session_id = t.session_id
+             AND t.outcome_source = 'manual' AND caravan_flight_reviews.outcome_source != 'manual'`,
         );
         // 学習候補は「trail 側にだけ在る」場合に採用する（空の新行で上書きしない）
         db.run(
-          `UPDATE flight_reviews SET lesson_candidates =
-             (SELECT t.lesson_candidates FROM trail.flight_reviews t WHERE t.session_id = flight_reviews.session_id)
+          `UPDATE caravan_flight_reviews SET lesson_candidates =
+             (SELECT t.lesson_candidates FROM trail.flight_reviews t WHERE t.session_id = caravan_flight_reviews.session_id)
            WHERE lesson_candidates = '[]' AND EXISTS (
              SELECT 1 FROM trail.flight_reviews t
-             WHERE t.session_id = flight_reviews.session_id AND t.lesson_candidates != '[]')`,
+             WHERE t.session_id = caravan_flight_reviews.session_id AND t.lesson_candidates != '[]')`,
         );
       }
       db.run('COMMIT');
@@ -445,9 +478,9 @@ export class FlightRecordDatabase {
     // 件数の大小比較では「コピーできなかった行」を検知できない（移設後の新規行が件数を膨らませる）。
     const missingRows: Record<string, number> = {};
     const antiJoins: Array<[string, string]> = [
-      ['instructions', `SELECT COUNT(*) FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM instructions m WHERE m.id = t.id)`],
-      ['instruction_sessions', `SELECT COUNT(*) FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM instruction_sessions m WHERE m.session_id = t.session_id)`],
-      ['flight_reviews', `SELECT COUNT(*) FROM trail.flight_reviews t WHERE NOT EXISTS (SELECT 1 FROM flight_reviews m WHERE m.session_id = t.session_id)`],
+      ['instructions', `SELECT COUNT(*) FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instructions m WHERE m.id = t.id)`],
+      ['instruction_sessions', `SELECT COUNT(*) FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instruction_sessions m WHERE m.session_id = t.session_id)`],
+      ['flight_reviews', `SELECT COUNT(*) FROM trail.flight_reviews t WHERE NOT EXISTS (SELECT 1 FROM caravan_flight_reviews m WHERE m.session_id = t.session_id)`],
     ];
     for (const [table, sql] of antiJoins) {
       if (!present.has(table)) continue;
@@ -457,7 +490,7 @@ export class FlightRecordDatabase {
     if (present.has('flight_reviews')) {
       const unmergedManual = Number(
         db.exec(
-          `SELECT COUNT(*) FROM trail.flight_reviews t JOIN flight_reviews m ON m.session_id = t.session_id
+          `SELECT COUNT(*) FROM trail.flight_reviews t JOIN caravan_flight_reviews m ON m.session_id = t.session_id
            WHERE t.outcome_source = 'manual' AND m.outcome_source != 'manual'`,
         )[0]?.values?.[0]?.[0] ?? 0,
       );
@@ -472,12 +505,12 @@ export class FlightRecordDatabase {
       }
     }
 
-    // ── acceptance_records（受入台帳・2026-08-07 移設）─────────────────────────
+    // ── acceptance_records → caravan_acceptance_records（受入台帳・2026-08-07 移設）──────
     if (present.has('acceptance_records')) {
       db.run('BEGIN');
       try {
         db.run(
-          `INSERT OR IGNORE INTO acceptance_records (commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at)
+          `INSERT OR IGNORE INTO caravan_acceptance_records (commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at)
            SELECT commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at FROM trail.acceptance_records`,
         );
         copiedRows['acceptance_records'] = db.getRowsModified();
@@ -493,12 +526,12 @@ export class FlightRecordDatabase {
       const missing = Number(
         db.exec(
           `SELECT COUNT(*) FROM trail.acceptance_records t
-           WHERE NOT EXISTS (SELECT 1 FROM acceptance_records m WHERE m.commit_sha = t.commit_sha AND m.route = t.route)`,
+           WHERE NOT EXISTS (SELECT 1 FROM caravan_acceptance_records m WHERE m.commit_sha = t.commit_sha AND m.route = t.route)`,
         )[0]?.values?.[0]?.[0] ?? 0,
       );
       const conflicting = Number(
         db.exec(
-          `SELECT COUNT(*) FROM trail.acceptance_records t JOIN acceptance_records m
+          `SELECT COUNT(*) FROM trail.acceptance_records t JOIN caravan_acceptance_records m
              ON m.commit_sha = t.commit_sha AND m.route = t.route
            WHERE m.verdict != t.verdict OR m.decided_by != t.decided_by
               OR COALESCE(m.decided_at, '') != COALESCE(t.decided_at, '')
@@ -509,7 +542,7 @@ export class FlightRecordDatabase {
       );
       if (conflicting > 0) {
         this.logger.error(
-          `[FlightRecordDatabase] acceptance_records migration: ${conflicting} row(s) conflict with existing memory-side rows on (commit_sha, route); keeping trail-side table for manual reconciliation`,
+          `[FlightRecordDatabase] caravan_acceptance_records migration: ${conflicting} row(s) conflict with existing memory-side rows on (commit_sha, route); keeping trail-side table for manual reconciliation`,
           new Error('acceptance records migration column mismatch'),
         );
       }
@@ -519,8 +552,8 @@ export class FlightRecordDatabase {
       }
     }
 
-    // ── pr_reviews 系（memory_reviews への意味統合・2026-08-07）────────────────
-    // memory 側に同型テーブルは無い（統合先はスキーマの異なる memory_reviews）ため、
+    // ── pr_reviews 系（caravan_reviews への意味統合・2026-08-07）────────────────
+    // memory 側に同型テーブルは無い（統合先はスキーマの異なる caravan_reviews）ため、
     // 自動のデータ変換はしない。**0 行のときだけ**テーブルを回収し、行が残る DB では
     // DROP せず error ログで手動変換を促す（統合前の実データを黙って捨てない）。
     for (const table of ['pr_review_findings', 'pr_review_comments', 'pr_reviews'] as const) {
@@ -531,7 +564,7 @@ export class FlightRecordDatabase {
       } else {
         missingRows[table] = rows;
         this.logger.error(
-          `[FlightRecordDatabase] trail.${table} has ${rows} rows; not dropped. PR reviews were consolidated into memory_reviews (source_kind='pr_comment') — convert manually before removal`,
+          `[FlightRecordDatabase] trail.${table} has ${rows} rows; not dropped. PR reviews were consolidated into caravan_reviews (source_kind='pr_comment') — convert manually before removal`,
           new Error('pr review tables require manual conversion'),
         );
       }
@@ -569,11 +602,11 @@ export class FlightRecordDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  Flight Review (flight_reviews)
+  //  Flight Review (caravan_flight_reviews)
   // ---------------------------------------------------------------------------
 
   /**
-   * 副作用: flight_reviews へ UPSERT。session_id キーで冪等。既存行がある場合は機械集計列のみ
+   * 副作用: caravan_flight_reviews へ UPSERT。session_id キーで冪等。既存行がある場合は機械集計列のみ
    * 更新し、outcome / outcome_source / tags / notes / unresolved_items は変更しない
    * （Stop フックの再送・多重発火が S2 の自己評価・S3 の手動訂正を上書きしないため）。
    */
@@ -581,7 +614,7 @@ export class FlightRecordDatabase {
     const db = this.ensureDb();
     const now = new Date().toISOString();
     const stmt = db.prepare(
-      `INSERT INTO flight_reviews (
+      `INSERT INTO caravan_flight_reviews (
          session_id, workspace_path, started_at, ended_at, duration_seconds,
          tool_call_count, tool_failure_count, rework_count, created_at, updated_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -636,7 +669,7 @@ export class FlightRecordDatabase {
     }
     if (filter.tag !== undefined) {
       // tags は JSON 文字列配列。json_each で配列要素との等値一致（部分一致させない）
-      conditions.push('EXISTS (SELECT 1 FROM json_each(flight_reviews.tags) WHERE json_each.value = ?)');
+      conditions.push('EXISTS (SELECT 1 FROM json_each(caravan_flight_reviews.tags) WHERE json_each.value = ?)');
       params.push(filter.tag);
     }
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -646,7 +679,7 @@ export class FlightRecordDatabase {
               outcome, outcome_source, tool_call_count, tool_failure_count, rework_count,
               unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status,
               created_at, updated_at
-       FROM flight_reviews ${where} ORDER BY ended_at DESC, id DESC LIMIT ?`,
+       FROM caravan_flight_reviews ${where} ORDER BY ended_at DESC, id DESC LIMIT ?`,
       params,
     );
     if (!res[0]) return [];
@@ -654,14 +687,14 @@ export class FlightRecordDatabase {
   }
 
   /**
-   * 副作用: flight_reviews の outcome 系列を自己評価で更新。
+   * 副作用: caravan_flight_reviews の outcome 系列を自己評価で更新。
    * 優先順位 manual > self > machine を SQL 条件で強制する
    * （outcome_source='manual' の行は WHERE で除外され、人間の訂正を self が上書きしない）。
    */
   applySelfAssessmentToFlightReview(sessionId: string, assessment: SelfAssessment): void {
     const db = this.ensureDb();
     const stmt = db.prepare(
-      `UPDATE flight_reviews
+      `UPDATE caravan_flight_reviews
        SET outcome = ?, outcome_source = 'self', unresolved_items = ?, next_concerns = ?, updated_at = ?
        WHERE session_id = ? AND outcome_source != 'manual'`,
     );
@@ -679,14 +712,14 @@ export class FlightRecordDatabase {
   }
 
   /**
-   * 副作用: flight_reviews を手動訂正で部分更新。更新時は outcome_source='manual' を設定し、
+   * 副作用: caravan_flight_reviews を手動訂正で部分更新。更新時は outcome_source='manual' を設定し、
    * 以後は applySelfAssessmentToFlightReview の WHERE 条件（outcome_source != 'manual'）と
    * 機械 UPSERT の列限定により上書きされない。
    * 対象行が存在しなければ false（行の新規作成はしない）。空 patch は書き込まず存在有無のみ返す。
    */
   updateFlightReviewManual(sessionId: string, patch: FlightReviewManualPatch): boolean {
     const db = this.ensureDb();
-    const exists = db.exec(`SELECT 1 FROM flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
+    const exists = db.exec(`SELECT 1 FROM caravan_flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
     if (exists[0]?.values[0] === undefined) return false;
 
     const sets: string[] = [];
@@ -708,7 +741,7 @@ export class FlightRecordDatabase {
     sets.push(`outcome_source = 'manual'`, 'updated_at = ?');
     params.push(new Date().toISOString(), sessionId);
     const stmt = db.prepare(
-      `UPDATE flight_reviews SET ${sets.join(', ')} WHERE session_id = ?`,
+      `UPDATE caravan_flight_reviews SET ${sets.join(', ')} WHERE session_id = ?`,
     );
     try {
       stmt.run(params);
@@ -719,16 +752,16 @@ export class FlightRecordDatabase {
   }
 
   /**
-   * 副作用: flight_reviews.rationale_audit_status を更新。
+   * 副作用: caravan_flight_reviews.rationale_audit_status を更新。
    * outcome_source には触れない（監査は成否訂正と独立。相乗りすると self 反映が以後ブロックされる）。
    * 対象行が無ければ false（行の新規作成はしない）。
    */
   markRationaleAudit(sessionId: string, status: RationaleAuditStatus): boolean {
     const db = this.ensureDb();
-    const exists = db.exec(`SELECT 1 FROM flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
+    const exists = db.exec(`SELECT 1 FROM caravan_flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
     if (exists[0]?.values[0] === undefined) return false;
     const stmt = db.prepare(
-      `UPDATE flight_reviews SET rationale_audit_status = ?, updated_at = ? WHERE session_id = ?`,
+      `UPDATE caravan_flight_reviews SET rationale_audit_status = ?, updated_at = ? WHERE session_id = ?`,
     );
     try {
       stmt.run([status, new Date().toISOString(), sessionId]);
@@ -738,11 +771,11 @@ export class FlightRecordDatabase {
     return true;
   }
 
-  /** 副作用: flight_reviews.lesson_candidates を更新。 */
+  /** 副作用: caravan_flight_reviews.lesson_candidates を更新。 */
   saveFlightReviewLessonCandidates(sessionId: string, candidates: LessonCandidate[]): void {
     const db = this.ensureDb();
     const stmt = db.prepare(
-      `UPDATE flight_reviews SET lesson_candidates = ?, updated_at = ? WHERE session_id = ?`,
+      `UPDATE caravan_flight_reviews SET lesson_candidates = ?, updated_at = ? WHERE session_id = ?`,
     );
     try {
       stmt.run([JSON.stringify(candidates), new Date().toISOString(), sessionId]);
@@ -752,18 +785,18 @@ export class FlightRecordDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  指示（instructions / instruction_sessions）
+  //  指示（instructions / caravan_instruction_sessions）
   // ---------------------------------------------------------------------------
 
   /**
-   * 副作用: instructions へ INSERT + instruction_sessions へ起点セッションを紐付け。
+   * 副作用: instructions へ INSERT + caravan_instruction_sessions へ起点セッションを紐付け。
    * 同一 id の再送は上書きしない（宣言は 1 回きり。冪等に無視して既存の指示を守る）。
    */
   openInstruction(input: InstructionOpenInput): void {
     const db = this.ensureDb();
     const now = new Date().toISOString();
     const stmt = db.prepare(
-      `INSERT INTO instructions (
+      `INSERT INTO caravan_instructions (
          id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id,
          started_at, closed_at, created_at, updated_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
@@ -788,13 +821,13 @@ export class FlightRecordDatabase {
   }
 
   /**
-   * 副作用: instruction_sessions へ UPSERT(セッションの所属替えを含む)。
+   * 副作用: caravan_instruction_sessions へ UPSERT(セッションの所属替えを含む)。
    * 対象の指示が存在しなければ false を返し、何も書かない
    * (存在しない指示 ID への継続宣言を黙って通すと、行の無いグループへセッションが消える)。
    */
   continueInstruction(input: InstructionContinueInput): boolean {
     const db = this.ensureDb();
-    const found = db.exec('SELECT workspace_path FROM instructions WHERE id = ? LIMIT 1', [input.instructionId]);
+    const found = db.exec('SELECT workspace_path FROM caravan_instructions WHERE id = ? LIMIT 1', [input.instructionId]);
     const row = found[0]?.values[0];
     if (row === undefined) return false;
     // ワークスペースをまたぐ継続は拒否する。通すとそのセッションの時間・トークン・コミットが
@@ -810,12 +843,12 @@ export class FlightRecordDatabase {
   private linkInstructionSession(instructionId: string, sessionId: string, declaredAt: string): void {
     const db = this.ensureDb();
     const maxRes = db.exec(
-      'SELECT COALESCE(MAX(sequence), 0) FROM instruction_sessions WHERE instruction_id = ?',
+      'SELECT COALESCE(MAX(sequence), 0) FROM caravan_instruction_sessions WHERE instruction_id = ?',
       [instructionId],
     );
     const nextSequence = ((maxRes[0]?.values[0]?.[0] as number | undefined) ?? 0) + 1;
     const stmt = db.prepare(
-      `INSERT INTO instruction_sessions (session_id, instruction_id, sequence, declared_at)
+      `INSERT INTO caravan_instruction_sessions (session_id, instruction_id, sequence, declared_at)
        VALUES (?, ?, ?, ?)
        ON CONFLICT(session_id) DO UPDATE SET
          instruction_id = excluded.instruction_id,
@@ -834,9 +867,9 @@ export class FlightRecordDatabase {
    */
   closeInstruction(instructionId: string, closedAt: string): boolean {
     const db = this.ensureDb();
-    const exists = db.exec('SELECT 1 FROM instructions WHERE id = ? LIMIT 1', [instructionId]);
+    const exists = db.exec('SELECT 1 FROM caravan_instructions WHERE id = ? LIMIT 1', [instructionId]);
     if (!exists[0] || exists[0].values.length === 0) return false;
-    const stmt = db.prepare('UPDATE instructions SET closed_at = ?, updated_at = ? WHERE id = ?');
+    const stmt = db.prepare('UPDATE caravan_instructions SET closed_at = ?, updated_at = ? WHERE id = ?');
     try {
       stmt.run([closedAt, new Date().toISOString(), instructionId]);
     } finally {
@@ -858,7 +891,7 @@ export class FlightRecordDatabase {
     const res = db.exec(
       `SELECT id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id,
               started_at, closed_at, created_at, updated_at
-       FROM instructions ${where} ORDER BY started_at DESC LIMIT ?`,
+       FROM caravan_instructions ${where} ORDER BY started_at DESC LIMIT ?`,
       params,
     );
     return (res[0]?.values ?? []).map(toInstruction);
@@ -869,7 +902,7 @@ export class FlightRecordDatabase {
     const db = this.ensureDb();
     const res = db.exec(
       `SELECT session_id, instruction_id, sequence, declared_at
-       FROM instruction_sessions WHERE instruction_id = ? ORDER BY sequence`,
+       FROM caravan_instruction_sessions WHERE instruction_id = ? ORDER BY sequence`,
       [instructionId],
     );
     return (res[0]?.values ?? []).map((row) => ({
@@ -884,7 +917,7 @@ export class FlightRecordDatabase {
    * 指示単位の一覧（Flight Record）。進行中（終了日時なし）を先頭、以降は ended_at 降順。
    *
    * 宣言のあった指示に加え、どの指示にも属さないセッションを「1 セッション = 1 指示」の
-   * 暗黙グループとして併せて返す。宣言機構の導入前に記録された flight_reviews が
+   * 暗黙グループとして併せて返す。宣言機構の導入前に記録された caravan_flight_reviews が
    * 一覧から消えないようにするため（宣言忘れも同じ経路で拾われる）。
    *
    * 宣言済み指示のメンバー記録は所属セッション ID で直接引く。最新 N 件の走査窓に
@@ -895,8 +928,8 @@ export class FlightRecordDatabase {
    * あたり最大 scanLimit 本のクエリが出る（viewer は 30 秒ごとにポーリングする）。
    *
    * SHORTCUT: 畳み込みと絞り込みを JS 側で行う単純実装. ceiling: instructions を limit の
-   * 10 倍まで、暗黙グループ用の flight_reviews も同数まで読む前提（現状 116 行）.
-   * upgrade: flight_reviews が数万行規模になったら指示単位の集計を SQL 側
+   * 10 倍まで、暗黙グループ用の caravan_flight_reviews も同数まで読む前提（現状 116 行）.
+   * upgrade: caravan_flight_reviews が数万行規模になったら指示単位の集計を SQL 側
    * （GROUP BY instruction_id）へ移す.
    */
   listInstructionRecords(filter: InstructionRecordFilter = {}): InstructionRecord[] {
@@ -914,7 +947,7 @@ export class FlightRecordDatabase {
     const instructionRes = db.exec(
       `SELECT id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id,
               started_at, closed_at, created_at, updated_at
-       FROM instructions ${instructionWhere} ORDER BY started_at DESC LIMIT ?`,
+       FROM caravan_instructions ${instructionWhere} ORDER BY started_at DESC LIMIT ?`,
       instructionParams,
     );
     const instructions = (instructionRes[0]?.values ?? []).map(toInstruction);
@@ -923,7 +956,7 @@ export class FlightRecordDatabase {
     const sessionsByInstruction = new Map<string, string[]>();
     const instructionBySession = new Map<string, string>();
     const linkRes = db.exec(
-      'SELECT instruction_id, session_id FROM instruction_sessions ORDER BY instruction_id, sequence',
+      'SELECT instruction_id, session_id FROM caravan_instruction_sessions ORDER BY instruction_id, sequence',
     );
     for (const row of linkRes[0]?.values ?? []) {
       const instructionId = row[0] as string;
@@ -937,7 +970,7 @@ export class FlightRecordDatabase {
     // 宣言済みのメンバーは走査窓に依存せず ID 指定で取る
     const linkedSessionIds = instructions.flatMap((i) => sessionsByInstruction.get(i.id) ?? []);
     const reviewsBySession = this.flightReviewsBySessionIds(linkedSessionIds);
-    // 暗黙グループは「最近の flight_reviews のうち宣言の無いもの」なので走査窓で足りる
+    // 暗黙グループは「最近の caravan_flight_reviews のうち宣言の無いもの」なので走査窓で足りる
     const recentReviews = this.listFlightReviews({ limit: scanLimit });
 
     const records: InstructionRecord[] = [];
@@ -1042,20 +1075,20 @@ export class FlightRecordDatabase {
     const sqls = this.trailAttached
       ? [
           `SELECT r.repo_name, i.workspace_path, COUNT(*)
-             FROM instructions i
-             LEFT JOIN trail.sessions s ON s.id = i.origin_session_id
-             LEFT JOIN trail.repos r ON r.repo_id = s.repo_id
+             FROM caravan_instructions i
+             LEFT JOIN trail.activity_sessions s ON s.id = i.origin_session_id
+             LEFT JOIN trail.activity_repos r ON r.repo_id = s.repo_id
             GROUP BY r.repo_name, i.workspace_path`,
           // 宣言の無いセッション（暗黙グループ）も一覧に出るため、こちらも選択肢に要る
           `SELECT r.repo_name, fr.workspace_path, COUNT(*)
-             FROM flight_reviews fr
-             LEFT JOIN trail.sessions s ON s.id = fr.session_id
-             LEFT JOIN trail.repos r ON r.repo_id = s.repo_id
+             FROM caravan_flight_reviews fr
+             LEFT JOIN trail.activity_sessions s ON s.id = fr.session_id
+             LEFT JOIN trail.activity_repos r ON r.repo_id = s.repo_id
             GROUP BY r.repo_name, fr.workspace_path`,
         ]
       : [
-          `SELECT NULL, workspace_path, COUNT(*) FROM instructions GROUP BY workspace_path`,
-          `SELECT NULL, workspace_path, COUNT(*) FROM flight_reviews GROUP BY workspace_path`,
+          `SELECT NULL, workspace_path, COUNT(*) FROM caravan_instructions GROUP BY workspace_path`,
+          `SELECT NULL, workspace_path, COUNT(*) FROM caravan_flight_reviews GROUP BY workspace_path`,
         ];
     for (const sql of sqls) {
       for (const row of db.exec(sql)[0]?.values ?? []) {
@@ -1069,18 +1102,18 @@ export class FlightRecordDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  自律受入基盤 S5: 受入台帳 (acceptance_records)（activity.db から移設・2026-08-07）
+  //  自律受入基盤 S5: 受入台帳 (caravan_acceptance_records)（activity.db から移設・2026-08-07）
   // ---------------------------------------------------------------------------
 
   /**
-   * 副作用: acceptance_records へ UPSERT。
+   * 副作用: caravan_acceptance_records へ UPSERT。
    * (commit_sha, route) キーで冪等（farm の再実行・多重記録を吸収する）。
    */
   upsertAcceptanceRecord(input: AcceptanceRecordInput): void {
     const db = this.ensureDb();
     const now = new Date().toISOString();
     const stmt = db.prepare(
-      `INSERT INTO acceptance_records (
+      `INSERT INTO caravan_acceptance_records (
          commit_sha, route, repo_name, verdict, decided_by, decided_at,
          farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1143,7 +1176,7 @@ export class FlightRecordDatabase {
     const res = db.exec(
       `SELECT commit_sha, route, repo_name, verdict, decided_by, decided_at,
               farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
-       FROM acceptance_records ${where} ORDER BY decided_at DESC, updated_at DESC LIMIT ?`,
+       FROM caravan_acceptance_records ${where} ORDER BY decided_at DESC, updated_at DESC LIMIT ?`,
       params,
     );
     if (!res[0]) return [];
@@ -1177,7 +1210,7 @@ export class FlightRecordDatabase {
    * 経路別見逃し率の算出（読み取りのみ・近似指標）。
    * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の regression 系 fix
    * コミット（別 SHA・同一リポジトリ）が触れた」件数を missed と数える。厳密な因果は問わない。
-   * コミット・リポジトリ情報は activity.db 残留テーブル（repos / session_commits / commit_files）を
+   * コミット・リポジトリ情報は activity.db 残留テーブル（repos / activity_session_commits / activity_commit_files）を
    * ATTACH 経由で読む。未 ATTACH では missed を判定できないため missRate=null に縮退する
    * （0 と区別する。acceptedCount は memory 側だけで数えられるので返す）。
    */
@@ -1185,7 +1218,7 @@ export class FlightRecordDatabase {
     const db = this.ensureDb();
     const routes: AcceptanceRoute[] = ['auto', 'machine', 'human'];
     const passRes = db.exec(
-      `SELECT commit_sha, route, decided_at, repo_name FROM acceptance_records
+      `SELECT commit_sha, route, decided_at, repo_name FROM caravan_acceptance_records
        WHERE verdict = 'pass' AND decided_at IS NOT NULL`,
     );
     const passRows = (passRes[0]?.values ?? []).map((r) => ({
@@ -1212,7 +1245,7 @@ export class FlightRecordDatabase {
     }
 
     const repoIdByName = new Map<string, number>();
-    for (const row of db.exec(`SELECT repo_id, repo_name FROM trail.repos`)[0]?.values ?? []) {
+    for (const row of db.exec(`SELECT repo_id, repo_name FROM trail.activity_repos`)[0]?.values ?? []) {
       repoIdByName.set(row[1] as string, row[0] as number);
     }
 
@@ -1220,7 +1253,7 @@ export class FlightRecordDatabase {
 
     const minDecidedAt = passRows.reduce((min, r) => (r.decidedAt < min ? r.decidedAt : min), passRows[0].decidedAt);
     const fixRes = db.exec(
-      `SELECT DISTINCT commit_hash, committed_at, repo_id, commit_message FROM trail.session_commits
+      `SELECT DISTINCT commit_hash, committed_at, repo_id, commit_message FROM trail.activity_session_commits
        WHERE commit_message GLOB 'fix*' AND committed_at IS NOT NULL AND committed_at >= ?`,
       [minDecidedAt],
     );
@@ -1286,7 +1319,7 @@ export class FlightRecordDatabase {
     });
   }
 
-  /** trail.commit_files をハッシュ集合で引き、hash → (repo_id → file_path 集合) の Map にする（IN 句はチャンク分割）。 */
+  /** trail.activity_commit_files をハッシュ集合で引き、hash → (repo_id → file_path 集合) の Map にする（IN 句はチャンク分割）。 */
   private commitFilesByHashes(hashes: string[]): Map<string, Map<number, Set<string>>> {
     const db = this.ensureDb();
     const result = new Map<string, Map<number, Set<string>>>();
@@ -1296,7 +1329,7 @@ export class FlightRecordDatabase {
       const chunk = unique.slice(i, i + CHUNK);
       const placeholders = chunk.map(() => '?').join(', ');
       const res = db.exec(
-        `SELECT commit_hash, file_path, repo_id FROM trail.commit_files WHERE commit_hash IN (${placeholders})`,
+        `SELECT commit_hash, file_path, repo_id FROM trail.activity_commit_files WHERE commit_hash IN (${placeholders})`,
         chunk,
       );
       for (const row of res[0]?.values ?? []) {
@@ -1319,7 +1352,7 @@ export class FlightRecordDatabase {
     return result;
   }
 
-  /** 指定セッションの flight_reviews を 1 本のクエリで引く（走査窓に依存しない）。 */
+  /** 指定セッションの caravan_flight_reviews を 1 本のクエリで引く（走査窓に依存しない）。 */
   private flightReviewsBySessionIds(sessionIds: readonly string[]): Map<string, FlightReview> {
     const byId = new Map<string, FlightReview>();
     if (sessionIds.length === 0) return byId;
@@ -1330,7 +1363,7 @@ export class FlightRecordDatabase {
               outcome, outcome_source, tool_call_count, tool_failure_count, rework_count,
               unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status,
               created_at, updated_at
-       FROM flight_reviews WHERE session_id IN (${placeholders})`,
+       FROM caravan_flight_reviews WHERE session_id IN (${placeholders})`,
       [...sessionIds],
     );
     for (const row of res[0]?.values ?? []) {
@@ -1340,8 +1373,8 @@ export class FlightRecordDatabase {
   }
 
   /**
-   * ワークスペース名の正本はセッションが属するリポジトリ名（trail.repos.repo_name）。
-   * セッションが trail.sessions に無い（取込前・machine 記録のみ）行と、activity.db を
+   * ワークスペース名の正本はセッションが属するリポジトリ名（trail.activity_repos.repo_name）。
+   * セッションが trail.activity_sessions に無い（取込前・machine 記録のみ）行と、activity.db を
    * ATTACH できない構成では、呼び出し側がパス由来へ縮退する（行を落とさない）。
    */
   private repoNamesBySessionIds(sessionIds: readonly string[]): Map<string, string> {
@@ -1351,7 +1384,7 @@ export class FlightRecordDatabase {
     const placeholders = sessionIds.map(() => '?').join(', ');
     const res = db.exec(
       `SELECT s.id, r.repo_name
-         FROM trail.sessions s JOIN trail.repos r ON r.repo_id = s.repo_id
+         FROM trail.activity_sessions s JOIN trail.activity_repos r ON r.repo_id = s.repo_id
         WHERE s.id IN (${placeholders})`,
       [...sessionIds],
     );
@@ -1362,7 +1395,7 @@ export class FlightRecordDatabase {
     return byId;
   }
 
-  /** trail.session_costs をモデル別に畳む。行が 1 件も無ければ imported=false（0 と区別する）。 */
+  /** trail.activity_session_costs をモデル別に畳む。行が 1 件も無ければ imported=false（0 と区別する）。 */
   private instructionTokenUsage(sessionIds: readonly string[]): InstructionTokenUsage {
     if (!this.trailAttached || sessionIds.length === 0) return EMPTY_TOKEN_USAGE;
     const db = this.ensureDb();
@@ -1370,7 +1403,7 @@ export class FlightRecordDatabase {
     const res = db.exec(
       `SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens),
               SUM(cache_creation_tokens), SUM(estimated_cost_usd)
-       FROM trail.session_costs WHERE session_id IN (${placeholders})
+       FROM trail.activity_session_costs WHERE session_id IN (${placeholders})
        GROUP BY model ORDER BY SUM(estimated_cost_usd) DESC`,
       [...sessionIds],
     );
@@ -1398,7 +1431,7 @@ export class FlightRecordDatabase {
   /**
    * 成果物。コードはコミット済みのみ、ドキュメント（.md）は未コミットも含む。
    *
-   * 未コミット分は trail.message_tool_calls.file_path ではなく trail.messages.tool_calls の
+   * 未コミット分は trail.activity_message_tool_calls.file_path ではなく trail.activity_messages.tool_calls の
    * JSON から採る。file_path 列は取込時の extractFilePath が Read/Edit/Write/Glob/Grep しか
    * 埋めておらず、本プロジェクトで多用する serena（relative_path）・mcp-markdown（path）経由の
    * 編集が 1 件も残らないため。
@@ -1411,8 +1444,8 @@ export class FlightRecordDatabase {
 
     const committed = db.exec(
       `SELECT DISTINCT cf.file_path, sc.commit_hash
-       FROM trail.session_commits sc
-       JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash AND cf.repo_id = sc.repo_id
+       FROM trail.activity_session_commits sc
+       JOIN trail.activity_commit_files cf ON cf.commit_hash = sc.commit_hash AND cf.repo_id = sc.repo_id
        WHERE sc.session_id IN (${placeholders})
        ORDER BY cf.file_path`,
       [...sessionIds],
@@ -1433,7 +1466,7 @@ export class FlightRecordDatabase {
                 json_extract(call.value, '$.input.relative_path'),
                 json_extract(call.value, '$.input.path')
               ) AS target
-       FROM trail.messages m, json_each(m.tool_calls) AS call
+       FROM trail.activity_messages m, json_each(m.tool_calls) AS call
        WHERE m.session_id IN (${placeholders})
          AND m.tool_calls IS NOT NULL AND json_valid(m.tool_calls)
          AND json_extract(call.value, '$.name') IN (${DOC_WRITE_TOOL_NAMES.map(() => '?').join(', ')})
@@ -1453,7 +1486,7 @@ export class FlightRecordDatabase {
   /**
    * 指示に属する検証実行を kind ごとに最新 1 件へ畳んで返す（scripts/run-verified.mjs が書く）。
    *
-   * 結合キーは session_id のみ。宣言済みの指示では instruction_sessions が渡す所属セッション、
+   * 結合キーは session_id のみ。宣言済みの指示では caravan_instruction_sessions が渡す所属セッション、
    * 暗黙グループでは指示 ID = セッション ID なので、どちらも同じ IN 句で引ける。
    */
   private instructionVerifications(sessionIds: readonly string[]): InstructionVerificationRun[] {
@@ -1462,7 +1495,7 @@ export class FlightRecordDatabase {
     const placeholders = sessionIds.map(() => '?').join(', ');
     const res = db.exec(
       `SELECT kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, started_at
-       FROM trail.verification_runs
+       FROM trail.activity_verification_runs
        WHERE session_id IN (${placeholders})
        ORDER BY started_at`,
       [...sessionIds],

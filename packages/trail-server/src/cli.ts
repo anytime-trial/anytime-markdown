@@ -327,7 +327,7 @@ program
     // pause/resume は AnalyzeAllRunner が一元管理する (旧 trail-caravan-book 側の pause は使われない)。
     // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ caravan-book.db を共有するため
     // WAL で開き、migration はここで走らせない (スキーマの所有は trail-caravan-book 側)。
-    // caravan-book.db が未作成の間は pipeline_runs が無いので記録を諦める (null 返し)。
+    // caravan-book.db が未作成の間は caravan_pipeline_runs が無いので記録を諦める (null 返し)。
     const ledgerCoreDb = await openMemoryCoreDb(memoryDbPath, {
       ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
     });

@@ -116,7 +116,7 @@ function extractRationaleText(message: string): ExtractedRationale | null {
 // ── Per-commit ingestion helper ───────────────────────────────────────────────
 
 /**
- * Ingest one commit's rationale into memory_entities and memory_edges.
+ * Ingest one commit's rationale into caravan_entities and caravan_edges.
  * Returns { decisionInserted, edgeInserted } or null if rationaleText is empty.
  */
 function ingestCommitRationale(
@@ -140,7 +140,7 @@ function ingestCommitRationale(
 
   try {
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
@@ -165,7 +165,7 @@ function ingestCommitRationale(
   let decisionInserted = false;
   try {
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json, summary,
           first_seen_at, last_updated_at, recorded_at)
@@ -181,7 +181,7 @@ function ingestCommitRationale(
     return null;
   }
 
-  const sourceRef = `session_commits#${commitHash}`;
+  const sourceRef = `activity_session_commits#${commitHash}`;
   const edgeId = entityId(
     'edge',
     `rationale_for:${decisionId}:${commitId}:commit:${commitHash.slice(0, 8)}`
@@ -189,7 +189,7 @@ function ingestCommitRationale(
   let edgeInserted = false;
   try {
     db.run(
-      `INSERT INTO memory_edges
+      `INSERT INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id,
           valid_from, recorded_at, source_type, source_ref,
           confidence, confidence_label, modality)
@@ -215,7 +215,7 @@ function ingestCommitRationale(
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
- * Reads `trail.session_commits` for a given repo (with optional incremental
+ * Reads `trail.activity_session_commits` for a given repo (with optional incremental
  * cursor), extracts Rationale: / Reason: / 理由: sections from commit bodies,
  * and ingests Decision entities with `rationale_for` edges pointing to the
  * corresponding Commit entity.
@@ -235,24 +235,24 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
     commits_processed: 0,
   };
 
-  // ── 1. Read commits from trail.session_commits ────────────────────────────
+  // ── 1. Read commits from trail.activity_session_commits ────────────────────────────
   // Use prepare/bind/step because db.exec() drops params after the trail
   // readonly guard wraps it (see attach.ts installTrailReadonlyGuard).
-  // Phase H-4: trail.session_commits から repo_name 列を撤去した。attach 済 trail スキーマの repos を
+  // Phase H-4: trail.activity_session_commits から repo_name 列を撤去した。attach 済 trail スキーマの repos を
   // JOIN して repo_name → repo_id を解決し、repo フィルタは repos.repo_name で行う (クロス DB JOIN)。
   // GROUP BY commit_hash は repo フィルタ済なので維持で可。
   const sql =
     sinceCommittedAt === null
       ? `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
-           FROM trail.session_commits sc
-           JOIN trail.repos r ON r.repo_id = sc.repo_id
+           FROM trail.activity_session_commits sc
+           JOIN trail.activity_repos r ON r.repo_id = sc.repo_id
            WHERE r.repo_name = ?
              AND (sc.committed_at IS NULL OR sc.committed_at != '')
            GROUP BY sc.commit_hash
            ORDER BY sc.committed_at`
       : `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
-           FROM trail.session_commits sc
-           JOIN trail.repos r ON r.repo_id = sc.repo_id
+           FROM trail.activity_session_commits sc
+           JOIN trail.activity_repos r ON r.repo_id = sc.repo_id
            WHERE r.repo_name = ? AND sc.committed_at > ?
              AND (sc.committed_at IS NULL OR sc.committed_at != '')
            GROUP BY sc.commit_hash
@@ -281,7 +281,7 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       // ── 3-5. Upsert Commit, Decision, and edge ────────────────────────────
       // INSERT OR IGNORE (not REPLACE): Commit data is immutable. INSERT OR REPLACE
       // internally does DELETE+INSERT, which triggers ON DELETE SET NULL on
-      // memory_edges.object_entity_id and then violates a NOT NULL constraint on
+      // caravan_edges.object_entity_id and then violates a NOT NULL constraint on
       // re-runs that already have edges pointing to this Commit entity.
       const result = ingestCommitRationale(db, {
         commitHash,

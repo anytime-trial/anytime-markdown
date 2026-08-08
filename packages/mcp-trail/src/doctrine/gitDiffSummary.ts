@@ -84,7 +84,7 @@ function describeFailure(error: unknown): string {
 /**
  * 受け入れ確認の提示物 3（成果物の差分）を git から直接取得する（DCT-13）。
  *
- * 取込済みの `session_commits` を使わないのは、Trail 拡張の取込にラグがあり
+ * 取込済みの `activity_session_commits` を使わないのは、Trail 拡張の取込にラグがあり
  * 完了報告の時点では当該セッションのコミットが未取込なのが通常であるため
  * （空を「差分なし」と読ませない。仕様 §4）。
  *

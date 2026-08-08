@@ -32,6 +32,10 @@ function createTransitionWorkspace(): { root: string; dbDir: string; cleanup(): 
     originPrompt: '古い依頼',
     workspacePath: root,
   });
+  // ensure は接頭辞移行後の新名で作るため、旧配置の activity.db を再現するには
+  // 投入後にレガシー名へ戻す（歴史時点の DDL の書き写しを避ける）
+  trail.exec('ALTER TABLE caravan_instruction_sessions RENAME TO instruction_sessions');
+  trail.exec('ALTER TABLE caravan_instructions RENAME TO instructions');
   trail.close();
   // 新配置: caravan-book.db は実在するが台帳テーブルはまだ無い（拡張の migration 前）
   const memory = new BetterSqlite3(path.join(dbDir, 'caravan-book.db'));

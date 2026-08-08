@@ -26,14 +26,14 @@ function inner(db: TrailDatabase): RawDb {
   return (db as unknown as { db: RawDb }).db;
 }
 
-/** Phase H: releases/sessions/session_commits/commit_files は repo_name を撤去済。repo_id を repos 経由で解決する。 */
+/** Phase H: releases/sessions/activity_session_commits/activity_commit_files は repo_name を撤去済。repo_id を repos 経由で解決する。 */
 function repoId(db: TrailDatabase, repoName: string): number {
   return (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
 }
 
 function insertRelease(db: TrailDatabase, tag: string, releasedAt: string | null, repoName = 'test-repo'): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
+    `INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
     [tag, releasedAt, repoId(db, repoName)],
   );
 }
@@ -46,13 +46,13 @@ function insertSessionWithCommit(
   repoName = 'test-repo',
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, repo_id, version, entrypoint, model,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, repo_id, version, entrypoint, model,
        start_time, end_time, message_count, file_path, file_size, imported_at, source)
      VALUES (?, ?, ?, '', '', '', '2026-01-01T00:00:00.000Z', '2026-01-01T01:00:00.000Z', 0, '', 0, '2026-01-01T01:00:00.000Z', 'claude_code')`,
     [sessionId, sessionId, repoId(db, repoName)],
   );
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits
+    `INSERT OR IGNORE INTO activity_session_commits
        (session_id, commit_hash, commit_message, author, committed_at, is_ai_assisted,
         files_changed, lines_added, lines_deleted, repo_id)
      VALUES (?, ?, 'test commit', 'author', ?, 0, 0, 0, 0, ?)`,
@@ -98,7 +98,7 @@ describe('TrailDatabase.getDoraCommits', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('returns empty array when no session_commits exist', () => {
+  it('returns empty array when no activity_session_commits exist', () => {
     expect(db.getDoraCommits()).toEqual([]);
   });
 
@@ -113,13 +113,13 @@ describe('TrailDatabase.getDoraCommits', () => {
 
   it('excludes commits with null committed_at', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions (id, slug, repo_id, version, entrypoint, model,
+      `INSERT OR IGNORE INTO activity_sessions (id, slug, repo_id, version, entrypoint, model,
          start_time, end_time, message_count, file_path, file_size, imported_at, source)
        VALUES ('sx', 'sx', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z', '2026-01-01T01:00:00.000Z', 0, '', 0, '2026-01-01T01:00:00.000Z', 'claude_code')`,
       [],
     );
     inner(db).run(
-      `INSERT OR IGNORE INTO session_commits
+      `INSERT OR IGNORE INTO activity_session_commits
          (session_id, commit_hash, commit_message, author, committed_at, is_ai_assisted,
           files_changed, lines_added, lines_deleted, repo_id)
        VALUES ('sx', 'nullhash', 'test', 'a', NULL, 0, 0, 0, 0, ${repoId(db, 'repo')})`,
@@ -142,7 +142,7 @@ describe('TrailDatabase.replaceDoraMetrics', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('replaces all dora_metrics rows (wash-away)', () => {
+  it('replaces all activity_dora_metrics rows (wash-away)', () => {
     const batch1: DoraMetricRow[] = [
       { repoName: 'repo', period: '2026-01', deploymentFrequency: 2, leadTimeHours: 24, computedAt: '2026-02-01T00:00:00.000Z' },
     ];
@@ -153,7 +153,7 @@ describe('TrailDatabase.replaceDoraMetrics', () => {
     db.replaceDoraMetrics(batch2);
     // After second replace, only batch2 should remain
     const result = (db as unknown as { db: { exec: (sql: string) => Array<{ values: unknown[][] }> } })
-      .db.exec('SELECT period, deployment_frequency FROM dora_metrics ORDER BY period');
+      .db.exec('SELECT period, deployment_frequency FROM activity_dora_metrics ORDER BY period');
     const vals = result[0]?.values ?? [];
     expect(vals).toHaveLength(1);
     expect(vals[0][0]).toBe('2026-02');
@@ -165,13 +165,13 @@ describe('TrailDatabase.replaceDoraMetrics', () => {
     db.replaceDoraMetrics([row]);
     db.replaceDoraMetrics([]);
     const result = (db as unknown as { db: { exec: (sql: string) => Array<{ values: unknown[][] }> } })
-      .db.exec('SELECT COUNT(*) FROM dora_metrics');
+      .db.exec('SELECT COUNT(*) FROM activity_dora_metrics');
     expect(result[0]?.values[0]?.[0]).toBe(0);
   });
 });
 
 // PR Review 系（getPrReviewBodyHash / upsertPrReview / getPrReviewDetail / getPrReviews /
-// replacePrReviewFindings / getPrReviewFindings）は memory_reviews 統合（2026-08-07）で撤去。
+// replacePrReviewFindings / getPrReviewFindings）は caravan_reviews 統合（2026-08-07）で撤去。
 // 取込の検証は trail-caravan-book __tests__/ingest/pr-review/prReview.test.ts が担う。
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ describe('TrailDatabase.getCorrelationSessionCommits', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('returns empty array when no session_commits', () => {
+  it('returns empty array when no activity_session_commits', () => {
     expect(db.getCorrelationSessionCommits()).toEqual([]);
   });
 
@@ -211,13 +211,13 @@ describe('TrailDatabase.getCorrelationCommitFiles', () => {
     expect(db.getCorrelationCommitFiles([])).toEqual([]);
   });
 
-  it('returns empty array when no commit_files match', () => {
+  it('returns empty array when no activity_commit_files match', () => {
     expect(db.getCorrelationCommitFiles(['nonexistent.ts'])).toEqual([]);
   });
 
-  it('returns matching commit_files rows', () => {
+  it('returns matching activity_commit_files rows', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
+      `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
       ['abcdef', 'src/foo.ts', repoId(db, 'test-repo')],
     );
     const rows = db.getCorrelationCommitFiles(['src/foo.ts']);
@@ -228,11 +228,11 @@ describe('TrailDatabase.getCorrelationCommitFiles', () => {
 
   it('filters to only requested filePaths', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
+      `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
       ['hash1', 'src/a.ts', repoId(db, 'repo')],
     );
     inner(db).run(
-      `INSERT OR IGNORE INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
+      `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
       ['hash2', 'src/b.ts', repoId(db, 'repo')],
     );
     const rows = db.getCorrelationCommitFiles(['src/a.ts']);

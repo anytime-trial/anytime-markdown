@@ -27,21 +27,21 @@ describe('Phase 2 migration', () => {
     return openMemoryCoreDb(tmpDb);
   }
 
-  test('creates memory_code_facts table', async () => {
+  test('creates caravan_code_facts table', async () => {
     const { db, close } = await openFresh();
 
     const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     const names = (tables[0]?.values ?? []).map((r) => r[0] as string);
 
-    expect(names).toContain('memory_code_facts');
+    expect(names).toContain('caravan_code_facts');
 
     close();
   }, 30000);
 
-  test('memory_code_facts has correct columns', async () => {
+  test('caravan_code_facts has correct columns', async () => {
     const { db, close } = await openFresh();
 
-    const cols = db.exec("PRAGMA table_info(memory_code_facts)");
+    const cols = db.exec("PRAGMA table_info(caravan_code_facts)");
     const colNames = (cols[0]?.values ?? []).map((r) => r[1] as string);
 
     expect(colNames).toContain('id');
@@ -58,12 +58,12 @@ describe('Phase 2 migration', () => {
     close();
   }, 30000);
 
-  test('memory_code_facts CHECK rejects invalid fact_type', async () => {
+  test('caravan_code_facts CHECK rejects invalid fact_type', async () => {
     const { db, close } = await openFresh();
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
+        `INSERT INTO caravan_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['id1', 'repo', 'src/foo.ts', 'bad_type', 'value', '2026-05-08T00:00:00.000Z']
       );
@@ -72,12 +72,12 @@ describe('Phase 2 migration', () => {
     close();
   }, 30000);
 
-  test('memory_code_facts CHECK rejects bad recorded_at', async () => {
+  test('caravan_code_facts CHECK rejects bad recorded_at', async () => {
     const { db, close } = await openFresh();
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
+        `INSERT INTO caravan_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['id2', 'repo', 'src/foo.ts', 'imports', 'value', '2026-05-08 00:00:00']
       );
@@ -86,12 +86,12 @@ describe('Phase 2 migration', () => {
     close();
   }, 30000);
 
-  test('memory_code_facts accepts valid row with ms timestamp', async () => {
+  test('caravan_code_facts accepts valid row with ms timestamp', async () => {
     const { db, close } = await openFresh();
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
+        `INSERT INTO caravan_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['id3', 'anytime-markdown', 'src/index.ts', 'imports', 'fs', '2026-05-08T12:00:00.000Z']
       );
@@ -100,12 +100,12 @@ describe('Phase 2 migration', () => {
     close();
   }, 30000);
 
-  test('memory_code_facts accepts valid row without ms', async () => {
+  test('caravan_code_facts accepts valid row without ms', async () => {
     const { db, close } = await openFresh();
 
     expect(() => {
       db.run(
-        `INSERT INTO memory_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
+        `INSERT INTO caravan_code_facts (id, repo_name, file_path, fact_type, fact_value, recorded_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         ['id4', 'anytime-markdown', 'src/index.ts', 'calls', 'foo', '2026-05-08T12:00:00Z']
       );
@@ -114,11 +114,11 @@ describe('Phase 2 migration', () => {
     close();
   }, 30000);
 
-  test('indexes are created for memory_code_facts', async () => {
+  test('indexes are created for caravan_code_facts', async () => {
     const { db, close } = await openFresh();
 
     const indexes = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='memory_code_facts' ORDER BY name"
+      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='caravan_code_facts' ORDER BY name"
     );
     const indexNames = (indexes[0]?.values ?? []).map((r) => r[0] as string);
 
@@ -135,7 +135,7 @@ describe('Phase 2 migration', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'rationale_for'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'rationale_for'"
     );
     expect(result[0]?.values?.length).toBe(1);
 
@@ -146,7 +146,7 @@ describe('Phase 2 migration', () => {
     const { db, close } = await openFresh();
 
     const result = db.exec(
-      "SELECT predicate FROM memory_relation_types WHERE predicate = 'imports_module'"
+      "SELECT predicate FROM caravan_relation_types WHERE predicate = 'imports_module'"
     );
     expect(result[0]?.values?.length).toBe(1);
 

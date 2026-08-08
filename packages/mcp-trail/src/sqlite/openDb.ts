@@ -41,7 +41,7 @@ export async function openTrailDb(
 /**
  * caravan-book.db を better-sqlite3 で開く。
  *
- * Flight Record（instructions / instruction_sessions / flight_reviews）の移設
+ * Flight Record（instructions / caravan_instruction_sessions / caravan_flight_reviews）の移設
  * （2026-08-07）に伴い、指示台帳の直書きはこちらを使う。
  *
  * ファイル不在は原則 throw（fail-closed。場所違いの空 DB を黙って作ると以降の
@@ -79,7 +79,7 @@ export async function openMemoryDb(
   }
   db.pragma('busy_timeout = 5000');
   // activity.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON。
-  // instruction_sessions の FK は宣言のみの運用 — trail-activity tables.ts のコメント参照）
+  // caravan_instruction_sessions の FK は宣言のみの運用 — trail-activity tables.ts のコメント参照）
   db.pragma('foreign_keys = OFF');
   return wrapOpenedDb(db, dbPath, mode);
 }

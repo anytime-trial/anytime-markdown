@@ -14,7 +14,7 @@ const isoDaysAgo = (days: number): string =>
 const insertSession = (db: TrailDatabase, sessionId: string, startTime: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     [sessionId, sessionId, startTime],
   );
 };
@@ -27,7 +27,7 @@ const insertMessage = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, parent_uuid, type, timestamp, subagent_type
      ) VALUES (?, ?, NULL, 'assistant', '2026-04-29T00:00:00.000Z', ?)`,
     [uuid, sessionId, subagentType],
@@ -44,7 +44,7 @@ const insertToolCall = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
      ) VALUES (?, ?, 0, ?, ?, ?, NULL, NULL, NULL, 0, NULL, 0, 0, NULL, ?)`,
@@ -60,11 +60,11 @@ const insertSessionCommit = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
   inner.run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, committed_at)
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, committed_at)
      VALUES (?, ?, ?)`,
     [sessionId, hash, committedAt],
   );
@@ -73,7 +73,7 @@ const insertSessionCommit = (
 const insertCommitFile = (db: TrailDatabase, hash: string, filePath: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`,
     [hash, filePath],
   );
 };

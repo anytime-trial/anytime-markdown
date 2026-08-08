@@ -50,7 +50,7 @@ describe('markdown-catalog semantic search (fake embedder)', () => {
     expect(first.embedded).toBe(3);
     const second = await embedDocs(db, fakeEmbed, { model: 'fake-v1' });
     expect(second.embedded).toBe(0); // content_hash unchanged
-    const count = (db.prepare('SELECT COUNT(*) AS n FROM doc_embedding').get() as { n: number }).n;
+    const count = (db.prepare('SELECT COUNT(*) AS n FROM catalog_doc_embedding').get() as { n: number }).n;
     expect(count).toBe(3);
   });
 

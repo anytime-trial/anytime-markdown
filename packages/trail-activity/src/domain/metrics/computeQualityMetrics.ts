@@ -81,7 +81,7 @@ export interface QualityMetricsInputs {
 
 const UNMEASURED: UnmeasuredMetric[] = [
   { id: 'aiQualityEfficiencyScore', phase: 'Phase 7', reason: 'Requires quality scoring system' },
-  { id: 'recoveryRate', phase: 'Phase 5+7', reason: 'Requires emergency_log and operational_metrics' },
+  { id: 'recoveryRate', phase: 'Phase 5+7', reason: 'Requires activity_emergency_log and operational_metrics' },
   { id: 'autonomyIndex', phase: 'Phase 7', reason: 'Requires autonomy measurement framework' },
 ];
 

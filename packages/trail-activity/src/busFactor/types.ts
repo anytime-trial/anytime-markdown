@@ -1,4 +1,4 @@
-/** ファイル×著者×コミットの生行（commit_files JOIN session_commits 由来） */
+/** ファイル×著者×コミットの生行（activity_commit_files JOIN activity_session_commits 由来） */
 export type FileAuthorCommitRow = {
   filePath: string;
   /** git log %an。メールアドレス列が無いため表記ゆれの名寄せは不可 */

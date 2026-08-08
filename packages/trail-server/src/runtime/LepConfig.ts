@@ -1114,7 +1114,7 @@ const LEP_ANALYZER_COMMENTS: Record<string, string> = {
   ReleaseResolver: 'Layer2 primary。git tag→releases 解決 + release codegraph 連動。無効化でリリース取込を停止。',
   CoverageImporter: 'Layer2 primary。カバレッジレポート取込。無効化でカバレッジ取込を停止。',
   BehaviorAnalyzer: 'Layer2 primary。ツール使用挙動の集計。無効化で behavior 解析を停止。',
-  CommitFilesBackfiller: 'Layer2 primary。commit のファイル一覧補完。無効化で commit_files 補完を停止。',
+  CommitFilesBackfiller: 'Layer2 primary。commit のファイル一覧補完。無効化で activity_commit_files 補完を停止。',
   SubagentTypeBackfiller: 'Layer2 primary。subagent 種別の補完。無効化で subagent 種別補完を停止。',
   MessageCommitMatcher: 'Layer2 primary。message↔commit 紐付け。無効化で紐付けを停止。',
 };

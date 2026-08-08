@@ -23,13 +23,19 @@ export function runMigrations(db: DatabaseSync): void {
     db.prepare('SELECT version FROM _migrations').all().map((r) => (r as { version: number }).version),
   );
   if (!hasFts5(db)) {
-    throw new Error('[markdown-catalog] SQLite build lacks FTS5; doc_fts requires FTS5 (node:sqlite must be built with FTS5).');
+    throw new Error('[markdown-catalog] SQLite build lacks FTS5; catalog_doc_fts requires FTS5 (node:sqlite must be built with FTS5).');
   }
   const insert = db.prepare('INSERT INTO _migrations (version, applied_at) VALUES (?, ?)');
   const now = new Date().toISOString();
   for (const m of MIGRATIONS) {
     if (applied.has(m.version)) continue;
-    db.exec(m.sql);
+    if (m.apply) {
+      m.apply(db);
+    } else if (m.sql) {
+      db.exec(m.sql);
+    } else {
+      throw new Error(`[markdown-catalog] migration v${m.version} has neither sql nor apply`);
+    }
     insert.run(m.version, now);
   }
 }

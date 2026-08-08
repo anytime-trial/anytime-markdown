@@ -45,16 +45,16 @@ function insertEdge(
     validTo = null,
   } = opts;
 
-  // Upsert subject entity (memory_entities.type has a CHECK; 'Package' is valid)
+  // Upsert subject entity (caravan_entities.type has a CHECK; 'Package' is valid)
   db.run(
-    `INSERT OR IGNORE INTO memory_entities
+    `INSERT OR IGNORE INTO caravan_entities
       (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Package', ?, ?, '{}', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
     [subject, subject, subject],
   );
 
   db.run(
-    `INSERT INTO memory_edges
+    `INSERT INTO caravan_edges
       (id, subject_entity_id, predicate, object_entity_id, object_literal,
        valid_from, valid_to, recorded_at, source_type, source_ref,
        confidence, confidence_label, modality, attributes_json)

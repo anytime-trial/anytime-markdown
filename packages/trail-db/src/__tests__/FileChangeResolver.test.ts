@@ -85,8 +85,8 @@ describe('FileChangeResolver', () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-file-change-resolver-'));
     db = new Database(':memory:');
     db.exec(`
-      CREATE TABLE repos(repo_id INTEGER, repo_name TEXT);
-      CREATE TABLE session_commits(
+      CREATE TABLE activity_repos(repo_id INTEGER, repo_name TEXT);
+      CREATE TABLE activity_session_commits(
         session_id TEXT,
         commit_hash TEXT,
         commit_message TEXT,
@@ -99,7 +99,7 @@ describe('FileChangeResolver', () => {
         repo_id INTEGER
       );
     `);
-    db.prepare('INSERT INTO repos(repo_id, repo_name) VALUES (?, ?)').run(1, 'anytime-markdown');
+    db.prepare('INSERT INTO activity_repos(repo_id, repo_name) VALUES (?, ?)').run(1, 'anytime-markdown');
 
     runGit(['init'], root);
     runGit(['config', 'user.email', 'codex@example.com'], root);
@@ -124,7 +124,7 @@ describe('FileChangeResolver', () => {
     const secondHash = runGit(['rev-parse', 'HEAD'], root).trim();
 
     const insertCommit = db.prepare(`
-      INSERT INTO session_commits(
+      INSERT INTO activity_session_commits(
         session_id, commit_hash, commit_message, author, committed_at,
         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id
       ) VALUES (?, ?, '', '', '', 0, 0, 0, 0, ?)
@@ -152,7 +152,7 @@ describe('FileChangeResolver', () => {
     const validHash = runGit(['rev-parse', 'HEAD'], root).trim();
 
     const insertCommit = db.prepare(`
-      INSERT INTO session_commits(
+      INSERT INTO activity_session_commits(
         session_id, commit_hash, commit_message, author, committed_at,
         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id
       ) VALUES (?, ?, '', '', '', 0, 0, 0, 0, ?)

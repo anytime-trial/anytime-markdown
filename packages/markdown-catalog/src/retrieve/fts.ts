@@ -23,9 +23,9 @@ export function searchFts(db: DocDb, query: string, limit = 20): DocHit[] {
     .prepare(
       `SELECT m.path AS path, d.title AS title, d.category AS category, m.score AS score
        FROM (
-         SELECT path, rank AS score FROM doc_fts WHERE doc_fts MATCH ? ORDER BY rank LIMIT ?
+         SELECT path, rank AS score FROM catalog_doc_fts WHERE catalog_doc_fts MATCH ? ORDER BY rank LIMIT ?
        ) AS m
-       LEFT JOIN doc AS d ON d.path = m.path
+       LEFT JOIN catalog_doc AS d ON d.path = m.path
        ORDER BY m.score`,
     )
     .all(match, limit) as unknown as { path: string; title: string | null; category: string | null; score: number }[];

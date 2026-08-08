@@ -31,7 +31,7 @@ describe('vectorTopK - embedding error paths', () => {
     // 通常の entity
     const goodBlob = encodeEmbedding(Float32Array.from([1, 0, 0]));
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
        VALUES ('good', 'Tool', 'good', 'Good', '[]', '[]', '{}', 'good entity', ?, ?, ?, ?)`,
       [goodBlob, now, now, now],
     );
@@ -39,7 +39,7 @@ describe('vectorTopK - embedding error paths', () => {
     // 壊れた blob (3 bytes → 4 の倍数でない → decodeEmbedding throws)
     const corruptedBlob = Buffer.from([0x01, 0x02, 0x03]); // 3 bytes
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
        VALUES ('corrupt', 'Tool', 'corrupt', 'Corrupt', '[]', '[]', '{}', 'corrupt entity', ?, ?, ?, ?)`,
       [corruptedBlob, now, now, now],
     );
@@ -64,7 +64,7 @@ describe('vectorTopK - embedding error paths', () => {
     // query は 3 次元、entity は 4 次元 → cosineSimilarity が throw
     const dim4Blob = encodeEmbedding(Float32Array.from([1, 0, 0, 0])); // 4 次元
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
        VALUES ('dim4', 'Tool', 'dim4', 'Dim4', '[]', '[]', '{}', 'dim4 entity', ?, ?, ?, ?)`,
       [dim4Blob, now, now, now],
     );
@@ -88,7 +88,7 @@ describe('vectorTopK - embedding error paths', () => {
 
     // embedding = NULL
     db.run(
-      `INSERT INTO memory_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, first_seen_at, last_updated_at, recorded_at)
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, first_seen_at, last_updated_at, recorded_at)
        VALUES ('no-emb', 'Tool', 'no-emb', 'NoEmb', '[]', '[]', '{}', 'no embedding', ?, ?, ?)`,
       [now, now, now],
     );

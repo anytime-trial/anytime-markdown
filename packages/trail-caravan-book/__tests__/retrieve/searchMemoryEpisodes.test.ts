@@ -20,7 +20,7 @@ function makeDb(): BetterSqlite3MemoryDb {
 function insertEntity(db: BetterSqlite3MemoryDb, id: string, embedding: Float32Array): void {
   const blob = encodeEmbedding(embedding);
   db.run(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Tool', ?, ?, '[]', '[]', '{}', 'summary', ?, ?, ?, ?)`,
     [id, id, id, blob, now, now, now],
   );
@@ -34,7 +34,7 @@ function insertEpisode(
   excerpt: string,
 ): void {
   db.run(
-    `INSERT INTO memory_episodes (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model, valid_from, raw_excerpt, recorded_at)
+    `INSERT INTO caravan_episodes (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model, valid_from, raw_excerpt, recorded_at)
      VALUES (?, ?, ?, ?, 'claude_code', 'claude', ?, ?, ?)`,
     [episodeId, sessionId, `msg-start-${episodeId}`, `msg-end-${episodeId}`, validFrom, excerpt, now],
   );
@@ -46,7 +46,7 @@ function linkEpisodeToEntity(
   entityId: string,
 ): void {
   db.run(
-    `INSERT INTO memory_episode_entities (episode_id, entity_id)
+    `INSERT INTO caravan_episode_entities (episode_id, entity_id)
      VALUES (?, ?)`,
     [episodeId, entityId],
   );

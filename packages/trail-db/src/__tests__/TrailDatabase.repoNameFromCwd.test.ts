@@ -31,7 +31,7 @@ function insertExistingSession(db: TrailDatabase, sessionId: string, filePath: s
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(oldRepoName);
   inner(db).run(
-    `INSERT INTO sessions (
+    `INSERT INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, '', ?, '', '', '', '', '', 0, ?, 0, '', 'claude_code')`,
@@ -42,7 +42,7 @@ function insertExistingSession(db: TrailDatabase, sessionId: string, filePath: s
 // Phase H-4: sessions.repo_name 列は撤去済。session の repo 名は repo_id 経由で repos から引く。
 function repoNameOf(db: TrailDatabase, sessionId: string): string | undefined {
   const rows = inner(db).exec(
-    `SELECT r.repo_name FROM sessions s LEFT JOIN repos r ON r.repo_id = s.repo_id WHERE s.id = ?`,
+    `SELECT r.repo_name FROM activity_sessions s LEFT JOIN activity_repos r ON r.repo_id = s.repo_id WHERE s.id = ?`,
     [sessionId],
   )[0]?.values ?? [];
   return rows[0]?.[0] as string | undefined;

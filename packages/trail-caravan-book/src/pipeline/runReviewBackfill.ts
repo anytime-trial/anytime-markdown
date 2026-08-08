@@ -9,7 +9,7 @@ export interface ReviewBackfillResult {
   status: 'success' | 'error';
   /** 全期間の再走査で得たブロック数 */
   parsed_blocks: number;
-  /** summary / body_excerpt を補った memory_reviews 行数 */
+  /** summary / body_excerpt を補った caravan_reviews 行数 */
   bodies_filled: number;
   /** 削除した空殻（本文なし・指摘なし）の行数 */
   shells_removed: number;
@@ -31,7 +31,7 @@ const EPOCH = '1970-01-01T00:00:00.000Z';
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 /**
- * 既存の memory_reviews を全期間の再走査で補修する。
+ * 既存の caravan_reviews を全期間の再走査で補修する。
  *
  * runReviewIncremental は `last_processed_at` 以降のメッセージしか読まないため、
  * カーソルより前に作られた行は二度とパーサの出力に現れない。本文列（summary /
@@ -77,7 +77,7 @@ export function runReviewBackfill(input: ReviewBackfillInput): ReviewBackfillRes
       const reviewId = entityId('Review', `${session.session_id}#${session.message_uuid_start}`);
       if (dryRun) {
         const stmt = db.prepare(
-          `SELECT 1 FROM memory_reviews WHERE id = ? AND (summary = '' OR body_excerpt = '') LIMIT 1`,
+          `SELECT 1 FROM caravan_reviews WHERE id = ? AND (summary = '' OR body_excerpt = '') LIMIT 1`,
         );
         try {
           if (stmt.get(reviewId)) result.bodies_filled++;
@@ -89,7 +89,7 @@ export function runReviewBackfill(input: ReviewBackfillInput): ReviewBackfillRes
       // 列ごとに条件を閉じる。OR 条件でヒットした行の、既に埋まっている方を
       // 空文字で潰さないため。
       db.run(
-        `UPDATE memory_reviews
+        `UPDATE caravan_reviews
             SET summary      = CASE WHEN summary = '' THEN ? ELSE summary END,
                 body_excerpt = CASE WHEN body_excerpt = '' THEN ? ELSE body_excerpt END
           WHERE id = ? AND (summary = '' OR body_excerpt = '')`,
@@ -101,10 +101,10 @@ export function runReviewBackfill(input: ReviewBackfillInput): ReviewBackfillRes
     // 2. 本文も指摘も無い行は「レビュー結果ではない」ので落とす。
     //    手順 1 の後に判定するので、パーサが本文を出せる行は既に埋まっている。
     const shellSql = `
-      SELECT id, review_entity_id FROM memory_reviews r
+      SELECT id, review_entity_id FROM caravan_reviews r
        WHERE r.source_kind = 'session'
          AND r.body_excerpt = ''
-         AND NOT EXISTS (SELECT 1 FROM memory_review_findings f WHERE f.review_id = r.id)`;
+         AND NOT EXISTS (SELECT 1 FROM caravan_review_findings f WHERE f.review_id = r.id)`;
     const shellStmt = db.prepare(shellSql);
     let shells: Array<{ id: string; entityId: string }>;
     try {
@@ -121,11 +121,11 @@ export function runReviewBackfill(input: ReviewBackfillInput): ReviewBackfillRes
       result.shell_entities_invalidated = shells.length;
     } else {
       for (const shell of shells) {
-        db.run('DELETE FROM memory_reviews WHERE id = ?', [shell.id]);
+        db.run('DELETE FROM caravan_reviews WHERE id = ?', [shell.id]);
         result.shells_removed += db.getRowsModified();
         // Review entity は履歴として残し、検索から外すだけにする
         db.run(
-          'UPDATE memory_entities SET valid_until = ? WHERE id = ? AND valid_until IS NULL',
+          'UPDATE caravan_entities SET valid_until = ? WHERE id = ? AND valid_until IS NULL',
           [recordedAt, shell.entityId],
         );
         result.shell_entities_invalidated += db.getRowsModified();

@@ -35,7 +35,7 @@ export function getReviewRunStatus(input: {
               started_at, finished_at, duration_ms, status,
               findings_count, findings_inserted, findings_merged,
               input_tokens, output_tokens, review_id, error_detail
-       FROM memory_review_runs WHERE id = ?`,
+       FROM caravan_review_runs WHERE id = ?`,
       [run_id],
     );
   } catch (err) {

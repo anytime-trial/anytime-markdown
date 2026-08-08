@@ -13,7 +13,7 @@ const TS = '2026-01-01T00:00:00.000Z';
 
 function insertEntity(db: MemoryDbConnection, id: string, canonicalName: string): void {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, 'Concept', ?, ?, ?, ?, ?)`,
     [id, canonicalName, canonicalName, TS, TS, TS],
@@ -22,7 +22,7 @@ function insertEntity(db: MemoryDbConnection, id: string, canonicalName: string)
 
 function insertSpecDoc(db: MemoryDbConnection, id: string, relPath: string, type = 'spec'): void {
   db.run(
-    `INSERT INTO memory_spec_documents
+    `INSERT INTO caravan_spec_documents
        (id, rel_path, type, title, source_hash, recorded_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [id, relPath, type, 'Test Document', 'abc123hash', TS, TS],
@@ -48,19 +48,19 @@ describe('Phase 3 migration (008_phase3)', () => {
 
   // ── Table creation ──────────────────────────────────────────────────────────
 
-  test('memory_spec_documents table is created', async () => {
+  test('caravan_spec_documents table is created', async () => {
     const { db, close } = await openFresh();
     const result = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_spec_documents'",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='caravan_spec_documents'",
     );
     expect(result[0]?.values?.length).toBe(1);
     close();
   }, 30000);
 
-  test('memory_spec_doc_entities table is created', async () => {
+  test('caravan_spec_doc_entities table is created', async () => {
     const { db, close } = await openFresh();
     const result = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_spec_doc_entities'",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='caravan_spec_doc_entities'",
     );
     expect(result[0]?.values?.length).toBe(1);
     close();
@@ -68,21 +68,21 @@ describe('Phase 3 migration (008_phase3)', () => {
 
   // ── INSERT constraints ──────────────────────────────────────────────────────
 
-  test("memory_spec_documents: type='spec' insert succeeds", async () => {
+  test("caravan_spec_documents: type='spec' insert succeeds", async () => {
     const { db, close } = await openFresh();
     expect(() => {
       insertSpecDoc(db, 'doc-spec-1', 'spec/design.md', 'spec');
     }).not.toThrow();
-    const count = db.exec("SELECT COUNT(*) FROM memory_spec_documents WHERE id = 'doc-spec-1'");
+    const count = db.exec("SELECT COUNT(*) FROM caravan_spec_documents WHERE id = 'doc-spec-1'");
     expect(count[0]?.values?.[0]?.[0] as number).toBe(1);
     close();
   }, 30000);
 
-  test("memory_spec_documents: type='unknown' insert throws CHECK violation", async () => {
+  test("caravan_spec_documents: type='unknown' insert throws CHECK violation", async () => {
     const { db, close } = await openFresh();
     expect(() => {
       db.run(
-        `INSERT INTO memory_spec_documents
+        `INSERT INTO caravan_spec_documents
            (id, rel_path, type, title, source_hash, recorded_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         ['doc-bad-type', 'spec/bad.md', 'unknown', 'Bad Doc', 'abc123', TS, TS],
@@ -91,11 +91,11 @@ describe('Phase 3 migration (008_phase3)', () => {
     close();
   }, 30000);
 
-  test('memory_spec_documents: malformed updated_at throws CHECK violation', async () => {
+  test('caravan_spec_documents: malformed updated_at throws CHECK violation', async () => {
     const { db, close } = await openFresh();
     expect(() => {
       db.run(
-        `INSERT INTO memory_spec_documents
+        `INSERT INTO caravan_spec_documents
            (id, rel_path, type, title, source_hash, recorded_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         ['doc-bad-ts', 'spec/bad-ts.md', 'spec', 'Bad TS Doc', 'abc123', TS, '2026-01-01'],
@@ -106,25 +106,25 @@ describe('Phase 3 migration (008_phase3)', () => {
 
   // ── CASCADE delete ──────────────────────────────────────────────────────────
 
-  test('deleting spec_doc cascades to memory_spec_doc_entities', async () => {
+  test('deleting spec_doc cascades to caravan_spec_doc_entities', async () => {
     const { db, close } = await openFresh();
     insertEntity(db, 'ent-cascade-1', 'cascade-concept-1');
     insertSpecDoc(db, 'doc-cascade-1', 'spec/cascade.md');
     db.run(
-      `INSERT INTO memory_spec_doc_entities (spec_doc_id, entity_id, line_hint)
+      `INSERT INTO caravan_spec_doc_entities (spec_doc_id, entity_id, line_hint)
        VALUES (?, ?, ?)`,
       ['doc-cascade-1', 'ent-cascade-1', 42],
     );
     // verify link exists
     const before = db.exec(
-      "SELECT COUNT(*) FROM memory_spec_doc_entities WHERE spec_doc_id = 'doc-cascade-1'",
+      "SELECT COUNT(*) FROM caravan_spec_doc_entities WHERE spec_doc_id = 'doc-cascade-1'",
     );
     expect(before[0]?.values?.[0]?.[0] as number).toBe(1);
     // delete parent
-    db.run("DELETE FROM memory_spec_documents WHERE id = 'doc-cascade-1'");
+    db.run("DELETE FROM caravan_spec_documents WHERE id = 'doc-cascade-1'");
     // link should be gone
     const after = db.exec(
-      "SELECT COUNT(*) FROM memory_spec_doc_entities WHERE spec_doc_id = 'doc-cascade-1'",
+      "SELECT COUNT(*) FROM caravan_spec_doc_entities WHERE spec_doc_id = 'doc-cascade-1'",
     );
     expect(after[0]?.values?.[0]?.[0] as number).toBe(0);
     close();

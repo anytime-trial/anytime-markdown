@@ -50,7 +50,7 @@ function parseBlameSha(blameOutput: string): string | null {
 function isFix(db: MemoryDbConnection, sha: string): boolean {
   try {
     const result = db.exec(
-      `SELECT commit_message FROM trail.session_commits WHERE commit_hash = ? LIMIT 1`,
+      `SELECT commit_message FROM trail.activity_session_commits WHERE commit_hash = ? LIMIT 1`,
       [sha]
     );
     const msg = result[0]?.values?.[0]?.[0] as string | undefined;
@@ -143,7 +143,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
   const commitId = entityId('Commit', candidate);
   try {
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name,
           aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
@@ -162,7 +162,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
   const edgeIdVal = entityId('edge', `introduced_by:${bugEntityId}:${commitId}`);
   try {
     db.run(
-      `INSERT OR IGNORE INTO memory_edges
+      `INSERT OR IGNORE INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id,
           valid_from, valid_to, recorded_at,
           source_type, source_ref,

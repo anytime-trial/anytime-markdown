@@ -20,7 +20,7 @@ function insertEntity(
   validUntil: string | null = null,
 ) {
   db.run(
-    `INSERT INTO memory_entities
+    `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, repo_name, valid_until,
         first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -45,7 +45,7 @@ describe('runCodeReconciliation', () => {
     expect(result.scanned).toBe(2);
     expect(result.soft_deleted).toBe(1);
 
-    const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
+    const stmt = db.prepare(`SELECT valid_until FROM caravan_entities WHERE id = ?`);
     expect(stmt.get('fn-baz')?.['valid_until']).toBe('2026-05-12T01:00:00.000Z');
     stmt.free?.();
 
@@ -67,7 +67,7 @@ describe('runCodeReconciliation', () => {
     expect(result.scanned).toBe(0);
     expect(result.soft_deleted).toBe(0);
 
-    const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
+    const stmt = db.prepare(`SELECT valid_until FROM caravan_entities WHERE id = ?`);
     expect(stmt.get('fn-old')?.['valid_until']).toBe('2026-01-01T00:00:00.000Z');
     stmt.free?.();
 
@@ -90,7 +90,7 @@ describe('runCodeReconciliation', () => {
     expect(result.soft_deleted).toBe(1);
 
     // repoB は影響なし
-    const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
+    const stmt = db.prepare(`SELECT valid_until FROM caravan_entities WHERE id = ?`);
     expect(stmt.get('fn-b')?.['valid_until']).toBeNull();
     stmt.free?.();
 
@@ -114,7 +114,7 @@ describe('runCodeReconciliation', () => {
     expect(result.soft_deleted).toBe(2);
 
     // Bug は影響なし
-    const stmt = db.prepare(`SELECT valid_until FROM memory_entities WHERE id = ?`);
+    const stmt = db.prepare(`SELECT valid_until FROM caravan_entities WHERE id = ?`);
     expect(stmt.get('bug-1')?.['valid_until']).toBeNull();
     stmt.free?.();
 

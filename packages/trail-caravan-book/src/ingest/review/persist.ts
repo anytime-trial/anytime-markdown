@@ -36,7 +36,7 @@ export function toReviewedAt(dateStr: string): string {
 }
 
 /**
- * Upsert a ReviewFinding entity + memory_review_findings row + flagged edge.
+ * Upsert a ReviewFinding entity + caravan_review_findings row + flagged edge.
  */
 export function upsertReviewFinding(
   db: MemoryDbConnection,
@@ -57,7 +57,7 @@ export function upsertReviewFinding(
   try {
     // 1. INSERT OR IGNORE entity
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'ReviewFinding', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -71,10 +71,10 @@ export function upsertReviewFinding(
       ],
     );
 
-    // 2. INSERT OR IGNORE memory_review_findings
+    // 2. INSERT OR IGNORE caravan_review_findings
     const findingId = entityId('finding_row', `${reviewEntityId}:${finding.finding_index}`);
     db.run(
-      `INSERT OR IGNORE INTO memory_review_findings
+      `INSERT OR IGNORE INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
           category, severity, finding_text, suggestion_text,
@@ -103,7 +103,7 @@ export function upsertReviewFinding(
     // 3. INSERT OR IGNORE edge: Review → flagged → ReviewFinding
     const edgeId = entityId('edge', `flagged:${reviewEntityId}:${findingEntityId}`);
     db.run(
-      `INSERT OR IGNORE INTO memory_edges
+      `INSERT OR IGNORE INTO caravan_edges
          (id, subject_entity_id, predicate, object_entity_id,
           valid_from, valid_to, recorded_at,
           source_type, source_ref,
@@ -130,7 +130,7 @@ export function upsertReviewFinding(
 }
 
 /**
- * 既存 memory_reviews 行の「後から足した列」を補う。
+ * 既存 caravan_reviews 行の「後から足した列」を補う。
  *
  * 対象は本文列（summary / body_excerpt）と workspace。列ごとに CASE で閉じるのは、
  * 片方だけ空の行に対して既に埋まっている方を空文字で潰さないため（frontmatter に
@@ -145,7 +145,7 @@ export function reconcileExistingReviewRow(
   fields: { summary: string; bodyExcerpt: string; workspace?: string },
 ): void {
   db.run(
-    `UPDATE memory_reviews
+    `UPDATE caravan_reviews
         SET summary      = CASE WHEN summary = '' THEN ? ELSE summary END,
             body_excerpt = CASE WHEN body_excerpt = '' THEN ? ELSE body_excerpt END,
             workspace    = CASE WHEN workspace = '' THEN ? ELSE workspace END
@@ -167,7 +167,7 @@ export function needsReviewRowReconcile(bodyExcerpt: string, workspace: string):
 }
 
 /**
- * Upsert a review document into memory_reviews + memory_entities + findings + edges.
+ * Upsert a review document into caravan_reviews + caravan_entities + findings + edges.
  */
 export function upsertReviewDoc(
   db: MemoryDbConnection,
@@ -185,7 +185,7 @@ export function upsertReviewDoc(
   try {
     // INSERT OR IGNORE avoids DELETE+INSERT (which would CASCADE-delete edges/findings)
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Review', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -199,13 +199,13 @@ export function upsertReviewDoc(
       ],
     );
     db.run(
-      `UPDATE memory_entities SET display_name=?, last_updated_at=? WHERE id=? AND type='Review'`,
+      `UPDATE caravan_entities SET display_name=?, last_updated_at=? WHERE id=? AND type='Review'`,
       [doc.frontmatter.title ?? relPath, recordedAt, reviewEntityId],
     );
 
     // Check existing source_hash（後から足した列の欠落も同時に見る）
     const existingRows = db.exec(
-      `SELECT source_hash, body_excerpt, workspace FROM memory_reviews
+      `SELECT source_hash, body_excerpt, workspace FROM caravan_reviews
         WHERE source_kind='review_doc' AND source_ref=?`,
       [relPath],
     );
@@ -228,9 +228,9 @@ export function upsertReviewDoc(
       return { review_id: reviewEntityId, is_new: false, findings_inserted: 0, edges_inserted: 0 };
     }
 
-    // INSERT OR IGNORE into memory_reviews
+    // INSERT OR IGNORE into caravan_reviews
     db.run(
-      `INSERT OR IGNORE INTO memory_reviews
+      `INSERT OR IGNORE INTO caravan_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
           target_kind, target_refs_json, title, reviewer, severity_overall,
           summary, body_excerpt, reviewed_at, recorded_at)
@@ -259,7 +259,7 @@ export function upsertReviewDoc(
     // If the row already existed but hash changed, update source_hash
     if (!reviewInserted && existingHash !== null && existingHash !== sourceHash) {
       db.run(
-        `UPDATE memory_reviews SET source_hash=? WHERE source_kind='review_doc' AND source_ref=?`,
+        `UPDATE caravan_reviews SET source_hash=? WHERE source_kind='review_doc' AND source_ref=?`,
         [sourceHash, relPath],
       );
     }
@@ -286,7 +286,7 @@ export function upsertReviewDoc(
       const targetEntityId = entityId('File', targetRef);
       // Ensure File entity exists
       db.run(
-        `INSERT OR IGNORE INTO memory_entities
+        `INSERT OR IGNORE INTO caravan_entities
            (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
          VALUES (?, 'File', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -295,7 +295,7 @@ export function upsertReviewDoc(
 
       const edgeId = entityId('edge', `reviewed_by:${targetEntityId}:${reviewEntityId}`);
       db.run(
-        `INSERT OR IGNORE INTO memory_edges
+        `INSERT OR IGNORE INTO caravan_edges
            (id, subject_entity_id, predicate, object_entity_id,
             valid_from, valid_to, recorded_at,
             source_type, source_ref,
@@ -326,7 +326,7 @@ export function upsertReviewDoc(
 }
 
 /**
- * Upsert a review session into memory_reviews + memory_entities + findings.
+ * Upsert a review session into caravan_reviews + caravan_entities + findings.
  */
 export function upsertReviewSession(
   db: MemoryDbConnection,
@@ -342,7 +342,7 @@ export function upsertReviewSession(
   try {
     // Upsert entity
     db.run(
-      `INSERT OR IGNORE INTO memory_entities
+      `INSERT OR IGNORE INTO caravan_entities
          (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
           first_seen_at, last_updated_at, recorded_at)
        VALUES (?, 'Review', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
@@ -356,9 +356,9 @@ export function upsertReviewSession(
       ],
     );
 
-    // INSERT OR IGNORE into memory_reviews
+    // INSERT OR IGNORE into caravan_reviews
     db.run(
-      `INSERT OR IGNORE INTO memory_reviews
+      `INSERT OR IGNORE INTO caravan_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
           target_kind, target_refs_json, title, reviewer, severity_overall,
           summary, body_excerpt, reviewed_at, recorded_at)

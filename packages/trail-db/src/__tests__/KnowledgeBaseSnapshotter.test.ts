@@ -22,7 +22,7 @@ describe('FileKnowledgeBaseSnapshotter', () => {
   it('snapshotBeforeDestructiveWrite が書込前状態を activity.db.kb.1.gz へ退避する', () => {
     fs.writeFileSync(dbPath, 'before-bytes');
     const s = new FileKnowledgeBaseSnapshotter(dbPath, noopDbLogger);
-    const r = s.snapshotBeforeDestructiveWrite('current_code_graphs');
+    const r = s.snapshotBeforeDestructiveWrite('activity_current_code_graphs');
 
     expect(r.created).toBe(true);
     const kbPath = `${dbPath}.kb.1.gz`;
@@ -35,16 +35,16 @@ describe('FileKnowledgeBaseSnapshotter', () => {
   it('直近スナップショットからデバウンス間隔未満の再呼び出しは skip する', () => {
     fs.writeFileSync(dbPath, 'v1');
     const s = new FileKnowledgeBaseSnapshotter(dbPath, noopDbLogger);
-    expect(s.snapshotBeforeDestructiveWrite('current_graphs').created).toBe(true);
+    expect(s.snapshotBeforeDestructiveWrite('activity_current_graphs').created).toBe(true);
     fs.writeFileSync(dbPath, 'v2');
-    expect(s.snapshotBeforeDestructiveWrite('current_code_graphs').created).toBe(false);
+    expect(s.snapshotBeforeDestructiveWrite('activity_current_code_graphs').created).toBe(false);
     expect(fs.existsSync(`${dbPath}.kb.2.gz`)).toBe(false);
   });
 
   it('restoreSnapshot が書込前の内容へ戻し、safety copy を残す', () => {
     fs.writeFileSync(dbPath, 'original');
     const s = new FileKnowledgeBaseSnapshotter(dbPath, noopDbLogger);
-    s.snapshotBeforeDestructiveWrite('current_code_graphs');
+    s.snapshotBeforeDestructiveWrite('activity_current_code_graphs');
     fs.writeFileSync(dbPath, 'shrunk');
 
     const result = s.restoreSnapshot(1);
@@ -56,7 +56,7 @@ describe('FileKnowledgeBaseSnapshotter', () => {
   it('listSnapshots が世代情報を返す', () => {
     fs.writeFileSync(dbPath, 'v1');
     const s = new FileKnowledgeBaseSnapshotter(dbPath, noopDbLogger);
-    s.snapshotBeforeDestructiveWrite('release_code_graphs');
+    s.snapshotBeforeDestructiveWrite('activity_release_code_graphs');
 
     const entries = s.listSnapshots();
     expect(entries).toHaveLength(1);
@@ -68,7 +68,7 @@ describe('FileKnowledgeBaseSnapshotter', () => {
   it('DB ファイル不在でも throw せず、created=false を返す（誤報しない）', () => {
     const missingPath = path.join(dir, 'missing.db');
     const s = new FileKnowledgeBaseSnapshotter(missingPath, noopDbLogger);
-    expect(s.snapshotBeforeDestructiveWrite('current_graphs').created).toBe(false);
+    expect(s.snapshotBeforeDestructiveWrite('activity_current_graphs').created).toBe(false);
     expect(fs.existsSync(`${missingPath}.kb.1.gz`)).toBe(false);
   });
 

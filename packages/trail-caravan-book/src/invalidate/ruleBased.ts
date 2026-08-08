@@ -16,7 +16,7 @@ export function applySingleActiveRule(
 ): { invalidated_edge_ids: string[] } {
   // 1. Check cardinality of predicate
   const cardStmt = db.prepare(
-    `SELECT cardinality FROM memory_relation_types WHERE predicate = ?`
+    `SELECT cardinality FROM caravan_relation_types WHERE predicate = ?`
   );
   const cardRow = cardStmt.get(newEdge.predicate);
   const cardinality = cardRow ? (cardRow['cardinality'] as string | undefined) : undefined;
@@ -28,7 +28,7 @@ export function applySingleActiveRule(
 
   // 2. Find existing active edges with same subject + predicate (exclude newEdge itself)
   const activeStmt = db.prepare(
-    `SELECT id FROM memory_edges
+    `SELECT id FROM caravan_edges
      WHERE subject_entity_id = ? AND predicate = ? AND valid_to IS NULL AND id != ?`
   );
   const ids: string[] = [];
@@ -44,7 +44,7 @@ export function applySingleActiveRule(
   // 3. Invalidate each old edge
   for (const oldId of ids) {
     db.run(
-      `UPDATE memory_edges SET valid_to = ? WHERE id = ?`,
+      `UPDATE caravan_edges SET valid_to = ? WHERE id = ?`,
       [newEdge.recorded_at, oldId]
     );
     const invalidationId = createHash('sha1')
@@ -52,7 +52,7 @@ export function applySingleActiveRule(
       .digest('hex')
       .slice(0, 16);
     db.run(
-      `INSERT INTO memory_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
+      `INSERT INTO caravan_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id, detail)
        VALUES (?, ?, ?, 'rule_exclusive', ?, '')`,
       [invalidationId, oldId, newEdge.recorded_at, newEdge.id]
     );

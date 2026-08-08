@@ -15,9 +15,9 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
+  trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
-    `CREATE TABLE messages (
+    `CREATE TABLE activity_messages (
        uuid TEXT PRIMARY KEY,
        session_id TEXT NOT NULL,
        type TEXT NOT NULL,
@@ -31,7 +31,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
-  trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
+  trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
@@ -45,7 +45,7 @@ function insertMessage(
   // trail-db importSession の規約に合わせて type 別に列を使い分ける。
   const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );
@@ -107,19 +107,19 @@ describe('runConversationBackfill', () => {
 
     // backfill cursor は前進しない (空文字のまま)
     const backfillState = memDb.exec(
-      `SELECT status, last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_backfill'`
+      `SELECT status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_backfill'`
     );
     expect(backfillState[0]?.values?.[0]?.[1]).toBe('');
 
     // 中断時は incremental cursor の前進処理 (finalize) も通らない
     const incState = memDb.exec(
-      `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     const incCursor = (incState[0]?.values?.[0]?.[0] as string | undefined) ?? '';
     expect(incCursor).not.toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
     const run = memDb.exec(
-      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_backfill'`
+      `SELECT status FROM caravan_pipeline_runs WHERE scope = 'conversation_backfill'`
     );
     expect(run[0]?.values?.[0]?.[0]).toBe('partial');
 
@@ -159,7 +159,7 @@ describe('runConversationBackfill', () => {
 
     // pipeline_state for backfill should be updated
     const stateRows = memDb.exec(
-      `SELECT scope, status, last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_backfill'`
+      `SELECT scope, status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_backfill'`
     );
     expect(stateRows[0]?.values).toHaveLength(1);
     const stateRow = stateRows[0].values[0];
@@ -168,7 +168,7 @@ describe('runConversationBackfill', () => {
 
     // pipeline_run row should exist with scope=conversation_backfill and status=success
     const runRows = memDb.exec(
-      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_backfill'`
+      `SELECT status FROM caravan_pipeline_runs WHERE scope = 'conversation_backfill'`
     );
     expect(runRows[0]?.values[0]?.[0]).toBe('success');
 
@@ -237,7 +237,7 @@ describe('runConversationBackfill', () => {
 
     // incremental pipeline_state should have been created/updated
     const stateRows = memDb.exec(
-      `SELECT scope, status, last_processed_at FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+      `SELECT scope, status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'conversation_incremental'`
     );
     expect(stateRows[0]?.values).toHaveLength(1);
     const lastProcessedAt = stateRows[0].values[0][2] as string;
@@ -295,7 +295,7 @@ describe('runConversationBackfill', () => {
   }, 60000);
 
   // ── B6: last_heartbeat_at is updated during backfill ──────────────────────
-  test('B6: last_heartbeat_at on pipeline_runs is non-null after backfill', async () => {
+  test('B6: last_heartbeat_at on caravan_pipeline_runs is non-null after backfill', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
 
@@ -318,7 +318,7 @@ describe('runConversationBackfill', () => {
     // then refreshed at each session start). It should match the ISO 8601
     // format enforced by the migration 010 GLOB CHECK.
     const rows = memDb.exec(
-      `SELECT last_heartbeat_at FROM pipeline_runs WHERE scope = 'conversation_backfill'`
+      `SELECT last_heartbeat_at FROM caravan_pipeline_runs WHERE scope = 'conversation_backfill'`
     );
     const heartbeat = rows[0]?.values[0]?.[0] as string | null;
     expect(heartbeat).not.toBeNull();
@@ -468,7 +468,7 @@ describe('runConversationBackfill', () => {
     expect(result.items_failed).toBeGreaterThanOrEqual(3);
 
     const stateRows = memDb.exec(
-      `SELECT status FROM memory_pipeline_state WHERE scope = 'conversation_backfill'`
+      `SELECT status FROM caravan_pipeline_state WHERE scope = 'conversation_backfill'`
     );
     expect(stateRows[0]?.values[0]?.[0]).toBe('quarantine');
 
@@ -479,7 +479,7 @@ describe('runConversationBackfill', () => {
   // ── B9: progress() コールバックを毎エピソード発火
   // Regression: backfill が UI 通知 callback を持っていなかったため、
   // PipelineStatusWriter 経由の UI 表示は 0/N のまま動かなかった
-  // (背景で items_processed は pipeline_runs に書き込まれていた)。
+  // (背景で items_processed は caravan_pipeline_runs に書き込まれていた)。
   test('B9: progress callback fires per episode during backfill', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
@@ -579,7 +579,7 @@ describe('runConversationBackfill', () => {
     expect(errors).toHaveLength(1);
 
     const state = memDb.exec(
-      `SELECT status, last_processed_at, error_detail FROM memory_pipeline_state WHERE scope = 'conversation_backfill'`
+      `SELECT status, last_processed_at, error_detail FROM caravan_pipeline_state WHERE scope = 'conversation_backfill'`
     );
     expect(state[0]?.values?.[0]?.[0]).toBe('error');
     expect(state[0]?.values?.[0]?.[1]).toBe('');
@@ -587,7 +587,7 @@ describe('runConversationBackfill', () => {
 
     // finalizePipelineRun へ渡した status を直接 pin する（変更したのはこの引数）。
     const run = memDb.exec(
-      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_backfill'`
+      `SELECT status FROM caravan_pipeline_runs WHERE scope = 'conversation_backfill'`
     );
     expect(run[0]?.values?.[0]?.[0]).toBe('error');
 

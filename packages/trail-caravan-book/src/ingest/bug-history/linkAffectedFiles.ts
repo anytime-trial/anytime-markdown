@@ -28,18 +28,18 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
 
   let rows: { values: ReadonlyArray<ReadonlyArray<unknown>> } | undefined;
   try {
-    // Phase H-4: trail.commit_files から repo_name 列を撤去した。attach 済 trail スキーマの repos を
+    // Phase H-4: trail.activity_commit_files から repo_name 列を撤去した。attach 済 trail スキーマの repos を
     // JOIN して repo_name → repo_id を解決し、repo_id で絞る (クロス DB JOIN)。
     const result = db.exec(
-      `SELECT cf.file_path FROM trail.commit_files cf
-         JOIN trail.repos r ON r.repo_id = cf.repo_id
+      `SELECT cf.file_path FROM trail.activity_commit_files cf
+         JOIN trail.activity_repos r ON r.repo_id = cf.repo_id
         WHERE cf.commit_hash = ? AND r.repo_name = ?`,
       [commitSha, repoName]
     );
     rows = result[0];
   } catch (err) {
     logger.error(
-      `[anytime-memory] linkAffectedFiles: failed to query commit_files for commit=${commitSha}`,
+      `[anytime-memory] linkAffectedFiles: failed to query activity_commit_files for commit=${commitSha}`,
       err
     );
     return { file_paths: [], edges_inserted: 0 };
@@ -55,7 +55,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
 
     try {
       db.run(
-        `INSERT OR IGNORE INTO memory_entities
+        `INSERT OR IGNORE INTO caravan_entities
            (id, type, canonical_name, display_name,
             aliases_json, tags_json, attributes_json,
             first_seen_at, last_updated_at, recorded_at)
@@ -81,7 +81,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
     const edgeIdVal = entityId('edge', `affects:${bugEntityId}:${fileId}`);
     try {
       db.run(
-        `INSERT OR IGNORE INTO memory_edges
+        `INSERT OR IGNORE INTO caravan_edges
            (id, subject_entity_id, predicate, object_entity_id,
             valid_from, valid_to, recorded_at,
             source_type, source_ref,
@@ -93,7 +93,7 @@ export function linkAffectedFiles(input: LinkAffectedFilesInput): LinkAffectedFi
           fileId,
           valid_from,
           recordedAt,
-          `commit_files#${commitSha}`,
+          `activity_commit_files#${commitSha}`,
         ]
       );
       if (db.getRowsModified() > 0) {

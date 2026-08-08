@@ -32,7 +32,7 @@ export interface IC4ModelStore {
   getReleaseC4Model(tag: string): Promise<C4ModelResult | null> | C4ModelResult | null;
 
   /**
-   * current_graphs / release_graphs 相当の全エントリを返す。
+   * activity_current_graphs / activity_release_graphs 相当の全エントリを返す。
    * current は先頭（repo_name ごと）、release は released_at 降順。
    */
   getC4ModelEntries(): Promise<readonly C4ModelEntry[]> | readonly C4ModelEntry[];

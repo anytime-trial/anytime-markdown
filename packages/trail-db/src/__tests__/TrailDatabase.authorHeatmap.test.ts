@@ -10,7 +10,7 @@ const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb })
 const repoId = (db: TrailDatabase, name: string): number =>
   (db as unknown as { repoIdForName(n: string): number }).repoIdForName(name);
 
-/** session_commits / commit_files / sessions を最小構成で seed する。 */
+/** activity_session_commits / activity_commit_files / sessions を最小構成で seed する。 */
 function seedCommit(
   db: TrailDatabase,
   args: {
@@ -23,15 +23,15 @@ function seedCommit(
 ): void {
   const rid = repoId(db, args.repo);
   const sql = inner(db);
-  sql.run(`INSERT OR IGNORE INTO sessions (id, repo_id) VALUES (?, ?)`, [args.sessionId, rid]);
+  sql.run(`INSERT OR IGNORE INTO activity_sessions (id, repo_id) VALUES (?, ?)`, [args.sessionId, rid]);
   sql.run(
-    `INSERT OR REPLACE INTO session_commits (session_id, repo_id, commit_hash, committed_at, author)
+    `INSERT OR REPLACE INTO activity_session_commits (session_id, repo_id, commit_hash, committed_at, author)
      VALUES (?, ?, ?, ?, ?)`,
     [args.sessionId, rid, args.commitHash, args.committedAt ?? '2026-01-01T00:00:00.000Z', 'ueda'],
   );
   for (const filePath of args.filePaths) {
     sql.run(
-      `INSERT OR REPLACE INTO commit_files (repo_id, commit_hash, file_path) VALUES (?, ?, ?)`,
+      `INSERT OR REPLACE INTO activity_commit_files (repo_id, commit_hash, file_path) VALUES (?, ?, ?)`,
       [rid, args.commitHash, filePath],
     );
   }

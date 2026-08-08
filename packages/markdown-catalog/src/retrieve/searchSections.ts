@@ -1,9 +1,9 @@
 /**
- * 節粒度のキーワード検索（FTS5・doc_section_fts）。`search_docs→get_outline→get_section` の
+ * 節粒度のキーワード検索（FTS5・catalog_doc_section_fts）。`search_docs→get_outline→get_section` の
  * 3 コールを 1 コールに圧縮するための「heading＋snippet」を返す。
  *
  * query は必須（節検索はキーワード前提）。frontmatter facet（category/type/lang）は doc JOIN で
- * AND 絞り込みする。snippet は body 列（doc_section_fts の列 index 3）から取得。
+ * AND 絞り込みする。snippet は body 列（catalog_doc_section_fts の列 index 3）から取得。
  */
 
 import type { DocDb } from '../db/open';
@@ -61,16 +61,16 @@ export function searchSections(db: DocDb, opts: SearchSectionsOptions): SectionH
   }
   const facetSql = facetClauses.length ? `WHERE ${facetClauses.join(' AND ')}` : '';
 
-  // snippet(doc_section_fts, 3, ...) の列 index 3 = body（doc_section_fts(path,heading,level,body)）。
+  // snippet(catalog_doc_section_fts, 3, ...) の列 index 3 = body（catalog_doc_section_fts(path,heading,level,body)）。
   const rows = db
     .prepare(
       `SELECT m.path AS path, m.heading AS heading, m.level AS level, m.score AS score, m.snippet AS snippet
        FROM (
          SELECT path, heading, level, rank AS score,
-                snippet(doc_section_fts, 3, '', '', '…', ?) AS snippet
-         FROM doc_section_fts WHERE doc_section_fts MATCH ? ORDER BY rank
+                snippet(catalog_doc_section_fts, 3, '', '', '…', ?) AS snippet
+         FROM catalog_doc_section_fts WHERE catalog_doc_section_fts MATCH ? ORDER BY rank
        ) AS m
-       JOIN doc AS d ON d.path = m.path
+       JOIN catalog_doc AS d ON d.path = m.path
        ${facetSql}
        ORDER BY m.score LIMIT ?`,
     )

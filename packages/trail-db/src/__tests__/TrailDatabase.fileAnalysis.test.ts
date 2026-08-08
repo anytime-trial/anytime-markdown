@@ -31,7 +31,7 @@ const sample = (filePath: string, deadCodeScore: number): FileAnalysisRow => ({
   analyzedAt: '2026-05-05T00:00:00Z',
 });
 
-describe('TrailDatabase: current_file_analysis CRUD', () => {
+describe('TrailDatabase: activity_current_file_analysis CRUD', () => {
   let db: TrailDatabase;
 
   beforeEach(async () => {

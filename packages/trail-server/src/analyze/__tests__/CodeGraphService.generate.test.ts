@@ -402,9 +402,9 @@ describe('CodeGraphService.generate() — per-call repositories 上書き', () =
   });
 
   // release 遡及生成（analyzeReleaseCodeGraphsForce）は過去タグの worktree を解析する。
-  // その結果を current_code_graphs へ書くと「現在のグラフ」を過去版で汚染するため、
+  // その結果を activity_current_code_graphs へ書くと「現在のグラフ」を過去版で汚染するため、
   // 生成だけ行って保存は呼び出し側（saveReleaseCodeGraph）に委ねられる必要がある。
-  it('persist: false を渡すと生成はするが current_code_graphs へ保存しない', async () => {
+  it('persist: false を渡すと生成はするが activity_current_code_graphs へ保存しない', async () => {
     const db = makeTrailDbStub();
     const svc = new CodeGraphService({
       repositories: [makeRepo({ id: 'configured', label: 'configured', path: '/tmp/should-not-be-used' })],

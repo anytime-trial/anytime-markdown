@@ -13,7 +13,7 @@ import type {
  * trail-caravan-book ingest パイプラインをホストする長寿命サービス。
  *
  * BaseRunner を継承し、共通の pause/resume/state/ticks/lastRunAt ロジックは
- * 基底から受け継ぐ。trail-caravan-book 固有の処理 (memory_entities 行単位の埋め込み・
+ * 基底から受け継ぐ。trail-caravan-book 固有の処理 (caravan_entities 行単位の埋め込み・
  * FTS index 再構築 等) を `runImpl(reason)` で実装する。
  *
  * 既存の `createMemoryCoreRunner().runAfterImport()` 本体は `pipelineRunner`

@@ -1,7 +1,7 @@
 ---
 name: anytime-cross-review
 effort: medium
-description: develop マージ前に Claude(pr-review-toolkit:code-reviewer subagent)と Codex(codex exec review)が同一 diff を独立レビューし、互いの指摘を検証(adversarial cross-check)して合意指摘を採用する相互レビュー。指摘は review doc + trail memory_reviews に記録する。「相互レビュー」「cross review」「/anytime-cross-review」「Claude Codex レビュー」「二者レビュー」の指示で使用する。
+description: develop マージ前に Claude(pr-review-toolkit:code-reviewer subagent)と Codex(codex exec review)が同一 diff を独立レビューし、互いの指摘を検証(adversarial cross-check)して合意指摘を採用する相互レビュー。指摘は review doc + trail caravan_reviews に記録する。「相互レビュー」「cross review」「/anytime-cross-review」「Claude Codex レビュー」「二者レビュー」の指示で使用する。
 ---
 
 # anytime-cross-review — Claude × Codex 相互レビュー
@@ -29,7 +29,7 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 
 ### 2. Round 1 — 独立デュアルレビュー（並行）
 
-- **Claude**: `pr-review-toolkit:code-reviewer` subagent に diff レビューを依頼する（`anytime-trail-review` 出力。`superpowers:requesting-code-review` と同様、subagent session 経由で memory_reviews に ingest され reviewer=`pr-review-toolkit:code-reviewer`）。
+- **Claude**: `pr-review-toolkit:code-reviewer` subagent に diff レビューを依頼する（`anytime-trail-review` 出力。`superpowers:requesting-code-review` と同様、subagent session 経由で caravan_reviews に ingest され reviewer=`pr-review-toolkit:code-reviewer`）。
 - **Codex**: `node .claude/skills/anytime-cross-review/codex-review.cjs --base <base>` を実行する。
   - stdout = レビュー本文（`### N.` 形式・bold マーカー）、stderr に `findings=N maxSeverity=...`。
   - exit 0 = 成功 / 2 = codex 失敗（非ゼロ終了・timeout）/ 3 = read-only 逸脱（codex がファイルを変更）。
@@ -74,4 +74,4 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 (cd packages/vscode-agent-extension && npx jest skills/anytime-cross-review)
 ```
 
-E2E は小 diff に対し本手順を手動実行し、Codex review doc の ingest（memory_reviews に reviewer=codex 行）を Reload 後に確認する。
+E2E は小 diff に対し本手順を手動実行し、Codex review doc の ingest（caravan_reviews に reviewer=codex 行）を Reload 後に確認する。

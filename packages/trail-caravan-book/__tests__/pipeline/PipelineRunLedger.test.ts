@@ -16,7 +16,7 @@ function makeMemoryDb(): BetterSqlite3MemoryDb {
 }
 
 function readRun(db: BetterSqlite3MemoryDb, id: string): Record<string, unknown> {
-  const stmt = db.prepare(`SELECT * FROM pipeline_runs WHERE id = ?`);
+  const stmt = db.prepare(`SELECT * FROM caravan_pipeline_runs WHERE id = ?`);
   try {
     const row = stmt.get(id);
     if (!row) throw new Error(`run ${id} not found`);
@@ -28,8 +28,8 @@ function readRun(db: BetterSqlite3MemoryDb, id: string): Record<string, unknown>
 
 function readRunLogs(db: BetterSqlite3MemoryDb, runId?: string): Record<string, unknown>[] {
   const sql = runId
-    ? `SELECT * FROM pipeline_run_logs WHERE run_id = ? ORDER BY id`
-    : `SELECT * FROM pipeline_run_logs ORDER BY id`;
+    ? `SELECT * FROM caravan_pipeline_run_logs WHERE run_id = ? ORDER BY id`
+    : `SELECT * FROM caravan_pipeline_run_logs ORDER BY id`;
   const stmt = db.prepare(sql);
   try {
     return (runId ? stmt.all(runId) : stmt.all()) as Record<string, unknown>[];
@@ -147,7 +147,7 @@ describe('PipelineRunLedger', () => {
 
   it('finish("error", ..., detail) は error_detail を run 行へ書く', () => {
     // リグレッション: 旧 finalizePipelineRun は UPDATE 文に error_detail を含めず、
-    // error 行の中身が常に空だった。scope 単位の memory_pipeline_state は毎回
+    // error 行の中身が常に空だった。scope 単位の caravan_pipeline_state は毎回
     // 上書きされるため、過去の失敗理由はどこにも残らなかった。
     const ledger = new PipelineRunLedger({
       db,
@@ -214,7 +214,7 @@ describe('PipelineRunLedger', () => {
     });
     ledger.start('2026-08-05T00:00:00.000Z');
 
-    db.run('DROP TABLE pipeline_runs');
+    db.run('DROP TABLE caravan_pipeline_runs');
 
     expect(() => ledger.heartbeat({ items_processed: 1 })).not.toThrow();
     expect(() => ledger.finish('success', {})).not.toThrow();
@@ -314,7 +314,7 @@ describe('PipelineRunLedger', () => {
     expect(readRunLogs(db)).toHaveLength(0);
   });
 
-  it('pipeline_runs の行を削除すると対応するログ行も削除される', () => {
+  it('caravan_pipeline_runs の行を削除すると対応するログ行も削除される', () => {
     const ledger = new PipelineRunLedger({
       db,
       scope: 'conversation_incremental',
@@ -327,7 +327,7 @@ describe('PipelineRunLedger', () => {
     ledger.appendLog('error', 'pipeline', 'second');
 
     expect(readRunLogs(db, runId)).toHaveLength(2);
-    db.run(`DELETE FROM pipeline_runs WHERE id = ?`, [runId]);
+    db.run(`DELETE FROM caravan_pipeline_runs WHERE id = ?`, [runId]);
 
     expect(readRunLogs(db, runId)).toHaveLength(0);
   });
@@ -343,7 +343,7 @@ describe('PipelineRunLedger', () => {
     });
     ledger.start('2026-08-05T00:00:00.000Z');
 
-    db.run('DROP TABLE pipeline_run_logs');
+    db.run('DROP TABLE caravan_pipeline_run_logs');
 
     expect(() => ledger.appendLog('error', 'pipeline', 'lost log')).not.toThrow();
     expect(errors.length).toBeGreaterThan(0);

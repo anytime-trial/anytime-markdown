@@ -26,118 +26,118 @@ function buildTestDb(dbPath: string): void {
 
   // Seed: entity
   run(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['ent-1', 'Package', 'trail-viewer', 'trail-viewer', TS, TS, TS],
   );
 
   // Seed: drift events
   run(
-    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
+    `INSERT INTO caravan_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
      VALUES (?, ?, ?, ?, ?, ?, NULL, '', '{"key":"val"}')`,
     ['drift-1', 'ent-1', 'prefers', 'spec_vs_code', 'warn', TS],
   );
   run(
-    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
+    `INSERT INTO caravan_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'fixed', '{}')`,
     ['drift-2', 'ent-1', 'depends_on', 'conv_vs_code', 'error', TS2, TS2],
   );
 
   // Seed: recurring bug drift events
   run(
-    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
+    `INSERT INTO caravan_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json)
      VALUES (?, ?, ?, ?, ?, ?, NULL, '', '{}')`,
     ['drift-3', 'ent-1', 'prefers', 'regression_cluster', 'error', TS],
   );
 
   // Seed: workspace 付きの drift / bug（ワークスペース絞り込みの検査用）
   run(
-    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json, workspace)
+    `INSERT INTO caravan_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json, workspace)
      VALUES (?, ?, ?, ?, ?, ?, NULL, '', '{}', ?)`,
     ['drift-ws', 'ent-1', 'uses', 'review_unfixed', 'warn', TS, 'anytime-trade'],
   );
 
   // Seed: bug fixes
   run(
-    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, workspace)
+    `INSERT INTO caravan_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, workspace)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['bf-1', 'abc123', 'ent-1', 'trail-viewer', 'logic', 'Fix null ref', TS, TS, 'anytime-markdown'],
   );
   run(
-    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
+    `INSERT INTO caravan_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['bf-2', 'def456', 'ent-1', 'trail-server', 'spec', 'Fix aggregation boundary', TS, TS, 'sess-1'],
   );
 
   // Seed: reviews and findings
   run(
-    `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
+    `INSERT INTO caravan_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['rev-1', 'review_doc', 'doc/r1.md', 'ent-1', 'code', 'Code Review 1', TS, TS, 'anytime-lab'],
   );
   run(
-    `INSERT INTO memory_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, addressed_at, recorded_at)
+    `INSERT INTO caravan_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, addressed_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
     ['rf-1', 'rev-1', 'ent-1', 0, 'src/foo.ts', 'logic', 'warn', 'Missing null check', TS],
   );
   run(
-    `INSERT INTO memory_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, addressed_at, recorded_at)
+    `INSERT INTO caravan_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, addressed_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['rf-2', 'rev-1', 'ent-1', 1, 'src/bar.ts', 'perf', 'info', 'Slow loop', TS, TS],
   );
 
   // Seed: pipeline runs (multi-day, multi-scope for stats aggregation)
   run(
-    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms)
+    `INSERT INTO caravan_pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['run-1', 'drift', 'memory', 3, TS, TS2, 'success', 5, 3_600_000],
   );
   // Same day, same scope, different status (partial) — worst_status should remain 'partial' (>success)
   run(
-    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms, items_failed)
+    `INSERT INTO caravan_pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms, items_failed)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['run-2', 'drift', 'memory', 3, '2026-05-09T12:00:00.000Z', '2026-05-09T12:30:00.000Z', 'partial', 3, 1_800_000, 1],
   );
   // Same day, different scope (review) — separate aggregation row
   run(
-    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms)
+    `INSERT INTO caravan_pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['run-3', 'review', 'primary', 1, '2026-05-09T13:00:00.000Z', '2026-05-09T13:15:00.000Z', 'success', 10, 900_000],
   );
   // Different day, drift scope with error — worst status for that day
   run(
-    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms, items_failed, error_detail)
+    `INSERT INTO caravan_pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms, items_failed, error_detail)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['run-4', 'drift', 'memory', 3, '2026-05-10T09:00:00.000Z', '2026-05-10T09:45:00.000Z', 'error', 0, 2_700_000, 2, 'boom'],
   );
 
   // Seed: pipeline run logs
   run(
-    `INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
+    `INSERT INTO caravan_pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ['run-4', '2026-05-10T09:01:00.000Z', 'info', 'daemon', 'lep', 'started', '{"step":1}', null],
   );
   run(
-    `INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
+    `INSERT INTO caravan_pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ['run-4', '2026-05-10T09:02:00.000Z', 'error', 'extension', 'lep', 'failed', null, 'Error: boom'],
   );
 
   // Seed: failed items
   run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+    `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, ?)`,
     ['drift', 'msg-abc', TS, 'timeout', 'request timed out', 2],
   );
 
   // Seed: edge + invalidation
   run(
-    `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_literal, valid_from, recorded_at, source_type, source_ref)
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_literal, valid_from, recorded_at, source_type, source_ref)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ['edge-1', 'ent-1', 'prefers', 'TypeScript', TS, TS, 'conversation', 'session-1'],
   );
   run(
-    `INSERT INTO memory_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id)
+    `INSERT INTO caravan_edge_invalidations (id, edge_id, invalidated_at, reason, superseding_edge_id)
      VALUES (?, ?, ?, ?, NULL)`,
     ['inv-1', 'edge-1', TS2, 'rule_exclusive'],
   );
@@ -262,7 +262,7 @@ describe('MemoryApiHandler', () => {
     });
 
     // activity.db が ATTACH できない構成でも一覧そのものは trail-caravan-book だけで引ける。
-    // instruction_sessions を引けないことを理由に行を落とすと、Bug Fixed タブが丸ごと空になる。
+    // caravan_instruction_sessions を引けないことを理由に行を落とすと、Bug Fixed タブが丸ごと空になる。
     it('activity.db が無ければ指示 ID をセッション ID へフォールバックし、行は落とさない', async () => {
       const rows = await handler.getBugHistory({});
       const byId = new Map(rows.map((r) => [r.id, r]));

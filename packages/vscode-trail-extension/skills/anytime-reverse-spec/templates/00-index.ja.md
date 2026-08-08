@@ -63,7 +63,7 @@ excerpt: "{{repoName}} の基本設計書 11 章のナビゲーション。"
 ```mermaid
 flowchart TB
     subgraph Source["入力ソース"]
-        codeGraph["コードグラフ<br/>(current_code_graphs)"]
+        codeGraph["コードグラフ<br/>(activity_current_code_graphs)"]
         c4Model["C4 モデル<br/>(c4_models / 自動分析)"]
         ddl["DDL / ORM<br/>({{検出された schema 種別}})"]
         iface["I/F 定義<br/>({{検出された I/F 種別}})"]
@@ -114,7 +114,7 @@ flowchart TB
 ## 4. 自動生成と手動更新の運用
 
 - 生成スキル: `anytime-reverse-spec`（`~/.claude/skills/anytime-reverse-spec/SKILL.md`）
-- 入力: Trail DB（`current_code_graphs` / `current_code_graph_communities`）+ リポジトリの schema / I/F / 画面ファイル
+- 入力: Trail DB（`activity_current_code_graphs` / `activity_current_code_graph_communities`）+ リポジトリの schema / I/F / 画面ファイル
 - AI 呼び出し: Sonnet（章 3 機能詳細・章 4 ER 図補足・章 5 用途文・章 6 画面要約・章 8 用語集・章 9 業務概要・章 10 コード構造・章 11 コード品質）+ Haiku（章 6 画面 1 文要約・抽出パイプライン・章 10 ビルドシステム検出・章 11 静的指標集計）
 - 再生成: `/anytime-reverse-spec chapter=all mode=wash-away` で全章再生成、`mode=additive` で既存ファイル保護
 

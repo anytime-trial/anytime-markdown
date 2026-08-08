@@ -58,7 +58,7 @@ describe('upsertEntityFts / deleteEntityFts', () => {
     db = opened.db;
     close = opened.close;
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
         (id, type, canonical_name, display_name, summary, aliases_json,
          first_seen_at, last_updated_at, recorded_at)
        VALUES
@@ -84,11 +84,11 @@ describe('upsertEntityFts / deleteEntityFts', () => {
   test('upsert で FTS に display_name / summary / aliases が投入される', () => {
     upsertEntityFts(db, 'e1');
     const matchFoo = db.exec(
-      `SELECT count(*) FROM memory_entities_fts WHERE memory_entities_fts MATCH 'foo'`,
+      `SELECT count(*) FROM caravan_entities_fts WHERE caravan_entities_fts MATCH 'foo'`,
     );
     expect(matchFoo[0]?.values[0][0]).toBeGreaterThan(0);
     const matchFn = db.exec(
-      `SELECT count(*) FROM memory_entities_fts WHERE memory_entities_fts MATCH 'function'`,
+      `SELECT count(*) FROM caravan_entities_fts WHERE caravan_entities_fts MATCH 'function'`,
     );
     expect(matchFn[0]?.values[0][0]).toBeGreaterThan(0);
   });
@@ -96,13 +96,13 @@ describe('upsertEntityFts / deleteEntityFts', () => {
   test('同じ id への upsert は冪等 (重複しない)', () => {
     upsertEntityFts(db, 'e1');
     upsertEntityFts(db, 'e1');
-    const count = db.exec(`SELECT count(*) FROM memory_entities_fts`);
+    const count = db.exec(`SELECT count(*) FROM caravan_entities_fts`);
     expect(count[0]?.values[0][0]).toBe(1);
   });
 
   test('存在しない id への upsert は何もしない', () => {
     expect(() => upsertEntityFts(db, 'nonexistent')).not.toThrow();
-    const count = db.exec(`SELECT count(*) FROM memory_entities_fts`);
+    const count = db.exec(`SELECT count(*) FROM caravan_entities_fts`);
     expect(count[0]?.values[0][0]).toBe(0);
   });
 
@@ -110,7 +110,7 @@ describe('upsertEntityFts / deleteEntityFts', () => {
     upsertEntityFts(db, 'e1');
     deleteEntityFts(db, 'e1');
     const matchFoo = db.exec(
-      `SELECT count(*) FROM memory_entities_fts WHERE memory_entities_fts MATCH 'foo'`,
+      `SELECT count(*) FROM caravan_entities_fts WHERE caravan_entities_fts MATCH 'foo'`,
     );
     expect(matchFoo[0]?.values[0][0]).toBe(0);
   });
@@ -132,7 +132,7 @@ describe('upsertEpisodeFts / deleteEpisodeFts', () => {
     db = opened.db;
     close = opened.close;
     db.run(
-      `INSERT INTO memory_episodes
+      `INSERT INTO caravan_episodes
         (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model,
          valid_from, recorded_at, raw_excerpt)
        VALUES ('ep1','sess-1','msg-start','msg-end','claude_code','sonnet',
@@ -152,7 +152,7 @@ describe('upsertEpisodeFts / deleteEpisodeFts', () => {
   test('upsert で raw_excerpt が FTS に入る', () => {
     upsertEpisodeFts(db, 'ep1');
     const r = db.exec(
-      `SELECT count(*) FROM memory_episodes_fts WHERE memory_episodes_fts MATCH 'quick'`,
+      `SELECT count(*) FROM caravan_episodes_fts WHERE caravan_episodes_fts MATCH 'quick'`,
     );
     expect(r[0]?.values[0][0]).toBeGreaterThan(0);
   });
@@ -160,7 +160,7 @@ describe('upsertEpisodeFts / deleteEpisodeFts', () => {
   test('delete で FTS から除去', () => {
     upsertEpisodeFts(db, 'ep1');
     deleteEpisodeFts(db, 'ep1');
-    const r = db.exec(`SELECT count(*) FROM memory_episodes_fts`);
+    const r = db.exec(`SELECT count(*) FROM caravan_episodes_fts`);
     expect(r[0]?.values[0][0]).toBe(0);
   });
 });
@@ -177,13 +177,13 @@ describe('upsertDriftFts / deleteDriftFts', () => {
     db = opened.db;
     close = opened.close;
     db.run(
-      `INSERT INTO memory_entities
+      `INSERT INTO caravan_entities
         (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
        VALUES ('subj','Concept','subj','subj',
          '2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')`,
     );
     db.run(
-      `INSERT INTO memory_drift_events
+      `INSERT INTO caravan_drift_events
         (id, subject_entity_id, predicate, drift_type, severity,
          conversation_value, spec_value, code_value, resolution_note, detected_at)
        VALUES ('d1','subj','returns','spec_vs_code','warn',
@@ -204,11 +204,11 @@ describe('upsertDriftFts / deleteDriftFts', () => {
   test('upsert で predicate / values / note が FTS に入る', () => {
     upsertDriftFts(db, 'd1');
     const r = db.exec(
-      `SELECT count(*) FROM memory_drift_events_fts WHERE memory_drift_events_fts MATCH 'returns'`,
+      `SELECT count(*) FROM caravan_drift_events_fts WHERE caravan_drift_events_fts MATCH 'returns'`,
     );
     expect(r[0]?.values[0][0]).toBeGreaterThan(0);
     const r2 = db.exec(
-      `SELECT count(*) FROM memory_drift_events_fts WHERE memory_drift_events_fts MATCH 'manual'`,
+      `SELECT count(*) FROM caravan_drift_events_fts WHERE caravan_drift_events_fts MATCH 'manual'`,
     );
     expect(r2[0]?.values[0][0]).toBeGreaterThan(0);
   });
@@ -216,7 +216,7 @@ describe('upsertDriftFts / deleteDriftFts', () => {
   test('delete で FTS から除去', () => {
     upsertDriftFts(db, 'd1');
     deleteDriftFts(db, 'd1');
-    const r = db.exec(`SELECT count(*) FROM memory_drift_events_fts`);
+    const r = db.exec(`SELECT count(*) FROM caravan_drift_events_fts`);
     expect(r[0]?.values[0][0]).toBe(0);
   });
 });

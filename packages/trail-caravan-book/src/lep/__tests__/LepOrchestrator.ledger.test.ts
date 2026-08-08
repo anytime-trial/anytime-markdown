@@ -11,7 +11,7 @@ function makeAnalyzer(id: string, tier: 1 | 2 | 3 | 4, onRunEnd?: () => Promise<
 
 function readRuns(db: BetterSqlite3MemoryDb): Array<Record<string, unknown>> {
   const result = db.exec(
-    `SELECT scope, wave, tier, status, error_detail FROM pipeline_runs ORDER BY scope`,
+    `SELECT scope, wave, tier, status, error_detail FROM caravan_pipeline_runs ORDER BY scope`,
   );
   const first = result[0];
   if (!first) return [];
@@ -36,7 +36,7 @@ describe('LepOrchestrator 台帳連携', () => {
     db.close();
   });
 
-  it('Wave 1/2/4 の analyzer が pipeline_runs へ記録される', async () => {
+  it('Wave 1/2/4 の analyzer が caravan_pipeline_runs へ記録される', async () => {
     const bus = new EventBus();
     const analyzers = [
       makeAnalyzer('GitIngester', 1, async () => {}),

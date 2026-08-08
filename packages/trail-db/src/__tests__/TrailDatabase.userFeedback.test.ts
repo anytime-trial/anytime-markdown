@@ -1,11 +1,11 @@
-// user_feedback_entries は Flight Record 移設（2026-08-07・caravan-book.db 行き）の対象外で
+// activity_user_feedback_entries は Flight Record 移設（2026-08-07・caravan-book.db 行き）の対象外で
 // activity.db / TrailDatabase 側に残る。旧 TrailDatabase.flightReview.test.ts の S2 ブロックに
 // 同居していた本テストは、移設で宙に浮かないよう TrailDatabase スコープへ分離した。
 
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
 
-describe('TrailDatabase user feedback (user_feedback_entries)', () => {
+describe('TrailDatabase user feedback (activity_user_feedback_entries)', () => {
   let db: TrailDatabase;
 
   beforeEach(async () => {

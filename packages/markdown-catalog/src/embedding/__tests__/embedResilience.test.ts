@@ -8,7 +8,7 @@ import { embedDocs, DEFAULT_MAX_EMBED_CHARS, type EmbedFn } from '../embedDocs';
 /**
  * 止血(RC3): embed() の単発失敗(ollama到達不可・timeout等)でバッチ全体を中断せず、
  * 失敗件数と最初のエラーを返す回帰。従来は1件の throw が embedDocs 全体を巻き込み
- * doc_embedding=0 を招いていた。
+ * catalog_doc_embedding=0 を招いていた。
  */
 describe('embedDocs resilience on per-item embed failure', () => {
   let dir: string;
@@ -45,7 +45,7 @@ describe('embedDocs resilience on per-item embed failure', () => {
     expect(r.failed).toBe(1); // b は失敗だが全体は止まらない
     expect(r.firstError).toContain('ollama_unreachable');
     // 成功分は実際に書き込まれている。
-    const cnt = (db.prepare('SELECT COUNT(*) AS c FROM doc_embedding').get() as unknown as { c: number }).c;
+    const cnt = (db.prepare('SELECT COUNT(*) AS c FROM catalog_doc_embedding').get() as unknown as { c: number }).c;
     expect(cnt).toBe(2);
   });
 
@@ -61,7 +61,7 @@ describe('embedDocs resilience on per-item embed failure', () => {
 /**
  * RC3 続: bge-m3 の 8192 トークン上限超過(HTTP 500)を防ぐため、埋め込み入力を
  * 既定 DEFAULT_MAX_EMBED_CHARS(=3000) に切り詰める回帰。旧既定 8000 では密度の高い
- * 日本語 doc が context length 超過で 500 になり doc_embedding が空になっていた。
+ * 日本語 doc が context length 超過で 500 になり catalog_doc_embedding が空になっていた。
  */
 describe('embedDocs truncates input to maxChars (bge-m3 context guard)', () => {
   let dir: string;

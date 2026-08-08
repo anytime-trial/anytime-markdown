@@ -23,10 +23,10 @@ function gatherConversationSource(
 ): DriftSourceEvidence | null {
   try {
     const epRows = db.exec(
-      // memory_episodes に content 列は無い（本文は raw_excerpt、要約は summary）。
+      // caravan_episodes に content 列は無い（本文は raw_excerpt、要約は summary）。
       `SELECT COALESCE(NULLIF(me.summary, ''), me.raw_excerpt) AS content, me.recorded_at
-       FROM memory_episodes me
-       JOIN memory_episode_entities mee ON mee.episode_id = me.id
+       FROM caravan_episodes me
+       JOIN caravan_episode_entities mee ON mee.episode_id = me.id
        WHERE mee.entity_id = ?
        ORDER BY me.recorded_at DESC LIMIT 3`,
       [subjectEntityId],
@@ -54,8 +54,8 @@ function gatherSpecSource(
   try {
     const specRows = db.exec(
       `SELECT sd.rel_path, sd.title, sd.summary, sde.line_hint
-       FROM memory_spec_documents sd
-       JOIN memory_spec_doc_entities sde ON sde.spec_doc_id = sd.id
+       FROM caravan_spec_documents sd
+       JOIN caravan_spec_doc_entities sde ON sde.spec_doc_id = sd.id
        WHERE sde.entity_id = ?
        LIMIT 3`,
       [subjectEntityId],
@@ -84,7 +84,7 @@ function gatherCodeSource(
 ): DriftSourceEvidence | null {
   try {
     const codeRows = db.exec(
-      // memory_code_facts は entity_id を持たない。File エンティティの canonical_name が
+      // caravan_code_facts は entity_id を持たない。File エンティティの canonical_name が
       // ファイルパスなので、それを結合キーにする（列名も実スキーマの fact_type / recorded_at）。
       //
       // canonical_name は canonicalize()（NFKC → trim → 小文字化 → 空白畳み込み）を通した値で、
@@ -94,8 +94,8 @@ function gatherCodeSource(
       // LOWER() は file_path のインデックスを使えないが、対象は 25 万行程度で
       // explain_drift は対話的・低頻度のため許容する。
       `SELECT cf.file_path, cf.fact_type, cf.fact_value, cf.recorded_at
-       FROM memory_code_facts cf
-       JOIN memory_entities e ON e.canonical_name = LOWER(cf.file_path) AND e.type = 'File'
+       FROM caravan_code_facts cf
+       JOIN caravan_entities e ON e.canonical_name = LOWER(cf.file_path) AND e.type = 'File'
        WHERE e.id = ?
        ORDER BY cf.recorded_at DESC LIMIT 3`,
       [subjectEntityId],
@@ -124,7 +124,7 @@ function gatherBugHistorySource(
   try {
     const bugRows = db.exec(
       `SELECT bf.id, bf.commit_sha, bf.subject_summary, bf.committed_at
-       FROM memory_bug_fixes bf
+       FROM caravan_bug_fixes bf
        WHERE bf.bug_entity_id = ?
        ORDER BY bf.committed_at DESC LIMIT 3`,
       [subjectEntityId],
@@ -150,7 +150,7 @@ function gatherReviewSource(
   try {
     const reviewRows = db.exec(
       `SELECT rf.id, rf.category, rf.severity, rf.finding_text, rf.recorded_at
-       FROM memory_review_findings rf
+       FROM caravan_review_findings rf
        WHERE rf.finding_entity_id = ?
        ORDER BY rf.recorded_at DESC LIMIT 3`,
       [subjectEntityId],
@@ -181,7 +181,7 @@ export function explainDrift(input: {
     eventRows = db.exec(
       `SELECT id, subject_entity_id, predicate, drift_type, severity,
               conversation_value, spec_value, code_value, detail_json
-       FROM memory_drift_events WHERE id = ?`,
+       FROM caravan_drift_events WHERE id = ?`,
       [event_id],
     );
   } catch (err) {

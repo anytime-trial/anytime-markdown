@@ -50,7 +50,7 @@ const IMPORTED = (over: Record<string, unknown> = {}): AnalyzerEvent => ({
 
 function selectReview(db: MemoryDbConnection, sourceRef: string) {
   const rows = db.exec(
-    `SELECT id, reviewer, severity_overall, source_hash FROM memory_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
+    `SELECT id, reviewer, severity_overall, source_hash FROM caravan_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
     [sourceRef],
   );
   const v = rows[0]?.values?.[0];
@@ -59,7 +59,7 @@ function selectReview(db: MemoryDbConnection, sourceRef: string) {
 }
 
 function countFindings(db: MemoryDbConnection, reviewId: string): number {
-  const rows = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE review_id=?`, [reviewId]);
+  const rows = db.exec(`SELECT COUNT(*) FROM caravan_review_findings WHERE review_id=?`, [reviewId]);
   return Number(rows[0]?.values?.[0]?.[0] ?? 0);
 }
 
@@ -122,7 +122,7 @@ describe('PrReviewFindingAnalyzer', () => {
     const review = selectReview(memoryDb, 'widget#pr7#rev3');
     expect(review?.severityOverall).toBe('error');
     const rows = memoryDb.exec(
-      `SELECT severity, category FROM memory_review_findings WHERE review_id=?`,
+      `SELECT severity, category FROM caravan_review_findings WHERE review_id=?`,
       [review!.id],
     );
     expect(rows[0]?.values).toEqual([['error', 'security']]);

@@ -51,10 +51,13 @@ describe('destructiveMigrateDoctrineJudgmentsFromTrailDb', () => {
       recordDoctrineJudgmentDirect(trail, judgment(r.sessionId, r.subject));
       if (r.humanDecision !== undefined) {
         trail
-          .prepare(`UPDATE doctrine_judgments SET human_decision = ?, decided_at = ? WHERE session_id = ? AND subject = ?`)
+          .prepare(`UPDATE caravan_doctrine_judgments SET human_decision = ?, decided_at = ? WHERE session_id = ? AND subject = ?`)
           .run(r.humanDecision, TS, r.sessionId, r.subject);
       }
     }
+    // ensure は接頭辞移行後の新名で作るため、旧配置の activity.db を再現するには
+    // 投入後にレガシー名へ戻す（歴史時点の DDL の書き写しを避ける）
+    trail.exec('ALTER TABLE caravan_doctrine_judgments RENAME TO doctrine_judgments');
     trail.close();
   }
 
@@ -80,7 +83,7 @@ describe('destructiveMigrateDoctrineJudgmentsFromTrailDb', () => {
     expect(result?.status).toBe('migrated');
     expect(result?.copiedRows).toBe(2);
 
-    const rows = memory.prepare(`SELECT session_id, subject, human_decision FROM doctrine_judgments ORDER BY id`).all() as Array<{
+    const rows = memory.prepare(`SELECT session_id, subject, human_decision FROM caravan_doctrine_judgments ORDER BY id`).all() as Array<{
       session_id: string;
       subject: string;
       human_decision: string | null;
@@ -106,7 +109,7 @@ describe('destructiveMigrateDoctrineJudgmentsFromTrailDb', () => {
     seedTrail([{ sessionId: 's-old', subject: 'pre-move' }]); // trail 側も id=1
     const result = destructiveMigrateDoctrineJudgmentsFromTrailDb(memory, trailDbPath);
     expect(result?.status).toBe('migrated');
-    const subjects = (memory.prepare(`SELECT subject FROM doctrine_judgments ORDER BY id`).all() as Array<{ subject: string }>).map(
+    const subjects = (memory.prepare(`SELECT subject FROM caravan_doctrine_judgments ORDER BY id`).all() as Array<{ subject: string }>).map(
       (r) => r.subject,
     );
     expect(subjects).toEqual(['post-move', 'pre-move']);
@@ -117,7 +120,7 @@ describe('destructiveMigrateDoctrineJudgmentsFromTrailDb', () => {
     seedTrail([{ sessionId: 's1', subject: 'a', humanDecision: 'reject' }]);
     const result = destructiveMigrateDoctrineJudgmentsFromTrailDb(memory, trailDbPath);
     expect(result?.status).toBe('migrated');
-    const row = memory.prepare(`SELECT human_decision FROM doctrine_judgments WHERE session_id = 's1'`).get() as {
+    const row = memory.prepare(`SELECT human_decision FROM caravan_doctrine_judgments WHERE session_id = 's1'`).get() as {
       human_decision: string | null;
     };
     expect(row.human_decision).toBe('reject');

@@ -9,7 +9,7 @@ const TS = '2026-08-08T00:00:00.000Z';
 
 function buildKnowledgeGraphDb(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE memory_entities (
+  db.exec(`CREATE TABLE caravan_entities (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
     canonical_name TEXT NOT NULL,
@@ -19,7 +19,7 @@ function buildKnowledgeGraphDb(dbPath: string): void {
     recorded_at TEXT NOT NULL,
     UNIQUE (type, canonical_name)
   ) STRICT`);
-  db.exec(`CREATE TABLE memory_edges (
+  db.exec(`CREATE TABLE caravan_edges (
     id TEXT PRIMARY KEY,
     subject_entity_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
@@ -29,7 +29,7 @@ function buildKnowledgeGraphDb(dbPath: string): void {
     valid_to TEXT,
     recorded_at TEXT NOT NULL
   ) STRICT`);
-  db.exec(`CREATE TABLE memory_edge_invalidations (
+  db.exec(`CREATE TABLE caravan_edge_invalidations (
     id TEXT PRIMARY KEY,
     edge_id TEXT NOT NULL,
     invalidated_at TEXT NOT NULL,
@@ -37,7 +37,7 @@ function buildKnowledgeGraphDb(dbPath: string): void {
   ) STRICT`);
 
   const entity = db.prepare(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   entity.run('e1', 'Concept', 'trail server', 'TrailDataServer', TS, TS, TS);
@@ -47,7 +47,7 @@ function buildKnowledgeGraphDb(dbPath: string): void {
   entity.run('e5', 'File', 'orphan.ts', 'orphan.ts', TS, TS, TS);
 
   const edge = db.prepare(
-    `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, object_literal, valid_from, valid_to, recorded_at)
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, object_literal, valid_from, valid_to, recorded_at)
      VALUES (?, ?, 'relates_to', ?, ?, ?, ?, ?)`,
   );
   // 有効エッジ: e1-e2 ×2、e1-e3、e1-e4、e2-e3
@@ -59,7 +59,7 @@ function buildKnowledgeGraphDb(dbPath: string): void {
   // 除外対象: 失効・無効化・リテラル・自己ループ
   edge.run('x1', 'e3', 'e5', null, TS, TS, TS);
   edge.run('x2', 'e4', 'e5', null, TS, null, TS);
-  db.prepare(`INSERT INTO memory_edge_invalidations (id, edge_id, invalidated_at, reason) VALUES ('i1', 'x2', ?, 'manual')`).run(TS);
+  db.prepare(`INSERT INTO caravan_edge_invalidations (id, edge_id, invalidated_at, reason) VALUES ('i1', 'x2', ?, 'manual')`).run(TS);
   edge.run('x3', 'e1', null, 'literal value', TS, null, TS);
   edge.run('x4', 'e2', 'e2', null, TS, null, TS);
   db.close();
@@ -133,7 +133,7 @@ describe('MemoryApiHandler.getKnowledgeGraph', () => {
   });
 
   it('ignores malformed type values instead of interpolating them', async () => {
-    const result = await handler.getKnowledgeGraph({ types: ["Concept'; DROP TABLE memory_entities;--"] });
+    const result = await handler.getKnowledgeGraph({ types: ["Concept'; DROP TABLE caravan_entities;--"] });
 
     // 不正な種別は落ちて「絞り込みなし」になる（有効な種別が 1 つも残らないため）
     expect(result?.nodes.length).toBe(4);

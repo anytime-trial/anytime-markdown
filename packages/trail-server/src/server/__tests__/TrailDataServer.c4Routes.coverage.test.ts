@@ -176,7 +176,7 @@ describe('GET /api/c4/coverage — DB-only (FS フォールバック廃止)', ()
       }),
       'utf-8',
     );
-    // payload を非 null にして coverage 分岐へ到達させる (current_coverage 空のため model は未使用)。
+    // payload を非 null にして coverage 分岐へ到達させる (activity_current_coverage 空のため model は未使用)。
     mockedFetchC4Model.mockResolvedValue({ model: { elements: [], relationships: [] }, boundaries: [] } as never);
     // gitRoot = tmpDir, defaultRepoName = repoName で旧 FS スキャンのガードを通過させる。
     server = new TrailDataServer('/tmp', db, makeMockLogger(), tmpDir, undefined, { defaultRepoName: repoName });
@@ -190,7 +190,7 @@ describe('GET /api/c4/coverage — DB-only (FS フォールバック廃止)', ()
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('current_coverage が空なら FS の coverage-final.json を無視して null を返す', async () => {
+  it('activity_current_coverage が空なら FS の coverage-final.json を無視して null を返す', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/c4/coverage?repo=${encodeURIComponent(repoName)}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { coverageMatrix: unknown };
