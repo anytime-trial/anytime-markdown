@@ -138,6 +138,16 @@ export interface CooccurrenceFile {
     specHash: string;
     /** 算出したレイアウトアルゴリズムの版数。 */
     algorithmVersion: string;
+    /**
+     * 座標を誰が計算したか。既定は `'client'`（ビューアが計算してキャッシュした座標）。
+     *
+     * `'server'` は供給側が全体グラフに対して計算した座標で、ビューアは
+     * **アルゴリズム版数の照合をせずにそのまま使う**。照合が要るのは client 経路だけ:
+     * ビューアがアルゴリズムを変えたら自分の古いキャッシュは捨てなければならないが、
+     * サーバ供給の座標は供給元が正しさに責任を持つ（別のアルゴリズムで計算されているのが
+     * 正常であり、版数不一致を理由に捨てるとクライアントが全体グラフを計算し直す羽目になる）。
+     */
+    source?: 'client' | 'server';
   };
 }
 
@@ -319,6 +329,39 @@ function validateSubclusterStructure(
       }
     });
   });
+  return errors;
+}
+
+/** `layout`（座標キャッシュ）の構造検査。無い場合は検査しない。 */
+function validateLayoutStructure(layout: unknown): ValidationError[] {
+  if (layout === undefined) return [];
+  if (!isRecord(layout)) return [error('invalid-schema', 'layout', 'layout must be an object')];
+
+  const errors: ValidationError[] = [];
+  const positions = prop(layout, 'positions');
+  if (!Array.isArray(positions)) {
+    errors.push(error('invalid-schema', 'layout.positions', 'layout positions must be an array'));
+  } else {
+    positions.forEach((position, i) => {
+      if (!Array.isArray(position) || position.length !== 2) {
+        errors.push(error('invalid-schema', `layout.positions.${i}`, 'position must be [x, y]'));
+        return;
+      }
+      if (!isFiniteNumber(position[0]) || !isFiniteNumber(position[1])) {
+        errors.push(error('invalid-schema', `layout.positions.${i}`, 'position values must be finite numbers'));
+      }
+    });
+  }
+  if (typeof prop(layout, 'specHash') !== 'string') {
+    errors.push(error('invalid-schema', 'layout.specHash', 'specHash must be a string'));
+  }
+  if (typeof prop(layout, 'algorithmVersion') !== 'string') {
+    errors.push(error('invalid-schema', 'layout.algorithmVersion', 'algorithmVersion must be a string'));
+  }
+  const source = prop(layout, 'source');
+  if (source !== undefined && source !== 'client' && source !== 'server') {
+    errors.push(error('invalid-schema', 'layout.source', "source must be 'client' or 'server'"));
+  }
   return errors;
 }
 
@@ -549,33 +592,7 @@ function validateStructure(file: unknown): ValidationError[] {
     }
   }
 
-  const layout = prop(file, 'layout');
-  if (layout !== undefined) {
-    if (!isRecord(layout)) {
-      errors.push(error('invalid-schema', 'layout', 'layout must be an object'));
-    } else {
-      const positions = prop(layout, 'positions');
-      if (!Array.isArray(positions)) {
-        errors.push(error('invalid-schema', 'layout.positions', 'layout positions must be an array'));
-      } else {
-        positions.forEach((position, i) => {
-          if (!Array.isArray(position) || position.length !== 2) {
-            errors.push(error('invalid-schema', `layout.positions.${i}`, 'position must be [x, y]'));
-            return;
-          }
-          if (!isFiniteNumber(position[0]) || !isFiniteNumber(position[1])) {
-            errors.push(error('invalid-schema', `layout.positions.${i}`, 'position values must be finite numbers'));
-          }
-        });
-      }
-      if (typeof prop(layout, 'specHash') !== 'string') {
-        errors.push(error('invalid-schema', 'layout.specHash', 'specHash must be a string'));
-      }
-      if (typeof prop(layout, 'algorithmVersion') !== 'string') {
-        errors.push(error('invalid-schema', 'layout.algorithmVersion', 'algorithmVersion must be a string'));
-      }
-    }
-  }
+  errors.push(...validateLayoutStructure(prop(file, 'layout')));
 
   return errors;
 }

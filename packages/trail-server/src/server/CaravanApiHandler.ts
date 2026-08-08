@@ -80,7 +80,12 @@ export interface BugCausalInfo {
  * links / clusters の数値は nodes の添字。
  */
 export interface KnowledgeGraphResponse {
-  nodes: { label: string; type: string; frequency: number }[];
+  /**
+   * `x` / `y` はサーバが全体グラフに対して計算した世界座標（`caravan_entity_layout`）。
+   * **全ノードに揃っている時だけ**クライアントはレイアウトを省略できる。1 件でも欠けると
+   * クライアント側計算へ縮退する（座標のある点と無い点が混ざった図は配置が破綻するため）。
+   */
+  nodes: { label: string; type: string; frequency: number; x?: number; y?: number }[];
   links: { a: number; b: number; strength: number }[];
   clusters: { label: string; members: number[] }[];
   /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */
@@ -340,6 +345,12 @@ export class CaravanApiHandler {
   private instructionSessionsAvailable = false;
 
   /**
+   * `caravan_entity_layout`（migration 026）の有無。無い DB（migration 未適用・テストの
+   * 手組みスキーマ）では座標を返さず、クライアント側レイアウトへ縮退する。
+   */
+  private entityLayoutAvailable = false;
+
+  /**
    * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
    * bindings package が call stack から `.node` を推測できず crash する問題の
    * 回避策 (trail-caravan-book / TrailDatabase と同パターン)。
@@ -399,6 +410,15 @@ export class CaravanApiHandler {
       } catch (err) {
         this.instructionSessionsAvailable = false;
         this.logger.warn(`[CaravanApiHandler.openReadOnly] caravan_instruction_sessions probe failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      try {
+        const probe = this.cachedReadOnlyDb.exec(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'caravan_entity_layout'`,
+        );
+        this.entityLayoutAvailable = (probe[0]?.values.length ?? 0) > 0;
+      } catch (err) {
+        this.entityLayoutAvailable = false;
+        this.logger.warn(`[CaravanApiHandler.openReadOnly] caravan_entity_layout probe failed: ${err instanceof Error ? err.message : String(err)}`);
       }
       const trailDbPath = path.join(path.dirname(this.dbPath), 'activity.db');
       if (fs.existsSync(trailDbPath)) {
@@ -1634,21 +1654,32 @@ export class CaravanApiHandler {
       const idFilter = selectedIds.size > 0
         ? `WHERE en.id IN (${[...selectedIds].map(() => '?').join(',')})`
         : '';
+      const layoutColumns = this.entityLayoutAvailable ? 'el.x, el.y' : 'NULL AS x, NULL AS y';
+      const layoutJoin = this.entityLayoutAvailable
+        ? 'LEFT JOIN caravan_entity_layout el ON el.entity_id = en.id'
+        : '';
       const nodeResult = db.exec(
         `WITH ${activeCte}, ${degCte}
-        SELECT en.id, en.display_name, en.type, deg.d
+        SELECT en.id, en.display_name, en.type, deg.d, ${layoutColumns}
         FROM deg JOIN caravan_entities en ON en.id = deg.id
+        ${layoutJoin}
         ${idFilter}
         ORDER BY deg.d DESC, en.id
         LIMIT ?`,
         toBindParams([...typeBinds, ...selectedIds, limit]),
       );
-      const nodeRows = (nodeResult[0]?.values ?? []).map((row) => ({
-        id: toStr(row[0]),
-        label: toStr(row[1]),
-        type: toStr(row[2]),
-        frequency: Number(row[3] ?? 0),
-      }));
+      const nodeRows = (nodeResult[0]?.values ?? []).map((row) => {
+        const x = row[4];
+        const y = row[5];
+        const hasPosition = typeof x === 'number' && typeof y === 'number';
+        return {
+          id: toStr(row[0]),
+          label: toStr(row[1]),
+          type: toStr(row[2]),
+          frequency: Number(row[3] ?? 0),
+          ...(hasPosition ? { x, y } : {}),
+        };
+      });
 
       const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
       let links: { a: number; b: number; strength: number }[] = [];
@@ -1700,7 +1731,7 @@ export class CaravanApiHandler {
       const availableTypes = (availableResult[0]?.values ?? []).map((row) => toStr(row[0]));
 
       return {
-        nodes: nodeRows.map(({ label, type, frequency }) => ({ label, type, frequency })),
+        nodes: nodeRows.map(({ id: _id, ...node }) => node),
         links,
         clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
         totalEntityCount,

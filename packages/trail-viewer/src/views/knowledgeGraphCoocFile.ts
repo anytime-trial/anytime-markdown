@@ -4,7 +4,7 @@
  * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md §3.3
  */
 
-import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { computeSpecHash, type CooccurrenceFile } from '@anytime-markdown/graph-core';
 import type { CooccurrenceLinkTuple } from '@anytime-markdown/graph-core';
 
 export interface KnowledgeGraphNodeDto {
@@ -12,6 +12,12 @@ export interface KnowledgeGraphNodeDto {
   readonly type: string;
   /** アクティブエッジ次数。円の面積に比例させる。 */
   readonly frequency: number;
+  /**
+   * サーバが計算した世界座標（`caravan_entity_layout`）。全ノードに揃っている時だけ
+   * クライアントはレイアウト計算を省略する。
+   */
+  readonly x?: number;
+  readonly y?: number;
 }
 
 export interface KnowledgeGraphLinkDto {
@@ -73,6 +79,14 @@ export function buildKnowledgeGraphCoocFile(
     links.push([link.a, link.b, link.strength]);
   }
 
+  const spec = {
+    nodes: response.nodes.map((node, i) => ({ label: labels[i], frequency: node.frequency })),
+    links,
+    clusters: response.clusters
+      .filter((cluster) => cluster.members.length > 0)
+      .map((cluster) => ({ label: cluster.label, members: [...cluster.members] })),
+  };
+
   return {
     meta: {
       // 無向・メモなし・時間軸なしのため版数 1（graph-core schemaVersionForSpec と同じ規則）
@@ -80,12 +94,37 @@ export function buildKnowledgeGraphCoocFile(
       generatedAt,
       origin: 'mcp',
     },
-    spec: {
-      nodes: response.nodes.map((node, i) => ({ label: labels[i], frequency: node.frequency })),
-      links,
-      clusters: response.clusters
-        .filter((cluster) => cluster.members.length > 0)
-        .map((cluster) => ({ label: cluster.label, members: [...cluster.members] })),
+    spec,
+    ...buildServerLayout(response, spec),
+  };
+}
+
+/**
+ * サーバが座標を返しているなら `layout` を組む。ビューアはこれを見てレイアウト計算を丸ごと
+ * 省略する（`layout.source = 'server'`）。
+ *
+ * **1 件でも座標が欠けたら何も返さない**。座標のある点と無い点が混ざると、無い点だけが
+ * 原点に固まった図になる。全部あるか、全部クライアントで計算するかの二択にする。
+ */
+function buildServerLayout(
+  response: KnowledgeGraphResponse,
+  spec: CooccurrenceFile['spec'],
+): Pick<CooccurrenceFile, 'layout'> | Record<string, never> {
+  const positions: Array<[number, number]> = [];
+  for (const node of response.nodes) {
+    if (typeof node.x !== 'number' || typeof node.y !== 'number') return {};
+    if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return {};
+    positions.push([node.x, node.y]);
+  }
+  if (positions.length === 0) return {};
+  return {
+    layout: {
+      positions,
+      specHash: computeSpecHash(spec),
+      // サーバ側は ForceAtlas2。source: 'server' の間、ビューアはこの値を照合しない
+      // （graph-core の CooccurrenceFile.layout 参照）が、由来が読めるよう実名を書く。
+      algorithmVersion: 'server-forceatlas2-v1',
+      source: 'server',
     },
   };
 }

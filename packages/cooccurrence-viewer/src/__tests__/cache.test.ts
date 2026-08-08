@@ -48,4 +48,39 @@ describe('evaluateLayoutCache', () => {
     };
     expect(evaluateLayoutCache(file).decision).toBe('miss-algorithm');
   });
+
+  it('accepts a server-supplied layout without checking the algorithm version', () => {
+    // サーバ供給の座標はアルゴリズム版数を照合しない。照合すると、ビューア側の
+    // アルゴリズムを変えるたびに全体グラフの座標を捨ててクライアントで計算し直すことになる
+    const file = baseFile();
+    file.layout = {
+      positions: [[0, 0], [1, 1]],
+      specHash: computeSpecHash(file.spec),
+      algorithmVersion: 'server-forceatlas2-v1',
+      source: 'server',
+    };
+    expect(evaluateLayoutCache(file).decision).toBe('hit');
+  });
+
+  it('still requires a matching spec hash for a server-supplied layout', () => {
+    const file = baseFile();
+    file.layout = {
+      positions: [[0, 0], [1, 1]],
+      specHash: 'stale',
+      algorithmVersion: 'server-forceatlas2-v1',
+      source: 'server',
+    };
+    expect(evaluateLayoutCache(file).decision).toBe('miss-spec');
+  });
+
+  it('keeps checking the algorithm version for client-computed layouts', () => {
+    const file = baseFile();
+    file.layout = {
+      positions: [[0, 0], [1, 1]],
+      specHash: computeSpecHash(file.spec),
+      algorithmVersion: 'old-algorithm',
+      source: 'client',
+    };
+    expect(evaluateLayoutCache(file).decision).toBe('miss-algorithm');
+  });
 });

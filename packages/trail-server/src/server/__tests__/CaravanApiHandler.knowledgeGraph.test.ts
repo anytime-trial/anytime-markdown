@@ -307,3 +307,68 @@ describe('CaravanApiHandler.getKnowledgeGraph — hub and spoke', () => {
     expect(result?.nodes[0]?.frequency).toBe(3);
   });
 });
+
+describe('CaravanApiHandler.getKnowledgeGraph — server-side layout', () => {
+  let tmpDir: string;
+  let handler: CaravanApiHandler;
+  let dbPath: string;
+
+  function addLayoutTable(withRows: boolean): void {
+    const db = new BetterSqlite3(dbPath);
+    db.exec(`CREATE TABLE caravan_entity_layout (
+      entity_id TEXT PRIMARY KEY, x REAL NOT NULL, y REAL NOT NULL,
+      community_id INTEGER NOT NULL, graph_version TEXT NOT NULL, recorded_at TEXT NOT NULL) STRICT`);
+    if (withRows) {
+      const ins = db.prepare(
+        `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, graph_version, recorded_at)
+         VALUES (?, ?, ?, 0, 'v1', ?)`,
+      );
+      ins.run('e1', 10.5, -20.5, TS);
+      ins.run('e2', 30, 40, TS);
+      ins.run('e3', -5, 5, TS);
+      ins.run('e4', 1, 2, TS);
+    }
+    db.close();
+  }
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-layout-api-'));
+    dbPath = path.join(tmpDir, 'caravan-book.db');
+    buildKnowledgeGraphDb(dbPath);
+  });
+
+  afterEach(() => {
+    handler.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns stored coordinates for every node', async () => {
+    addLayoutTable(true);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({});
+
+    expect(result?.nodes.map((n) => [n.x, n.y])).toEqual([
+      [10.5, -20.5], [30, 40], [-5, 5], [1, 2],
+    ]);
+  });
+
+  it('omits coordinates for nodes the layout has not covered yet', async () => {
+    addLayoutTable(false);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({});
+
+    expect(result?.nodes.length).toBeGreaterThan(0);
+    for (const node of result?.nodes ?? []) {
+      expect(node.x).toBeUndefined();
+      expect(node.y).toBeUndefined();
+    }
+  });
+
+  it('works against a database without the layout table (migration 026 未適用)', async () => {
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({});
+
+    expect(result?.nodes.length).toBe(4);
+    expect(result?.nodes[0]?.x).toBeUndefined();
+  });
+});
