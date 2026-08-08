@@ -66,7 +66,7 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
   const trailDbPath = path.join(tempDir, 'trail.db');
   const memoryDbPath = path.join(tempDir, 'memory-core.db');
   const trail = createSeedableTrailDb(trailDbPath);
-  const db = new FlightRecordDatabase(memoryDbPath, trailDbPath, logger);
+  const db = new FlightRecordDatabase(memoryDbPath, { trailDbPath, logger });
   db.init();
   const run = (handle: BetterSqlite3Database) =>
     (sql: string, params: readonly unknown[] = []): void => {
@@ -101,7 +101,7 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
 export function createUninitializedFlightRecordDb(): { db: FlightRecordDatabase; cleanup(): void } {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-db-'));
   return {
-    db: new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), path.join(tempDir, 'trail.db')),
+    db: new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath: path.join(tempDir, 'trail.db') }),
     cleanup(): void {
       fs.rmSync(tempDir, { recursive: true, force: true });
     },

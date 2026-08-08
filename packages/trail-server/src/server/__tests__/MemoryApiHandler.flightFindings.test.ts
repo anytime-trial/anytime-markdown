@@ -88,7 +88,7 @@ function seedMemoryDb(dbPath: string): void {
  * 冪等作成し、instruction_sessions へ起点セッションを紐付ける）。
  */
 function seedInstructionSession(memoryDbPath: string): void {
-  const flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+  const flightDb = new FlightRecordDatabase(memoryDbPath);
   flightDb.init();
   flightDb.openInstruction({
     id: INSTRUCTION_ID,

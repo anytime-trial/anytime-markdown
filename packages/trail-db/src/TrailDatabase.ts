@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 
 import type { Database as BetterSqlite3Database } from 'better-sqlite3';
 
-import { loadBetterSqlite3 } from './internal/loadBetterSqlite3';
+import { openBetterSqlite3 } from './internal/loadBetterSqlite3';
 import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
 import { SqlJsCompatStatement } from './internal/SqlJsCompatStatement';
 
@@ -1717,24 +1717,8 @@ export class TrailDatabase {
     // native binary を解決する。memory-core と同じパターン。
     // 旧 sql.js + sql-wasm 16/2GB ヒープ制約は better-sqlite3 (ネイティブ) では発生しない。
     //
-    // nativeBinding: webpack-bundled VS Code 拡張では bindings package の getFileName が
-    // call stack を辿って .node のパスを推測する処理が壊れる (一つのバンドル JS から
-    // 呼び出されるため module path が判別できず "Cannot read properties of undefined
-    // (reading 'indexOf')" で fail)。bindings 推測を回避するため .node の絶対パスを
-    // 直接渡す。dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node を
-    // CopyWebpackPlugin で配置済みの場合だけ採用し、それ以外 (テスト等) は bindings の
-    // 通常解決に任せる。
-    const Ctor = loadBetterSqlite3();
+    // native binary の解決 (bindings 推測の回避) は openBetterSqlite3 に集約している。
     const filePath = this.storage.getFilePath();
-    const nativeBinding = path.join(
-      this.distPath,
-      'node_modules',
-      'better-sqlite3',
-      'build',
-      'Release',
-      'better_sqlite3.node',
-    );
-    const options = fs.existsSync(nativeBinding) ? { nativeBinding } : {};
     // better-sqlite3 は親ディレクトリが存在しないと "Cannot open database because the
     // directory does not exist" で開けない。sql.js 時代は load 経路の readInitialBytes() が
     // mkdir していたが、better-sqlite3 移行で init() は getFilePath() のみを使うため
@@ -1742,7 +1726,7 @@ export class TrailDatabase {
     if (filePath) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
     }
-    const inner = new Ctor(filePath ?? ':memory:', options);
+    const inner = openBetterSqlite3(filePath ?? ':memory:', { distPath: this.distPath });
     // FK 制約は intentionally OFF。sql.js 時代は createTables() の
     // PRAGMA foreign_keys = ON が WASM 側で no-op だったため事実上 FK 未強制で
     // 動いており、既存テスト fixture / production 既存データはこれに依存している

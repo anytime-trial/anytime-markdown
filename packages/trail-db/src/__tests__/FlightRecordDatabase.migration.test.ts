@@ -76,7 +76,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
 
   beforeEach(() => {
     ctx = createLegacyTrailDb();
-    db = new FlightRecordDatabase(ctx.memoryDbPath, ctx.trailDbPath);
+    db = new FlightRecordDatabase(ctx.memoryDbPath, { trailDbPath: ctx.trailDbPath });
     db.init();
   });
 
@@ -206,7 +206,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       .run(TS, TS, TS);
     trail.close();
 
-    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), trailDbPath);
+    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath });
     standalone.init();
     try {
       const result = standalone.destructiveMigrateFromTrailDb();
@@ -222,7 +222,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
 
   it('trail.db が無い構成では null を返す', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), path.join(tempDir, 'trail.db'));
+    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath: path.join(tempDir, 'trail.db') });
     standalone.init();
     try {
       expect(standalone.destructiveMigrateFromTrailDb()).toBeNull();
@@ -244,7 +244,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       trail.pragma('foreign_keys = OFF');
       setup(trail);
       trail.close();
-      const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), trailDbPath);
+      const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath });
       standalone.init();
       try {
         run(standalone, trailDbPath);

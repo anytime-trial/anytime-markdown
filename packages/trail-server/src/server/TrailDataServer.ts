@@ -389,11 +389,12 @@ export class TrailDataServer {
         debugSql: () => {},
       };
       try {
-        const flightDb = new FlightRecordDatabase(
-          memoryDbPath,
-          path.join(path.dirname(memoryDbPath), 'trail.db'),
-          flightDbLogger,
-        );
+        const flightDb = new FlightRecordDatabase(memoryDbPath, {
+          trailDbPath: path.join(path.dirname(memoryDbPath), 'trail.db'),
+          // バンドル済み拡張では distPath 配下の .node を渡さないと init() が必ず throw する。
+          distPath: this.distPath,
+          logger: flightDbLogger,
+        });
         flightDb.init();
         this.flightRecordDb = flightDb;
         try {

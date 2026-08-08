@@ -332,7 +332,7 @@ describe('/api/trail/flight-reviews/:sessionId PATCH (Phase 6 S3 manual)', () =>
     // Flight Record は memory-core.db 側（server 内部の flightRecordDb と同一ファイル）。
     // シード専用の別接続で upsertFlightReviewFromMachine を叩く（server 内部インスタンスへは
     // アクセスできないため）。
-    flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+    flightDb = new FlightRecordDatabase(memoryDbPath);
     flightDb.init();
   });
 
@@ -469,7 +469,7 @@ describe('/api/trail/flight-reviews/:sessionId PATCH rationaleAuditStatus (Phase
     server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
-    flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+    flightDb = new FlightRecordDatabase(memoryDbPath);
     flightDb.init();
   });
 
