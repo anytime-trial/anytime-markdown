@@ -29,10 +29,10 @@ export interface KnowledgeGraphPanelProps {
 }
 
 const STYLE_ID = 'am-knowledge-graph-style';
-// 上限 5000 はサーバ側 clamp（TrailDataServer / CaravanApiHandler）と揃える。実測の根拠は
-// CaravanApiHandler の KNOWLEDGE_GRAPH_MAX_NODES。5000 は初回描画 1.5 秒・操作 60fps で、
-// 10000 は 3.4 秒・20fps へ落ちるため選択肢に置かない。既定は 150 のまま。
-const LIMIT_CHOICES = ['50', '150', '300', '500', '1000', '2000', '5000'] as const;
+// 上限 10000 はサーバ側 clamp（TrailDataServer / CaravanApiHandler）と揃える。実測の根拠は
+// CaravanApiHandler の KNOWLEDGE_GRAPH_MAX_NODES。既定を 150 に据え置くのは、10000 では
+// レイアウトの同期実行で初回描画が約 3.3 秒かかるため（操作自体は 1 フレーム 8.5ms で軽い）。
+const LIMIT_CHOICES = ['50', '150', '300', '500', '1000', '2000', '5000', '10000'] as const;
 const DEFAULT_LIMIT = '150';
 
 type LoadState = 'loading' | 'failed' | 'empty' | 'ready';

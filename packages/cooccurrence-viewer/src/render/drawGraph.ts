@@ -4,7 +4,7 @@ import type { CooccurrenceTheme } from '../theme/readTheme';
 import { arrowHeadPoints, type ArrowHead } from './arrow';
 import { cardLinkAnchors, type CardLinkAnchor } from './cardLayout';
 import { computeNeighborhoodHighlight, isNodeLit, timeLinkLit, type HighlightSelection } from './highlight';
-import { selectVisibleLabels } from './labels';
+import { selectVisibleLabels, type LabelWidthCache } from './labels';
 import { buildNodeLookup, linkEndpoints, type NodeLookup } from './nodeLookup';
 import { worldToScreen } from '../viewport/viewport';
 
@@ -45,6 +45,11 @@ export interface DrawGraphOptions {
   viewport: ViewportState;
   theme: CooccurrenceTheme;
   selectedNodeIndex: number | null;
+  /**
+   * ラベルの文字幅キャッシュ。フレームをまたいで保持している呼び出し側だけが渡す。
+   * 省略しても結果は同じで、`measureText` が毎フレーム全ノードぶん走るぶん遅くなる。
+   */
+  labelWidthCache?: LabelWidthCache | undefined;
 }
 
 /**
@@ -427,14 +432,17 @@ export function drawGraph(opts: DrawGraphOptions): void {
     }
   }
 
-  const labels = selectVisibleLabels(
-    graph.nodes,
+  const labels = selectVisibleLabels({
+    nodes: graph.nodes,
     viewport,
-    (text, fontSize) => {
+    width,
+    height,
+    measure: (text, fontSize) => {
       ctx.font = `${fontSize}px sans-serif`;
       return ctx.measureText(text).width;
     },
-  );
+    widthCache: opts.labelWidthCache,
+  });
   for (const label of labels) {
     const alpha = visibleAlpha(highlight, label.nodeIndex, label.layer);
     if (alpha < 0.5) continue;

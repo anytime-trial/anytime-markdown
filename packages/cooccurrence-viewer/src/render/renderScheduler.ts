@@ -1,4 +1,5 @@
 import { drawGraph } from './drawGraph';
+import { createLabelWidthCache } from './labels';
 import { updateCanvasSize } from './canvasSize';
 import { readCooccurrenceTheme } from '../theme/readTheme';
 import type { CooccurrenceTheme } from '../theme/readTheme';
@@ -47,6 +48,9 @@ export function createRenderScheduler(options: RenderSchedulerOptions): RenderSc
   let frameCount = 0;
   let theme: CooccurrenceTheme | null = null;
   let themeModeAtRead: ThemeMode | null = null;
+  // 文字幅はフレームをまたいで再利用する。ラベル文字列ごとに 1 度しか測らないため、
+  // ズームで font-size が変わっても測り直しは起きない（幅は font-size に比例させる）。
+  const labelWidthCache = createLabelWidthCache();
 
   function draw(): void {
     scheduled = false;
@@ -69,6 +73,7 @@ export function createRenderScheduler(options: RenderSchedulerOptions): RenderSc
       viewport: state.viewport,
       theme,
       selectedNodeIndex: state.selectedNodeIndex,
+      labelWidthCache,
     });
     frameCount += 1;
   }
