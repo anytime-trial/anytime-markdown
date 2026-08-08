@@ -2,7 +2,7 @@ import type { CodeGraphNode, StoredCodeGraph } from '../codeGraph';
 import type { C4Model, C4Element, C4Relationship } from './types';
 
 /**
- * `current_code_graphs.graph_json` の {@link StoredCodeGraph} 形式から
+ * `activity_current_code_graphs.graph_json` の {@link StoredCodeGraph} 形式から
  * C4 派生モデルを計算する。
  *
  * - `repositories[i]` → System (`sys_<repo.id>`)

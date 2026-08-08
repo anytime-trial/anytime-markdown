@@ -37,7 +37,7 @@ function insertSession(db: TrailDatabase, overrides: Partial<Record<string, unkn
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(row.repo_name);
   inner(db).run(
-    `INSERT INTO sessions (id, slug, git_branch, repo_id, model, version, start_time, end_time,
+    `INSERT INTO activity_sessions (id, slug, git_branch, repo_id, model, version, start_time, end_time,
        message_count, file_path, file_size, imported_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [

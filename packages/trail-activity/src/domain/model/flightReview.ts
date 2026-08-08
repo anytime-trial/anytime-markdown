@@ -69,7 +69,7 @@ export interface LessonCandidate {
   evidence: string;
 }
 
-/** ユーザーの事後修正指示の記録（user_feedback_entries。Phase 6 S2） */
+/** ユーザーの事後修正指示の記録（activity_user_feedback_entries。Phase 6 S2） */
 export interface UserFeedbackEntry {
   id: number;
   sessionId: string;

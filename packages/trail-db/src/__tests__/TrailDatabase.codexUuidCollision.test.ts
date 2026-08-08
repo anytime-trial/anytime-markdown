@@ -27,7 +27,7 @@ function inner(db: TrailDatabase): RawDb {
 }
 
 function countMessages(db: TrailDatabase, sessionId: string): number {
-  const rows = inner(db).exec('SELECT COUNT(*) FROM messages WHERE session_id = ?', [sessionId]);
+  const rows = inner(db).exec('SELECT COUNT(*) FROM activity_messages WHERE session_id = ?', [sessionId]);
   return Number(rows[0]?.values[0]?.[0] ?? 0);
 }
 
@@ -120,7 +120,7 @@ describe('Codex message uuid collision (regression)', () => {
     db.importSession(writeCodexRollout(dir, sidB, 4), 'test-repo');
 
     const rows = inner(db).exec(
-      'SELECT COUNT(*), COUNT(DISTINCT uuid) FROM messages WHERE session_id IN (?, ?)',
+      'SELECT COUNT(*), COUNT(DISTINCT uuid) FROM activity_messages WHERE session_id IN (?, ?)',
       [sidA, sidB],
     );
     const total = Number(rows[0]?.values[0]?.[0] ?? 0);
@@ -130,14 +130,14 @@ describe('Codex message uuid collision (regression)', () => {
 
   describe('取り込み経路と commit 突合経路の uuid 一致', () => {
     // JsonlSessionReader は backfillMessageCommits から使われ、その uuid で
-    // message_commits へ書き込む。取り込み経路（importSession）が付けた uuid と
+    // activity_message_commits へ書き込む。取り込み経路（importSession）が付けた uuid と
     // ずれると、FK が OFF のため orphan として静かに蓄積する。
     it('event_msg を含む rollout でも両経路の uuid 集合が一致する', () => {
       const filePath = writeCodexRollout(dir, sidA, 3);
       db.importSession(filePath, 'test-repo');
 
       const imported = inner(db)
-        .exec('SELECT uuid FROM messages WHERE session_id = ? ORDER BY uuid', [sidA])[0]
+        .exec('SELECT uuid FROM activity_messages WHERE session_id = ? ORDER BY uuid', [sidA])[0]
         ?.values.map((v) => String(v[0])) ?? [];
       const viaReader = JsonlSessionReader.loadFromFile(filePath)
         .map((m) => m.uuid)
@@ -152,7 +152,7 @@ describe('Codex message uuid collision (regression)', () => {
 
       const existing = new Set(
         inner(db)
-          .exec('SELECT uuid FROM messages WHERE session_id = ?', [sidA])[0]
+          .exec('SELECT uuid FROM activity_messages WHERE session_id = ?', [sidA])[0]
           ?.values.map((v) => String(v[0])) ?? [],
       );
       const orphans = JsonlSessionReader.loadFromFile(filePath)
@@ -176,14 +176,14 @@ describe('Codex message uuid collision (regression)', () => {
     function seedLegacyRow(target: TrailDatabase, sessionId: string, uuid: string): void {
       const raw = target as unknown as { db: { run: (sql: string, params?: unknown[]) => void } };
       raw.db.run(
-        `INSERT OR REPLACE INTO sessions (id, slug, repo_id, version, entrypoint, model,
+        `INSERT OR REPLACE INTO activity_sessions (id, slug, repo_id, version, entrypoint, model,
            start_time, end_time, message_count, file_path, file_size, imported_at, source)
          VALUES (?, '', 1, '', '', '', '2026-07-19T00:00:00.000Z', '2026-07-19T00:00:01.000Z',
                  1, ?, 1, '2026-07-19T00:00:02.000Z', 'codex')`,
         [sessionId, `/tmp/${sessionId}.jsonl`],
       );
       raw.db.run(
-        `INSERT OR REPLACE INTO messages (uuid, session_id, type, timestamp, input_tokens)
+        `INSERT OR REPLACE INTO activity_messages (uuid, session_id, type, timestamp, input_tokens)
          VALUES (?, ?, 'assistant', '2026-07-19T00:00:01.000Z', 42)`,
         [uuid, sessionId],
       );
@@ -199,11 +199,11 @@ describe('Codex message uuid collision (regression)', () => {
       expect(countMessages(db, sidB)).toBe(1);
     });
 
-    it('旧行に紐づく message_commits も削除する', () => {
+    it('旧行に紐づく activity_message_commits も削除する', () => {
       seedLegacyRow(db, sidA, 'codex-0');
       const raw = db as unknown as { db: { run: (sql: string, params?: unknown[]) => void } };
       raw.db.run(
-        `INSERT OR REPLACE INTO message_commits
+        `INSERT OR REPLACE INTO activity_message_commits
            (message_uuid, session_id, commit_hash, detected_at, match_confidence)
          VALUES ('codex-0', ?, 'abc1234', '2026-07-19T00:00:03.000Z', 'high')`,
         [sidA],
@@ -212,16 +212,16 @@ describe('Codex message uuid collision (regression)', () => {
       runMigration(db);
 
       const rows = inner(db).exec(
-        "SELECT COUNT(*) FROM message_commits WHERE message_uuid = 'codex-0'",
+        "SELECT COUNT(*) FROM activity_message_commits WHERE message_uuid = 'codex-0'",
       );
       expect(Number(rows[0]?.values[0]?.[0] ?? 0)).toBe(0);
     });
 
-    it('旧行に紐づく message_tool_calls も削除する', () => {
+    it('旧行に紐づく activity_message_tool_calls も削除する', () => {
       seedLegacyRow(db, sidA, 'codex-0');
       const raw = db as unknown as { db: { run: (sql: string, params?: unknown[]) => void } };
       raw.db.run(
-        `INSERT OR REPLACE INTO message_tool_calls
+        `INSERT OR REPLACE INTO activity_message_tool_calls
            (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
          VALUES (?, 'codex-0', 0, 0, 'exec_command', '2026-07-19T00:00:01.000Z')`,
         [sidA],
@@ -230,7 +230,7 @@ describe('Codex message uuid collision (regression)', () => {
       runMigration(db);
 
       const rows = inner(db).exec(
-        "SELECT COUNT(*) FROM message_tool_calls WHERE message_uuid = 'codex-0'",
+        "SELECT COUNT(*) FROM activity_message_tool_calls WHERE message_uuid = 'codex-0'",
       );
       expect(Number(rows[0]?.values[0]?.[0] ?? 0)).toBe(0);
     });
@@ -239,13 +239,13 @@ describe('Codex message uuid collision (regression)', () => {
       seedLegacyRow(db, sidA, 'codex-0');
       const raw = db as unknown as { db: { run: (sql: string, params?: unknown[]) => void } };
       raw.db.run(
-        `INSERT OR REPLACE INTO message_tool_calls
+        `INSERT OR REPLACE INTO activity_message_tool_calls
            (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
          VALUES (?, 'codex-0', 0, 0, 'exec_command', '2026-07-19T00:00:01.000Z')`,
         [sidA],
       );
       raw.db.run(
-        `INSERT OR REPLACE INTO message_commits
+        `INSERT OR REPLACE INTO activity_message_commits
            (message_uuid, session_id, commit_hash, detected_at, match_confidence)
          VALUES ('codex-0', ?, 'abc1234', '2026-07-19T00:00:03.000Z', 'high')`,
         [sidA],
@@ -253,10 +253,10 @@ describe('Codex message uuid collision (regression)', () => {
 
       runMigration(db);
 
-      for (const table of ['message_commits', 'message_tool_calls']) {
+      for (const table of ['activity_message_commits', 'activity_message_tool_calls']) {
         const rows = inner(db).exec(
           `SELECT COUNT(*) FROM ${table} tc
-           WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.uuid = tc.message_uuid)`,
+           WHERE NOT EXISTS (SELECT 1 FROM activity_messages m WHERE m.uuid = tc.message_uuid)`,
         );
         expect({ table, orphans: Number(rows[0]?.values[0]?.[0] ?? 0) }).toEqual({ table, orphans: 0 });
       }
@@ -276,7 +276,7 @@ describe('Codex message uuid collision (regression)', () => {
 
     for (const sid of [sidA, sidB]) {
       const rows = inner(db).exec(
-        'SELECT SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens) FROM messages WHERE session_id = ?',
+        'SELECT SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens) FROM activity_messages WHERE session_id = ?',
         [sid],
       );
       expect(Number(rows[0]?.values[0]?.[0] ?? 0)).toBeGreaterThan(0);

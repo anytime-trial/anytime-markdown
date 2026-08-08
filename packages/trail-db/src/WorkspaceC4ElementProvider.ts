@@ -10,7 +10,7 @@ export interface WorkspaceC4ElementProviderOptions {
   readonly workspaceRoot: string;
   /** 省略時はワークスペースルートのディレクトリ名 */
   readonly repoName?: string;
-  /** 手動 C4 要素（c4_manual_elements）をマージする場合のみ渡す */
+  /** 手動 C4 要素（activity_c4_manual_elements）をマージする場合のみ渡す */
   readonly db?: Database.Database;
   readonly packagesDirName?: string;
   readonly logger?: DbLogger;
@@ -33,7 +33,7 @@ const DEFAULT_PACKAGES_DIR_NAME = 'packages';
  * 設計書追随チェック用の C4 要素を供給する。
  *
  * 設計書の `c4Scope` は `pkg_<パッケージ名>` / `sys_<リポジトリ名>` 形式で要素を指すが、
- * 手動 C4（`c4_manual_elements`）は実運用で 0 件であり、これだけに頼ると
+ * 手動 C4（`activity_c4_manual_elements`）は実運用で 0 件であり、これだけに頼ると
  * `c4Mapper` が変更ファイルを 1 件も要素へ写像できない。そこでワークスペース構成
  * （`packages/<name>/package.json` の実在）から要素を決定論的に導出し、
  * 手動 C4 が存在する場合はそちらを優先してマージする。
@@ -113,7 +113,7 @@ export class WorkspaceC4ElementProvider {
     try {
       rows = this.db.prepare(`
         SELECT element_id, type, name, parent_id
-        FROM c4_manual_elements
+        FROM activity_c4_manual_elements
         WHERE repo_id = ?
       `).all(repoId) as ManualElementRow[];
     } catch (error) {
@@ -134,7 +134,7 @@ export class WorkspaceC4ElementProvider {
 
   private findRepoId(db: Database.Database): number | null {
     try {
-      const row = db.prepare('SELECT repo_id FROM repos WHERE repo_name = ?')
+      const row = db.prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?')
         .get(this.repoName) as RepoRow | undefined;
       if (row) return row.repo_id;
 

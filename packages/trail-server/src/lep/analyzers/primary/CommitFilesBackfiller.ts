@@ -16,7 +16,7 @@ export interface CommitFilesBackfillerOptions {
  * Layer 2 Primary Analyzer: `commit_resolved` を購読し、Wave 末端で
  * `TrailDatabase.backfillCommitFilesPublic(gitRoot)` を 1 回呼ぶ。
  *
- * 既存 importAll Phase 8 の commit_files backfill と等価。
+ * 既存 importAll Phase 8 の activity_commit_files backfill と等価。
  * `_migrations.commit_files_backfill_v2` フラグで一度きり実行が保証されるため、
  * Wave 末端で無条件に呼んでも冪等。
  */

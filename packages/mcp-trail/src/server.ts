@@ -286,7 +286,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'analyze_release_code',
     {
       description:
-        'Run release-grouped C4 / code graph analysis. Without "tags" this deletes ALL existing release_code_graphs and regenerates every release. With "tags" only those releases are deleted and regenerated, leaving other cached graphs intact. Equivalent to "Anytime Trail: リリース別コード解析" command.',
+        'Run release-grouped C4 / code graph analysis. Without "tags" this deletes ALL existing activity_release_code_graphs and regenerates every release. With "tags" only those releases are deleted and regenerated, leaving other cached graphs intact. Equivalent to "Anytime Trail: リリース別コード解析" command.',
       inputSchema: {
         ...commonParams,
         tags: z
@@ -372,11 +372,11 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'upsert_community_summaries',
-    { description: 'Upsert community name + summary pairs to current_code_graph_communities. Used by anytime-reverse-engineer skill after AI generation. mappings_json is preserved.', inputSchema: {
+    { description: 'Upsert community name + summary pairs to activity_current_code_graph_communities. Used by anytime-reverse-engineer skill after AI generation. mappings_json is preserved.', inputSchema: {
       summaries: z
         .array(
           z.object({
-            communityId: z.number().int().describe('community_id from current_code_graphs.graph_json'),
+            communityId: z.number().int().describe('community_id from activity_current_code_graphs.graph_json'),
             name: z.string().describe('Short name (3 words)'),
             summary: z.string().describe('One-sentence summary (max 60 chars)'),
           }),
@@ -602,7 +602,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_acceptance_review',
-    { description: 'Assemble the acceptance-review material for a session (DCT-13): the delegated judgments, the doctrine clauses each judgment cited (verbatim quote + approval state + resolution result), the artifact diff, and the escalations with their reasons. Returns both structured data and a Markdown rendering meant to be pasted into the completion report. Read-only. The diff is taken from git directly (not the lagging session_commits import); a git failure degrades to available=false with a reason instead of failing the whole call.', inputSchema: {
+    { description: 'Assemble the acceptance-review material for a session (DCT-13): the delegated judgments, the doctrine clauses each judgment cited (verbatim quote + approval state + resolution result), the artifact diff, and the escalations with their reasons. Returns both structured data and a Markdown rendering meant to be pasted into the completion report. Read-only. The diff is taken from git directly (not the lagging activity_session_commits import); a git failure degrades to available=false with a reason instead of failing the whole call.', inputSchema: {
       session_id: GetAcceptanceReviewInputSchema.shape.session_id,
       base_ref: GetAcceptanceReviewInputSchema.shape.base_ref,
       head_ref: GetAcceptanceReviewInputSchema.shape.head_ref,
@@ -817,7 +817,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'get_verification_status',
     {
       description:
-        'Check the verification ledger (activity.db, table verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
+        'Check the verification ledger (activity.db, table activity_verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
       inputSchema: {
         package: GetVerificationStatusInputSchema.shape.package,
         kinds: GetVerificationStatusInputSchema.shape.kinds,

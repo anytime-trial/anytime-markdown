@@ -53,7 +53,7 @@ describe('TrailDatabase Community CRUD', () => {
     it('mappings_json カラム未存在時に ALTER TABLE で追加して書き込む', () => {
       // schema には mappings_json が定義されていない前提だが、
       // 既存スキーマ次第なのでテスト前にカラムが無くなった状態を再現。
-      const cols0 = inner(db).exec("PRAGMA table_info(current_code_graph_communities)")[0]?.values ?? [];
+      const cols0 = inner(db).exec("PRAGMA table_info(activity_current_code_graph_communities)")[0]?.values ?? [];
       const hasMappings = cols0.some((c) => String((c as unknown[])[1]) === 'mappings_json');
       // schema に既にカラムがあれば、それは正常。テストは「未存在時も動く」ことだけ確認したい
       // → ここでは: メソッド呼び出し後に必ずカラムが存在することを保証する
@@ -62,7 +62,7 @@ describe('TrailDatabase Community CRUD', () => {
       ]);
       expect(result.inserted).toBe(1);
       expect(result.updated).toBe(0);
-      const cols1 = inner(db).exec("PRAGMA table_info(current_code_graph_communities)")[0]?.values ?? [];
+      const cols1 = inner(db).exec("PRAGMA table_info(activity_current_code_graph_communities)")[0]?.values ?? [];
       expect(cols1.some((c) => String((c as unknown[])[1]) === 'mappings_json')).toBe(true);
 
       const rows = db.listCurrentCodeGraphCommunities('repo-A');

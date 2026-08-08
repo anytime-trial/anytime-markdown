@@ -163,7 +163,7 @@ describe('SyncService.sync commits', () => {
   it('syncs session commits even when message sync fails for that session', async () => {
     const localDb = await createDb();
     const inner = (localDb as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
-    // Phase H-4: sessions / session_commits から repo_name 列を撤去したため、repo 帰属は repo_id で表現する。
+    // Phase H-4: sessions / activity_session_commits から repo_name 列を撤去したため、repo 帰属は repo_id で表現する。
     // repos を seed して repo_id を解決し fixture に埋める。SyncService の getSessionCommits は repos を
     // JOIN して repo_name を復元するため、Supabase ミラーへ運ぶ commit 行の repo_name は維持される。
     const repoId = (localDb as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-a');
@@ -173,21 +173,21 @@ describe('SyncService.sync commits', () => {
     const recentIso = new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(); // 1 時間前
     const sessionStartIso = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(); // 2 時間前
     inner.run(
-      `INSERT OR IGNORE INTO sessions (
+      `INSERT OR IGNORE INTO activity_sessions (
         id, slug, repo_id, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at
       ) VALUES (?, ?, ?, '0', '', '', ?, ?, 0, '', 0, ?)`,
       ['s1', 's1', repoId, sessionStartIso, recentIso, recentIso],
     );
     inner.run(
-      `INSERT OR IGNORE INTO session_commits (
+      `INSERT OR IGNORE INTO activity_session_commits (
         session_id, repo_id, commit_hash, commit_message, author, committed_at,
         is_ai_assisted, files_changed, lines_added, lines_deleted
       ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 12, 3)`,
       ['s1', repoId, 'abc123', 'fix: keep commits synced', 'Tester', recentIso],
     );
     inner.run(
-      `INSERT OR IGNORE INTO messages (
+      `INSERT OR IGNORE INTO activity_messages (
         uuid, session_id, type, timestamp, text_content
       ) VALUES (?, ?, 'assistant', ?, ?)`,
       ['m1', 's1', recentIso, 'large message'],
@@ -199,14 +199,14 @@ describe('SyncService.sync commits', () => {
 
     expect(result.errors).toBeGreaterThan(0);
     expect(remoteStore.commitRows).toHaveLength(1);
-    // Phase H-4: getSessionCommits の JOIN repos が repo_name を復元し、Supabase ミラーへ運ぶ契約を維持する。
+    // Phase H-4: getSessionCommits の JOIN activity_repos が repo_name を復元し、Supabase ミラーへ運ぶ契約を維持する。
     expect((remoteStore.commitRows[0] as { repo_name: string }).repo_name).toBe('repo-a');
     localDb.close();
   });
 });
 
 describe('SyncService.doSync coverage and code graph', () => {
-  it('syncs current_coverage to remote (wash-away)', async () => {
+  it('syncs activity_current_coverage to remote (wash-away)', async () => {
     const localDb = await createDb();
     const remoteStore = new FakeRemoteStore();
     const sync = new SyncService(localDb, remoteStore);
@@ -227,7 +227,7 @@ describe('SyncService.doSync coverage and code graph', () => {
     localDb.close();
   });
 
-  it('syncs release_coverage to remote (wash-away)', async () => {
+  it('syncs activity_release_coverage to remote (wash-away)', async () => {
     const localDb = await createDb();
     const remoteStore = new FakeRemoteStore();
     const sync = new SyncService(localDb, remoteStore);
@@ -248,7 +248,7 @@ describe('SyncService.doSync coverage and code graph', () => {
     localDb.close();
   });
 
-  it('syncs current_code_graphs to remote (wash-away)', async () => {
+  it('syncs activity_current_code_graphs to remote (wash-away)', async () => {
     const localDb = await createDb();
     const remoteStore = new FakeRemoteStore();
     const sync = new SyncService(localDb, remoteStore);
@@ -269,7 +269,7 @@ describe('SyncService.doSync coverage and code graph', () => {
     localDb.close();
   });
 
-  it('syncs release_code_graphs to remote (wash-away)', async () => {
+  it('syncs activity_release_code_graphs to remote (wash-away)', async () => {
     const localDb = await createDb();
     const remoteStore = new FakeRemoteStore();
     const sync = new SyncService(localDb, remoteStore);

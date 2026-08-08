@@ -28,7 +28,7 @@ async function openTestDb() {
 
   // Attach a minimal trail DB (drift detection may query trail via attach)
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
-  trailHandle.run(`CREATE TABLE session_commits (
+  trailHandle.run(`CREATE TABLE activity_session_commits (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL,
@@ -37,14 +37,14 @@ async function openTestDb() {
     author TEXT NOT NULL DEFAULT 'test',
     session_id TEXT
   ) STRICT`);
-  trailHandle.run(`CREATE TABLE commit_files (
+  trailHandle.run(`CREATE TABLE activity_commit_files (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
     repo_name TEXT NOT NULL,
     file_path TEXT NOT NULL,
     change_type TEXT NOT NULL DEFAULT 'M'
   ) STRICT`);
-  trailHandle.run(`CREATE TABLE messages (
+  trailHandle.run(`CREATE TABLE activity_messages (
     uuid TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     type TEXT NOT NULL,

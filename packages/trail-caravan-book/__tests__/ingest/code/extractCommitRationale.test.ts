@@ -27,26 +27,26 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  // Phase H-4: trail.session_commits から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
-  // extractCommitRationale は trail.repos を JOIN して repo_name → repo_id を解決する。
-  trailDb.run(`CREATE TABLE repos (
+  // Phase H-4: trail.activity_session_commits から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
+  // extractCommitRationale は trail.activity_repos を JOIN して repo_name → repo_id を解決する。
+  trailDb.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY,
     repo_name TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
   ) STRICT`);
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
     [REPO]
   );
   trailDb.run(`
-    CREATE TABLE sessions (
+    CREATE TABLE activity_sessions (
       id TEXT PRIMARY KEY,
       started_at TEXT NOT NULL DEFAULT ''
     ) STRICT
   `);
   trailDb.run(`
-    CREATE TABLE session_commits (
-      session_id   TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    CREATE TABLE activity_session_commits (
+      session_id   TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
       commit_hash  TEXT NOT NULL,
       commit_message TEXT NOT NULL DEFAULT '',
       committed_at TEXT,
@@ -59,20 +59,20 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 
 /** Resolve repo_id from repos by name, seeding the row if it does not yet exist. */
 function resolveRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
-  const existing = trailDb.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const existing = trailDb.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   const found = existing[0]?.values?.[0]?.[0];
   if (found !== undefined && found !== null) return Number(found);
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
     [repoName]
   );
-  const row = trailDb.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const row = trailDb.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   return Number(row[0]?.values?.[0]?.[0] ?? 0);
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, sessionId: string): void {
   trailDb.run(
-    `INSERT INTO sessions (id, started_at) VALUES (?, ?)`,
+    `INSERT INTO activity_sessions (id, started_at) VALUES (?, ?)`,
     [sessionId, RECORDED_AT]
   );
 }
@@ -89,7 +89,7 @@ function insertCommit(
 ): void {
   const repoId = resolveRepoId(trailDb, opts.repoName ?? REPO);
   trailDb.run(
-    `INSERT INTO session_commits (session_id, commit_hash, commit_message, committed_at, repo_id)
+    `INSERT INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at, repo_id)
      VALUES (?, ?, ?, ?, ?)`,
     [
       opts.sessionId,
@@ -490,7 +490,7 @@ describe('extractCommitRationale', () => {
   });
 
   // ECR-11: edge metadata is correct
-  test('ECR-11: edge has source_type=code, source_ref=session_commits#<hash>, confidence_label=EXTRACTED', async () => {
+  test('ECR-11: edge has source_type=code, source_ref=activity_session_commits#<hash>, confidence_label=EXTRACTED', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
     const commitHash = 'edge0meta0000';
@@ -520,7 +520,7 @@ describe('extractCommitRationale', () => {
       edgeRows[0].values[0];
 
     expect(sourceType).toBe('code');
-    expect(sourceRef).toBe(`session_commits#${commitHash}`);
+    expect(sourceRef).toBe(`activity_session_commits#${commitHash}`);
     expect(confidenceLabel).toBe('EXTRACTED');
     expect(confidence).toBe(1.0);
     expect(predicate).toBe('rationale_for');
@@ -567,14 +567,14 @@ describe('extractCommitRationale', () => {
   });
 
   // ECR-13: write to trail.* is blocked by readonly guard
-  test('ECR-13: guard blocks write to trail.session_commits', async () => {
+  test('ECR-13: guard blocks write to trail.activity_session_commits', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
 
     attachTrailDbFromHandle(memDb, trailDb);
 
     expect(() => {
-      memDb.run(`UPDATE trail.session_commits SET commit_message = 'x' WHERE 1=0`);
+      memDb.run(`UPDATE trail.activity_session_commits SET commit_message = 'x' WHERE 1=0`);
     }).toThrow(/trail.*forbidden|forbidden.*trail/i);
 
     trailDb.close();

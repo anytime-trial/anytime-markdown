@@ -28,7 +28,7 @@ type TrailRow = { id: string; name: string };
 
 /**
  * メイン DB（trail-caravan-book 全マイグレーション済み）と
- * trail インメモリ DB（c4_manual_elements に指定行を挿入済み）を開く。
+ * trail インメモリ DB（activity_c4_manual_elements に指定行を挿入済み）を開く。
  * attachTrailDbFromHandle で trail を ATTACH し、readonly ガードを設置する。
  */
 async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
@@ -43,7 +43,7 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
   // trail DB をメモリで作成（同じ WASM モジュール内のインスタンス）
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`
-    CREATE TABLE c4_manual_elements (
+    CREATE TABLE activity_c4_manual_elements (
       id          TEXT PRIMARY KEY,
       name        TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT ''
@@ -51,7 +51,7 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
   `);
   for (const row of rows) {
     trailDb.run(
-      `INSERT INTO c4_manual_elements (id, name, description) VALUES (?, ?, ?)`,
+      `INSERT INTO activity_c4_manual_elements (id, name, description) VALUES (?, ?, ?)`,
       [row.id, row.name, ''],
     );
   }

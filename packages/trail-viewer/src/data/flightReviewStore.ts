@@ -98,7 +98,7 @@ export interface FlightReviewViewState {
    * 現在の一覧ページに載っているとは限らないため。
    */
   readonly selectedReview: FlightReviewDto | null;
-  /** 選択セッションの user_feedback_entries（S2 データ。未取得・0 件は空配列）。 */
+  /** 選択セッションの activity_user_feedback_entries（S2 データ。未取得・0 件は空配列）。 */
   readonly selectedFeedback: readonly UserFeedbackDto[];
   /** 選択セッションのコミットに紐付く Rationale ノード（S4。未取得・0 件は空配列）。 */
   readonly selectedRationale: readonly RationaleNodeDto[];

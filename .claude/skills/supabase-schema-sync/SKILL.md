@@ -24,7 +24,7 @@ anytime-markdown の Supabase 永続化における**プロジェクト固有の
 - 拡張機能 (`SyncService`) から Supabase への同期は **洗い替え（wash-away）方式** を原則とする
 - 「対象テーブルを DELETE → ローカル DB の全行を upsert」の順
 - 差分同期（追加/更新/削除の判定）は行わない。一貫性を優先し毎回置き換える
-- 例: `current_graphs` → `trail_current_c4_models` は `clearCurrentC4Models()` 後に全行 `upsertCurrentC4Model()`
+- 例: `activity_current_graphs` → `trail_current_c4_models` は `clearCurrentC4Models()` 後に全行 `upsertCurrentC4Model()`
 
 ## 関連
 

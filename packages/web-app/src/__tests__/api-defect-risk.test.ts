@@ -103,7 +103,7 @@ describe('GET /api/defect-risk — データ取得', () => {
     expect(mockComputeDefectRisk).not.toHaveBeenCalled();
   });
 
-  it('commit_files を突き合わせて CommitRiskRow を組み立てる', async () => {
+  it('activity_commit_files を突き合わせて CommitRiskRow を組み立てる', async () => {
     const { client } = makeSupabase({
       trail_session_commits: [
         { data: [{ commit_hash: 'h1', session_id: 's1', commit_message: 'fix: bug', committed_at: '2026-01-01T00:00:00Z' }] },

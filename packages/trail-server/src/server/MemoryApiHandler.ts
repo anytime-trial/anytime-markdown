@@ -904,7 +904,7 @@ export class MemoryApiHandler {
       bindValues.push(limit);
       const sessionModelExpr = this.trailDbAttached
         ? `WHEN r.source_kind = 'session' THEN (
-             SELECT msg.model FROM trail.messages msg
+             SELECT msg.model FROM trail.activity_messages msg
              WHERE msg.session_id = substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
                AND msg.type = 'assistant' AND msg.model IS NOT NULL AND msg.model != ''
              GROUP BY msg.model
@@ -1392,7 +1392,7 @@ export class MemoryApiHandler {
 
   /**
    * Phase 6 S4 (Rationale Audit): セッションのコミットに紐付く決定根拠ノードを返す。
-   * memory.db の rationale_for エッジ（Decision → Commit）を、attach 済み trail.session_commits で
+   * memory.db の rationale_for エッジ（Decision → Commit）を、attach 済み trail.activity_session_commits で
    * セッション絞り込みして辿る（読み取り専用）。memory.db 不在・attach 失敗・0 件は空配列。
    */
   async listRationaleNodes(params: { sessionId: string }): Promise<RationaleNode[]> {
@@ -1409,7 +1409,7 @@ export class MemoryApiHandler {
          JOIN caravan_entities d ON d.id = e.subject_entity_id AND d.type = 'Decision'
          JOIN caravan_entities c ON c.id = e.object_entity_id AND c.type = 'Commit'
          WHERE e.predicate = 'rationale_for'
-           AND c.canonical_name IN (SELECT commit_hash FROM trail.session_commits WHERE session_id = ?)
+           AND c.canonical_name IN (SELECT commit_hash FROM trail.activity_session_commits WHERE session_id = ?)
          ORDER BY e.recorded_at DESC
          LIMIT 200`,
         toBindParams([params.sessionId]),

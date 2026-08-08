@@ -13,7 +13,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
  * 4 ハンドラ群。codeGraphService の in-memory cache から graph を読み、
  * `GraphQueryEngine` を lazy 構築してクエリ系操作を提供する。
  *
- * `current_graphs` 更新時 (TrailDataServer.notifyCodeGraphUpdated) に invalidate() を呼ぶこと。
+ * `activity_current_graphs` 更新時 (TrailDataServer.notifyCodeGraphUpdated) に invalidate() を呼ぶこと。
  */
 export class CodeGraphApiHandler {
   /** key: repo 名 (省略呼び出しはデフォルト repo に解決されるため `__default__` を使用) */
@@ -75,7 +75,7 @@ export class CodeGraphApiHandler {
 
   async handleGet(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     if (releaseId !== 'current') {
-      // 特定リリース: release_code_graphs から取得する。
+      // 特定リリース: activity_release_code_graphs から取得する。
       // タグはリポジトリ内でしか一意でない（`UNIQUE (repo_id, tag)`）ため、repo 無しでは
       // 「どのリポジトリの v1.0.0 か」が決まらない。省略を「どれでもよい」と解釈すると
       // 別リポジトリのグラフを返し得るので、決められない要求として 400 で断る。

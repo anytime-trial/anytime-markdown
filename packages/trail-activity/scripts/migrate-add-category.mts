@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 既存 activity.db に `category` 列を追加する。
- * - current_file_analysis.category
+ * - activity_current_file_analysis.category
  * - release_file_analysis.category
  *
  * 既存行は DEFAULT 'logic' で埋まる。次回 analyze 実行時に
@@ -23,7 +23,7 @@ const ADD_CATEGORY_SQL = `
     CHECK (category IN ('ui', 'logic', 'excluded'))
 `;
 
-const TARGET_TABLES = ['current_file_analysis', 'release_file_analysis'] as const;
+const TARGET_TABLES = ['activity_current_file_analysis', 'release_file_analysis'] as const;
 
 function pad(s: string, n: number) {
   return s.length >= n ? s : s + ' '.repeat(n - s.length);

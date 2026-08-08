@@ -22,7 +22,7 @@ export interface IRemoteTrailStore {
   /**
    * メッセージを upsert し、**リモートに実際に入った uuid** を返す。
    *
-   * 戻り値は message_tool_calls の FK 親集合として使う (SyncService の参照整合ゲート)。
+   * 戻り値は activity_message_tool_calls の FK 親集合として使う (SyncService の参照整合ゲート)。
    * 部分失敗 (一部チャンクのみ成功) の場合は成功分だけを返し、失敗は logger.error に記録する。
    * 呼び出し元は `戻り値.length < rows.length` で部分失敗を検知できる。
    */
@@ -61,9 +61,9 @@ export interface IRemoteTrailStore {
     duration_ms: number;
     estimated_cost_usd: number;
   }[]): Promise<void>;
-  /** [DESTRUCTIVE] current_graphs テーブルを全削除する（洗い替え同期用）。 */
+  /** [DESTRUCTIVE] activity_current_graphs テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearCurrentGraphs(): Promise<void>;
-  /** [DESTRUCTIVE] release_graphs テーブルを全削除する（洗い替え同期用）。 */
+  /** [DESTRUCTIVE] activity_release_graphs テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearReleaseGraphs(): Promise<void>;
   upsertCurrentGraph(repoId: number, graphJson: string, commitId: string): Promise<void>;
   upsertReleaseGraph(releaseId: number, graphJson: string): Promise<void>;
@@ -76,7 +76,7 @@ export interface IRemoteTrailStore {
   listManualGroups(repoId: number): Promise<readonly ManualGroup[]>;
   upsertManualGroup(repoId: number, group: ManualGroup): Promise<void>;
   deleteManualGroup(repoId: number, groupId: string): Promise<void>;
-  /** [DESTRUCTIVE] message_tool_calls テーブルを全削除する（洗い替え同期用）。 */
+  /** [DESTRUCTIVE] activity_message_tool_calls テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearMessageToolCalls(): Promise<void>;
   upsertMessageToolCalls(rows: readonly {
     id: number;

@@ -100,7 +100,7 @@ function messageExistsIgnoringFilter(
   message_uuid_start: string,
 ): boolean {
   const rows = db.exec(
-    `SELECT 1 FROM trail.messages WHERE session_id = ? AND uuid = ? LIMIT 1`,
+    `SELECT 1 FROM trail.activity_messages WHERE session_id = ? AND uuid = ? LIMIT 1`,
     [session_id, message_uuid_start],
   );
   return (rows[0]?.values?.length ?? 0) > 0;
@@ -118,7 +118,7 @@ function reconstructEpisode(
             COALESCE(SUBSTR(m.text_content, 1, 2048),
                      SUBSTR(m.user_content, 1, 2048),
                      '') AS text_excerpt
-     FROM trail.messages m
+     FROM trail.activity_messages m
      WHERE m.session_id = ? AND m.timestamp IS NOT NULL
        AND ${ingestTargetSql('m')}
      ORDER BY m.timestamp`,

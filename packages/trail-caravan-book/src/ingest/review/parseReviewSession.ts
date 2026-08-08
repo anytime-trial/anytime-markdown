@@ -351,12 +351,12 @@ export function parseReviewSessions(input: {
 }): ParsedReviewSession[] {
   const { db, sinceISO, logger } = input;
 
-  // 1. Query trail.messages for review-related messages
+  // 1. Query trail.activity_messages for review-related messages
   const stmt = db.prepare(
     `SELECT m.uuid, m.session_id, m.type, m.timestamp,
             COALESCE(m.text_content, '') AS text_content,
             m.tool_calls, m.subagent_type, m.skill
-     FROM trail.messages m
+     FROM trail.activity_messages m
      WHERE m.timestamp >= ?
        AND (m.subagent_type = 'code-reviewer'
          OR m.subagent_type LIKE '%:code-reviewer'

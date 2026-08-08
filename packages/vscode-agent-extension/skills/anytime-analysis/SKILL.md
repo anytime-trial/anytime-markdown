@@ -242,9 +242,9 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 | --- | --- |
 | 論点設定 | `mcp-trail:list_unaddressed_review_findings`（全体の未対処量）・他 `proposal` / `plan`（優先度） |
 | 現状分析 | `caravan_review_findings` の**全列**（`finding_text` / `suggestion_text` / `target_file_path` / `target_symbol`）・実コード（Serena / Grep）・`git blame` |
-| 原因診断 | `mcp-trail:list_recurring_bugs` / `get_bug_history` / `search_memory`・`caravan_bug_fixes`・`current_code_graphs`（構造）・`git log/blame`（churn）・`get_review_history`（過去同種） |
+| 原因診断 | `mcp-trail:list_recurring_bugs` / `get_bug_history` / `search_memory`・`caravan_bug_fixes`・`activity_current_code_graphs`（構造）・`git log/blame`（churn）・`get_review_history`（過去同種） |
 | 事前反証（発散の前） | **真因を覆す証拠を能動的に探す**: `get_bug_history` / `list_recurring_bugs`（同種が別原因で再発していないか）・`git log -S`（当該挙動が別要因で入っていないか）・実測（テスト・ビルド・実機） |
-| 発散（改善案） | `package.json`（scripts / devDeps）・`eslint.config.*`・`tsconfig.json`・CI（`.github/workflows`）・`suggestion_text`（レビュアー修正案）・`message_commits` / `addresses`（既往修正） |
+| 発散（改善案） | `package.json`（scripts / devDeps）・`eslint.config.*`・`tsconfig.json`・CI（`.github/workflows`）・`suggestion_text`（レビュアー修正案）・`activity_message_commits` / `addresses`（既往修正） |
 | 反証 | 上記設定ファイル群で実行可能性を**実証**（推論で済ませない） |
 | 事実照合 | `activity.db` / `caravan-book.db` ＋ 設定ファイル |
 

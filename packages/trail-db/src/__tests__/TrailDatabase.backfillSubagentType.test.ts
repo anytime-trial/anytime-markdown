@@ -13,7 +13,7 @@ type SqlJsDb = {
 const insertSession = (db: TrailDatabase, sessionId: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '2026-04-29T00:00:00.000Z', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '2026-04-29T00:00:00.000Z', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
 };
@@ -26,7 +26,7 @@ const insertMessage = (
 ): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, parent_uuid, type, timestamp, agent_id, tool_calls
      ) VALUES (?, ?, NULL, 'assistant', '2026-04-29T00:00:00.000Z', ?, ?)`,
     [uuid, sessionId, fields.agentId ?? null, fields.toolCalls ?? null],
@@ -35,7 +35,7 @@ const insertMessage = (
 
 const readSubagentType = (db: TrailDatabase, uuid: string): string | null => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
-  const result = inner.exec('SELECT subagent_type FROM messages WHERE uuid = ?', [uuid]);
+  const result = inner.exec('SELECT subagent_type FROM activity_messages WHERE uuid = ?', [uuid]);
   const v = result[0]?.values[0]?.[0];
   return (v as string | null) ?? null;
 };
@@ -112,7 +112,7 @@ describe('TrailDatabase.backfillSubagentType', () => {
     );
 
     const inner = (db as unknown as { db: SqlJsDb }).db;
-    inner.run("UPDATE messages SET subagent_type = 'preserved' WHERE uuid = 'msg-pre-1'");
+    inner.run("UPDATE activity_messages SET subagent_type = 'preserved' WHERE uuid = 'msg-pre-1'");
 
     (db as unknown as { backfillSubagentType: (dir: string) => void }).backfillSubagentType(tmpProjectsDir);
     expect(readSubagentType(db, 'msg-pre-1')).toBe('preserved');
@@ -147,7 +147,7 @@ describe('TrailDatabase.backfillSubagentType', () => {
       JSON.stringify({ agentType: 'Plan' }),
     );
     const inner = (db as unknown as { db: SqlJsDb }).db;
-    inner.run("UPDATE messages SET subagent_type = NULL WHERE uuid = 'msg-flag-1'");
+    inner.run("UPDATE activity_messages SET subagent_type = NULL WHERE uuid = 'msg-flag-1'");
 
     (db as unknown as { backfillSubagentType: (dir: string) => void }).backfillSubagentType(tmpProjectsDir);
     // Migration was already recorded → no rewrite

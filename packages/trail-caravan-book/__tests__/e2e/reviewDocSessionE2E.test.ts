@@ -2,7 +2,7 @@
  * E2E tests for trail-caravan-book Phase 2.7: runReviewIncremental (Route A + B).
  *
  * E5: Route A — 2 synthetic review/*.md files → caravan_reviews/findings + precedes edge
- * E6: Route B — 2 synthetic trail.messages code-reviewer sessions → caravan_reviews/findings
+ * E6: Route B — 2 synthetic trail.activity_messages code-reviewer sessions → caravan_reviews/findings
  */
 
 import * as fs from 'fs';
@@ -104,11 +104,11 @@ function buildTrailDb(opts: {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
-  db.run(`CREATE TABLE sessions (
+  db.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY,
     repo_name TEXT NOT NULL DEFAULT ''
   ) STRICT`);
-  db.run(`CREATE TABLE session_commits (
+  db.run(`CREATE TABLE activity_session_commits (
     session_id TEXT NOT NULL,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL DEFAULT '',
@@ -116,13 +116,13 @@ function buildTrailDb(opts: {
     repo_name TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (session_id, commit_hash)
   ) STRICT`);
-  db.run(`CREATE TABLE commit_files (
+  db.run(`CREATE TABLE activity_commit_files (
     commit_hash TEXT NOT NULL,
     repo_name TEXT NOT NULL DEFAULT '',
     file_path TEXT NOT NULL,
     PRIMARY KEY (commit_hash, file_path)
   ) STRICT`);
-  db.run(`CREATE TABLE messages (
+  db.run(`CREATE TABLE activity_messages (
     uuid TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -134,14 +134,14 @@ function buildTrailDb(opts: {
   ) STRICT`);
 
   if (opts.withFixCommit) {
-    db.run(`INSERT INTO sessions (id, repo_name) VALUES (?, ?)`, [SESSION_ID, REPO]);
+    db.run(`INSERT INTO activity_sessions (id, repo_name) VALUES (?, ?)`, [SESSION_ID, REPO]);
     db.run(
-      `INSERT INTO session_commits (session_id, commit_hash, commit_message, committed_at, repo_name)
+      `INSERT INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at, repo_name)
        VALUES (?, ?, ?, ?, ?)`,
       [SESSION_ID, FIX_COMMIT_HASH, 'fix(web-app): fix logic error in foo.ts', FIX_COMMITTED_AT, REPO],
     );
     db.run(
-      `INSERT INTO commit_files (commit_hash, repo_name, file_path) VALUES (?, ?, ?)`,
+      `INSERT INTO activity_commit_files (commit_hash, repo_name, file_path) VALUES (?, ?, ?)`,
       [FIX_COMMIT_HASH, REPO, TARGET_FILE],
     );
   }
@@ -149,7 +149,7 @@ function buildTrailDb(opts: {
   if (opts.reviewerMessages) {
     for (const msg of opts.reviewerMessages) {
       db.run(
-        `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, subagent_type)
+        `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, subagent_type)
          VALUES (?, ?, 'assistant', ?, ?, 'code-reviewer')`,
         [msg.uuid, msg.sessionId, msg.ts, msg.text],
       );

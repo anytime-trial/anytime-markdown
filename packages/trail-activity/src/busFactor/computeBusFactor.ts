@@ -4,7 +4,7 @@ const DEFAULT_MIN_COMMITS = 5;
 
 /**
  * 著者名の正規化。前後空白除去 + 小文字化のみ行う。
- * session_commits は git log %an しか保持せず（メールアドレス列が無い）、
+ * activity_session_commits は git log %an しか保持せず（メールアドレス列が無い）、
  * `taro.yamada` と `Taro Yamada` を同一人物と判定する根拠が無いため名寄せはしない。
  */
 export function normalizeAuthor(author: string): string {

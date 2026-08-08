@@ -242,7 +242,7 @@ async function loadEpisodes(trail: string, count: number): Promise<Episode[]> {
   const since = new Date(Date.now() - 3 * 86_400_000).toISOString();
   const stmt = db.prepare(`SELECT m.uuid, m.session_id, m.type, m.timestamp,
        COALESCE(SUBSTR(m.text_content,1,2048), SUBSTR(m.user_content,1,2048),'') AS text_excerpt
-     FROM messages m WHERE m.timestamp >= ? AND m.type IN ('user','assistant','system')
+     FROM activity_messages m WHERE m.timestamp >= ? AND m.type IN ('user','assistant','system')
      ORDER BY m.session_id, m.timestamp`);
   stmt.bind([since]);
   const messages: Message[] = [];

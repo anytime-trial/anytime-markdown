@@ -11,12 +11,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS current_code_graph_communities');
-    inner.run('DROP TABLE IF EXISTS release_code_graph_communities');
+    inner.run('DROP TABLE IF EXISTS activity_current_code_graph_communities');
+    inner.run('DROP TABLE IF EXISTS activity_release_code_graph_communities');
     inner.run('DROP INDEX IF EXISTS idx_ccgc_stable_key');
     inner.run('DROP INDEX IF EXISTS idx_rcgc_stable_key');
     inner.run(`
-      CREATE TABLE current_code_graph_communities (
+      CREATE TABLE activity_current_code_graph_communities (
         repo_name    TEXT    NOT NULL,
         community_id INTEGER NOT NULL,
         label        TEXT    NOT NULL DEFAULT '',
@@ -28,7 +28,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(`
-      CREATE TABLE release_code_graph_communities (
+      CREATE TABLE activity_release_code_graph_communities (
         release_tag  TEXT    NOT NULL,
         community_id INTEGER NOT NULL,
         label        TEXT    NOT NULL DEFAULT '',
@@ -46,26 +46,26 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const cur = inner.exec('PRAGMA table_info(current_code_graph_communities)');
+    const cur = inner.exec('PRAGMA table_info(activity_current_code_graph_communities)');
     const curCols = (cur[0]?.values ?? []).map((c: ReadonlyArray<unknown>) => String(c[1]));
     expect(curCols).toContain('stable_key');
 
-    const rel = inner.exec('PRAGMA table_info(release_code_graph_communities)');
+    const rel = inner.exec('PRAGMA table_info(activity_release_code_graph_communities)');
     const relCols = (rel[0]?.values ?? []).map((c: ReadonlyArray<unknown>) => String(c[1]));
     expect(relCols).toContain('stable_key');
   });
 
-  it('Phase C-2 flip + H-3: repo_name PK の legacy current_code_graph_communities を repo_id PK へ再構築し repo_name を撤去する', async () => {
+  it('Phase C-2 flip + H-3: repo_name PK の legacy activity_current_code_graph_communities を repo_id PK へ再構築し repo_name を撤去する', async () => {
     // legacy 状態 (repo_name PK・repo_id 列なし) を再現し、data を 1 行入れてから
     // createTables を再実行する。flip 後は repo_id 列 + (repo_id, community_id) PK になり、
     // 旧データの repo_id が repos.repo_name 経由で backfill される。Phase H-3 で repo_name 列は撤去される。
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS current_code_graph_communities');
+    inner.run('DROP TABLE IF EXISTS activity_current_code_graph_communities');
     inner.run('DROP INDEX IF EXISTS idx_ccgc_stable_key');
     inner.run(`
-      CREATE TABLE current_code_graph_communities (
+      CREATE TABLE activity_current_code_graph_communities (
         repo_name    TEXT    NOT NULL,
         community_id INTEGER NOT NULL,
         label        TEXT    NOT NULL DEFAULT '',
@@ -78,7 +78,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(
-      "INSERT INTO current_code_graph_communities (repo_name, community_id, label, name, summary, stable_key, generated_at, updated_at) VALUES ('legacy-repo', 3, 'L', 'N', 'S', 'sk', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_current_code_graph_communities (repo_name, community_id, label, name, summary, stable_key, generated_at, updated_at) VALUES ('legacy-repo', 3, 'L', 'N', 'S', 'sk', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
     );
 
     expect(() => {
@@ -86,7 +86,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     }).not.toThrow();
 
     // flip + H-3 後: repo_id 列があり PK が (repo_id, community_id)。repo_name 列は撤去済。
-    const info = inner.exec('PRAGMA table_info(current_code_graph_communities)');
+    const info = inner.exec('PRAGMA table_info(activity_current_code_graph_communities)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
@@ -99,7 +99,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     // 旧データが repo_id backfill 済で残っている。repo_name は repos 経由で復元する。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-repo');
     const data = inner.exec(
-      'SELECT repo_id, community_id, name FROM current_code_graph_communities WHERE repo_id = ?',
+      'SELECT repo_id, community_id, name FROM activity_current_code_graph_communities WHERE repo_id = ?',
       [repoIdViaName],
     );
     const dataRow = data[0]?.values?.[0];
@@ -110,13 +110,13 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(Number(dataRow![0])).toBe(repoIdViaName);
   });
 
-  it('Phase C-2 flip + H-3: repo_name PK の legacy current_file_analysis を repo_id PK へ再構築し repo_name 撤去後もデータを保持する', async () => {
+  it('Phase C-2 flip + H-3: repo_name PK の legacy activity_current_file_analysis を repo_id PK へ再構築し repo_name 撤去後もデータを保持する', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS current_file_analysis');
+    inner.run('DROP TABLE IF EXISTS activity_current_file_analysis');
     inner.run(`
-      CREATE TABLE current_file_analysis (
+      CREATE TABLE activity_current_file_analysis (
         repo_name                  TEXT NOT NULL,
         file_path                  TEXT NOT NULL,
         importance_score           REAL    NOT NULL DEFAULT 0,
@@ -144,14 +144,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(
-      "INSERT INTO current_file_analysis (repo_name, file_path, analyzed_at) VALUES ('legacy-fa', 'src/a.ts', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_current_file_analysis (repo_name, file_path, analyzed_at) VALUES ('legacy-fa', 'src/a.ts', '2026-05-23T00:00:00.000Z')",
     );
 
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const info = inner.exec('PRAGMA table_info(current_file_analysis)');
+    const info = inner.exec('PRAGMA table_info(activity_current_file_analysis)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
@@ -166,19 +166,19 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(fa[0].repoName).toBe('legacy-fa');
   });
 
-  it('Phase D flip: 旧 PK の legacy session_commits / commit_files / session_commit_resolutions を repo_id PK へ再構築しデータを保持する', async () => {
+  it('Phase D flip: 旧 PK の legacy activity_session_commits / activity_commit_files / activity_session_commit_resolutions を repo_id PK へ再構築しデータを保持する', async () => {
     // legacy 状態 (旧 PK・repo_id 列なし) を再現し、各テーブルに 1 行入れてから
     // createTables を再実行する。flip 後は repo_id 列 + 新 PK になり、旧データの repo_id が
     // repos.repo_name 経由で backfill されることを確認する。
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS session_commits');
-    inner.run('DROP TABLE IF EXISTS commit_files');
-    inner.run('DROP TABLE IF EXISTS session_commit_resolutions');
+    inner.run('DROP TABLE IF EXISTS activity_session_commits');
+    inner.run('DROP TABLE IF EXISTS activity_commit_files');
+    inner.run('DROP TABLE IF EXISTS activity_session_commit_resolutions');
     // 旧スキーマ (repo_id 列なし) を再現。
     inner.run(`
-      CREATE TABLE session_commits (
+      CREATE TABLE activity_session_commits (
         session_id TEXT NOT NULL,
         commit_hash TEXT NOT NULL,
         commit_message TEXT NOT NULL DEFAULT '',
@@ -193,7 +193,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(`
-      CREATE TABLE commit_files (
+      CREATE TABLE activity_commit_files (
         commit_hash TEXT NOT NULL,
         file_path TEXT NOT NULL,
         repo_name TEXT NOT NULL DEFAULT '',
@@ -201,7 +201,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(`
-      CREATE TABLE session_commit_resolutions (
+      CREATE TABLE activity_session_commit_resolutions (
         session_id TEXT NOT NULL,
         repo_name TEXT NOT NULL,
         resolved_at TEXT NOT NULL,
@@ -209,13 +209,13 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(
-      "INSERT INTO session_commits (session_id, commit_hash, repo_name, committed_at) VALUES ('legacy-sess', 'h-legacy', 'legacy-sc', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_session_commits (session_id, commit_hash, repo_name, committed_at) VALUES ('legacy-sess', 'h-legacy', 'legacy-sc', '2026-05-23T00:00:00.000Z')",
     );
     inner.run(
-      "INSERT INTO commit_files (commit_hash, file_path, repo_name) VALUES ('h-legacy', 'src/a.ts', 'legacy-sc')",
+      "INSERT INTO activity_commit_files (commit_hash, file_path, repo_name) VALUES ('h-legacy', 'src/a.ts', 'legacy-sc')",
     );
     inner.run(
-      "INSERT INTO session_commit_resolutions (session_id, repo_name, resolved_at) VALUES ('legacy-sess', 'legacy-sc', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_session_commit_resolutions (session_id, repo_name, resolved_at) VALUES ('legacy-sess', 'legacy-sc', '2026-05-23T00:00:00.000Z')",
     );
 
     expect(() => {
@@ -234,26 +234,26 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       return rows.map((c) => String(c[1]));
     };
 
-    expect(colsOf('session_commits')).toContain('repo_id');
-    expect(colsOf('session_commits')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
-    expect(colsOf('commit_files')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
-    expect(colsOf('session_commit_resolutions')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
+    expect(colsOf('activity_session_commits')).toContain('repo_id');
+    expect(colsOf('activity_session_commits')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
+    expect(colsOf('activity_commit_files')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
+    expect(colsOf('activity_session_commit_resolutions')).not.toContain('repo_name'); // Phase H-4: 物理撤去済
     // PK は (session_id, repo_id, commit_hash) → ソートで commit_hash, repo_id, session_id。
-    expect(pkOf('session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
-    expect(pkOf('commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
-    expect(pkOf('session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
+    expect(pkOf('activity_session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
+    expect(pkOf('activity_commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
+    expect(pkOf('activity_session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
 
     // 旧データが repo_id backfill 済で残っている。repo_name は repos 経由で復元する。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-sc');
-    const sc = inner.exec("SELECT repo_id, commit_hash FROM session_commits WHERE session_id = 'legacy-sess'");
+    const sc = inner.exec("SELECT repo_id, commit_hash FROM activity_session_commits WHERE session_id = 'legacy-sess'");
     expect(Number(sc[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
     expect(String(sc[0]?.values?.[0]?.[1])).toBe('h-legacy');
 
-    const cf = inner.exec("SELECT repo_id, file_path FROM commit_files WHERE commit_hash = 'h-legacy'");
+    const cf = inner.exec("SELECT repo_id, file_path FROM activity_commit_files WHERE commit_hash = 'h-legacy'");
     expect(Number(cf[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
     expect(String(cf[0]?.values?.[0]?.[1])).toBe('src/a.ts');
 
-    const res = inner.exec("SELECT repo_id FROM session_commit_resolutions WHERE session_id = 'legacy-sess'");
+    const res = inner.exec("SELECT repo_id FROM activity_session_commit_resolutions WHERE session_id = 'legacy-sess'");
     expect(Number(res[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
 
     // read 契約: getSessionCommits / getCommitFiles は repos を JOIN して repo_name を復元する。
@@ -267,10 +267,10 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS sessions');
+    inner.run('DROP TABLE IF EXISTS activity_sessions');
     // 旧 sessions (repo_id 列なし)。PK は id のまま。
     inner.run(`
-      CREATE TABLE sessions (
+      CREATE TABLE activity_sessions (
         id TEXT PRIMARY KEY,
         slug TEXT NOT NULL DEFAULT '',
         repo_name TEXT NOT NULL DEFAULT '',
@@ -287,14 +287,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(
-      "INSERT INTO sessions (id, repo_name) VALUES ('legacy-s', 'legacy-sessrepo')",
+      "INSERT INTO activity_sessions (id, repo_name) VALUES ('legacy-s', 'legacy-sessrepo')",
     );
 
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const info = inner.exec('PRAGMA table_info(sessions)');
+    const info = inner.exec('PRAGMA table_info(activity_sessions)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
@@ -304,7 +304,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(pkCols).toEqual(['id']);
 
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-sessrepo');
-    const s = inner.exec("SELECT repo_id FROM sessions WHERE id = 'legacy-s'");
+    const s = inner.exec("SELECT repo_id FROM activity_sessions WHERE id = 'legacy-s'");
     expect(Number(s[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
     // read 契約: getSessions は repos を JOIN して repo_name を復元する。
     expect(db.getSessions().find((r) => r.id === 'legacy-s')?.repo_name).toBe('legacy-sessrepo');
@@ -317,10 +317,10 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS sessions');
+    inner.run('DROP TABLE IF EXISTS activity_sessions');
     // 旧 sessions (project 列あり・repo_id 列なし)。
     inner.run(`
-      CREATE TABLE sessions (
+      CREATE TABLE activity_sessions (
         id TEXT PRIMARY KEY,
         slug TEXT NOT NULL DEFAULT '',
         repo_name TEXT NOT NULL DEFAULT '',
@@ -338,14 +338,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       )
     `);
     inner.run(
-      "INSERT INTO sessions (id, repo_name, project) VALUES ('proj-s', 'proj-sessrepo', 'old-project')",
+      "INSERT INTO activity_sessions (id, repo_name, project) VALUES ('proj-s', 'proj-sessrepo', 'old-project')",
     );
 
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const info = inner.exec('PRAGMA table_info(sessions)');
+    const info = inner.exec('PRAGMA table_info(activity_sessions)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     // project は撤去され、repo_id は保持される。Phase H-4: repo_name も撤去済。
@@ -355,7 +355,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
 
     // repo_id の backfill 値が project 撤去再構築をまたいで保持される。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('proj-sessrepo');
-    const s = inner.exec("SELECT repo_id FROM sessions WHERE id = 'proj-s'");
+    const s = inner.exec("SELECT repo_id FROM activity_sessions WHERE id = 'proj-s'");
     expect(Number(s[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
     // read 契約: getSessions は repos を JOIN して repo_name を復元する。
     expect(db.getSessions().find((r) => r.id === 'proj-s')?.repo_name).toBe('proj-sessrepo');
@@ -369,12 +369,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS c4_manual_relationships');
-    inner.run('DROP TABLE IF EXISTS c4_manual_groups');
-    inner.run('DROP TABLE IF EXISTS c4_manual_elements');
+    inner.run('DROP TABLE IF EXISTS activity_c4_manual_relationships');
+    inner.run('DROP TABLE IF EXISTS activity_c4_manual_groups');
+    inner.run('DROP TABLE IF EXISTS activity_c4_manual_elements');
     // 旧スキーマ (repo_id 列なし・旧 PK・複合 FK) を再現。
     inner.run(`
-      CREATE TABLE c4_manual_elements (
+      CREATE TABLE activity_c4_manual_elements (
         repo_name    TEXT NOT NULL,
         element_id   TEXT NOT NULL,
         type         TEXT NOT NULL,
@@ -385,11 +385,11 @@ describe('TrailDatabase: legacy DB migration on init', () => {
         service_type TEXT,
         updated_at   TEXT NOT NULL,
         PRIMARY KEY (repo_name, element_id),
-        FOREIGN KEY (repo_name, parent_id) REFERENCES c4_manual_elements(repo_name, element_id)
+        FOREIGN KEY (repo_name, parent_id) REFERENCES activity_c4_manual_elements(repo_name, element_id)
       ) STRICT
     `);
     inner.run(`
-      CREATE TABLE c4_manual_relationships (
+      CREATE TABLE activity_c4_manual_relationships (
         repo_name   TEXT NOT NULL,
         rel_id      TEXT NOT NULL,
         from_id     TEXT NOT NULL,
@@ -398,12 +398,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
         technology  TEXT,
         updated_at  TEXT NOT NULL,
         PRIMARY KEY (repo_name, rel_id),
-        FOREIGN KEY (repo_name, from_id) REFERENCES c4_manual_elements(repo_name, element_id),
-        FOREIGN KEY (repo_name, to_id)   REFERENCES c4_manual_elements(repo_name, element_id)
+        FOREIGN KEY (repo_name, from_id) REFERENCES activity_c4_manual_elements(repo_name, element_id),
+        FOREIGN KEY (repo_name, to_id)   REFERENCES activity_c4_manual_elements(repo_name, element_id)
       ) STRICT
     `);
     inner.run(`
-      CREATE TABLE c4_manual_groups (
+      CREATE TABLE activity_c4_manual_groups (
         repo_name  TEXT NOT NULL,
         group_id   TEXT NOT NULL,
         member_ids TEXT NOT NULL,
@@ -414,16 +414,16 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     `);
     // 親要素 → 子要素 (parent_id 自己参照) + relationship (複合 FK) + group。
     inner.run(
-      "INSERT INTO c4_manual_elements (repo_name, element_id, type, name, parent_id, updated_at) VALUES ('legacy-c4', 'sys_manual_1', 'system', 'Parent Sys', NULL, '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_elements (repo_name, element_id, type, name, parent_id, updated_at) VALUES ('legacy-c4', 'sys_manual_1', 'system', 'Parent Sys', NULL, '2026-05-23T00:00:00.000Z')",
     );
     inner.run(
-      "INSERT INTO c4_manual_elements (repo_name, element_id, type, name, parent_id, updated_at) VALUES ('legacy-c4', 'pkg_manual_1', 'container', 'Child Pkg', 'sys_manual_1', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_elements (repo_name, element_id, type, name, parent_id, updated_at) VALUES ('legacy-c4', 'pkg_manual_1', 'container', 'Child Pkg', 'sys_manual_1', '2026-05-23T00:00:00.000Z')",
     );
     inner.run(
-      "INSERT INTO c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, updated_at) VALUES ('legacy-c4', 'rel_manual_1', 'pkg_manual_1', 'sys_manual_1', 'uses', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_relationships (repo_name, rel_id, from_id, to_id, label, updated_at) VALUES ('legacy-c4', 'rel_manual_1', 'pkg_manual_1', 'sys_manual_1', 'uses', '2026-05-23T00:00:00.000Z')",
     );
     inner.run(
-      "INSERT INTO c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES ('legacy-c4', 'grp_manual_1', '[\"sys_manual_1\",\"pkg_manual_1\"]', 'Group A', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_groups (repo_name, group_id, member_ids, label, updated_at) VALUES ('legacy-c4', 'grp_manual_1', '[\"sys_manual_1\",\"pkg_manual_1\"]', 'Group A', '2026-05-23T00:00:00.000Z')",
     );
 
     expect(() => {
@@ -443,17 +443,17 @@ describe('TrailDatabase: legacy DB migration on init', () => {
 
     // flip 後: repo_id 列が追加され、PK が (repo_id, <id>) になっている。
     // Phase H-2: repo_name は物理撤去済 (read は repo_id = ? で絞る)。
-    for (const table of ['c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups']) {
+    for (const table of ['activity_c4_manual_elements', 'activity_c4_manual_relationships', 'activity_c4_manual_groups']) {
       expect(colsOf(table)).toContain('repo_id');
       expect(colsOf(table)).not.toContain('repo_name');
     }
     // PK は ソートで [element_id, repo_id] / [rel_id, repo_id] / [group_id, repo_id]。
-    expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
-    expect(pkOf('c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
-    expect(pkOf('c4_manual_groups')).toEqual(['group_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_elements')).toEqual(['element_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_groups')).toEqual(['group_id', 'repo_id']);
 
     // 複合 FK が repo_id ベースへ張替わっている (foreign_key_list の to/from 列を確認)。
-    const elemFks = inner.exec('PRAGMA foreign_key_list(c4_manual_elements)');
+    const elemFks = inner.exec('PRAGMA foreign_key_list(activity_c4_manual_elements)');
     const elemFkRows = (elemFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     // 自己参照複合 FK: from 列に repo_id と parent_id、to 列に repo_id と element_id を含む。
     const elemFromCols = elemFkRows.map((r) => String(r[3]));
@@ -462,7 +462,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(elemFromCols).toContain('parent_id');
     expect(elemToCols).toContain('element_id');
 
-    const relFks = inner.exec('PRAGMA foreign_key_list(c4_manual_relationships)');
+    const relFks = inner.exec('PRAGMA foreign_key_list(activity_c4_manual_relationships)');
     const relFkRows = (relFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const relFromCols = relFkRows.map((r) => String(r[3]));
     expect(relFromCols).toContain('repo_id');
@@ -472,7 +472,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     // 旧データが repo_id backfill 済で全件残っている (除外 0 件・データ保全)。
     // Phase H-2: repo_name 列は無いため repo_id = ? で絞る。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-c4');
-    const elems = inner.exec('SELECT repo_id, element_id, parent_id FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id', [repoIdViaName]);
+    const elems = inner.exec('SELECT repo_id, element_id, parent_id FROM activity_c4_manual_elements WHERE repo_id = ? ORDER BY element_id', [repoIdViaName]);
     const elemVals = (elems[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(elemVals).toHaveLength(2);
     for (const row of elemVals) {
@@ -482,7 +482,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const child = elemVals.find((r) => String(r[1]) === 'pkg_manual_1');
     expect(String(child?.[2])).toBe('sys_manual_1');
 
-    const rels = inner.exec('SELECT repo_id, from_id, to_id, label FROM c4_manual_relationships WHERE repo_id = ?', [repoIdViaName]);
+    const rels = inner.exec('SELECT repo_id, from_id, to_id, label FROM activity_c4_manual_relationships WHERE repo_id = ?', [repoIdViaName]);
     const relVals = (rels[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(relVals).toHaveLength(1);
     expect(Number(relVals[0]?.[0])).toBe(repoIdViaName);
@@ -490,7 +490,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(String(relVals[0]?.[2])).toBe('sys_manual_1');
     expect(String(relVals[0]?.[3])).toBe('uses');
 
-    const groups = inner.exec('SELECT repo_id, member_ids, label FROM c4_manual_groups WHERE repo_id = ?', [repoIdViaName]);
+    const groups = inner.exec('SELECT repo_id, member_ids, label FROM activity_c4_manual_groups WHERE repo_id = ?', [repoIdViaName]);
     const groupVals = (groups[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(groupVals).toHaveLength(1);
     expect(Number(groupVals[0]?.[0])).toBe(repoIdViaName);
@@ -519,14 +519,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
       return rows.map((c) => String(c[1]));
     };
-    expect(colsOf('c4_manual_elements')).toContain('repo_id');
+    expect(colsOf('activity_c4_manual_elements')).toContain('repo_id');
     // Phase H-2: 新規 DB の c4_manual_* は repo_name 列を持たない。
-    expect(colsOf('c4_manual_elements')).not.toContain('repo_name');
-    expect(colsOf('c4_manual_relationships')).not.toContain('repo_name');
-    expect(colsOf('c4_manual_groups')).not.toContain('repo_name');
-    expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
-    expect(pkOf('c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
-    expect(pkOf('c4_manual_groups')).toEqual(['group_id', 'repo_id']);
+    expect(colsOf('activity_c4_manual_elements')).not.toContain('repo_name');
+    expect(colsOf('activity_c4_manual_relationships')).not.toContain('repo_name');
+    expect(colsOf('activity_c4_manual_groups')).not.toContain('repo_name');
+    expect(pkOf('activity_c4_manual_elements')).toEqual(['element_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_groups')).toEqual(['group_id', 'repo_id']);
     db.close();
   });
 
@@ -545,12 +545,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       return rows.filter((c) => Number(c[5]) > 0).map((c) => String(c[1])).sort();
     };
 
-    inner.run('DROP TABLE IF EXISTS c4_manual_relationships');
-    inner.run('DROP TABLE IF EXISTS c4_manual_groups');
-    inner.run('DROP TABLE IF EXISTS c4_manual_elements');
+    inner.run('DROP TABLE IF EXISTS activity_c4_manual_relationships');
+    inner.run('DROP TABLE IF EXISTS activity_c4_manual_groups');
+    inner.run('DROP TABLE IF EXISTS activity_c4_manual_elements');
     inner.run(`
-      CREATE TABLE c4_manual_elements (
-        repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_c4_manual_elements (
+        repo_id      INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name    TEXT NOT NULL DEFAULT '',
         element_id   TEXT NOT NULL,
         type         TEXT NOT NULL
@@ -562,12 +562,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
         service_type TEXT,
         updated_at   TEXT NOT NULL,
         PRIMARY KEY (repo_id, element_id),
-        FOREIGN KEY (repo_id, parent_id) REFERENCES c4_manual_elements(repo_id, element_id)
+        FOREIGN KEY (repo_id, parent_id) REFERENCES activity_c4_manual_elements(repo_id, element_id)
       ) STRICT
     `);
     inner.run(`
-      CREATE TABLE c4_manual_relationships (
-        repo_id     INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_c4_manual_relationships (
+        repo_id     INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name   TEXT NOT NULL DEFAULT '',
         rel_id      TEXT NOT NULL,
         from_id     TEXT NOT NULL,
@@ -576,13 +576,13 @@ describe('TrailDatabase: legacy DB migration on init', () => {
         technology  TEXT,
         updated_at  TEXT NOT NULL,
         PRIMARY KEY (repo_id, rel_id),
-        FOREIGN KEY (repo_id, from_id) REFERENCES c4_manual_elements(repo_id, element_id),
-        FOREIGN KEY (repo_id, to_id)   REFERENCES c4_manual_elements(repo_id, element_id)
+        FOREIGN KEY (repo_id, from_id) REFERENCES activity_c4_manual_elements(repo_id, element_id),
+        FOREIGN KEY (repo_id, to_id)   REFERENCES activity_c4_manual_elements(repo_id, element_id)
       ) STRICT
     `);
     inner.run(`
-      CREATE TABLE c4_manual_groups (
-        repo_id    INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_c4_manual_groups (
+        repo_id    INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name  TEXT NOT NULL DEFAULT '',
         group_id   TEXT NOT NULL,
         member_ids TEXT NOT NULL CHECK (json_valid(member_ids)),
@@ -595,19 +595,19 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     // repo_id を repos 経由で確定させてからデータ投入する (repo_id と repo_name を整合)。
     const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h2-repo');
     inner.run(
-      "INSERT INTO c4_manual_elements (repo_id, repo_name, element_id, type, name, parent_id, updated_at) VALUES (?, 'h2-repo', 'sys_manual_1', 'system', 'Parent', NULL, '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_elements (repo_id, repo_name, element_id, type, name, parent_id, updated_at) VALUES (?, 'h2-repo', 'sys_manual_1', 'system', 'Parent', NULL, '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
     inner.run(
-      "INSERT INTO c4_manual_elements (repo_id, repo_name, element_id, type, name, parent_id, updated_at) VALUES (?, 'h2-repo', 'pkg_manual_1', 'container', 'Child', 'sys_manual_1', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_elements (repo_id, repo_name, element_id, type, name, parent_id, updated_at) VALUES (?, 'h2-repo', 'pkg_manual_1', 'container', 'Child', 'sys_manual_1', '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
     inner.run(
-      "INSERT INTO c4_manual_relationships (repo_id, repo_name, rel_id, from_id, to_id, label, updated_at) VALUES (?, 'h2-repo', 'rel_manual_1', 'pkg_manual_1', 'sys_manual_1', 'uses', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_relationships (repo_id, repo_name, rel_id, from_id, to_id, label, updated_at) VALUES (?, 'h2-repo', 'rel_manual_1', 'pkg_manual_1', 'sys_manual_1', 'uses', '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
     inner.run(
-      "INSERT INTO c4_manual_groups (repo_id, repo_name, group_id, member_ids, label, updated_at) VALUES (?, 'h2-repo', 'grp_manual_1', '[\"sys_manual_1\",\"pkg_manual_1\"]', 'Group A', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_c4_manual_groups (repo_id, repo_name, group_id, member_ids, label, updated_at) VALUES (?, 'h2-repo', 'grp_manual_1', '[\"sys_manual_1\",\"pkg_manual_1\"]', 'Group A', '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
 
@@ -617,33 +617,33 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     }).not.toThrow();
 
     // 3 テーブルから repo_name が消え、repo_id・複合 PK は残っている。
-    for (const t of ['c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups']) {
+    for (const t of ['activity_c4_manual_elements', 'activity_c4_manual_relationships', 'activity_c4_manual_groups']) {
       expect(colsOf(t)).not.toContain('repo_name');
       expect(colsOf(t)).toContain('repo_id');
     }
-    expect(pkOf('c4_manual_elements')).toEqual(['element_id', 'repo_id']);
-    expect(pkOf('c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
-    expect(pkOf('c4_manual_groups')).toEqual(['group_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_elements')).toEqual(['element_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_relationships')).toEqual(['rel_id', 'repo_id']);
+    expect(pkOf('activity_c4_manual_groups')).toEqual(['group_id', 'repo_id']);
 
     // 複合 FK が repo_id ベースのまま維持されている。
-    const relFks = inner.exec('PRAGMA foreign_key_list(c4_manual_relationships)');
+    const relFks = inner.exec('PRAGMA foreign_key_list(activity_c4_manual_relationships)');
     const relFkRows = (relFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const relFromCols = relFkRows.map((r) => String(r[3]));
     expect(relFromCols).toContain('repo_id');
     expect(relFromCols).toContain('from_id');
     expect(relFromCols).toContain('to_id');
-    const elemFks = inner.exec('PRAGMA foreign_key_list(c4_manual_elements)');
+    const elemFks = inner.exec('PRAGMA foreign_key_list(activity_c4_manual_elements)');
     const elemFkRows = (elemFks[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(elemFkRows.map((r) => String(r[3]))).toContain('parent_id');
 
     // repo_id データ・親子自己参照が保全されている。
-    const elems = inner.exec('SELECT repo_id, element_id, parent_id FROM c4_manual_elements WHERE repo_id = ? ORDER BY element_id', [repoId]);
+    const elems = inner.exec('SELECT repo_id, element_id, parent_id FROM activity_c4_manual_elements WHERE repo_id = ? ORDER BY element_id', [repoId]);
     const elemVals = (elems[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(elemVals).toHaveLength(2);
     const child = elemVals.find((r) => String(r[1]) === 'pkg_manual_1');
     expect(String(child?.[2])).toBe('sys_manual_1');
-    expect(Number(inner.exec('SELECT repo_id FROM c4_manual_relationships WHERE rel_id = ?', ['rel_manual_1'])[0]?.values?.[0]?.[0])).toBe(repoId);
-    expect(Number(inner.exec('SELECT repo_id FROM c4_manual_groups WHERE group_id = ?', ['grp_manual_1'])[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec('SELECT repo_id FROM activity_c4_manual_relationships WHERE rel_id = ?', ['rel_manual_1'])[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec('SELECT repo_id FROM activity_c4_manual_groups WHERE group_id = ?', ['grp_manual_1'])[0]?.values?.[0]?.[0])).toBe(repoId);
 
     // read メソッドは repoName を入力に取り、repo_id で絞った結果を返す (下流契約不変)。
     expect(db.getManualElements('h2-repo')).toHaveLength(2);
@@ -658,7 +658,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
-    for (const t of ['c4_manual_elements', 'c4_manual_relationships', 'c4_manual_groups']) {
+    for (const t of ['activity_c4_manual_elements', 'activity_c4_manual_relationships', 'activity_c4_manual_groups']) {
       expect(colsOf(t)).not.toContain('repo_name');
     }
     expect(db.getManualElements('h2-repo')).toHaveLength(3);
@@ -668,7 +668,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
 
   it('Phase H-3: current 系から repo_name を撤去し repo_id データ・PK・stable_key・mappings_json を保全する', async () => {
     // Phase C-2 flip 済の中間スキーマ = repo_id PK + repo_name 残置列を再現する (撤去直前の状態)。
-    // current_code_graph_communities には ALTER 由来の mappings_json も付け、撤去後も保全されることを確認する。
+    // activity_current_code_graph_communities には ALTER 由来の mappings_json も付け、撤去後も保全されることを確認する。
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
     const colsOf = (table: string): string[] => {
@@ -684,11 +684,11 @@ describe('TrailDatabase: legacy DB migration on init', () => {
 
     const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h3-repo');
 
-    // current_graphs (repo_id PK + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS current_graphs');
+    // activity_current_graphs (repo_id PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_current_graphs');
     inner.run(`
-      CREATE TABLE current_graphs (
-        repo_id       INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_current_graphs (
+        repo_id       INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name     TEXT NOT NULL DEFAULT '',
         commit_id     TEXT NOT NULL DEFAULT '',
         graph_json    TEXT NOT NULL,
@@ -699,15 +699,15 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO current_graphs (repo_id, repo_name, commit_id, graph_json, tsconfig_path, project_root, analyzed_at) VALUES (?, 'h3-repo', 'c1', '{\"nodes\":[],\"edges\":[],\"metadata\":{\"projectRoot\":\"/r\",\"analyzedAt\":\"2026-05-23T00:00:00.000Z\"}}', 'tsconfig.json', '/r', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_current_graphs (repo_id, repo_name, commit_id, graph_json, tsconfig_path, project_root, analyzed_at) VALUES (?, 'h3-repo', 'c1', '{\"nodes\":[],\"edges\":[],\"metadata\":{\"projectRoot\":\"/r\",\"analyzedAt\":\"2026-05-23T00:00:00.000Z\"}}', 'tsconfig.json', '/r', '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
 
-    // current_code_graphs (repo_id PK + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS current_code_graphs');
+    // activity_current_code_graphs (repo_id PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_current_code_graphs');
     inner.run(`
-      CREATE TABLE current_code_graphs (
-        repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_current_code_graphs (
+        repo_id      INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name    TEXT NOT NULL DEFAULT '',
         graph_json   TEXT NOT NULL,
         generated_at TEXT,
@@ -715,16 +715,16 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO current_code_graphs (repo_id, repo_name, graph_json, generated_at, updated_at) VALUES (?, 'h3-repo', '{\"generatedAt\":\"2026-05-23T00:00:00.000Z\",\"repositories\":[],\"nodes\":[],\"edges\":[],\"communities\":{},\"godNodes\":[]}', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_current_code_graphs (repo_id, repo_name, graph_json, generated_at, updated_at) VALUES (?, 'h3-repo', '{\"generatedAt\":\"2026-05-23T00:00:00.000Z\",\"repositories\":[],\"nodes\":[],\"edges\":[],\"communities\":{},\"godNodes\":[]}', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
 
-    // current_code_graph_communities (repo_id PK + repo_name 残置 + stable_key + ALTER 由来の mappings_json)
-    inner.run('DROP TABLE IF EXISTS current_code_graph_communities');
+    // activity_current_code_graph_communities (repo_id PK + repo_name 残置 + stable_key + ALTER 由来の mappings_json)
+    inner.run('DROP TABLE IF EXISTS activity_current_code_graph_communities');
     inner.run('DROP INDEX IF EXISTS idx_ccgc_stable_key');
     inner.run(`
-      CREATE TABLE current_code_graph_communities (
-        repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_current_code_graph_communities (
+        repo_id      INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name    TEXT    NOT NULL DEFAULT '',
         community_id INTEGER NOT NULL,
         label        TEXT    NOT NULL DEFAULT '',
@@ -736,17 +736,17 @@ describe('TrailDatabase: legacy DB migration on init', () => {
         PRIMARY KEY (repo_id, community_id)
       ) STRICT
     `);
-    inner.run('ALTER TABLE current_code_graph_communities ADD COLUMN mappings_json TEXT');
+    inner.run('ALTER TABLE activity_current_code_graph_communities ADD COLUMN mappings_json TEXT');
     inner.run(
-      "INSERT INTO current_code_graph_communities (repo_id, repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at) VALUES (?, 'h3-repo', 7, 'L7', 'Name7', 'Sum7', 'sk7', '[{\"elementId\":\"e1\",\"role\":\"primary\"}]', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_current_code_graph_communities (repo_id, repo_name, community_id, label, name, summary, stable_key, mappings_json, generated_at, updated_at) VALUES (?, 'h3-repo', 7, 'L7', 'Name7', 'Sum7', 'sk7', '[{\"elementId\":\"e1\",\"role\":\"primary\"}]', '2026-05-23T00:00:00.000Z', '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
 
-    // current_coverage (複合 PK + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS current_coverage');
+    // activity_current_coverage (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_current_coverage');
     inner.run(`
-      CREATE TABLE current_coverage (
-        repo_id   INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_current_coverage (
+        repo_id   INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name TEXT    NOT NULL DEFAULT '',
         package   TEXT    NOT NULL,
         file_path TEXT    NOT NULL,
@@ -767,15 +767,15 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO current_coverage (repo_id, repo_name, package, file_path, lines_total, lines_covered, lines_pct) VALUES (?, 'h3-repo', 'pkg-a', 'src/x.ts', 10, 8, 80)",
+      "INSERT INTO activity_current_coverage (repo_id, repo_name, package, file_path, lines_total, lines_covered, lines_pct) VALUES (?, 'h3-repo', 'pkg-a', 'src/x.ts', 10, 8, 80)",
       [repoId],
     );
 
-    // current_file_analysis (複合 PK + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS current_file_analysis');
+    // activity_current_file_analysis (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_current_file_analysis');
     inner.run(`
-      CREATE TABLE current_file_analysis (
-        repo_id   INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_current_file_analysis (
+        repo_id   INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name TEXT NOT NULL DEFAULT '',
         file_path TEXT NOT NULL,
         importance_score REAL NOT NULL DEFAULT 0,
@@ -803,15 +803,15 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO current_file_analysis (repo_id, repo_name, file_path, analyzed_at) VALUES (?, 'h3-repo', 'src/fa.ts', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_current_file_analysis (repo_id, repo_name, file_path, analyzed_at) VALUES (?, 'h3-repo', 'src/fa.ts', '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
 
-    // current_function_analysis (複合 PK + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS current_function_analysis');
+    // activity_current_function_analysis (複合 PK + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_current_function_analysis');
     inner.run(`
-      CREATE TABLE current_function_analysis (
-        repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_current_function_analysis (
+        repo_id INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name TEXT NOT NULL DEFAULT '',
         file_path TEXT NOT NULL,
         function_name TEXT NOT NULL,
@@ -834,7 +834,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO current_function_analysis (repo_id, repo_name, file_path, function_name, start_line, analyzed_at) VALUES (?, 'h3-repo', 'src/fn.ts', 'doThing', 1, '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_current_function_analysis (repo_id, repo_name, file_path, function_name, start_line, analyzed_at) VALUES (?, 'h3-repo', 'src/fn.ts', 'doThing', 1, '2026-05-23T00:00:00.000Z')",
       [repoId],
     );
 
@@ -844,30 +844,30 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     }).not.toThrow();
 
     const currentTables = [
-      'current_graphs',
-      'current_code_graphs',
-      'current_code_graph_communities',
-      'current_coverage',
-      'current_file_analysis',
-      'current_function_analysis',
+      'activity_current_graphs',
+      'activity_current_code_graphs',
+      'activity_current_code_graph_communities',
+      'activity_current_coverage',
+      'activity_current_file_analysis',
+      'activity_current_function_analysis',
     ];
     // 6 テーブルから repo_name が消え、repo_id は残っている。PK は不変。
     for (const t of currentTables) {
       expect(colsOf(t)).not.toContain('repo_name');
       expect(colsOf(t)).toContain('repo_id');
     }
-    expect(pkOf('current_graphs')).toEqual(['repo_id']);
-    expect(pkOf('current_code_graphs')).toEqual(['repo_id']);
-    expect(pkOf('current_code_graph_communities')).toEqual(['community_id', 'repo_id']);
-    expect(pkOf('current_coverage')).toEqual(['file_path', 'package', 'repo_id']);
-    expect(pkOf('current_file_analysis')).toEqual(['file_path', 'repo_id']);
-    expect(pkOf('current_function_analysis')).toEqual(['file_path', 'function_name', 'repo_id', 'start_line']);
+    expect(pkOf('activity_current_graphs')).toEqual(['repo_id']);
+    expect(pkOf('activity_current_code_graphs')).toEqual(['repo_id']);
+    expect(pkOf('activity_current_code_graph_communities')).toEqual(['community_id', 'repo_id']);
+    expect(pkOf('activity_current_coverage')).toEqual(['file_path', 'package', 'repo_id']);
+    expect(pkOf('activity_current_file_analysis')).toEqual(['file_path', 'repo_id']);
+    expect(pkOf('activity_current_function_analysis')).toEqual(['file_path', 'function_name', 'repo_id', 'start_line']);
 
     // stable_key・mappings_json (ALTER 由来) が communities に保全されている。
-    expect(colsOf('current_code_graph_communities')).toContain('stable_key');
-    expect(colsOf('current_code_graph_communities')).toContain('mappings_json');
+    expect(colsOf('activity_current_code_graph_communities')).toContain('stable_key');
+    expect(colsOf('activity_current_code_graph_communities')).toContain('mappings_json');
     const comm = inner.exec(
-      'SELECT stable_key, mappings_json FROM current_code_graph_communities WHERE repo_id = ? AND community_id = 7',
+      'SELECT stable_key, mappings_json FROM activity_current_code_graph_communities WHERE repo_id = ? AND community_id = 7',
       [repoId],
     );
     const commRow = comm[0]?.values?.[0];
@@ -875,7 +875,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(String(commRow?.[1])).toContain('primary'); // mappings_json 保全
 
     // repo_id データが保全されている。
-    expect(Number(inner.exec('SELECT repo_id FROM current_coverage WHERE file_path = ?', ['src/x.ts'])[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec('SELECT repo_id FROM activity_current_coverage WHERE file_path = ?', ['src/x.ts'])[0]?.values?.[0]?.[0])).toBe(repoId);
 
     // read メソッドは repo_name を結果に含む契約を維持する (repos JOIN で復元)。
     expect(db.getCurrentFileAnalysis('h3-repo').map((r) => r.repoName)).toEqual(['h3-repo']);
@@ -929,9 +929,9 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const ts = '2026-05-23T00:00:00.000Z';
 
     // sessions (id PK + repo_id additive + repo_name 残置 + ALTER 由来 compact_count INTEGER)
-    inner.run('DROP TABLE IF EXISTS sessions');
+    inner.run('DROP TABLE IF EXISTS activity_sessions');
     inner.run(`
-      CREATE TABLE sessions (
+      CREATE TABLE activity_sessions (
         id TEXT PRIMARY KEY,
         slug TEXT NOT NULL DEFAULT '',
         repo_name TEXT NOT NULL DEFAULT '',
@@ -950,14 +950,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO sessions (id, slug, repo_name, repo_id, start_time, end_time, imported_at, compact_count) VALUES ('h4-s', 'h4-s', 'h4-repo', ?, ?, ?, ?, 7)",
+      "INSERT INTO activity_sessions (id, slug, repo_name, repo_id, start_time, end_time, imported_at, compact_count) VALUES ('h4-s', 'h4-s', 'h4-repo', ?, ?, ?, ?, 7)",
       [repoId, ts, ts, ts],
     );
 
-    // session_commits (複合 PK (session_id, repo_id, commit_hash) + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS session_commits');
+    // activity_session_commits (複合 PK (session_id, repo_id, commit_hash) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_session_commits');
     inner.run(`
-      CREATE TABLE session_commits (
+      CREATE TABLE activity_session_commits (
         session_id TEXT NOT NULL,
         commit_hash TEXT NOT NULL,
         commit_message TEXT NOT NULL DEFAULT '',
@@ -973,14 +973,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO session_commits (session_id, commit_hash, repo_name, repo_id, committed_at) VALUES ('h4-s', 'h4-hash', 'h4-repo', ?, ?)",
+      "INSERT INTO activity_session_commits (session_id, commit_hash, repo_name, repo_id, committed_at) VALUES ('h4-s', 'h4-hash', 'h4-repo', ?, ?)",
       [repoId, ts],
     );
 
-    // commit_files (複合 PK (repo_id, commit_hash, file_path) + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS commit_files');
+    // activity_commit_files (複合 PK (repo_id, commit_hash, file_path) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_commit_files');
     inner.run(`
-      CREATE TABLE commit_files (
+      CREATE TABLE activity_commit_files (
         commit_hash TEXT NOT NULL,
         file_path TEXT NOT NULL,
         repo_name TEXT NOT NULL DEFAULT '',
@@ -989,14 +989,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO commit_files (commit_hash, file_path, repo_name, repo_id) VALUES ('h4-hash', 'src/h4.ts', 'h4-repo', ?)",
+      "INSERT INTO activity_commit_files (commit_hash, file_path, repo_name, repo_id) VALUES ('h4-hash', 'src/h4.ts', 'h4-repo', ?)",
       [repoId],
     );
 
-    // session_commit_resolutions (複合 PK (session_id, repo_id) + repo_name 残置)
-    inner.run('DROP TABLE IF EXISTS session_commit_resolutions');
+    // activity_session_commit_resolutions (複合 PK (session_id, repo_id) + repo_name 残置)
+    inner.run('DROP TABLE IF EXISTS activity_session_commit_resolutions');
     inner.run(`
-      CREATE TABLE session_commit_resolutions (
+      CREATE TABLE activity_session_commit_resolutions (
         session_id TEXT NOT NULL,
         repo_name TEXT NOT NULL,
         repo_id INTEGER NOT NULL DEFAULT 0,
@@ -1005,7 +1005,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO session_commit_resolutions (session_id, repo_name, repo_id, resolved_at) VALUES ('h4-s', 'h4-repo', ?, ?)",
+      "INSERT INTO activity_session_commit_resolutions (session_id, repo_name, repo_id, resolved_at) VALUES ('h4-s', 'h4-repo', ?, ?)",
       [repoId, ts],
     );
 
@@ -1014,28 +1014,28 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const targetTables = ['sessions', 'session_commits', 'commit_files', 'session_commit_resolutions'];
+    const targetTables = ['activity_sessions', 'activity_session_commits', 'activity_commit_files', 'activity_session_commit_resolutions'];
     // 4 テーブルから repo_name が消え、repo_id は残っている。
     for (const t of targetTables) {
       expect(colsOf(t)).not.toContain('repo_name');
       expect(colsOf(t)).toContain('repo_id');
     }
     // 複合 PK / id PK は不変。
-    expect(pkOf('sessions')).toEqual(['id']);
-    expect(pkOf('session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
-    expect(pkOf('commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
-    expect(pkOf('session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
+    expect(pkOf('activity_sessions')).toEqual(['id']);
+    expect(pkOf('activity_session_commits')).toEqual(['commit_hash', 'repo_id', 'session_id']);
+    expect(pkOf('activity_commit_files')).toEqual(['commit_hash', 'file_path', 'repo_id']);
+    expect(pkOf('activity_session_commit_resolutions')).toEqual(['repo_id', 'session_id']);
 
     // ALTER 由来の compact_count(INTEGER) が値・型ごと保全されている。
-    expect(colsOf('sessions')).toContain('compact_count');
-    expect(typeOf('sessions', 'compact_count')).toBe('INTEGER');
-    const cc = inner.exec("SELECT compact_count FROM sessions WHERE id = 'h4-s'");
+    expect(colsOf('activity_sessions')).toContain('compact_count');
+    expect(typeOf('activity_sessions', 'compact_count')).toBe('INTEGER');
+    const cc = inner.exec("SELECT compact_count FROM activity_sessions WHERE id = 'h4-s'");
     expect(Number(cc[0]?.values?.[0]?.[0])).toBe(7);
 
     // repo_id データが保全されている。
-    expect(Number(inner.exec("SELECT repo_id FROM session_commits WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
-    expect(Number(inner.exec("SELECT repo_id FROM commit_files WHERE commit_hash = 'h4-hash'")[0]?.values?.[0]?.[0])).toBe(repoId);
-    expect(Number(inner.exec("SELECT repo_id FROM session_commit_resolutions WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM activity_session_commits WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM activity_commit_files WHERE commit_hash = 'h4-hash'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM activity_session_commit_resolutions WHERE session_id = 'h4-s'")[0]?.values?.[0]?.[0])).toBe(repoId);
 
     // read 契約: repos JOIN で repo_name を結果に復元する (SyncService が Supabase ミラーへ運ぶ契約)。
     expect(db.getSessions().find((r) => r.id === 'h4-s')?.repo_name).toBe('h4-repo');
@@ -1080,9 +1080,9 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const ts = '2026-05-24T00:00:00.000Z';
 
     // releases (release_id PK + repo_id + repo_name 残置)。flip 済の中間スキーマを最小列で再現する。
-    inner.run('DROP TABLE IF EXISTS releases');
+    inner.run('DROP TABLE IF EXISTS activity_releases');
     inner.run(`
-      CREATE TABLE releases (
+      CREATE TABLE activity_releases (
         release_id INTEGER PRIMARY KEY,
         tag TEXT NOT NULL,
         released_at TEXT,
@@ -1107,7 +1107,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO releases (release_id, tag, released_at, repo_name, repo_id, total_lines) VALUES (1, 'v1.0.0', ?, 'h5-repo', ?, 4200)",
+      "INSERT INTO activity_releases (release_id, tag, released_at, repo_name, repo_id, total_lines) VALUES (1, 'v1.0.0', ?, 'h5-repo', ?, 4200)",
       [ts, repoId],
     );
 
@@ -1184,9 +1184,9 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     }).not.toThrow();
 
     // releases から repo_name が消え、repo_id と release_id 単独 PK を保つ。
-    expect(colsOf('releases')).not.toContain('repo_name');
-    expect(colsOf('releases')).toContain('repo_id');
-    expect(pkOf('releases')).toEqual(['release_id']);
+    expect(colsOf('activity_releases')).not.toContain('repo_name');
+    expect(colsOf('activity_releases')).toContain('repo_id');
+    expect(pkOf('activity_releases')).toEqual(['release_id']);
 
     // release_file_analysis / release_function_analysis は 2026-08-08 に機能ごと廃止され、
     // legacy テーブルは createTables (init) が DROP する（リグレッションテスト）。
@@ -1196,8 +1196,8 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(tableExists('release_function_analysis')).toBe(false);
 
     // データ保全: releases の行・主要指標が保持されている。
-    expect(Number(inner.exec("SELECT repo_id FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(repoId);
-    expect(Number(inner.exec("SELECT total_lines FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(4200);
+    expect(Number(inner.exec("SELECT repo_id FROM activity_releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT total_lines FROM activity_releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(4200);
 
     // read 契約: getReleases は repos JOIN で repo_name を結果に復元する (Supabase trail_releases ミラー)。
     expect(db.getReleases().find((r) => r.tag === 'v1.0.0')?.repo_name).toBe('h5-repo');
@@ -1211,25 +1211,25 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
-    expect(colsOf('releases')).not.toContain('repo_name');
+    expect(colsOf('activity_releases')).not.toContain('repo_name');
     expect(tableExists('release_file_analysis')).toBe(false);
     expect(db.getReleases().find((r) => r.tag === 'v1.0.0')?.repo_name).toBe('h5-repo');
 
     db.close();
   });
 
-  it('message_tool_calls の UNIQUE は autoindex に一本化され、旧命名 idx_mtc_* と冗長な明示 UNIQUE を持たない', async () => {
+  it('activity_message_tool_calls の UNIQUE は autoindex に一本化され、旧命名 idx_mtc_* と冗長な明示 UNIQUE を持たない', async () => {
     // 2026-08-08 監査: 本番 DB で旧命名 idx_mtc_* 8 本が現行 idx_message_tool_calls_* と
     // 完全重複し、UNIQUE が autoindex 含め 3 重になっていた。新規 DB / init 済 DB では
     // テーブル制約 (sqlite_autoindex) だけが一意性を担い、冗長インデックスは存在しないこと。
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
     const idx = (inner.exec(
-      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='message_tool_calls'",
+      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='activity_message_tool_calls'",
     )[0]?.values ?? []).map((r) => String(r[0]));
     expect(idx.filter((n) => n.startsWith('idx_mtc_'))).toEqual([]);
     expect(idx).not.toContain('idx_message_tool_calls_message_uuid_call_index');
-    expect(idx.some((n) => n.startsWith('sqlite_autoindex_message_tool_calls'))).toBe(true);
+    expect(idx.some((n) => n.startsWith('sqlite_autoindex_activity_message_tool_calls'))).toBe(true);
     db.close();
   });
 
@@ -1237,25 +1237,25 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    const cur = inner.exec('PRAGMA table_info(current_code_graph_communities)');
+    const cur = inner.exec('PRAGMA table_info(activity_current_code_graph_communities)');
     const curCols = (cur[0]?.values ?? []).map((c: ReadonlyArray<unknown>) => String(c[1]));
     expect(curCols).toContain('stable_key');
-    // Phase C-2 flip: 新規 DB の current_code_graph_communities は repo_id 列を持つ。
+    // Phase C-2 flip: 新規 DB の activity_current_code_graph_communities は repo_id 列を持つ。
     expect(curCols).toContain('repo_id');
 
-    const rel = inner.exec('PRAGMA table_info(release_code_graph_communities)');
+    const rel = inner.exec('PRAGMA table_info(activity_release_code_graph_communities)');
     const relCols = (rel[0]?.values ?? []).map((c: ReadonlyArray<unknown>) => String(c[1]));
     expect(relCols).toContain('stable_key');
   });
 
-  it('Phase F flip: 旧 PK (repo_name, period) の legacy dora_metrics を (repo_id, period) PK へ再構築しデータ・backfill を保持する', async () => {
+  it('Phase F flip: 旧 PK (repo_name, period) の legacy activity_dora_metrics を (repo_id, period) PK へ再構築しデータ・backfill を保持する', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS dora_metrics');
+    inner.run('DROP TABLE IF EXISTS activity_dora_metrics');
     // 旧スキーマ (repo_id 列なし・旧 PK (repo_name, period)) を再現。
     inner.run(`
-      CREATE TABLE dora_metrics (
+      CREATE TABLE activity_dora_metrics (
         repo_name TEXT NOT NULL,
         period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
         deployment_frequency REAL NOT NULL DEFAULT 0,
@@ -1265,17 +1265,17 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(
-      "INSERT INTO dora_metrics (repo_name, period, deployment_frequency, lead_time_hours, computed_at) VALUES ('legacy-dora', '2026-01', 3, 24, '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_dora_metrics (repo_name, period, deployment_frequency, lead_time_hours, computed_at) VALUES ('legacy-dora', '2026-01', 3, 24, '2026-05-23T00:00:00.000Z')",
     );
     inner.run(
-      "INSERT INTO dora_metrics (repo_name, period, deployment_frequency, lead_time_hours, computed_at) VALUES ('legacy-dora', '2026-02', 1, NULL, '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_dora_metrics (repo_name, period, deployment_frequency, lead_time_hours, computed_at) VALUES ('legacy-dora', '2026-02', 1, NULL, '2026-05-23T00:00:00.000Z')",
     );
 
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const info = inner.exec('PRAGMA table_info(dora_metrics)');
+    const info = inner.exec('PRAGMA table_info(activity_dora_metrics)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
@@ -1288,14 +1288,14 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-dora');
     const data = inner.exec(
       `SELECT d.repo_id, r.repo_name, d.period, d.deployment_frequency, d.lead_time_hours
-       FROM dora_metrics d JOIN repos r USING(repo_id) WHERE d.repo_id = ? ORDER BY d.period`,
+       FROM activity_dora_metrics d JOIN activity_repos r USING(repo_id) WHERE d.repo_id = ? ORDER BY d.period`,
       [repoIdViaName],
     );
     const vals = (data[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(vals).toHaveLength(2);
     for (const row of vals) {
       expect(Number(row[0])).toBe(repoIdViaName); // repo_id backfill
-      expect(String(row[1])).toBe('legacy-dora'); // repo_name は JOIN repos で復元
+      expect(String(row[1])).toBe('legacy-dora'); // repo_name は JOIN activity_repos で復元
     }
     expect(String(vals[0]?.[2])).toBe('2026-01');
     expect(Number(vals[0]?.[3])).toBe(3);
@@ -1308,7 +1308,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
         { repoName: 'legacy-dora', period: '2026-03', deploymentFrequency: 2, leadTimeHours: 5, computedAt: '2026-05-23T00:00:00.000Z' },
       ]),
     ).not.toThrow();
-    const after = inner.exec('SELECT repo_id, period FROM dora_metrics');
+    const after = inner.exec('SELECT repo_id, period FROM activity_dora_metrics');
     const afterVals = (after[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     expect(afterVals).toHaveLength(1); // wash-away
     expect(Number(afterVals[0]?.[0])).toBe(repoIdViaName);
@@ -1361,7 +1361,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     // repo_name は repos JOIN で復元できる（read メソッドは caravan_reviews 統合（2026-08-07）で
     // 撤去済のため生 SQL で契約を確認する）。
     const joined = inner.exec(
-      `SELECT r.repo_name FROM pr_reviews p JOIN repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'rev-legacy'`,
+      `SELECT r.repo_name FROM pr_reviews p JOIN activity_repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'rev-legacy'`,
     );
     expect(String(joined[0]?.values?.[0]?.[0])).toBe('legacy-pr');
 
@@ -1378,15 +1378,15 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     db.close();
   });
 
-  it('Phase F additive: legacy cross_source_correlations (repo_id 列なし) に repo_id を追加し backfill する。PK は不変', async () => {
+  it('Phase F additive: legacy activity_cross_source_correlations (repo_id 列なし) に repo_id を追加し backfill する。PK は不変', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;
 
-    inner.run('DROP TABLE IF EXISTS cross_source_correlations');
+    inner.run('DROP TABLE IF EXISTS activity_cross_source_correlations');
     inner.run('DROP INDEX IF EXISTS idx_cross_source_correlations_repo');
     // 旧スキーマ (repo_id 列なし・PK は (correlation_type, source_a_id, source_b_id)・旧 repo 索引あり)。
     inner.run(`
-      CREATE TABLE cross_source_correlations (
+      CREATE TABLE activity_cross_source_correlations (
         correlation_type TEXT NOT NULL
           CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
         repo_name TEXT NOT NULL DEFAULT '',
@@ -1399,16 +1399,16 @@ describe('TrailDatabase: legacy DB migration on init', () => {
         PRIMARY KEY (correlation_type, source_a_id, source_b_id)
       ) STRICT
     `);
-    inner.run('CREATE INDEX idx_cross_source_correlations_repo ON cross_source_correlations(repo_name)');
+    inner.run('CREATE INDEX idx_cross_source_correlations_repo ON activity_cross_source_correlations(repo_name)');
     inner.run(
-      "INSERT INTO cross_source_correlations (correlation_type, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at) VALUES ('pr_review_release', 'legacy-cs', 'pr_review', 'r1', 'release', 'v1.2.3', 'high', '2026-05-23T00:00:00.000Z')",
+      "INSERT INTO activity_cross_source_correlations (correlation_type, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at) VALUES ('pr_review_release', 'legacy-cs', 'pr_review', 'r1', 'release', 'v1.2.3', 'high', '2026-05-23T00:00:00.000Z')",
     );
 
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const info = inner.exec('PRAGMA table_info(cross_source_correlations)');
+    const info = inner.exec('PRAGMA table_info(activity_cross_source_correlations)');
     const rows = (info[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
     const colNames = rows.map((c) => String(c[1]));
     expect(colNames).toContain('repo_id');
@@ -1419,15 +1419,15 @@ describe('TrailDatabase: legacy DB migration on init', () => {
 
     // repo_id が backfill されている (release tag 行でもリポを区別できる)。
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-cs');
-    const data = inner.exec("SELECT repo_id, source_b_id FROM cross_source_correlations WHERE source_a_id = 'r1'");
+    const data = inner.exec("SELECT repo_id, source_b_id FROM activity_cross_source_correlations WHERE source_a_id = 'r1'");
     expect(Number(data[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
     expect(String(data[0]?.values?.[0]?.[1])).toBe('v1.2.3');
-    // read メソッドは依然 repoName を返す (LEFT JOIN repos で復元・契約不変)。
+    // read メソッドは依然 repoName を返す (LEFT JOIN activity_repos で復元・契約不変)。
     const corr = db.getCrossSourceCorrelations().find((c) => c.sourceAId === 'r1');
     expect(corr?.repoName).toBe('legacy-cs');
 
     // 旧索引が撤去され、新 repo_id 索引が張られている。
-    const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='cross_source_correlations'");
+    const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='activity_cross_source_correlations'");
     const idxNames = (idx[0]?.values ?? []).map((r: ReadonlyArray<unknown>) => String(r[0]));
     expect(idxNames).not.toContain('idx_cross_source_correlations_repo');
     expect(idxNames).toContain('idx_cross_source_correlations_repo_id');
@@ -1436,7 +1436,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     db.replaceCrossSourceCorrelations([
       { correlationType: 'pr_review_session', repoName: 'legacy-cs', sourceAKind: 'pr_review', sourceAId: 'r2', sourceBKind: 'session', sourceBId: 's1', confidence: 'low', computedAt: '2026-05-23T00:00:00.000Z' },
     ]);
-    const newRow = inner.exec("SELECT repo_id FROM cross_source_correlations WHERE source_a_id = 'r2'");
+    const newRow = inner.exec("SELECT repo_id FROM activity_cross_source_correlations WHERE source_a_id = 'r2'");
     expect(Number(newRow[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
 
     db.close();
@@ -1455,16 +1455,16 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       const rows = (dbinfo[0]?.values ?? []) as ReadonlyArray<ReadonlyArray<unknown>>;
       return rows.map((c) => String(c[1]));
     };
-    // dora_metrics: PK が (repo_id, period)。Phase H-1: repo_name 列は無い。
-    expect(colsOf('dora_metrics')).toContain('repo_id');
-    expect(colsOf('dora_metrics')).not.toContain('repo_name');
-    expect(pkOf('dora_metrics')).toEqual(['period', 'repo_id']);
+    // activity_dora_metrics: PK が (repo_id, period)。Phase H-1: repo_name 列は無い。
+    expect(colsOf('activity_dora_metrics')).toContain('repo_id');
+    expect(colsOf('activity_dora_metrics')).not.toContain('repo_name');
+    expect(pkOf('activity_dora_metrics')).toEqual(['period', 'repo_id']);
     // pr_reviews は caravan_reviews 統合（2026-08-07）で新規 DB に作成されない。
     expect(colsOf('pr_reviews')).toEqual([]);
-    // cross_source_correlations: repo_id 列を持つ (PK は不変)。Phase H-1: repo_name 列は無い。
-    expect(colsOf('cross_source_correlations')).toContain('repo_id');
-    expect(colsOf('cross_source_correlations')).not.toContain('repo_name');
-    expect(pkOf('cross_source_correlations')).toEqual(['correlation_type', 'source_a_id', 'source_b_id']);
+    // activity_cross_source_correlations: repo_id 列を持つ (PK は不変)。Phase H-1: repo_name 列は無い。
+    expect(colsOf('activity_cross_source_correlations')).toContain('repo_id');
+    expect(colsOf('activity_cross_source_correlations')).not.toContain('repo_name');
+    expect(pkOf('activity_cross_source_correlations')).toEqual(['correlation_type', 'source_a_id', 'source_b_id']);
     db.close();
   });
 
@@ -1478,12 +1478,12 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     };
 
     // 旧 (Phase F) スキーマ = repo_id 列 + repo_name 残置列を再現する (撤去直前の状態)。
-    inner.run('DROP TABLE IF EXISTS dora_metrics');
+    inner.run('DROP TABLE IF EXISTS activity_dora_metrics');
     inner.run('DROP TABLE IF EXISTS pr_reviews');
-    inner.run('DROP TABLE IF EXISTS cross_source_correlations');
+    inner.run('DROP TABLE IF EXISTS activity_cross_source_correlations');
     inner.run(`
-      CREATE TABLE dora_metrics (
-        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
+      CREATE TABLE activity_dora_metrics (
+        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name TEXT NOT NULL,
         period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
         deployment_frequency REAL NOT NULL DEFAULT 0,
@@ -1495,7 +1495,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     inner.run(`
       CREATE TABLE pr_reviews (
         review_id TEXT PRIMARY KEY,
-        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES repos(repo_id) ON DELETE CASCADE,
+        repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
         repo_name TEXT NOT NULL,
         pr_number INTEGER NOT NULL,
         author TEXT NOT NULL DEFAULT '',
@@ -1506,10 +1506,10 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       ) STRICT
     `);
     inner.run(`
-      CREATE TABLE cross_source_correlations (
+      CREATE TABLE activity_cross_source_correlations (
         correlation_type TEXT NOT NULL
           CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
-        repo_id INTEGER REFERENCES repos(repo_id) ON DELETE SET NULL,
+        repo_id INTEGER REFERENCES activity_repos(repo_id) ON DELETE SET NULL,
         repo_name TEXT NOT NULL DEFAULT '',
         source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
         source_a_id TEXT NOT NULL,
@@ -1524,7 +1524,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     // repo_id を repos 経由で確定させてからデータ投入する (repo_id と repo_name を整合)。
     const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('h1-repo');
     inner.run(
-      `INSERT INTO dora_metrics (repo_id, repo_name, period, deployment_frequency, lead_time_hours, computed_at)
+      `INSERT INTO activity_dora_metrics (repo_id, repo_name, period, deployment_frequency, lead_time_hours, computed_at)
        VALUES (?, 'h1-repo', '2026-04', 5, 12, '2026-05-23T00:00:00.000Z')`,
       [repoId],
     );
@@ -1534,7 +1534,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       [repoId],
     );
     inner.run(
-      `INSERT INTO cross_source_correlations (correlation_type, repo_id, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
+      `INSERT INTO activity_cross_source_correlations (correlation_type, repo_id, repo_name, source_a_kind, source_a_id, source_b_kind, source_b_id, confidence, computed_at)
        VALUES ('pr_review_session', ?, 'h1-repo', 'pr_review', 'h1-a', 'session', 'h1-b', 'medium', '2026-05-23T00:00:00.000Z')`,
       [repoId],
     );
@@ -1545,20 +1545,20 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     }).not.toThrow();
 
     // 3 テーブルから repo_name が消え、repo_id は残っている。
-    for (const t of ['dora_metrics', 'pr_reviews', 'cross_source_correlations']) {
+    for (const t of ['activity_dora_metrics', 'pr_reviews', 'activity_cross_source_correlations']) {
       expect(colsOf(t)).not.toContain('repo_name');
       expect(colsOf(t)).toContain('repo_id');
     }
 
     // repo_id データが保全されている。
-    expect(Number(inner.exec("SELECT repo_id FROM dora_metrics WHERE period = '2026-04'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM activity_dora_metrics WHERE period = '2026-04'")[0]?.values?.[0]?.[0])).toBe(repoId);
     expect(Number(inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'h1-rev'")[0]?.values?.[0]?.[0])).toBe(repoId);
-    expect(Number(inner.exec("SELECT repo_id FROM cross_source_correlations WHERE source_a_id = 'h1-a'")[0]?.values?.[0]?.[0])).toBe(repoId);
+    expect(Number(inner.exec("SELECT repo_id FROM activity_cross_source_correlations WHERE source_a_id = 'h1-a'")[0]?.values?.[0]?.[0])).toBe(repoId);
 
-    // read メソッドは依然 repoName を返す (JOIN repos で復元・下流契約不変)。
+    // read メソッドは依然 repoName を返す (JOIN activity_repos で復元・下流契約不変)。
     // pr_reviews の read メソッドは caravan_reviews 統合（2026-08-07）で撤去済のため生 SQL で確認する。
     const prJoined = inner.exec(
-      `SELECT r.repo_name FROM pr_reviews p JOIN repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'h1-rev'`,
+      `SELECT r.repo_name FROM pr_reviews p JOIN activity_repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'h1-rev'`,
     );
     expect(String(prJoined[0]?.values?.[0]?.[0])).toBe('h1-repo');
     expect(db.getCrossSourceCorrelations().find((c) => c.sourceAId === 'h1-a')?.repoName).toBe('h1-repo');
@@ -1567,7 +1567,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
-    for (const t of ['dora_metrics', 'pr_reviews', 'cross_source_correlations']) {
+    for (const t of ['activity_dora_metrics', 'pr_reviews', 'activity_cross_source_correlations']) {
       expect(colsOf(t)).not.toContain('repo_name');
     }
 

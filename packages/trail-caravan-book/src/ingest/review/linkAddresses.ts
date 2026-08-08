@@ -160,7 +160,7 @@ function linkOneFinding(
   // 絞っており、他ワークスペースの指摘が永久にリンクできず、かつリポジトリ名を
   // 含まない相対パスが別リポジトリの同名ファイルへ誤リンクし得た。
   //
-  // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。
+  // Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。
   // 窓の下限は `committed_at >= reviewed_at`（同時刻の即時修正＝同一セッション内の対処も拾う）。
   // 兄弟 linkPrecedesBugs は後続バグを探すため `> reviewed_at`（厳密大なり）で、境界差は意図的。
   //
@@ -172,10 +172,10 @@ function linkOneFinding(
     const isPrefix = predicate === 'prefix';
     const commitResult = db.exec(
       `SELECT DISTINCT sc.commit_hash, sc.commit_message, sc.committed_at
-       FROM trail.session_commits sc
-       JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash
+       FROM trail.activity_session_commits sc
+       JOIN trail.activity_commit_files cf ON cf.commit_hash = sc.commit_hash
                                   AND cf.repo_id = sc.repo_id
-       JOIN trail.repos r ON r.repo_id = sc.repo_id
+       JOIN trail.activity_repos r ON r.repo_id = sc.repo_id
        WHERE ${isPrefix ? `cf.file_path LIKE ? || '/%' ESCAPE '\\'` : `cf.file_path = ?`}
          AND r.repo_name = ?
          AND sc.committed_at >= ?

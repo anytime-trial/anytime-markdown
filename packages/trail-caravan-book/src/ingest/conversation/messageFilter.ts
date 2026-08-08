@@ -3,7 +3,7 @@
  * 同じ定義を使うためにここへ集約する（片方だけ変わると母数と処理数が食い違う）。
  */
 
-/** trail.messages に付ける別名。SQL へ埋め込むため、呼び出し実態のリテラルだけを許す。 */
+/** trail.activity_messages に付ける別名。SQL へ埋め込むため、呼び出し実態のリテラルだけを許す。 */
 export type MessagesAlias = 'm';
 
 const mainThreadOnly = (p: string): string => `${p}is_sidechain = 0`;

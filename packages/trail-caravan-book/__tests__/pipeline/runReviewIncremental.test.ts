@@ -64,7 +64,7 @@ async function openTestDb(opts?: {
 
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
 
-  trailHandle.run(`CREATE TABLE messages (
+  trailHandle.run(`CREATE TABLE activity_messages (
     uuid TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -75,14 +75,14 @@ async function openTestDb(opts?: {
     skill TEXT
   ) STRICT`);
 
-  // session_commits and commit_files needed by linkAddresses
-  trailHandle.run(`CREATE TABLE session_commits (
+  // activity_session_commits and activity_commit_files needed by linkAddresses
+  trailHandle.run(`CREATE TABLE activity_session_commits (
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL,
     committed_at TEXT NOT NULL,
     repo_name TEXT NOT NULL
   ) STRICT`);
-  trailHandle.run(`CREATE TABLE commit_files (
+  trailHandle.run(`CREATE TABLE activity_commit_files (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
     file_path TEXT NOT NULL,
@@ -92,7 +92,7 @@ async function openTestDb(opts?: {
   if (opts?.trailMessages) {
     for (const msg of opts.trailMessages) {
       trailHandle.run(
-        `INSERT INTO messages
+        `INSERT INTO activity_messages
            (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [

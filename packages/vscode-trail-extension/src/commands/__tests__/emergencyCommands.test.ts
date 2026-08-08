@@ -132,7 +132,7 @@ describe('emergencyCommands', () => {
       expect(errorSpy.mock.calls.length + warnSpy.mock.calls.length).toBeGreaterThan(0);
     });
 
-    it('emergency_log の記録に失敗したらトーストだけでなくログにも残す', async () => {
+    it('activity_emergency_log の記録に失敗したらトーストだけでなくログにも残す', async () => {
       const errorSpy = jest.spyOn(TrailLogger, 'error').mockImplementation(() => undefined);
       const warnSpy = jest.spyOn(TrailLogger, 'warn').mockImplementation(() => undefined);
       globalThis.fetch = (() => Promise.reject(new Error('ECONNREFUSED'))) as typeof fetch;

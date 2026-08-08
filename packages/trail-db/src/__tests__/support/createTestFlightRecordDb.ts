@@ -5,8 +5,8 @@
 // FlightRecordDatabase は caravan-book.db を主接続にし activity.db を ATTACH するため、
 // InMemoryTrailStorage 方式（:memory:）ではなくファイルベースの隔離にする。
 //
-// セッション由来テーブル（sessions / repos / session_costs / session_commits /
-// commit_files / messages / verification_runs）は activity.db 側に残るため、シードは
+// セッション由来テーブル（sessions / repos / activity_session_costs / activity_session_commits /
+// activity_commit_files / messages / activity_verification_runs）は activity.db 側に残るため、シードは
 // trailRun() で activity.db へ直接流す。
 
 import fs from 'node:fs';
@@ -34,7 +34,7 @@ export interface FlightRecordTestContext {
   readonly tempDir: string;
   readonly trailDbPath: string;
   readonly memoryDbPath: string;
-  /** activity.db 側へ生 SQL を流す（sessions / repos / session_costs 等のシード用）。 */
+  /** activity.db 側へ生 SQL を流す（sessions / repos / activity_session_costs 等のシード用）。 */
   trailRun(sql: string, params?: readonly unknown[]): void;
   /** caravan-book.db 側へ生 SQL を流す（caravan_flight_reviews / instructions の直接検証用）。 */
   memoryRun(sql: string, params?: readonly unknown[]): void;

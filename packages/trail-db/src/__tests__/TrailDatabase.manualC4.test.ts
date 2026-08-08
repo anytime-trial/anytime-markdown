@@ -49,7 +49,7 @@ function insertSession(
   // Phase H-4: sessions.repo_name 列は撤去済。repo 帰属は repo_id で表現する。
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source,
        commits_resolved_at
@@ -82,7 +82,7 @@ function insertMsg(
     model = null,
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, type, timestamp, tool_calls, tool_use_result,
        input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
@@ -117,7 +117,7 @@ function insertToolCall(
 ): void {
   const { isError = 0, filePath = null, command = null, skillName = null, turnIndex = 0, turnExecMs = null } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking,
        is_error, error_type, timestamp
@@ -189,7 +189,7 @@ describe('TrailDatabase.getReleases', () => {
     // flip 後 releases は prev_release_id 列 (旧 prev_tag は廃止)。
     // Phase H-5: releases.repo_name 列は撤去済。repo 帰属は repo_id (省略時 NULL) で表現する。
     inner(db).run(
-      `INSERT OR REPLACE INTO releases (
+      `INSERT OR REPLACE INTO activity_releases (
          tag, released_at, prev_release_id, package_tags,
          commit_count, files_changed, lines_added, lines_deleted,
          total_lines, feat_count, fix_count, refactor_count, test_count, other_count,
@@ -199,10 +199,10 @@ describe('TrailDatabase.getReleases', () => {
     );
     const v1Id = Number(
       (db as unknown as { db: { exec: (sql: string, p?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }> } }).db
-        .exec('SELECT release_id FROM releases WHERE tag = ?', ['v1.0.0'])[0]?.values?.[0]?.[0],
+        .exec('SELECT release_id FROM activity_releases WHERE tag = ?', ['v1.0.0'])[0]?.values?.[0]?.[0],
     );
     inner(db).run(
-      `INSERT OR REPLACE INTO releases (
+      `INSERT OR REPLACE INTO activity_releases (
          tag, released_at, prev_release_id, package_tags,
          commit_count, files_changed, lines_added, lines_deleted,
          total_lines, feat_count, fix_count, refactor_count, test_count, other_count,

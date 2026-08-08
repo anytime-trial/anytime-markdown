@@ -106,7 +106,7 @@ export interface InstructionVerificationRun {
   startedAt: string;
 }
 
-/** モデル別のトークン内訳（session_costs をモデルで畳んだもの）。 */
+/** モデル別のトークン内訳（activity_session_costs をモデルで畳んだもの）。 */
 export interface InstructionTokenUsageByModel {
   model: string;
   inputTokens: number;
@@ -116,7 +116,7 @@ export interface InstructionTokenUsageByModel {
   estimatedCostUsd: number;
 }
 
-/** 指示のトークン消費。`imported=false` は session_costs 未取込（0 件と区別する）。 */
+/** 指示のトークン消費。`imported=false` は activity_session_costs 未取込（0 件と区別する）。 */
 export interface InstructionTokenUsage {
   imported: boolean;
   inputTokens: number;

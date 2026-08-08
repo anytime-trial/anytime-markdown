@@ -86,7 +86,7 @@ describe('MessageCommitMatcher', () => {
     await matcher.onRunStart(ctx);
     await matcher.onRunEnd(ctx);
 
-    expect(progressMessages).toContain('Backfilling message_commits...');
+    expect(progressMessages).toContain('Backfilling activity_message_commits...');
     // The callback passed to backfillMessageCommits also routes through onProgress
     expect(progressMessages).toContain('session s1 matched');
     expect(progressMessages).toContain('session s2 matched');

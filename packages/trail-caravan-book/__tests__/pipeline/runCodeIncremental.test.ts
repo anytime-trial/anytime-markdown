@@ -4,8 +4,8 @@ import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import type { MemoryLogger } from '../../src/logger';
 
-// typescript 依存は撤去済み。runCodeIncremental は trail-db の current_graphs（生 TrailGraph）と
-// code_decision_comments（analyze-child が永続化）から読むため、fixture でそれらを用意する。
+// typescript 依存は撤去済み。runCodeIncremental は trail-db の activity_current_graphs（生 TrailGraph）と
+// activity_code_decision_comments（analyze-child が永続化）から読むため、fixture でそれらを用意する。
 
 /** ingestAstFacts が処理する生 TrailGraph（file + function ノード + call エッジ）。 */
 const RAW_TRAIL_GRAPH = {
@@ -44,25 +44,25 @@ function makeMemoryDb(): BetterSqlite3MemoryDb {
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`
-    CREATE TABLE repos (
+    CREATE TABLE activity_repos (
       repo_id    INTEGER PRIMARY KEY,
       repo_name  TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
     ) STRICT
   `);
-  // current_code_graphs（fromTrailGraph が読む C4 グラフ）
+  // activity_current_code_graphs（fromTrailGraph が読む C4 グラフ）
   trailDb.run(`
-    CREATE TABLE current_code_graphs (
-      repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+    CREATE TABLE activity_current_code_graphs (
+      repo_id      INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
       graph_json   TEXT NOT NULL,
       generated_at TEXT NOT NULL,
       updated_at   TEXT NOT NULL
     ) STRICT
   `);
-  // current_graphs（ingestAstFacts が読む生 TrailGraph）
+  // activity_current_graphs（ingestAstFacts が読む生 TrailGraph）
   trailDb.run(`
-    CREATE TABLE current_graphs (
-      repo_id       INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+    CREATE TABLE activity_current_graphs (
+      repo_id       INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
       commit_id     TEXT NOT NULL DEFAULT '',
       graph_json    TEXT NOT NULL,
       tsconfig_path TEXT NOT NULL DEFAULT '',
@@ -71,10 +71,10 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
       updated_at    TEXT
     ) STRICT
   `);
-  // code_decision_comments（ingestDecisionComments が読む decision comment）
+  // activity_code_decision_comments（ingestDecisionComments が読む decision comment）
   trailDb.run(`
-    CREATE TABLE code_decision_comments (
-      repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+    CREATE TABLE activity_code_decision_comments (
+      repo_id      INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
       comment_hash TEXT NOT NULL,
       file_path    TEXT NOT NULL,
       line         INTEGER NOT NULL,
@@ -86,14 +86,14 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
     ) STRICT
   `);
   trailDb.run(`
-    CREATE TABLE sessions (
+    CREATE TABLE activity_sessions (
       id TEXT PRIMARY KEY,
       started_at TEXT NOT NULL DEFAULT ''
     ) STRICT
   `);
   trailDb.run(`
-    CREATE TABLE session_commits (
-      session_id     TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    CREATE TABLE activity_session_commits (
+      session_id     TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
       commit_hash    TEXT NOT NULL,
       commit_message TEXT NOT NULL DEFAULT '',
       committed_at   TEXT,
@@ -128,12 +128,12 @@ function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, updat
     godNodes: [],
   });
   trailDb.run(
-    `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at) VALUES (?, ?, ?, ?)`,
+    `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at) VALUES (?, ?, ?, ?)`,
     [repoId, codeGraphJson, updatedAt, updatedAt]
   );
   // 生 TrailGraph（ingestAstFacts 用）
   trailDb.run(
-    `INSERT INTO current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+    `INSERT INTO activity_current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
      VALUES (?, '', ?, '', '/fake/root', ?, ?)`,
     [repoId, JSON.stringify(RAW_TRAIL_GRAPH), updatedAt, updatedAt]
   );
@@ -146,7 +146,7 @@ function insertDecisionComment(
 ): void {
   const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
-    `INSERT INTO code_decision_comments
+    `INSERT INTO activity_code_decision_comments
        (repo_id, comment_hash, file_path, line, comment_text, symbol_name, commit_sha, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, NULL, ?)`,
     [
@@ -163,10 +163,10 @@ function insertDecisionComment(
 
 function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
     [repoName, '2026-01-01T00:00:00.000Z']
   );
-  const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
+  const stmt = trailDb.prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?');
   try {
     const row = stmt.get(repoName);
     return Number(row?.['repo_id'] ?? 0);
@@ -307,7 +307,7 @@ describe('runCodeIncremental', () => {
     });
   });
 
-  describe('decision comments ingested from trail.code_decision_comments', () => {
+  describe('decision comments ingested from trail.activity_code_decision_comments', () => {
     it('creates a Decision entity for each stored comment', async () => {
       const memDb = makeMemoryDb();
       const trailDb = makeTrailDb();

@@ -24,7 +24,7 @@ function hasBashTool(msg: TrailMessage): boolean {
 }
 
 // assistant の親チェーンを遡って最初の user メッセージ UUID を返す。
-// Why: message_commits.message_uuid は DORA 指標（Lead Time / Success Rate）の計算で
+// Why: activity_message_commits.message_uuid は DORA 指標（Lead Time / Success Rate）の計算で
 // 「user プロンプトの UUID」と突き合わされる。assistant UUID のまま保存すると照合が常に
 // 失敗し、成功率 0 / サンプル数 0 になる（指標バグ）。
 function resolveUserAncestorUuid(

@@ -2,18 +2,18 @@ import * as path from 'path';
 import BetterSqlite3, { type Database } from 'better-sqlite3';
 import { resolveRepoName } from '../repoName';
 
-// Phase H-3: current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、resolveRepoName は
+// Phase H-3: activity_current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、resolveRepoName は
 // repos を JOIN して repo_name を引く。fixture も repos + repo_id スキーマで作る。
 function createDb(rows: { repo_name: string }[] | null): Database {
   const db = new BetterSqlite3(':memory:');
   if (rows !== null) {
-    db.exec('CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT UNIQUE)');
-    db.exec('CREATE TABLE current_code_graphs (repo_id INTEGER)');
+    db.exec('CREATE TABLE activity_repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT UNIQUE)');
+    db.exec('CREATE TABLE activity_current_code_graphs (repo_id INTEGER)');
     const upsertRepo = db.prepare(
-      'INSERT INTO repos (repo_name) VALUES (?) ON CONFLICT(repo_name) DO NOTHING',
+      'INSERT INTO activity_repos (repo_name) VALUES (?) ON CONFLICT(repo_name) DO NOTHING',
     );
-    const selectRepo = db.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
-    const insGraph = db.prepare('INSERT INTO current_code_graphs (repo_id) VALUES (?)');
+    const selectRepo = db.prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?');
+    const insGraph = db.prepare('INSERT INTO activity_current_code_graphs (repo_id) VALUES (?)');
     for (const row of rows) {
       upsertRepo.run(row.repo_name);
       const repoId = (selectRepo.get(row.repo_name) as { repo_id: number }).repo_id;

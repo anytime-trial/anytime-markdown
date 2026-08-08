@@ -351,7 +351,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(save).not.toHaveBeenCalled(); // Wave 2 (PersistAnalyzer) は走らない
   });
 
-  it('stage=all runs Wave 4: DoraMetricsAggregator computes dora_metrics', async () => {
+  it('stage=all runs Wave 4: DoraMetricsAggregator computes activity_dora_metrics', async () => {
     const written: unknown[][] = [];
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();

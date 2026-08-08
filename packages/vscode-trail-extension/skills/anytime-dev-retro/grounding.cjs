@@ -103,16 +103,16 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   // コスト(モデル別・全期間累積)
   const cost = rows(q(db, `SELECT model, COUNT(*) sessions, ROUND(SUM(estimated_cost_usd),2) cost,
        SUM(cache_read_tokens) cache_read, SUM(input_tokens) input
-     FROM session_costs GROUP BY model ORDER BY cost DESC`));
+     FROM activity_session_costs GROUP BY model ORDER BY cost DESC`));
   snapshot.cost = summarizeCost(cost);
 
   // コスト(直近 30 日ウィンドウ)。opusCostSharePct/cacheReadSharePct/sessionsOver1000Msgs は
   // 全期間累積では単調増加し「増加=悪化」判定が構造的に偽陽性を出すため、真のデルタは本ウィンドウ値で見る。
-  // session_costs に日時列は無いため sessions.start_time で窓を切る(start_time 空/NULL のセッションは窓外扱い)。
+  // activity_session_costs に日時列は無いため sessions.start_time で窓を切る(start_time 空/NULL のセッションは窓外扱い)。
   // WINDOW_DAYS は数値定数のためテンプレート埋め込みでも SQL インジェクション懸念なし
   const costW = rows(q(db, `SELECT sc.model, COUNT(*) sessions, ROUND(SUM(sc.estimated_cost_usd),2) cost,
        SUM(sc.cache_read_tokens) cache_read, SUM(sc.input_tokens) input
-     FROM session_costs sc JOIN sessions s ON s.id = sc.session_id
+     FROM activity_session_costs sc JOIN activity_sessions s ON s.id = sc.session_id
      WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
      GROUP BY sc.model ORDER BY cost DESC`));
   const wCost = summarizeCost(costW);
@@ -124,7 +124,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     // 累積 sessionsOver1000Msgs と同じ算定方法(messages GROUP BY)を窓内に限定して整合させる
     sessionsOver1000Msgs: num(
       q(db, `SELECT COUNT(*) c FROM (
-               SELECT m.session_id FROM messages m JOIN sessions s ON s.id = m.session_id
+               SELECT m.session_id FROM activity_messages m JOIN activity_sessions s ON s.id = m.session_id
                WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
                GROUP BY m.session_id HAVING COUNT(*) > 1000)`),
       'c',
@@ -144,7 +144,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       db,
       `SELECT NULLIF(m.model,'') model,
               COUNT(*) assistantMsgs, ROUND(AVG(m.output_tokens)) avgOutputTokens
-       FROM messages m JOIN sessions s ON s.id = m.session_id
+       FROM activity_messages m JOIN activity_sessions s ON s.id = m.session_id
        WHERE m.type = 'assistant' AND m.model IS NOT NULL AND m.model != ''
          AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
        GROUP BY 1`,
@@ -158,7 +158,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       `SELECT NULLIF(mtc.model,'') model, COUNT(*) toolCalls,
               ROUND(100.0*SUM(mtc.is_error)/COUNT(*),1) toolErrorRatePct,
               ROUND(AVG(mtc.turn_exec_ms)) avgTurnExecMs
-       FROM message_tool_calls mtc JOIN sessions s ON s.id = mtc.session_id
+       FROM activity_message_tool_calls mtc JOIN activity_sessions s ON s.id = mtc.session_id
        WHERE mtc.model IS NOT NULL AND mtc.model != ''
          AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
        GROUP BY 1`,
@@ -197,11 +197,11 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
 
   // 活動
   snapshot.activity = {
-    sessions: num(q(db, 'SELECT COUNT(*) c FROM sessions'), 'c'),
-    messagesLast7d: num(q(db, "SELECT COUNT(*) c FROM messages WHERE timestamp >= datetime('now','-7 days')"), 'c'),
-    commitsLast7d: num(q(db, "SELECT COUNT(*) c FROM session_commits WHERE committed_at >= datetime('now','-7 days')"), 'c'),
+    sessions: num(q(db, 'SELECT COUNT(*) c FROM activity_sessions'), 'c'),
+    messagesLast7d: num(q(db, "SELECT COUNT(*) c FROM activity_messages WHERE timestamp >= datetime('now','-7 days')"), 'c'),
+    commitsLast7d: num(q(db, "SELECT COUNT(*) c FROM activity_session_commits WHERE committed_at >= datetime('now','-7 days')"), 'c'),
     sessionsOver1000Msgs: num(
-      q(db, 'SELECT COUNT(*) c FROM (SELECT session_id FROM messages GROUP BY session_id HAVING COUNT(*) > 1000)'),
+      q(db, 'SELECT COUNT(*) c FROM (SELECT session_id FROM activity_messages GROUP BY session_id HAVING COUNT(*) > 1000)'),
       'c',
     ),
   };
@@ -209,10 +209,10 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   // hotspot(認知的複雑度 top・規約 cc<=15)
   snapshot.hotspots = rows(
     q(db, `SELECT file_path, function_name, cognitive_complexity cc
-           FROM current_function_analysis ORDER BY cognitive_complexity DESC LIMIT 10`),
+           FROM activity_current_function_analysis ORDER BY cognitive_complexity DESC LIMIT 10`),
   ).map((r) => ({ file: r.file_path, fn: r.function_name, cc: r.cc }));
   snapshot.hotspotOver15 = num(
-    q(db, 'SELECT COUNT(*) c FROM current_function_analysis WHERE cognitive_complexity > 15'),
+    q(db, 'SELECT COUNT(*) c FROM activity_current_function_analysis WHERE cognitive_complexity > 15'),
     'c',
   );
 
@@ -385,7 +385,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
                  SUM(CASE WHEN cnt > 1 THEN 1 ELSE 0 END) multiSession
                FROM (SELECT COUNT(*) cnt FROM caravan_instruction_sessions GROUP BY instruction_id)`),
     ) ?? {};
-    // 指示単位コスト: caravan_instruction_sessions(移設先) × trail.session_costs(activity.db 残留)を
+    // 指示単位コスト: caravan_instruction_sessions(移設先) × trail.activity_session_costs(activity.db 残留)を
     // JS 側で突合する(ATTACH 非依存。読み先が trail 側でも同一コードで動く)。
     // 対象は直近 30 日に開始した指示のみ。
     let topInstructionsByCost = [];
@@ -399,7 +399,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       const ids = [...new Set(links.map((l) => l.sid))];
       const placeholders = ids.map(() => '?').join(', ');
       const costRows = rows(
-        q(costDb, `SELECT session_id, SUM(estimated_cost_usd) c FROM session_costs
+        q(costDb, `SELECT session_id, SUM(estimated_cost_usd) c FROM activity_session_costs
                    WHERE session_id IN (${placeholders}) GROUP BY session_id`, ids),
       );
       const costBySession = new Map(costRows.map((r) => [r.session_id, r.c ?? 0]));
@@ -659,14 +659,14 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     const { db, error } = open('activity.db');
     if (error) snapshot.errors.push(error);
     const usage = rows(
-      q(db, `SELECT skill, COUNT(*) n FROM messages
+      q(db, `SELECT skill, COUNT(*) n FROM activity_messages
              WHERE skill IS NOT NULL AND skill != '' AND timestamp >= datetime('now','-30 days')
              GROUP BY skill ORDER BY n DESC`),
     );
     // 前 30 日窓(60〜30 日前)。版数バンプ(改訂)後に発火が減ったかを 2 窓比較で判定する材料
     // (proposal/20260716-prompt-feedback-loops)。判定自体は SKILL.md §2 のデルタ比較が行う。
     const usagePrev = rows(
-      q(db, `SELECT skill, COUNT(*) n FROM messages
+      q(db, `SELECT skill, COUNT(*) n FROM activity_messages
              WHERE skill IS NOT NULL AND skill != ''
                AND timestamp >= datetime('now','-60 days') AND timestamp < datetime('now','-30 days')
              GROUP BY skill`),

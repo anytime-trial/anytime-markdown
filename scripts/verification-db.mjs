@@ -1,5 +1,5 @@
 /**
- * 検証実施台帳（activity.db の verification_runs）の共有アクセス層（writer 正本）。
+ * 検証実施台帳（activity.db の activity_verification_runs）の共有アクセス層（writer 正本）。
  *
  * 保存先は activity.db — Flight Record の指示（caravan_instructions / caravan_instruction_sessions。
  * 2026-08-07 に caravan-book.db へ移設済み）と session_id で結合できる位置に
@@ -86,7 +86,7 @@ const TS_GLOB_NO_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0
 // 追記のみ・冪等な DDL なのでバージョン管理表を持たずに済む。
 // SHORTCUT: 保持期間 prune 未実装. ceiling: 1 検証=1 行の追記のみで増加は緩やか. upgrade: フェーズ2 の dev-retro 連携導入時に保持方針を決めて prune を実装.
 export const SCHEMA_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS verification_runs (
+  `CREATE TABLE IF NOT EXISTS activity_verification_runs (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL DEFAULT '',
   workspace_path TEXT NOT NULL DEFAULT '',
@@ -102,13 +102,13 @@ export const SCHEMA_STATEMENTS = [
   started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
   finished_at TEXT NOT NULL CHECK (finished_at GLOB ${TS_GLOB_MS} OR finished_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`,
-  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON verification_runs(session_id, started_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON verification_runs(package, code_state_hash)`,
-  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON verification_runs(started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON activity_verification_runs(session_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON activity_verification_runs(package, code_state_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON activity_verification_runs(started_at)`,
 ];
 
 /**
- * activity.db を開いて verification_runs を用意したコネクションを返す。`:memory:` はテスト用。
+ * activity.db を開いて activity_verification_runs を用意したコネクションを返す。`:memory:` はテスト用。
  *
  * journal_mode は設定しない: activity.db は拡張が WAL で開いている共有 DB で、モード変更は
  * 他プロセスの接続を巻き込む。foreign_keys は node:sqlite の既定が ON だが、activity.db は
@@ -137,7 +137,7 @@ export function recordRun(db, run) {
   }
   const codeStateHash = run.treeState === 'clean' ? run.commitHash : null;
   db.prepare(
-    `INSERT INTO verification_runs
+    `INSERT INTO activity_verification_runs
      (session_id, workspace_path, kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, environment, started_at, finished_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
@@ -164,7 +164,7 @@ export function recordRun(db, run) {
 export function queryVerifiedKinds(db, { packageName, codeStateHash }) {
   const rows = db
     .prepare(
-      `SELECT kind, command, started_at FROM verification_runs
+      `SELECT kind, command, started_at FROM activity_verification_runs
        WHERE package = ? AND code_state_hash = ? AND status = 'pass' ORDER BY started_at`,
     )
     .all(packageName, codeStateHash);
@@ -190,5 +190,5 @@ export function listRuns(db, { commitHash, sinceIso, untilIso } = {}) {
     args.push(untilIso);
   }
   const where = cond.length > 0 ? `WHERE ${cond.join(' AND ')}` : '';
-  return db.prepare(`SELECT * FROM verification_runs ${where} ORDER BY started_at`).all(...args);
+  return db.prepare(`SELECT * FROM activity_verification_runs ${where} ORDER BY started_at`).all(...args);
 }

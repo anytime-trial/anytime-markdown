@@ -243,7 +243,7 @@ describe('GET /api/temporal-coupling — 異常系', () => {
     expect(res._body).toMatchObject({ edges: [], totalPairs: 0 });
   });
 
-  it('未知のコミットに属する commit_files は捨てる', async () => {
+  it('未知のコミットに属する activity_commit_files は捨てる', async () => {
     mockCreateClient.mockReturnValue(
       supabaseWith(
         [

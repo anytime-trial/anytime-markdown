@@ -900,7 +900,7 @@ export function mountFlightRecordPanel(
         const selected = r.instructionId === state.selectedInstructionId;
         const tags = r.tags.map((tag) => `<span data-am-flight-tag>${escapeHtml(tag)}</span>`).join('');
         const counts = deliverableCounts(r.deliverables);
-        // 未取込（session_costs にまだ行が無い）を 0 と書かない
+        // 未取込（activity_session_costs にまだ行が無い）を 0 と書かない
         const tokens = r.tokenUsage.imported ? formatCount(totalTokens(r.tokenUsage)) : t('flightRecord.notImported');
         const cost = r.tokenUsage.imported ? formatUsd(r.tokenUsage.estimatedCostUsd) : '';
         const deliverableLabel = t('flightRecord.deliverableCounts')

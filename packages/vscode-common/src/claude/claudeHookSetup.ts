@@ -729,7 +729,7 @@ async function main() {
         }
       }
       // Phase 5 S4: Section Lock 検査（変更系ツールのみ・判定不能は fail-open で pass）。
-      // deny/warn イベントは emergency spool 経由で emergency_log へ届く（S2 と同機構）。
+      // deny/warn イベントは emergency spool 経由で activity_emergency_log へ届く（S2 と同機構）。
       if (loaded !== null && typeof loaded.api.evaluateSectionLockGate === 'function') {
         const verdict = loaded.api.evaluateSectionLockGate(
           input && input.tool_name,

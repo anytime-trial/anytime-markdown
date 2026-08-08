@@ -114,7 +114,7 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
 | `analyze_current_code` | `workspacePath?` / `tsconfigPath?` / `includeProgress?`（既定 `true`） | C4 / コードグラフ解析を起動する。`Anytime Trail: コード解析` 相当。`includeProgress = true` のとき WebSocket 進捗ログを応答に同梱する |
-| `analyze_release_code` | （共通のみ） | リリース別 C4 / コードグラフ解析。`release_code_graphs` を全削除して再生成する。`Anytime Trail: リリース別コード解析` 相当 |
+| `analyze_release_code` | （共通のみ） | リリース別 C4 / コードグラフ解析。`activity_release_code_graphs` を全削除して再生成する。`Anytime Trail: リリース別コード解析` 相当 |
 | `analyze_all` | （共通のみ） | `~/.claude/projects` から JSONL を取り込み、コミット・リリース・カバレッジを Trail DB に書き込む。`Anytime Trail: 全データ解析` 相当 |
 | `get_analyze_status` | （共通のみ） | 現在進行中の解析タスク種別と開始時刻を取得する |
 
@@ -130,7 +130,7 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
-| `list_communities` | `includeMappings?`（既定 false） | `current_code_graph_communities` の `label` / `name` / `summary` / `stableKey` を取得する。大きい `mappings_json` は既定で除外し、`includeMappings=true` で同梱。スキルの cache 判定・命名済み判定に使用 |
+| `list_communities` | `includeMappings?`（既定 false） | `activity_current_code_graph_communities` の `label` / `name` / `summary` / `stableKey` を取得する。大きい `mappings_json` は既定で除外し、`includeMappings=true` で同梱。スキルの cache 判定・命名済み判定に使用 |
 | `list_community_nodes` | `communityId?` / `nodeLimit?` | コミュニティ別ノード（`{ id, label, package }`）を返す。全グラフは約 1,900 ノードあるため `communityId` で 1 コミュニティに絞る。`nodeLimit` 指定時はノードを切り詰め `nodeTotal` を付与 |
 | `upsert_community_summaries` | `summaries: [{ communityId, name, summary }]` | 各コミュニティに AI 生成した name/summary を upsert する。`mappings_json` は保持される |
 | `upsert_community_mappings` | `mappings: [{ communityId, mappings: [{ elementId, elementType, role }] }]` | 各コミュニティの `mappings_json`（C4 要素 role）を upsert する。`mappings_json` カラム未存在時は自動 ALTER で追加。`name` / `summary` は保持される |

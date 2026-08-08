@@ -35,31 +35,31 @@ async function buildFixture(opts: FixtureOptions): Promise<{ db: MemoryDbConnect
   const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
 
   const trail = BetterSqlite3MemoryDb.openInMemory();
-  trail.run(`CREATE TABLE repos (
+  trail.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
   ) STRICT`);
-  trail.run(`CREATE TABLE commit_files (
+  trail.run(`CREATE TABLE activity_commit_files (
     id INTEGER PRIMARY KEY, commit_hash TEXT NOT NULL, file_path TEXT NOT NULL, repo_id INTEGER NOT NULL
   ) STRICT`);
-  trail.run(`CREATE TABLE sessions (
+  trail.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY, repo_id INTEGER
   ) STRICT`);
 
   const repoIds: Record<string, number> = {};
   let hash = 0;
   for (const [repoName, files] of Object.entries(opts.repos)) {
-    trail.run(`INSERT INTO repos (repo_name, created_at) VALUES (?, ?)`, [repoName, TS]);
-    const row = trail.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+    trail.run(`INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?)`, [repoName, TS]);
+    const row = trail.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
     const repoId = Number(row[0]?.values?.[0]?.[0] ?? 0);
     repoIds[repoName] = repoId;
     for (const file of files) {
-      trail.run(`INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`, [
+      trail.run(`INSERT INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`, [
         `c${hash++}`, file, repoId,
       ]);
     }
   }
   for (const [sessionId, repoName] of Object.entries(opts.sessions ?? {})) {
-    trail.run(`INSERT INTO sessions (id, repo_id) VALUES (?, ?)`, [sessionId, repoIds[repoName]]);
+    trail.run(`INSERT INTO activity_sessions (id, repo_id) VALUES (?, ?)`, [sessionId, repoIds[repoName]]);
   }
 
   attachTrailDbFromHandle(db, trail);

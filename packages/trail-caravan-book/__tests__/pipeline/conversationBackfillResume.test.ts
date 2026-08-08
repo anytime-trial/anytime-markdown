@@ -19,9 +19,9 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
+  trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
-    `CREATE TABLE messages (
+    `CREATE TABLE activity_messages (
        uuid TEXT PRIMARY KEY,
        session_id TEXT NOT NULL,
        type TEXT NOT NULL,
@@ -35,7 +35,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
-  trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
+  trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertUserMessage(
@@ -46,7 +46,7 @@ function insertUserMessage(
   excerpt: string,
 ): void {
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, 'user', ?, NULL, ?)`,
     [uuid, sessionId, timestamp, excerpt],
   );

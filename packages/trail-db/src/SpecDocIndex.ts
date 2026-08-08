@@ -125,8 +125,8 @@ export class SpecDocIndex implements ISpecDocIndex {
     if (!this.isDocsCommitResolutionDone(sessionId)) return 'unknown';
 
     const rows = this.requireDb('session').prepare(`
-      SELECT cf.file_path FROM commit_files cf
-      JOIN session_commits sc
+      SELECT cf.file_path FROM activity_commit_files cf
+      JOIN activity_session_commits sc
         ON sc.commit_hash = cf.commit_hash AND sc.repo_id = cf.repo_id
       WHERE sc.session_id = ? AND cf.repo_id = ?
     `).all(sessionId, this.getDocsRepoId()) as FilePathRow[];
@@ -143,8 +143,8 @@ export class SpecDocIndex implements ISpecDocIndex {
     const [startTime, endTime] = fromTime <= toTime ? [fromTime, toTime] : [toTime, fromTime];
 
     const rows = this.requireDb('range').prepare(`
-      SELECT cf.file_path FROM commit_files cf
-      JOIN session_commits sc
+      SELECT cf.file_path FROM activity_commit_files cf
+      JOIN activity_session_commits sc
         ON sc.commit_hash = cf.commit_hash AND sc.repo_id = cf.repo_id
       WHERE cf.repo_id = ?
         AND sc.committed_at >= ? AND sc.committed_at <= ?
@@ -167,23 +167,23 @@ export class SpecDocIndex implements ISpecDocIndex {
   /**
    * 設計書リポジトリの commit 解決が当該セッションで実行済みか。
    *
-   * `session_commit_resolutions` を持たない旧スキーマの DB では判定材料が無いため
+   * `activity_session_commit_resolutions` を持たない旧スキーマの DB では判定材料が無いため
    * 未解決（= `unknown` 側）として扱い、警告を 1 度だけ残す。
    */
   private isDocsCommitResolutionDone(sessionId: string): boolean {
     const db = this.requireDb('session');
-    if (!this.hasTable('session_commit_resolutions')) {
+    if (!this.hasTable('activity_session_commit_resolutions')) {
       if (!this.warnedMissingResolutionTable) {
         this.warnedMissingResolutionTable = true;
         this.logger.warn(
-          'session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
+          'activity_session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
         );
       }
       return false;
     }
 
     const row = db.prepare(
-      'SELECT 1 AS present FROM session_commit_resolutions WHERE session_id = ? AND repo_id = ? LIMIT 1',
+      'SELECT 1 AS present FROM activity_session_commit_resolutions WHERE session_id = ? AND repo_id = ? LIMIT 1',
     ).get(sessionId, this.getDocsRepoId()) as { present: number } | undefined;
 
     return row !== undefined;
@@ -206,11 +206,11 @@ export class SpecDocIndex implements ISpecDocIndex {
   private getDocsSweepWatermark(): string | null {
     if (this.docsSweepWatermark !== undefined) return this.docsSweepWatermark;
 
-    if (!this.hasTable('session_commit_resolutions')) {
+    if (!this.hasTable('activity_session_commit_resolutions')) {
       if (!this.warnedMissingResolutionTable) {
         this.warnedMissingResolutionTable = true;
         this.logger.warn(
-          'session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
+          'activity_session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
         );
       }
       this.docsSweepWatermark = null;
@@ -218,7 +218,7 @@ export class SpecDocIndex implements ISpecDocIndex {
     }
 
     const row = this.requireDb('range').prepare(
-      'SELECT MAX(resolved_at) AS latest FROM session_commit_resolutions WHERE repo_id = ?',
+      'SELECT MAX(resolved_at) AS latest FROM activity_session_commit_resolutions WHERE repo_id = ?',
     ).get(this.getDocsRepoId()) as { latest: string | null } | undefined;
 
     this.docsSweepWatermark = row?.latest ?? null;
@@ -278,7 +278,7 @@ export class SpecDocIndex implements ISpecDocIndex {
   private getDocsRepoId(): number {
     if (this.docsRepoId !== null) return this.docsRepoId;
 
-    const row = this.requireDb('session').prepare('SELECT repo_id FROM repos WHERE repo_name = ?')
+    const row = this.requireDb('session').prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?')
       .get(this.docsRepoName) as RepoRow | undefined;
     if (!row) {
       throw new Error(`Repository not found in repos table: ${this.docsRepoName}`);

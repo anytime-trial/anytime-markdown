@@ -407,7 +407,7 @@ describe('buildCombinedDataSqlFragments', () => {
     );
     expect(f.sessionRepoFilter).toBe(' AND s.repo_id IN (1,2)');
     expect(f.commitBareRepoFilter).toBe(
-      ' AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (1,2))',
+      ' AND session_id IN (SELECT id FROM activity_sessions WHERE repo_id IN (1,2))',
     );
   });
 

@@ -13,7 +13,7 @@ type SqlJsDb = {
 const insertParentSession = (db: TrailDatabase, sessionId: string): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '2026-04-29T00:00:00.000Z', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '2026-04-29T00:00:00.000Z', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
 };
@@ -76,7 +76,7 @@ describe('TrailDatabase.importSession - subagent_type extraction', () => {
 
     const inner = (db as unknown as { db: SqlJsDb }).db;
     const result = inner.exec(
-      'SELECT subagent_type FROM messages WHERE uuid = ?',
+      'SELECT subagent_type FROM activity_messages WHERE uuid = ?',
       [messageUuid],
     );
     expect(result[0]?.values[0]?.[0]).toBe('general-purpose');
@@ -123,7 +123,7 @@ describe('TrailDatabase.importSession - subagent_type extraction', () => {
 
     const inner = (db as unknown as { db: SqlJsDb }).db;
     const result = inner.exec(
-      'SELECT uuid, subagent_type FROM messages WHERE session_id = ? ORDER BY uuid',
+      'SELECT uuid, subagent_type FROM activity_messages WHERE session_id = ? ORDER BY uuid',
       [sessionId],
     );
     const rows = result[0]?.values ?? [];
@@ -158,7 +158,7 @@ describe('TrailDatabase.importSession - subagent_type extraction', () => {
 
     const inner = (db as unknown as { db: SqlJsDb }).db;
     const result = inner.exec(
-      'SELECT subagent_type FROM messages WHERE uuid = ?',
+      'SELECT subagent_type FROM activity_messages WHERE uuid = ?',
       ['sub-old-1'],
     );
     expect(result[0]?.values[0]?.[0]).toBeNull();
@@ -194,7 +194,7 @@ describe('TrailDatabase.importSession - subagent_type extraction', () => {
 
     const inner = (db as unknown as { db: SqlJsDb }).db;
     const result = inner.exec(
-      'SELECT subagent_type FROM messages WHERE uuid = ?',
+      'SELECT subagent_type FROM activity_messages WHERE uuid = ?',
       [messageUuid],
     );
     expect(result[0]?.values[0]?.[0]).toBeNull();

@@ -22,7 +22,7 @@ function isoDaysAgo(days: number): string {
 function insertSession(db: TrailDatabase, id: string, repoName: string, startTime: string): void {
   const repoId = repoIdForName(db, repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '', '', 'claude-opus-4', ?, ?, 0, '', 0, ?, 'claude_code')`,
@@ -39,7 +39,7 @@ function insertCommit(
 ): void {
   const repoId = repoIdForName(db, repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits (
+    `INSERT OR IGNORE INTO activity_session_commits (
        session_id, commit_hash, commit_message, author, committed_at, repo_id
      ) VALUES (?, ?, '', '', ?, ?)`,
     [sessionId, commitHash, committedAt, repoId],
@@ -55,7 +55,7 @@ function insertAssistantMessage(
   outputTokens: number,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, type, timestamp, input_tokens, output_tokens, model
      ) VALUES (?, ?, 'assistant', ?, ?, ?, 'claude-opus-4')`,
     [uuid, sessionId, timestamp, inputTokens, outputTokens],
@@ -70,7 +70,7 @@ function insertSkillCall(
   timestamp: string,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
      ) VALUES (?, ?, 0, 0, 'Skill', NULL, NULL, ?, NULL, 0, NULL, 0, 0, NULL, ?)`,
@@ -131,7 +131,7 @@ describe('getCombinedData — workspace filter', () => {
     expect(totalInput).toBe(0);
   });
 
-  it('filters skillStats via message_tool_calls when a workspace is selected', () => {
+  it('filters skillStats via activity_message_tool_calls when a workspace is selected', () => {
     insertSkillCall(db, 's-main', 'm-main', 'skill-a', t);
     insertSkillCall(db, 's-other', 'm-other', 'skill-b', t);
     const filtered = db.getCombinedData('day', 30, 'anytime-markdown');

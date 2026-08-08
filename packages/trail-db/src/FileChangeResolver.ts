@@ -130,7 +130,7 @@ export class FileChangeResolver implements IFileChangeResolver {
     const repoId = this.getCodeRepoId();
     const rows = db.prepare(`
       SELECT commit_hash
-      FROM session_commits
+      FROM activity_session_commits
       WHERE session_id = ? AND repo_id = ?
     `).all(sessionId, repoId) as CommitRow[];
 
@@ -266,7 +266,7 @@ export class FileChangeResolver implements IFileChangeResolver {
   private getCodeRepoId(): number {
     if (this.codeRepoId !== null) return this.codeRepoId;
 
-    const row = this.requireDb('session').prepare('SELECT repo_id FROM repos WHERE repo_name = ?')
+    const row = this.requireDb('session').prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?')
       .get(this.codeRepoName) as RepoRow | undefined;
     if (!row) {
       throw new Error(`Repository not found in repos table: ${this.codeRepoName}`);

@@ -30,22 +30,22 @@ async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
   const { db, close } = await openMemoryCoreDb(tmpPath);
 
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
-  // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。repo 帰属は repo_id で
-  // 表現し、消費側 (runBugHistoryIncremental / linkAffectedFiles) は trail.repos を JOIN して解決する。
-  trailHandle.run(`CREATE TABLE repos (
+  // Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。repo 帰属は repo_id で
+  // 表現し、消費側 (runBugHistoryIncremental / linkAffectedFiles) は trail.activity_repos を JOIN して解決する。
+  trailHandle.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY,
     repo_name TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
   ) STRICT`);
   const repoIdOf = (name: string): number => {
     trailHandle.run(
-      `INSERT OR IGNORE INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+      `INSERT OR IGNORE INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
       [name]
     );
-    const r = trailHandle.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [name]);
+    const r = trailHandle.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [name]);
     return Number(r[0]?.values?.[0]?.[0] ?? 0);
   };
-  trailHandle.run(`CREATE TABLE session_commits (
+  trailHandle.run(`CREATE TABLE activity_session_commits (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL,
@@ -54,7 +54,7 @@ async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
     author TEXT NOT NULL DEFAULT 'test',
     session_id TEXT
   ) STRICT`);
-  trailHandle.run(`CREATE TABLE commit_files (
+  trailHandle.run(`CREATE TABLE activity_commit_files (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
     repo_id INTEGER NOT NULL,
@@ -64,14 +64,14 @@ async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
 
   for (const c of commits) {
     trailHandle.run(
-      `INSERT INTO session_commits (commit_hash, commit_message, repo_id, committed_at, session_id)
+      `INSERT INTO activity_session_commits (commit_hash, commit_message, repo_id, committed_at, session_id)
        VALUES (?, ?, ?, ?, ?)`,
       [c.commit_hash, c.commit_message, repoIdOf(c.repo_name), c.committed_at, c.session_id ?? null]
     );
   }
   for (const f of files) {
     trailHandle.run(
-      `INSERT INTO commit_files (commit_hash, repo_id, file_path) VALUES (?, ?, ?)`,
+      `INSERT INTO activity_commit_files (commit_hash, repo_id, file_path) VALUES (?, ?, ?)`,
       [f.commit_hash, repoIdOf(f.repo_name), f.file_path]
     );
   }

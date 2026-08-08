@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * run-verified — 検証コマンドを実行し結果を activity.db (verification_runs) に記録するラッパー。
+ * run-verified — 検証コマンドを実行し結果を activity.db (activity_verification_runs) に記録するラッパー。
  *
  * 使い方:
  *   node scripts/run-verified.mjs <package> <kind> -- <command...>

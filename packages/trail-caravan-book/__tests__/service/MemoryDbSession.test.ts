@@ -112,16 +112,16 @@ const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
-  db.run(`CREATE TABLE sessions (
+  db.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY, slug TEXT NOT NULL DEFAULT '', repo_name TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT 'claude_code'
       CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
-  // レビュー取込が参照する列まで含めた最小 fixture（本番 trail.messages は 37 列）。
+  // レビュー取込が参照する列まで含めた最小 fixture（本番 trail.activity_messages は 37 列）。
   // tool_calls / subagent_type / skill が欠けると parseReviewSessions の SELECT が
   // SQL エラーになり、失敗が catch で握り潰されて経路ごと黙って死ぬ。
-  db.run(`CREATE TABLE messages (
-    uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  db.run(`CREATE TABLE activity_messages (
+    uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
     type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT,
     tool_calls TEXT, subagent_type TEXT, skill TEXT,
     is_sidechain INTEGER NOT NULL DEFAULT 0
@@ -582,9 +582,9 @@ describe('MemoryDbSession', () => {
       const trailDb = makeTrailDb();
       // 走査対象を 1 件用意する（0 件だと印を保留する仕様）。
       // attach はハンドルの内容を取り込むため、**makeSession より前**に入れる。
-      trailDb.run("INSERT INTO sessions (id) VALUES ('s1')");
+      trailDb.run("INSERT INTO activity_sessions (id) VALUES ('s1')");
       trailDb.run(
-        `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, subagent_type)
+        `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, subagent_type)
          VALUES ('m1', 's1', 'assistant', '2026-03-02T00:00:00.000Z', 'レビュー本文', 'code-reviewer')`,
       );
       const session = makeSession(memDb, trailDb);
@@ -611,7 +611,7 @@ describe('MemoryDbSession', () => {
       const trailDb = makeTrailDb();
       const session = makeSession(memDb, trailDb);
       mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
-      // trail.messages が空 = 差し替え直後・取込ラグ中。何も是正できていない
+      // trail.activity_messages が空 = 差し替え直後・取込ラグ中。何も是正できていない
 
       await session.runReview();
 

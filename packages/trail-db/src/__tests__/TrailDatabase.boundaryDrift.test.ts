@@ -14,7 +14,7 @@ function rawRun(db: TrailDatabase, sql: string, params?: unknown[]): void {
 }
 
 function seedRepo(db: TrailDatabase, repoId: number, name: string): void {
-  rawRun(db, `INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`, [
+  rawRun(db, `INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`, [
     repoId,
     name,
     T0,
@@ -48,7 +48,7 @@ function fragmentation(packageName: string, severity = 12): BoundaryDriftWarning
   };
 }
 
-describe('TrailDatabase: boundary_drift_warnings', () => {
+describe('TrailDatabase: activity_boundary_drift_warnings', () => {
   let db: TrailDatabase;
 
   beforeEach(async () => {
@@ -141,7 +141,7 @@ describe('TrailDatabase: boundary_drift_warnings', () => {
     expect(() =>
       rawRun(
         db,
-        `INSERT INTO boundary_drift_warnings
+        `INSERT INTO activity_boundary_drift_warnings
            (repo_id, detected_at, kind, target_key, node_count, severity)
          VALUES (1, ?, 'boundary_spanning', '3', 10, 1.0)`,
         [T0],
@@ -152,7 +152,7 @@ describe('TrailDatabase: boundary_drift_warnings', () => {
   it('リポジトリ削除で警告も消える（ON DELETE CASCADE）', () => {
     db.recordBoundaryDriftWarnings(1, T0, [spanning(3)]);
     rawRun(db, `PRAGMA foreign_keys = ON`);
-    rawRun(db, `DELETE FROM repos WHERE repo_id = 1`);
+    rawRun(db, `DELETE FROM activity_repos WHERE repo_id = 1`);
 
     expect(db.listBoundaryDriftWarnings({ repoId: 1 })).toHaveLength(0);
   });
@@ -200,7 +200,7 @@ describe('TrailDatabase: boundary_drift_warnings', () => {
     expect(() =>
       rawRun(
         db,
-        `INSERT INTO boundary_drift_warnings
+        `INSERT INTO activity_boundary_drift_warnings
            (repo_id, detected_at, kind, target_key, span_count, dominance, node_count, severity)
          VALUES (1, ?, 'boundary_spanning', '3', 3, 0.4, 10, 1.0)`,
         [T0],
@@ -211,7 +211,7 @@ describe('TrailDatabase: boundary_drift_warnings', () => {
   it('リポジトリ削除で検出回も消える（ON DELETE CASCADE）', () => {
     db.recordBoundaryDriftWarnings(1, T0, [], new Map(), 10);
     rawRun(db, `PRAGMA foreign_keys = ON`);
-    rawRun(db, `DELETE FROM repos WHERE repo_id = 1`);
+    rawRun(db, `DELETE FROM activity_repos WHERE repo_id = 1`);
 
     expect(db.listBoundaryDriftRuns({ repoId: 1 })).toHaveLength(0);
   });

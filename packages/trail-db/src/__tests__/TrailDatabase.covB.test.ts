@@ -78,7 +78,7 @@ function insertSession(
 ): void {
   const rid = repoId(db, opts.repoName ?? 'testrepo');
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions
+    `INSERT OR IGNORE INTO activity_sessions
        (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
         message_count, file_path, file_size, imported_at, source)
      VALUES (?, ?, ?, '', '', ?, ?, ?,
@@ -111,7 +111,7 @@ function insertMessage(
   } = {},
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO messages
+    `INSERT OR IGNORE INTO activity_messages
        (uuid, session_id, type, stop_reason, git_branch,
         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
         is_meta, timestamp)
@@ -152,7 +152,7 @@ describe('TrailDatabase.isCommitsResolved', () => {
   it('returns true when commits_resolved_at is set', () => {
     insertSession(db, 's2');
     inner(db).run(
-      "UPDATE sessions SET commits_resolved_at = '2026-01-02T00:00:00.000Z' WHERE id = 's2'",
+      "UPDATE activity_sessions SET commits_resolved_at = '2026-01-02T00:00:00.000Z' WHERE id = 's2'",
     );
     expect(db.isCommitsResolved('s2')).toBe(true);
   });
@@ -202,7 +202,7 @@ describe('TrailDatabase.isCommitResolutionDone', () => {
     // to trigger it, or insert directly.
     const rid = repoId(db, 'myrepo');
     inner(db).run(
-      `INSERT INTO session_commit_resolutions (session_id, repo_id, resolved_at)
+      `INSERT INTO activity_session_commit_resolutions (session_id, repo_id, resolved_at)
        VALUES ('sx', ?, '2026-01-01T00:00:00.000Z')`,
       [rid],
     );
@@ -676,7 +676,7 @@ describe('TrailDatabase.backfillCommitFilesPublic', () => {
   });
 
   it('runs without error when there are no commits to backfill', () => {
-    // No session_commits → commits array is empty → marks migration and returns
+    // No activity_session_commits → commits array is empty → marks migration and returns
     const progressMessages: string[] = [];
     expect(() => db.backfillCommitFilesPublic('/tmp', (m) => progressMessages.push(m))).not.toThrow();
   });
@@ -716,13 +716,13 @@ describe('TrailDatabase.fetchTemporalCoupling empty DB', () => {
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('returns [] for commit granularity when no commit_files exist', () => {
+  it('returns [] for commit granularity when no activity_commit_files exist', () => {
     const result = db.fetchTemporalCoupling({ repoName: 'r', windowDays: 30 });
     expect(Array.isArray(result)).toBe(true);
     expect(result).toHaveLength(0);
   });
 
-  it('returns [] for session granularity when no message_tool_calls exist', () => {
+  it('returns [] for session granularity when no activity_message_tool_calls exist', () => {
     const result = db.fetchTemporalCoupling({ repoName: 'r', windowDays: 30, granularity: 'session' });
     expect(Array.isArray(result)).toBe(true);
     expect(result).toHaveLength(0);
@@ -815,30 +815,30 @@ describe('TrailDatabase internal: migrateFileAnalysisSchema', () => {
   it('drops table when schema has no repo_name / repo_id / release_id', () => {
     const rawDb = inner(db);
     // Drop the real table first (it has repo_id), then create a degenerate one
-    rawDb.run('DROP TABLE IF EXISTS current_file_analysis');
-    rawDb.run(`CREATE TABLE current_file_analysis (
+    rawDb.run('DROP TABLE IF EXISTS activity_current_file_analysis');
+    rawDb.run(`CREATE TABLE activity_current_file_analysis (
       file_path TEXT PRIMARY KEY,
       lines INTEGER DEFAULT 0
     )`);
     expect(() => {
       (db as unknown as { migrateFileAnalysisSchema(db: unknown): void }).migrateFileAnalysisSchema(rawDb);
     }).not.toThrow();
-    const check = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='current_file_analysis'");
+    const check = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='activity_current_file_analysis'");
     // Table should be dropped
     expect(check[0]?.values?.length ?? 0).toBe(0);
   });
 
   it('keeps table when schema has repo_id column', () => {
     const rawDb = inner(db);
-    // current_function_analysis already has repo_id from init — confirm it is kept
-    const existsBefore = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='current_function_analysis'");
+    // activity_current_function_analysis already has repo_id from init — confirm it is kept
+    const existsBefore = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='activity_current_function_analysis'");
     if ((existsBefore[0]?.values?.length ?? 0) === 0) {
-      rawDb.run(`CREATE TABLE current_function_analysis (
+      rawDb.run(`CREATE TABLE activity_current_function_analysis (
         repo_id INTEGER NOT NULL, file_path TEXT NOT NULL
       )`);
     }
     (db as unknown as { migrateFileAnalysisSchema(db: unknown): void }).migrateFileAnalysisSchema(rawDb);
-    const check = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='current_function_analysis'");
+    const check = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='activity_current_function_analysis'");
     expect(check[0]?.values?.length ?? 0).toBe(1);
   });
 });

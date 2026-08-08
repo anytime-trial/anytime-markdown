@@ -13,15 +13,15 @@ function seedCommit(db: TrailDatabase, hash: string, filePath: string, at: strin
     'anytime-markdown',
   );
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, repo_id, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, repo_id, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at)
      VALUES (?, ?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId, repoId],
   );
   inner.run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, commit_message, committed_at, author) VALUES (?, ?, '', ?, 'Taro')`,
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at, author) VALUES (?, ?, '', ?, 'Taro')`,
     [sessionId, hash, at],
   );
-  inner.run(`INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`, [
+  inner.run(`INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`, [
     hash,
     filePath,
   ]);

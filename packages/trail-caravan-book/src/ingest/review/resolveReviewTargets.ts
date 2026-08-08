@@ -46,7 +46,7 @@ export interface ResolveReviewTargetsResult {
 
 /**
  * `source_kind='session'` のレビューについて、source_ref 先頭の session_id から
- * trail.sessions → trail.repos を辿って実際のワークスペースを引く。
+ * trail.activity_sessions → trail.activity_repos を辿って実際のワークスペースを引く。
  *
  * **既定値による一括フォールバックは持たない**。`WHERE workspace = ''` だけで絞ると
  * DB 内の未解決行**全部**が対象になり、複数ワークスペースを集約している
@@ -72,9 +72,9 @@ export function resolveReviewWorkspaces(
     const result = db.exec(
       `SELECT r.id, rp.repo_name
          FROM caravan_reviews r
-         JOIN trail.sessions s
+         JOIN trail.activity_sessions s
            ON s.id = substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
-         JOIN trail.repos rp ON rp.repo_id = s.repo_id
+         JOIN trail.activity_repos rp ON rp.repo_id = s.repo_id
         WHERE r.workspace = ''
           AND r.source_kind = 'session'
           AND instr(r.source_ref, '#') > 1`,

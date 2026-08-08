@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS trail_daily_counts (
     PRIMARY KEY (date, kind, key)
 );
 
--- リポジトリ別 current TrailGraph（拡張機能の current_graphs と対応）
+-- リポジトリ別 current TrailGraph（拡張機能の activity_current_graphs と対応）
 CREATE TABLE IF NOT EXISTS trail_current_graphs (
     repo_id    INTEGER PRIMARY KEY REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     commit_id  TEXT NOT NULL DEFAULT '',
@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS trail_message_tool_calls (
     UNIQUE (session_id, message_uuid, call_index)
 );
 
--- C4 手動追加要素（拡張 SQLite の c4_manual_elements と対応）
+-- C4 手動追加要素（拡張 SQLite の activity_c4_manual_elements と対応）
 CREATE TABLE IF NOT EXISTS trail_c4_manual_elements (
     repo_id     INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     element_id  TEXT NOT NULL,
@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS trail_c4_manual_elements (
     PRIMARY KEY (repo_id, element_id)
 );
 
--- C4 手動追加関係（拡張 SQLite の c4_manual_relationships と対応）
+-- C4 手動追加関係（拡張 SQLite の activity_c4_manual_relationships と対応）
 CREATE TABLE IF NOT EXISTS trail_c4_manual_relationships (
     repo_id     INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     rel_id      TEXT NOT NULL,
@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS trail_c4_manual_relationships (
     PRIMARY KEY (repo_id, rel_id)
 );
 
--- C4 手動グループ（拡張 SQLite の c4_manual_groups と対応）
+-- C4 手動グループ（拡張 SQLite の activity_c4_manual_groups と対応）
 CREATE TABLE IF NOT EXISTS trail_c4_manual_groups (
     repo_id    INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
     group_id   TEXT NOT NULL,
@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS trail_c4_manual_groups (
     PRIMARY KEY (repo_id, group_id)
 );
 
--- カバレッジ最新スナップショット（ローカル current_coverage と対応）
+-- カバレッジ最新スナップショット（ローカル activity_current_coverage と対応）
 CREATE TABLE IF NOT EXISTS trail_current_coverage (
   repo_id            INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   package            TEXT    NOT NULL,
@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS trail_current_coverage (
   PRIMARY KEY (repo_id, package, file_path)
 );
 
--- カバレッジ リリーススナップショット（ローカル release_coverage と対応）
+-- カバレッジ リリーススナップショット（ローカル activity_release_coverage と対応）
 CREATE TABLE IF NOT EXISTS trail_release_coverage (
   release_id         INTEGER NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   package            TEXT    NOT NULL,
@@ -321,7 +321,7 @@ CREATE TABLE IF NOT EXISTS trail_release_coverage (
   PRIMARY KEY (release_id, package, file_path)
 );
 
--- 未使用コード検出 ファイル単位スコア（ローカル current_file_analysis と対応）
+-- 未使用コード検出 ファイル単位スコア（ローカル activity_current_file_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_current_file_analysis (
   repo_id                    INTEGER          NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   file_path                  TEXT             NOT NULL,
@@ -357,7 +357,7 @@ CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_centrality
   ON trail_current_file_analysis (repo_id, centrality_score DESC);
 
 
--- 未使用コード検出 関数単位スコア（ローカル current_function_analysis と対応）
+-- 未使用コード検出 関数単位スコア（ローカル activity_current_function_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
   repo_id                INTEGER          NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   file_path              TEXT             NOT NULL,
@@ -381,7 +381,7 @@ CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
 );
 
 
--- コードグラフ最新スナップショット（ローカル current_code_graphs と対応）
+-- コードグラフ最新スナップショット（ローカル activity_current_code_graphs と対応）
 CREATE TABLE IF NOT EXISTS trail_current_code_graphs (
   repo_id      INTEGER PRIMARY KEY REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   graph_json   TEXT NOT NULL,
@@ -389,7 +389,7 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graphs (
   updated_at   TEXT
 );
 
--- コードグラフコミュニティ（ローカル current_code_graph_communities と対応）
+-- コードグラフコミュニティ（ローカル activity_current_code_graph_communities と対応）
 CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
   repo_id      INTEGER NOT NULL DEFAULT 0 REFERENCES trail_repos(repo_id) ON DELETE CASCADE,
   community_id INTEGER NOT NULL,
@@ -403,7 +403,7 @@ CREATE TABLE IF NOT EXISTS trail_current_code_graph_communities (
   PRIMARY KEY (repo_id, community_id)
 );
 
--- コードグラフ リリーススナップショット（ローカル release_code_graphs と対応）
+-- コードグラフ リリーススナップショット（ローカル activity_release_code_graphs と対応）
 CREATE TABLE IF NOT EXISTS trail_release_code_graphs (
   release_id   INTEGER PRIMARY KEY REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   graph_json   TEXT NOT NULL,
@@ -411,7 +411,7 @@ CREATE TABLE IF NOT EXISTS trail_release_code_graphs (
   updated_at   TEXT
 );
 
--- コードグラフ リリースコミュニティ（ローカル release_code_graph_communities と対応）
+-- コードグラフ リリースコミュニティ（ローカル activity_release_code_graph_communities と対応）
 CREATE TABLE IF NOT EXISTS trail_release_code_graph_communities (
   release_id   INTEGER NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
   community_id INTEGER NOT NULL,

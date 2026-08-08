@@ -8,7 +8,7 @@
  * **別リポジトリの同名ファイルへ誤リンクし得る**状態だった。
  *
  * 方針は「実在で決める、推測しない」。プレフィックスの規則で当てにいかず、
- * `trail.commit_files` に実在するかどうかだけで判定する。判定できない場合は
+ * `trail.activity_commit_files` に実在するかどうかだけで判定する。判定できない場合は
  * null を返して照合対象から外す（fail-closed）。誤ったリンクは無いリンクより悪い。
  */
 import type { MemoryDbConnection } from '../../db/connection/types';
@@ -54,14 +54,14 @@ function reposContaining(
   kind: NormalizedTargetPath['kind'],
 ): string[] {
   const exactSql = `SELECT DISTINCT r.repo_name
-       FROM trail.commit_files cf
-       JOIN trail.repos r ON r.repo_id = cf.repo_id
+       FROM trail.activity_commit_files cf
+       JOIN trail.activity_repos r ON r.repo_id = cf.repo_id
       WHERE cf.file_path = ?`;
   // ディレクトリは前方一致。`|| '/'` を挟むのは、`packages/markdown-viewer` が
   // `packages/markdown-viewer-extra/...` に一致しないようにするため（セグメント境界を守る）。
   const prefixSql = `SELECT DISTINCT r.repo_name
-       FROM trail.commit_files cf
-       JOIN trail.repos r ON r.repo_id = cf.repo_id
+       FROM trail.activity_commit_files cf
+       JOIN trail.activity_repos r ON r.repo_id = cf.repo_id
       WHERE cf.file_path LIKE ? || '/%' ESCAPE '\\'`;
 
   const names = new Set<string>();
@@ -78,7 +78,7 @@ function reposContaining(
 
 /** 既知のリポジトリ名一覧。 */
 function knownRepoNames(db: MemoryDbConnection): Set<string> {
-  const result = db.exec('SELECT repo_name FROM trail.repos');
+  const result = db.exec('SELECT repo_name FROM trail.activity_repos');
   return new Set((result[0]?.values ?? []).map((row) => String(row[0])));
 }
 

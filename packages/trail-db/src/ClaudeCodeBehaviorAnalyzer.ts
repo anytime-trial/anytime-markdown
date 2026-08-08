@@ -1,5 +1,5 @@
 // ClaudeCodeBehaviorAnalyzer.ts
-// messages テーブルを読んで message_tool_calls テーブルに書き込む。
+// messages テーブルを読んで activity_message_tool_calls テーブルに書き込む。
 
 import type { SqlJsCompatDatabase as Database } from './internal/SqlJsCompatDatabase';
 import { classifyErrorType, extractFilePath, extractCommand } from './behaviorAnalysis';
@@ -33,7 +33,7 @@ interface ToolResultBlock {
 
 export class ClaudeCodeBehaviorAnalyzer {
   /**
-   * 指定セッションの messages を解析して message_tool_calls に書き込む。
+   * 指定セッションの messages を解析して activity_message_tool_calls に書き込む。
    * 差分スキップ: (message_uuid, call_index) が既存の行はスキップする。
    */
   analyze(sessionId: string, db: Database): void {
@@ -42,7 +42,7 @@ export class ClaudeCodeBehaviorAnalyzer {
 
     let turnIndex = 0;
     const insertStmt = db.prepare(`
-      INSERT OR IGNORE INTO message_tool_calls
+      INSERT OR IGNORE INTO activity_message_tool_calls
         (session_id, message_uuid, turn_index, call_index, tool_name,
          file_path, command, skill_name, model, is_sidechain,
          turn_exec_ms, has_thinking, is_error, error_type, timestamp)
@@ -129,7 +129,7 @@ export class ClaudeCodeBehaviorAnalyzer {
     const result = db.exec(`
       SELECT uuid, session_id, type, tool_calls, tool_use_result,
              model, skill, is_sidechain, timestamp, parent_uuid
-      FROM messages
+      FROM activity_messages
       WHERE session_id = ?
       ORDER BY timestamp ASC
     `, [sessionId]);

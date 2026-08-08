@@ -2,7 +2,7 @@
  * コードグラフコミュニティの引き継ぎ計算。
  *
  * 背景:
- *  current_code_graph_communities.mappings_json は (repo_name, community_id) をキーに保存される。
+ *  activity_current_code_graph_communities.mappings_json は (repo_name, community_id) をキーに保存される。
  *  Louvain クラスタリング結果が変わると community_id が再採番され、旧行は DELETE / 新行は NULL で INSERT
  *  されてしまうため、AI 付与した name / summary / mappings_json が機械的に失われる。
  *

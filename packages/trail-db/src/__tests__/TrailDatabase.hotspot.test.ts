@@ -16,11 +16,11 @@ const insertSessionCommit = (
   committedAt: string,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, committed_at)
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, committed_at)
      VALUES (?, ?, ?)`,
     [sessionId, hash, committedAt],
   );
@@ -28,7 +28,7 @@ const insertSessionCommit = (
 
 const insertCommitFile = (db: TrailDatabase, hash: string, filePath: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`,
     [hash, filePath],
   );
 };
@@ -41,11 +41,11 @@ const insertMessage = (
   subagentType: string | null = null,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, subagent_type)
+    `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, subagent_type)
      VALUES (?, ?, 'assistant', ?, ?)`,
     [uuid, sessionId, timestamp, subagentType],
   );
@@ -61,7 +61,7 @@ const insertToolCall = (
   timestamp: string,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path, timestamp
      ) VALUES (?, ?, 0, ?, ?, ?, ?)`,
     [sessionId, messageUuid, callIndex, toolName, filePath, timestamp],
@@ -125,8 +125,8 @@ describe('TrailDatabase.fetchHotspotRows', () => {
     const plan = inner(db).exec(
       `EXPLAIN QUERY PLAN
        SELECT cf.file_path, COUNT(DISTINCT cf.commit_hash)
-       FROM commit_files cf
-       INNER JOIN session_commits sc ON cf.commit_hash = sc.commit_hash
+       FROM activity_commit_files cf
+       INNER JOIN activity_session_commits sc ON cf.commit_hash = sc.commit_hash
        WHERE sc.committed_at >= '2026-04-01' AND sc.committed_at <= '2026-05-01'
        GROUP BY cf.file_path`,
     );

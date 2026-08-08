@@ -58,7 +58,7 @@ describe('TrailDatabase KB persistence integration (real file lifecycle)', () =>
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('破壊的書込で activity.db.kb.1.gz が生成され、縮小で emergency_log に警告が入り、復元で総数が回復する', async () => {
+  it('破壊的書込で activity.db.kb.1.gz が生成され、縮小で activity_emergency_log に警告が入り、復元で総数が回復する', async () => {
     // (1) 初回の破壊的書込で snapshot が生成される
     db.saveCurrentCodeGraph('repo1', makeCodeGraph(100));
     expect(fs.existsSync(`${dbPath}.kb.1.gz`)).toBe(true);

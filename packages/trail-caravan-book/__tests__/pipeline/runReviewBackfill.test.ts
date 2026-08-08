@@ -17,7 +17,7 @@ function makeMainDb(): BetterSqlite3MemoryDb {
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run(`
-    CREATE TABLE messages (
+    CREATE TABLE activity_messages (
       uuid TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -37,7 +37,7 @@ function insertMsg(
   opts: { uuid: string; session: string; ts: string; text: string; subagent?: string; skill?: string },
 ): void {
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, subagent_type, skill)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, subagent_type, skill)
      VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
     [opts.uuid, opts.session, opts.ts, opts.text, opts.subagent ?? null, opts.skill ?? null],
   );

@@ -44,9 +44,9 @@ export interface IFlightReviewRepository {
   markRationaleAudit(sessionId: string, status: RationaleAuditStatus): boolean;
 }
 
-/** user_feedback_entries の永続化ポート（Phase 6 S2）。実装は trail-db の TrailDatabase。 */
+/** activity_user_feedback_entries の永続化ポート（Phase 6 S2）。実装は trail-db の TrailDatabase。 */
 export interface IUserFeedbackRepository {
-  /** 副作用: user_feedback_entries へ内容キー冪等 INSERT（再送を吸収）。 */
+  /** 副作用: activity_user_feedback_entries へ内容キー冪等 INSERT（再送を吸収）。 */
   recordUserFeedbackEntry(input: UserFeedbackInput): void;
   listUserFeedbackEntries(filter?: UserFeedbackFilter): UserFeedbackEntry[];
 }

@@ -28,16 +28,16 @@ const silentLogger: MemoryLogger = {
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
-  db.run(`CREATE TABLE sessions (
+  db.run(`CREATE TABLE activity_sessions (
     id        TEXT PRIMARY KEY,
     slug      TEXT NOT NULL DEFAULT '',
     repo_name TEXT NOT NULL DEFAULT '',
     source    TEXT NOT NULL DEFAULT 'claude_code'
               CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
-  db.run(`CREATE TABLE messages (
+  db.run(`CREATE TABLE activity_messages (
     uuid            TEXT PRIMARY KEY,
-    session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    session_id      TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
     type            TEXT NOT NULL,
     timestamp       TEXT,
     text_content    TEXT,
@@ -48,7 +48,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
-  trailDb.run(`INSERT INTO sessions (id) VALUES (?)`, [id]);
+  trailDb.run(`INSERT INTO activity_sessions (id) VALUES (?)`, [id]);
 }
 
 function insertMessage(
@@ -61,7 +61,7 @@ function insertMessage(
 ): void {
   const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );

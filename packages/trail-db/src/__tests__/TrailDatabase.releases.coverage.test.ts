@@ -15,13 +15,13 @@ function inner(db: TrailDatabase): SqlJsDb {
 type SqlJsExecLite = { exec: (sql: string, params?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }> };
 function releaseIdForTag(db: TrailDatabase, tag: string): number {
   const res = (db as unknown as { db: SqlJsExecLite }).db
-    .exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+    .exec('SELECT release_id FROM activity_releases WHERE tag = ? LIMIT 1', [tag]);
   return Number(res[0]?.values?.[0]?.[0]);
 }
 
 function insertSession(db: TrailDatabase, id: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [id, id],
   );
 }
@@ -29,7 +29,7 @@ function insertSession(db: TrailDatabase, id: string): void {
 function insertProdReleaseMessage(db: TrailDatabase, uuid: string, sessionId: string, timestamp: string): void {
   insertSession(db, sessionId);
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, skill)
+    `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, skill)
      VALUES (?, ?, 'assistant', ?, 'production-release')`,
     [uuid, sessionId, timestamp],
   );
@@ -40,7 +40,7 @@ function insertRelease(db: TrailDatabase, tag: string, releasedAt: string | null
   // 本テストは coverage / timing (release_id ベース) を検証するだけで repo 識別に依存しないため
   // repo_id は省略 (NULL) のままにする。
   inner(db).run(
-    `INSERT OR REPLACE INTO releases (tag, released_at) VALUES (?, ?)`,
+    `INSERT OR REPLACE INTO activity_releases (tag, released_at) VALUES (?, ?)`,
     [tag, releasedAt],
   );
 }
@@ -49,7 +49,7 @@ function insertReleaseFile(
   db: TrailDatabase, tag: string, filePath: string, added: number, deleted: number, changeType: string,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO release_files (release_id, file_path, lines_added, lines_deleted, change_type)
+    `INSERT OR IGNORE INTO activity_release_files (release_id, file_path, lines_added, lines_deleted, change_type)
      VALUES (?, ?, ?, ?, ?)`,
     [releaseIdForTag(db, tag), filePath, added, deleted, changeType],
   );
@@ -59,7 +59,7 @@ function insertReleaseCoverage(
   db: TrailDatabase, tag: string, pkg: string, filePath: string, linesPct: number,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO release_coverage (release_id, package, file_path, lines_total, lines_covered, lines_pct)
+    `INSERT OR IGNORE INTO activity_release_coverage (release_id, package, file_path, lines_total, lines_covered, lines_pct)
      VALUES (?, ?, ?, 100, ?, ?)`,
     [releaseIdForTag(db, tag), pkg, filePath, Math.round(linesPct), linesPct],
   );
@@ -70,7 +70,7 @@ function insertSessionCommit(
 ): void {
   insertSession(db, sessionId);
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, commit_message, committed_at)
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at)
      VALUES (?, ?, ?, ?)`,
     [sessionId, hash, message, committedAt],
   );
@@ -78,7 +78,7 @@ function insertSessionCommit(
 
 function insertCommitFile(db: TrailDatabase, hash: string, filePath: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`,
     [hash, filePath],
   );
 }
@@ -86,7 +86,7 @@ function insertCommitFile(db: TrailDatabase, hash: string, filePath: string): vo
 type SqlJsExec = { exec: (sql: string, params?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }> };
 function releaseTimeMin(db: TrailDatabase, tag: string): number | null {
   const res = (db as unknown as { db: SqlJsExec }).db
-    .exec('SELECT release_time_min FROM releases WHERE tag = ?', [tag]);
+    .exec('SELECT release_time_min FROM activity_releases WHERE tag = ?', [tag]);
   const v = res[0]?.values?.[0]?.[0];
   return v == null ? null : Number(v);
 }

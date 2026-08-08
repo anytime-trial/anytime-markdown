@@ -23,7 +23,7 @@ export interface DecisionCommentItem {
 
 export interface IngestDecisionCommentsInput {
   db: MemoryDbConnection;
-  /** trail-db の code_decision_comments から読んだ comment 群 */
+  /** trail-db の activity_code_decision_comments から読んだ comment 群 */
   comments: ReadonlyArray<DecisionCommentItem>;
   repoName: string;
   recordedAt: string;

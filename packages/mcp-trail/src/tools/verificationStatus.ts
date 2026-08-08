@@ -1,5 +1,5 @@
 /**
- * get_verification_status — activity.db の verification_runs（検証実施台帳）の読み取り。
+ * get_verification_status — activity.db の activity_verification_runs（検証実施台帳）の読み取り。
  * 台帳は「何が実施済みか」を答えるだけで実行を決めない。判定不能・記録なしは常に needsRun へ倒す。
  * スキーマ正本は packages/trail-activity/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS
  * （writer のミラーは scripts/verification-db.mjs）。本ファイルは SELECT のみで作成しない。
@@ -112,7 +112,7 @@ export async function handleGetVerificationStatus(
   try {
     const rows = db
       .prepare(
-        `SELECT kind, command, started_at FROM verification_runs
+        `SELECT kind, command, started_at FROM activity_verification_runs
          WHERE package = ? AND code_state_hash = ? AND status = 'pass' ORDER BY started_at`,
       )
       .all(input.package, commitHash) as Array<{ kind: string; command: string; started_at: string }>;

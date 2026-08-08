@@ -2,7 +2,7 @@
  * E2E tests for trail-caravan-book Phase 2.
  *
  * These tests spin up:
- *   - An in-memory sql.js "trail DB" with synthetic current_code_graphs + session_commits
+ *   - An in-memory sql.js "trail DB" with synthetic activity_current_code_graphs + activity_session_commits
  *   - An in-memory sql.js trail-caravan-book DB (Phase 1 + Phase 2 migrations applied)
  *   - The full runCodeIncremental pipeline (real ts.createProgram, no mocks)
  *
@@ -21,8 +21,8 @@ import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import { noopLogger } from '../../src/logger';
 import type { MemoryCoreDb } from '../../src/db/connection';
-// runCodeIncremental は typescript 依存を撤去し current_graphs（生 TrailGraph）から読むため、
-// E2E では analyze-child の役割を実 analyzeWithProgram で再現して current_graphs をシードする。
+// runCodeIncremental は typescript 依存を撤去し activity_current_graphs（生 TrailGraph）から読むため、
+// E2E では analyze-child の役割を実 analyzeWithProgram で再現して activity_current_graphs をシードする。
 import { analyzeWithProgram } from '@anytime-markdown/trail-activity/analyze';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -32,16 +32,16 @@ const TS_GLOB_NO_MS = '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-
 
 /**
  * Creates a synthetic trail DB with:
- *   - sessions table (needed for session_commits FK)
- *   - session_commits with one commit containing "Rationale:" in the body
- *   - current_code_graphs with one row for the given repoName
+ *   - sessions table (needed for activity_session_commits FK)
+ *   - activity_session_commits with one commit containing "Rationale:" in the body
+ *   - activity_current_code_graphs with one row for the given repoName
  */
 function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
-  // sessions table (FK target for session_commits)
-  db.run(`CREATE TABLE sessions (
+  // sessions table (FK target for activity_session_commits)
+  db.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY,
     slug TEXT NOT NULL DEFAULT '',
     repo_name TEXT NOT NULL DEFAULT '',
@@ -60,17 +60,17 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     peak_context_tokens INTEGER
   ) STRICT`);
 
-  // Phase H-3/H-4: trail.current_code_graphs / session_commits から repo_name 列を撤去し
+  // Phase H-3/H-4: trail.activity_current_code_graphs / activity_session_commits から repo_name 列を撤去し
   // repo_id 参照にしたため、fixture も repos + repo_id スキーマで作る。
-  db.run(`CREATE TABLE repos (
+  db.run(`CREATE TABLE activity_repos (
     repo_id    INTEGER PRIMARY KEY,
     repo_name  TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
   ) STRICT`);
 
-  // session_commits (Phase H-4: repo_name 撤去・repo_id 参照)
-  db.run(`CREATE TABLE session_commits (
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  // activity_session_commits (Phase H-4: repo_name 撤去・repo_id 参照)
+  db.run(`CREATE TABLE activity_session_commits (
+    session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL DEFAULT '',
     author TEXT NOT NULL DEFAULT '',
@@ -84,17 +84,17 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     PRIMARY KEY (session_id, commit_hash)
   ) STRICT`);
 
-  // current_code_graphs
-  db.run(`CREATE TABLE current_code_graphs (
-    repo_id INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+  // activity_current_code_graphs
+  db.run(`CREATE TABLE activity_current_code_graphs (
+    repo_id INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     graph_json TEXT NOT NULL CHECK (json_valid(graph_json)),
     generated_at TEXT,
     updated_at TEXT
   ) STRICT`);
 
-  // current_graphs（生 TrailGraph。ingestAstFacts が読む）
-  db.run(`CREATE TABLE current_graphs (
-    repo_id INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+  // activity_current_graphs（生 TrailGraph。ingestAstFacts が読む）
+  db.run(`CREATE TABLE activity_current_graphs (
+    repo_id INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     commit_id TEXT NOT NULL DEFAULT '',
     graph_json TEXT NOT NULL CHECK (json_valid(graph_json)),
     tsconfig_path TEXT NOT NULL DEFAULT '',
@@ -103,9 +103,9 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
     updated_at TEXT
   ) STRICT`);
 
-  // code_decision_comments（analyze-child が永続化。ingestDecisionComments が読む）
-  db.run(`CREATE TABLE code_decision_comments (
-    repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  // activity_code_decision_comments（analyze-child が永続化。ingestDecisionComments が読む）
+  db.run(`CREATE TABLE activity_code_decision_comments (
+    repo_id INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     comment_hash TEXT NOT NULL,
     file_path TEXT NOT NULL,
     line INTEGER NOT NULL,
@@ -117,7 +117,7 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
   ) STRICT`);
 
   // Seed session
-  db.run(`INSERT INTO sessions (id, repo_name) VALUES ('sess-code-e2e', ?)`, [repoName]);
+  db.run(`INSERT INTO activity_sessions (id, repo_name) VALUES ('sess-code-e2e', ?)`, [repoName]);
 
   // Seed repos row and resolve repo_id for the commit
   const repoId = trailRepoId(db, repoName);
@@ -125,7 +125,7 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
   // Seed commit with Rationale: section
   const committedAt = '2026-01-15T10:00:00.000Z';
   db.run(
-    `INSERT INTO session_commits
+    `INSERT INTO activity_session_commits
        (session_id, commit_hash, commit_message, committed_at, repo_id)
      VALUES (?, ?, ?, ?, ?)`,
     [
@@ -141,7 +141,7 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
 }
 
 /**
- * Seeds current_code_graphs with a synthetic CodeGraph JSON.
+ * Seeds activity_current_code_graphs with a synthetic CodeGraph JSON.
  * Nodes: 5 code files across 2 packages:
  *   - test-pkg-a: src/a/index.ts, src/a/utils.ts, src/a/types.ts
  *   - test-pkg-b: src/b/service.ts, src/b/helper.ts
@@ -220,22 +220,22 @@ function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string): void
 
   const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
-    `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+    `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
      VALUES (?, ?, ?, ?)`,
     [repoId, graphJson, generatedAt, generatedAt]
   );
 }
 
 /**
- * analyze-child の役割（生 TrailGraph を current_graphs に保存）を実 analyzeWithProgram で再現する。
- * runCodeIncremental は current_graphs から graph を読んで ingestAstFacts に渡す。
+ * analyze-child の役割（生 TrailGraph を activity_current_graphs に保存）を実 analyzeWithProgram で再現する。
+ * runCodeIncremental は activity_current_graphs から graph を読んで ingestAstFacts に渡す。
  */
 function seedCurrentGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, tsconfigPath: string): void {
   const { graph } = analyzeWithProgram({ tsconfigPath });
   const repoId = trailRepoId(trailDb, repoName);
   const analyzedAt = '2026-01-15T12:00:00.000Z';
   trailDb.run(
-    `INSERT INTO current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
+    `INSERT INTO activity_current_graphs (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
      VALUES (?, '', ?, ?, '', ?, ?)`,
     [repoId, JSON.stringify(graph), tsconfigPath, analyzedAt, analyzedAt]
   );
@@ -244,10 +244,10 @@ function seedCurrentGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, tsco
 /** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
 function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
     [repoName, '2026-01-15T00:00:00.000Z']
   );
-  const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
+  const stmt = trailDb.prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?');
   try {
     const row = stmt.get(repoName);
     return Number(row?.['repo_id'] ?? 0);
@@ -573,7 +573,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
   // ── CP3: no graph → status='skipped' ─────────────────────────────────────
   /**
-   * Scenario CP3 – When current_code_graphs has no row for the given repo,
+   * Scenario CP3 – When activity_current_code_graphs has no row for the given repo,
    * runCodeIncremental must return status='skipped' immediately.
    */
   test(
@@ -584,7 +584,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const gitRoot = tmpDir;
 
       const memDb = await makeMemoryDb();
-      // Trail DB without any current_code_graphs rows
+      // Trail DB without any activity_current_code_graphs rows
       const trailDb2 = makeTrailDb('other-repo'); // different repo, no graph
       // Don't insertCodeGraph for repoName
       attachTrailDbFromHandle(memDb.db, trailDb2);

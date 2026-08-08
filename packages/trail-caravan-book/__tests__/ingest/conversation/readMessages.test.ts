@@ -3,9 +3,9 @@ import { readMessagesSince } from '../../../src/ingest/conversation/readMessages
 
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
-  trailDb.run(`CREATE TABLE sessions (id TEXT PRIMARY KEY) STRICT`);
+  trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
-    `CREATE TABLE messages (
+    `CREATE TABLE activity_messages (
        uuid TEXT PRIMARY KEY,
        session_id TEXT NOT NULL,
        type TEXT NOT NULL,
@@ -29,7 +29,7 @@ function attachAsTrail(memDb: BetterSqlite3MemoryDb, trailDb: BetterSqlite3Memor
 }
 
 function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
-  trailDb.run(`INSERT INTO sessions VALUES (?)`, [id]);
+  trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMsg(
@@ -43,7 +43,7 @@ function insertMsg(
 ): void {
   const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       uuid,
@@ -227,7 +227,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 's1', 'sess-mixed', 'system', '2026-05-10T10:00:02.000Z', 's');
     // 不正な type — SQL filter で除外される
     trailDb.run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
+      `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content)
        VALUES ('tool1', 'sess-mixed', 'tool_use', '2026-05-10T10:00:03.000Z', 'tool', NULL)`,
     );
     attachAsTrail(memDb, trailDb);

@@ -34,7 +34,7 @@ function makeTmpPath() {
 function makeTrailHandle(extraRows?: Array<{ commit_hash: string; commit_message: string; repo_name: string }>) {
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
   trailHandle.run('PRAGMA foreign_keys = ON');
-  trailHandle.run(`CREATE TABLE session_commits (
+  trailHandle.run(`CREATE TABLE activity_session_commits (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL,
@@ -46,7 +46,7 @@ function makeTrailHandle(extraRows?: Array<{ commit_hash: string; commit_message
   if (extraRows) {
     for (const r of extraRows) {
       trailHandle.run(
-        `INSERT INTO session_commits (commit_hash, commit_message, repo_name) VALUES (?, ?, ?)`,
+        `INSERT INTO activity_session_commits (commit_hash, commit_message, repo_name) VALUES (?, ?, ?)`,
         [r.commit_hash, r.commit_message, r.repo_name]
       );
     }

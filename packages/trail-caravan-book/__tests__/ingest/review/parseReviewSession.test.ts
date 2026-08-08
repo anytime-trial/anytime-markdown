@@ -31,7 +31,7 @@ function makeMainDb(): BetterSqlite3MemoryDb {
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run(`
-    CREATE TABLE messages (
+    CREATE TABLE activity_messages (
       uuid TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -67,7 +67,7 @@ const DEFAULT_TEXT = 'レビュー本文';
 
 function insertMsg(trailDb: BetterSqlite3MemoryDb, opts: InsertMsgOpts): void {
   trailDb.run(
-    `INSERT INTO messages
+    `INSERT INTO activity_messages
       (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill, is_sidechain)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [

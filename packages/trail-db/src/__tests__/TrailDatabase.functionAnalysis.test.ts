@@ -28,7 +28,7 @@ const sample = (
   analyzedAt: '2026-05-05T00:00:00Z',
 });
 
-describe('TrailDatabase: current_function_analysis CRUD', () => {
+describe('TrailDatabase: activity_current_function_analysis CRUD', () => {
   let db: TrailDatabase;
 
   beforeEach(async () => {

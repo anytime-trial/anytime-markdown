@@ -94,8 +94,8 @@ function backfillBugFixWorkspace(db: MemoryDbConnection, repoName: string, logge
        WHERE workspace = ''
          AND commit_sha IN (
            SELECT sc.commit_hash
-           FROM trail.session_commits sc
-           JOIN trail.repos r ON r.repo_id = sc.repo_id
+           FROM trail.activity_session_commits sc
+           JOIN trail.activity_repos r ON r.repo_id = sc.repo_id
            WHERE r.repo_name = ?
          )`,
       [repoName, repoName],
@@ -130,13 +130,13 @@ export async function runBugHistoryIncremental(opts: {
   const lastProcessedAt = readPipelineState(db);
 
   // ── 2. Query fix commits from trail DB ─────────────────────────────────
-  // Phase H-4: trail.session_commits から repo_name 列を撤去した。attach 済 trail スキーマの repos を
+  // Phase H-4: trail.activity_session_commits から repo_name 列を撤去した。attach 済 trail スキーマの repos を
   // JOIN して repo_name → repo_id を解決し、repo フィルタ・射影とも repos.repo_name で行う (クロス DB JOIN)。
   const rows: CommitRow[] = [];
   const stmt = db.prepare(
     `SELECT sc.commit_hash, sc.commit_message, sc.committed_at, r.repo_name, sc.session_id
-     FROM trail.session_commits sc
-     JOIN trail.repos r ON r.repo_id = sc.repo_id
+     FROM trail.activity_session_commits sc
+     JOIN trail.activity_repos r ON r.repo_id = sc.repo_id
      WHERE r.repo_name = ? AND sc.committed_at > ? AND sc.commit_message LIKE 'fix%'
      ORDER BY sc.committed_at`
   );

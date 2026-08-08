@@ -61,20 +61,20 @@ function buildMemoryDb(dbPath: string): void {
     `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, confidence, confidence_label, modality)
      VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, ?, 'asserted')`,
   );
-  insEdge.run('edge-1', 'decision-1', 'commit-abc', TS, TS, 'session_commits#abc123def4567890', 'EXTRACTED');
-  insEdge.run('edge-2', 'decision-2', 'commit-other', TS, TS, 'session_commits#ffff00001111', 'INFERRED');
+  insEdge.run('edge-1', 'decision-1', 'commit-abc', TS, TS, 'activity_session_commits#abc123def4567890', 'EXTRACTED');
+  insEdge.run('edge-2', 'decision-2', 'commit-other', TS, TS, 'activity_session_commits#ffff00001111', 'INFERRED');
   db.close();
 }
 
 function buildTrailDbFile(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE session_commits (
+  db.exec(`CREATE TABLE activity_session_commits (
     session_id TEXT NOT NULL,
     commit_hash TEXT NOT NULL,
     repo_id INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (session_id, repo_id, commit_hash)
   )`);
-  db.prepare(`INSERT INTO session_commits (session_id, commit_hash) VALUES (?, ?)`).run(
+  db.prepare(`INSERT INTO activity_session_commits (session_id, commit_hash) VALUES (?, ?)`).run(
     'sess-with-rationale',
     'abc123def4567890',
   );

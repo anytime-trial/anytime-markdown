@@ -186,7 +186,7 @@ export interface WorkspaceScope {
 }
 
 export interface WorkspaceScopeInput {
-  /** `SELECT repo_id, repo_name FROM repos` の生値行。 */
+  /** `SELECT repo_id, repo_name FROM activity_repos` の生値行。 */
   readonly repoRows: readonly unknown[][];
   /** 対象期間に活動があった repo_id。 */
   readonly activeRepoIds: ReadonlySet<number>;
@@ -234,7 +234,7 @@ export function resolveWorkspaceScope(input: WorkspaceScopeInput): WorkspaceScop
 export interface CombinedDataSqlFragments {
   /** sessions を `s` として JOIN 済みのクエリ用。 */
   readonly sessionRepoFilter: string;
-  /** session_commits を sessions と JOIN 済みのクエリ用。 */
+  /** activity_session_commits を sessions と JOIN 済みのクエリ用。 */
   readonly commitScRepoFilter: string;
   readonly commitCRepoFilter: string;
   /** sessions を JOIN していないクエリ用（session_id 経由で同じ条件を表す）。 */
@@ -255,7 +255,7 @@ export function buildCombinedDataSqlFragments(
     commitScRepoFilter: sessionScoped,
     commitCRepoFilter: sessionScoped,
     commitBareRepoFilter: hasWorkspaceFilter
-      ? ` AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (${repoIdList}))`
+      ? ` AND session_id IN (SELECT id FROM activity_sessions WHERE repo_id IN (${repoIdList}))`
       : '',
     sessionStartPeriodExpr:
       period === 'week'
@@ -335,7 +335,7 @@ export function aggregateToolCounts(
   });
 }
 
-/** 期間内のコミット 1 件（`commit_files` の割り当て前）。 */
+/** 期間内のコミット 1 件（`activity_commit_files` の割り当て前）。 */
 export interface CommitRow {
   period: string;
   repoName: string;
@@ -349,7 +349,7 @@ export interface CommitRow {
   files: string[];
 }
 
-/** `session_commits` の集計行をコミット行へ写す。ファイル一覧は {@link attachCommitFiles} が埋める。 */
+/** `activity_session_commits` の集計行をコミット行へ写す。ファイル一覧は {@link attachCommitFiles} が埋める。 */
 export function toCommitRows(
   rows: readonly Record<string, unknown>[],
   toText: (value: unknown) => string,
@@ -375,9 +375,9 @@ export interface CommitFilesTarget {
 }
 
 /**
- * `commit_files` の行を (repo_name, commit_hash) で束ね、対応するコミット行へ割り当てる。
+ * `activity_commit_files` の行を (repo_name, commit_hash) で束ね、対応するコミット行へ割り当てる。
  *
- * Phase H-4 で `commit_files.repo_name` 列は撤去されたため、呼び出し側は `repos` を LEFT JOIN して
+ * Phase H-4 で `activity_commit_files.repo_name` 列は撤去されたため、呼び出し側は `repos` を LEFT JOIN して
  * repo_name を射影する。キーに repo_name を含めるのは、同じハッシュが複数リポジトリに現れうるため。
  *
  * @param fileRows `[repo_name, commit_hash, file_path]` の生値行

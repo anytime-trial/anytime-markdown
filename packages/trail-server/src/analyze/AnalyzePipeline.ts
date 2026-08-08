@@ -29,7 +29,7 @@ export interface AnalyzePipelineCallbacks {
   notifyCodeGraphProgress(phase: string, percent: number): void;
   notifyCodeGraphUpdated(): void;
   /**
-   * C4 モデル (current_graphs → trailToC4) を更新したことを viewer へ通知する
+   * C4 モデル (activity_current_graphs → trailToC4) を更新したことを viewer へ通知する
    * (`model-updated` WS イベント)。解析は code graph と C4 モデルの両方を更新するため、
    * `notifyCodeGraphUpdated()` と対で呼ぶ。viewer はこの通知で C4 モデルを再 fetch する。
    */
@@ -107,7 +107,7 @@ export interface AnalyzeCurrentResult {
 
 /** 解析ブランチ（TS / Python-only）の共通結果。共通末尾の永続化に渡す。 */
 interface AnalyzeBranchResult {
-  /** current_graphs に保存した TrailGraph（fileCount/nodeCount/edgeCount に使う）。null=保存不可。 */
+  /** activity_current_graphs に保存した TrailGraph（fileCount/nodeCount/edgeCount に使う）。null=保存不可。 */
   readonly graph: TrailGraph | null;
   readonly scored: readonly ScoredFunction[];
   readonly lineCountByFile: ReadonlyMap<string, number>;
@@ -170,7 +170,7 @@ async function analyzeTypeScriptBranch(
 
   trailDb.saveCurrentGraph(computed.graph, tsconfigPath, commitId, repoName);
   logger.info(
-    `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
+    `C4 analysis [${repoName}]: TrailGraph saved to activity_current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
   );
 
   // decision comment を trail-db へ洗い替え永続化（trail-caravan-book が読む中継）。
@@ -201,7 +201,7 @@ async function analyzeTypeScriptBranch(
 
 /**
  * Python-only 経路（tsconfig 無し）: 言語レジストリで TrailGraph を生成して
- * current_graphs に保存（C4 モデルは getCurrentC4Model=trailToC4 で都度導出）し、
+ * activity_current_graphs に保存（C4 モデルは getCurrentC4Model=trailToC4 で都度導出）し、
  * PythonAdapter ベースの importance と PythonFileClassifier による ui/logic/excluded
  * 分類（categoryByFile）を算出する。
  */
@@ -220,7 +220,7 @@ async function analyzePythonOnlyBranch(
     // Python-only は tsconfig 無しのため tsconfig_path は空文字で保存する。
     trailDb.saveCurrentGraph(graph, '', commitId, repoName);
     logger.info(
-      `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
+      `C4 analysis [${repoName}]: TrailGraph saved to activity_current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
     );
   } else {
     warnings.push('python TrailGraph analysis returned no graph');
@@ -281,9 +281,9 @@ async function generateCodeGraph(args: {
   warnings: string[];
 }): Promise<boolean> {
   const { codeGraphService, repoName, analysisRoot, trailGraph, callbacks, onProgress, logger, warnings } = args;
-  // per-call の analysisRoot を current_code_graphs / communities 生成へ貫通させる。
+  // per-call の analysisRoot を activity_current_code_graphs / communities 生成へ貫通させる。
   // codeGraphService は activate 時に固定した repositories を持つため、上書きしないと
-  // 別 repo を再生成し current_graphs(per-call) と current_code_graphs(固定) がズレる。
+  // 別 repo を再生成し activity_current_graphs(per-call) と activity_current_code_graphs(固定) がズレる。
   // 直前の解析で得た TrailGraph を流用し、generateForRepo 内での二重解析を避ける。
   const override = {
     repositories: [{ id: repoName, label: repoName, path: analysisRoot }],
@@ -391,7 +391,7 @@ export async function runAnalyzeCurrentCodePipeline(
     );
   }
 
-  // tsconfig があれば TS 経路、無ければ Python-only 経路。両者とも current_graphs へ
+  // tsconfig があれば TS 経路、無ければ Python-only 経路。両者とも activity_current_graphs へ
   // TrailGraph を保存し、scored / lineCountByFile / categoryByFile を共通末尾へ渡す。
   const branch = opts.tsconfigPath
     ? await analyzeTypeScriptBranch(opts, opts.tsconfigPath, exclude, commitId, repoName, logger, warnings)
@@ -401,7 +401,7 @@ export async function runAnalyzeCurrentCodePipeline(
     `C4 analysis [${repoName}]: analyzed ${graph?.metadata.fileCount ?? 0} files, ${graph?.nodes.length ?? 0} nodes, ${graph?.edges.length ?? 0} edges`,
   );
 
-  // C4 モデル (current_graphs → trailToC4) は branch 内の saveCurrentGraph で更新済み。
+  // C4 モデル (activity_current_graphs → trailToC4) は branch 内の saveCurrentGraph で更新済み。
   // code graph 生成 (下記 try) の成否に依存せず viewer の C4 モデルを再 fetch させるため、
   // ここで model-updated を通知する。
   callbacks.notifyModelUpdated();
@@ -426,7 +426,7 @@ export async function runAnalyzeCurrentCodePipeline(
 
   try {
     const count = trailDb.importCurrentCoverage(analysisRoot, repoName);
-    logger.info(`C4 analysis [${repoName}]: current_coverage updated (${count} entries)`);
+    logger.info(`C4 analysis [${repoName}]: activity_current_coverage updated (${count} entries)`);
   } catch (err) {
     const msg = `importCurrentCoverage failed: ${err instanceof Error ? err.message : String(err)}`;
     logger.warn(`C4 analysis [${repoName}]: ${msg}`);
@@ -445,7 +445,7 @@ export async function runAnalyzeCurrentCodePipeline(
     warnings.push(`seedDeadCodeIgnore failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // ファイル別・関数別デッドコード解析を current_file_analysis / current_function_analysis に保存。
+  // ファイル別・関数別デッドコード解析を activity_current_file_analysis / activity_current_function_analysis に保存。
   // scored / lineCountByFile / categoryByFile は実行したブランチ（TS / Python-only）の結果を使う。
   await computeFileAnalysisStep({
     analysisRoot,
@@ -580,7 +580,7 @@ function cleanupWorktree(gitRoot: string, worktreeRoot: string, logger: Logger):
  * release 遡及生成とコミット単位のオンデマンド生成が共有する本体。**振る舞いは
  * release 経路から動かしていない**（ref を tag から解決するか sha を直接使うかだけが違う）。
  *
- * `persist: false` により `current_code_graphs` は汚さない。保存は呼び出し元が行う。
+ * `persist: false` により `activity_current_code_graphs` は汚さない。保存は呼び出し元が行う。
  * `trailGraphByRepoId` に空オブジェクトを明示するのは、undefined だと `trailGraphProvider`
  * （現在の TrailGraph を返す）へフォールバックし、過去の断面に現在のグラフが混入するため。
  *
@@ -651,12 +651,12 @@ function selectReleases<T extends { tag: string }>(
 
 /**
  * release 別コードグラフ解析パイプライン。
- * `scope` の範囲について、既存 release_code_graphs を削除してから再生成する。
+ * `scope` の範囲について、既存 activity_release_code_graphs を削除してから再生成する。
  * `{kind:'all'}` は従来どおりの全量洗い替え、`{kind:'tags'}` は対象タグのみを
  * 入れ替える（オンデマンド生成で既存キャッシュを消さないため）。
  *
  * タグごとに worktree を切り、**その worktree を解析対象として** TrailGraph を作り、
- * `generate()` の override へ渡す。`persist: false` により current_code_graphs は汚さない
+ * `generate()` の override へ渡す。`persist: false` により activity_current_code_graphs は汚さない
  * （保存は `saveReleaseCodeGraph` が行う）。
  *
  * リリースごとの file/function 解析 (release_file_analysis / release_function_analysis) は
@@ -744,7 +744,7 @@ export class UnknownRepoError extends Error {
  *
  * リポジトリ ID は git root の basename で作られている（`CodeGraphService` の
  * `repositories`）。**渡された `repo` を検証せず primary の git root で解析すると、
- * 別リポジトリ名で primary の断面が `commit_code_graphs` に残る**（保存先は `repo` が
+ * 別リポジトリ名で primary の断面が `activity_commit_code_graphs` に残る**（保存先は `repo` が
  * 決めるのに、解析対象は gitRoot が決めるため）。一致が無ければ null を返し、
  * 呼び元が要求を拒否する。
  */
@@ -764,7 +764,7 @@ export interface AnalyzeCommitOpts {
   gitRoot: string;
   /** 対象コミット。省略可能にしない（渡し忘れが「現在の断面を過去として保存」に化ける）。 */
   sha: string;
-  /** 保存先リポジトリ名。`commit_code_graphs` の PK 構成列で、省略すると別リポへ書き得る。 */
+  /** 保存先リポジトリ名。`activity_commit_code_graphs` の PK 構成列で、省略すると別リポへ書き得る。 */
   repoName: string;
   /** TS 解析の実行方式。release 経路と同じく省略不可。 */
   compute: AnalyzeComputeMode;

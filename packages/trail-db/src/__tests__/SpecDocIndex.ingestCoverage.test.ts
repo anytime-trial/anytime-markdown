@@ -3,7 +3,7 @@
  * 「設計書が更新されていない」と同一視しないこと。
  *
  * 背景: lep.json の gitRoots に docs リポジトリが含まれず CommitResolver が
- * 一度も走らなかった期間、session_commits / commit_files に docs の行が 1 件も
+ * 一度も走らなかった期間、activity_session_commits / activity_commit_files に docs の行が 1 件も
  * 無かった。旧実装はこれを false（= 呼び出し側で stale）と報告したため、
  * check_alignment が全件 stale を返し続けた。取込欠落は 'unknown' として
  * 区別する。
@@ -30,8 +30,8 @@ function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
 function createDb(): Database.Database {
   const db = new Database(':memory:');
   db.exec(`
-    CREATE TABLE repos(repo_id INTEGER, repo_name TEXT);
-    CREATE TABLE session_commits(
+    CREATE TABLE activity_repos(repo_id INTEGER, repo_name TEXT);
+    CREATE TABLE activity_session_commits(
       session_id TEXT,
       commit_hash TEXT,
       commit_message TEXT,
@@ -43,22 +43,22 @@ function createDb(): Database.Database {
       lines_deleted INTEGER,
       repo_id INTEGER
     );
-    CREATE TABLE commit_files(commit_hash TEXT, file_path TEXT, repo_id INTEGER);
-    CREATE TABLE session_commit_resolutions(session_id TEXT, repo_id INTEGER, resolved_at TEXT);
+    CREATE TABLE activity_commit_files(commit_hash TEXT, file_path TEXT, repo_id INTEGER);
+    CREATE TABLE activity_session_commit_resolutions(session_id TEXT, repo_id INTEGER, resolved_at TEXT);
   `);
-  db.prepare('INSERT INTO repos(repo_id, repo_name) VALUES (?, ?)').run(DOCS_REPO_ID, 'anytime-markdown-docs');
+  db.prepare('INSERT INTO activity_repos(repo_id, repo_name) VALUES (?, ?)').run(DOCS_REPO_ID, 'anytime-markdown-docs');
   return db;
 }
 
 function insertDocsCommit(db: Database.Database, hash: string, committedAt: string, filePath?: string): void {
   db.prepare(`
-    INSERT INTO session_commits(
+    INSERT INTO activity_session_commits(
       session_id, commit_hash, commit_message, author, committed_at,
       is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id
     ) VALUES (?, ?, '', '', ?, 0, 0, 0, 0, ?)
   `).run('session-1', hash, committedAt, DOCS_REPO_ID);
   if (filePath) {
-    db.prepare('INSERT INTO commit_files(commit_hash, file_path, repo_id) VALUES (?, ?, ?)')
+    db.prepare('INSERT INTO activity_commit_files(commit_hash, file_path, repo_id) VALUES (?, ?, ?)')
       .run(hash, filePath, DOCS_REPO_ID);
   }
 }
@@ -68,7 +68,7 @@ function markResolved(
   sessionId: string,
   resolvedAt = '2026-07-14T00:00:00.000Z',
 ): void {
-  db.prepare('INSERT INTO session_commit_resolutions(session_id, repo_id, resolved_at) VALUES (?, ?, ?)')
+  db.prepare('INSERT INTO activity_session_commit_resolutions(session_id, repo_id, resolved_at) VALUES (?, ?, ?)')
     .run(sessionId, DOCS_REPO_ID, resolvedAt);
 }
 
@@ -97,7 +97,7 @@ describe('SpecDocIndex.wasUpdatedIn — 取込カバレッジ', () => {
         .resolves.toBe('unknown');
     });
 
-    it('解決済みで一致する commit_files が無ければ not-updated を返す', async () => {
+    it('解決済みで一致する activity_commit_files が無ければ not-updated を返す', async () => {
       markResolved(db, 'session-1');
       insertDocsCommit(db, 'docs-1', '2026-07-14T00:00:00.000Z', 'spec/other.md');
 
@@ -107,7 +107,7 @@ describe('SpecDocIndex.wasUpdatedIn — 取込カバレッジ', () => {
         .resolves.toBe('not-updated');
     });
 
-    it('解決済みで一致する commit_files があれば updated を返す', async () => {
+    it('解決済みで一致する activity_commit_files があれば updated を返す', async () => {
       markResolved(db, 'session-1');
       insertDocsCommit(db, 'docs-1', '2026-07-14T00:00:00.000Z', 'spec/a.md');
 

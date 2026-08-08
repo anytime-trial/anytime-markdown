@@ -94,7 +94,7 @@ function insertSession(
   } = opts;
   const repoId = repoIdForName(db, repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
        id, slug, repo_id, version, entrypoint, model, start_time, end_time,
        message_count, file_path, file_size, imported_at, source
      ) VALUES (?, ?, ?, '', '', ?, ?, ?, 0, '', 0, ?, ?)`,
@@ -130,7 +130,7 @@ function insertMessage(
     skill = null,
   } = opts;
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, type, timestamp, tool_calls, subagent_type,
        input_tokens, output_tokens, model, tool_use_result, skill
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -155,7 +155,7 @@ function insertToolCall(
   } = {},
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path,
        command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
      ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, NULL, ?)`,
@@ -169,13 +169,13 @@ function insertToolCall(
 
 function insertRelease(db: TrailDatabase, tag: string, releasedAt: string): void {
   inner(db).run(
-    `INSERT OR REPLACE INTO releases (tag, released_at) VALUES (?, ?)`,
+    `INSERT OR REPLACE INTO activity_releases (tag, released_at) VALUES (?, ?)`,
     [tag, releasedAt],
   );
 }
 
 function releaseIdForTag(db: TrailDatabase, tag: string): number {
-  const res = exec(db).exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
+  const res = exec(db).exec('SELECT release_id FROM activity_releases WHERE tag = ? LIMIT 1', [tag]);
   return Number(res[0]?.values?.[0]?.[0]);
 }
 
@@ -188,7 +188,7 @@ function insertSessionCommit(
   isAiAssisted = 1,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, commit_message, committed_at, is_ai_assisted)
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at, is_ai_assisted)
      VALUES (?, ?, ?, ?, ?)`,
     [sessionId, hash, message, committedAt, isAiAssisted],
   );
@@ -196,7 +196,7 @@ function insertSessionCommit(
 
 function insertCommitFile(db: TrailDatabase, hash: string, filePath: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`,
     [hash, filePath],
   );
 }
@@ -211,7 +211,7 @@ function insertDailyCount(
   tokens = 0,
 ): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO daily_counts (date, kind, key, count, estimated_cost_usd, tokens)
+    `INSERT OR IGNORE INTO activity_daily_counts (date, kind, key, count, estimated_cost_usd, tokens)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [date, kind, key, count, estimatedCostUsd, tokens],
   );
@@ -283,7 +283,7 @@ describe('getSessionDelegatedTrackCounts — invalid JSON in tool_calls', () => 
   it('returns 0 count for session with non-JSON tool_calls (catch path line 8113)', () => {
     insertSession(db, 's1');
     inner(db).run(
-      `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, tool_calls)
+      `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, tool_calls)
        VALUES (?, ?, 'assistant', '2026-04-01T00:00:00.000Z', ?)`,
       ['m1', 's1', 'NOT_VALID_JSON{{{'],
     );
@@ -304,7 +304,7 @@ describe('getSessionDelegatedTrackCounts — invalid JSON in tool_calls', () => 
       { name: 'Agent', input: { subagent_type: 'code-reviewer' } },
     ]);
     inner(db).run(
-      `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, tool_calls)
+      `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, tool_calls)
        VALUES (?, ?, 'assistant', '2026-04-01T00:00:00.000Z', ?)`,
       ['m1', 's1', toolCalls],
     );
@@ -336,8 +336,8 @@ describe('getLastImportedAt', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. getStats — NOTE: getStats() queries `SUM(input_tokens) FROM sessions` which does
-//    NOT exist in the current schema (input_tokens is on session_costs/messages, not
+// 3. getStats — NOTE: getStats() queries `SUM(input_tokens) FROM activity_sessions` which does
+//    NOT exist in the current schema (input_tokens is on activity_session_costs/messages, not
 //    sessions). This is a known latent bug already documented in TrailDatabase.analytics.test.ts.
 //    Lines 8722-8777 are genuinely unreachable with the current test DB schema.
 // ---------------------------------------------------------------------------
@@ -435,7 +435,7 @@ describe('computeToolMetrics — per-session with invalid JSON in tool_calls', (
     insertSession(db, 's1');
     // Insert raw malformed tool_calls to trigger JSON.parse catch
     inner(db).run(
-      `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, tool_calls)
+      `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, tool_calls)
        VALUES ('m1', 's1', 'assistant', '2026-04-01T00:00:00.000Z', 'INVALID{JSON')`,
     );
     // Should not throw, just skip this row
@@ -478,10 +478,10 @@ describe('getAnalytics — cost and daily activity branches', () => {
     expect(typeof analytics.totals.sessions).toBe('number');
   });
 
-  it('populates estimated cost when session_costs are present (lines 9190-9193)', () => {
+  it('populates estimated cost when activity_session_costs are present (lines 9190-9193)', () => {
     insertSession(db, 's1', { source: 'claude_code' });
     inner(db).run(
-      `INSERT OR REPLACE INTO session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
+      `INSERT OR REPLACE INTO activity_session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
        VALUES ('s1', 'claude-opus-4', 100, 50, 0, 0, 1.50)`,
     );
     const analytics = db.getAnalytics();
@@ -513,7 +513,7 @@ describe('getCostOptimization', () => {
     expect(Array.isArray(result.daily)).toBe(true);
   });
 
-  it('aggregates skillByModel from daily_counts kind=cost_skill (line 9928-9931)', () => {
+  it('aggregates skillByModel from activity_daily_counts kind=cost_skill (line 9928-9931)', () => {
     insertDailyCount(db, '2026-04-01', 'cost_skill', 'claude-sonnet-4', 5, 2.5);
     const result = db.getCostOptimization();
     expect(result.skillEstimate.totalCost).toBeCloseTo(2.5, 2);
@@ -531,13 +531,13 @@ describe('getCostOptimization', () => {
     expect(dayEntry!.skillCost).toBeCloseTo(0.5, 2);
   });
 
-  it('populates actualDist from daily_counts kind=model (line 9967)', () => {
+  it('populates actualDist from activity_daily_counts kind=model (line 9967)', () => {
     insertDailyCount(db, '2026-04-01', 'model', 'claude-opus-4', 42);
     const result = db.getCostOptimization();
     expect(result.modelDistribution.actual['claude-opus-4']).toBe(42);
   });
 
-  it('populates skillDist from daily_counts kind=cost_skill (line 9975)', () => {
+  it('populates skillDist from activity_daily_counts kind=cost_skill (line 9975)', () => {
     insertDailyCount(db, '2026-04-01', 'cost_skill', 'claude-haiku-4', 7, 0.3);
     const result = db.getCostOptimization();
     expect(result.modelDistribution.skillRecommended['claude-haiku-4']).toBe(7);
@@ -559,7 +559,7 @@ describe('getCombinedData — error rate and commit file branches', () => {
     expect(Array.isArray(result.commitPrefixStats)).toBe(true);
   });
 
-  it('builds errByPeriod from message_tool_calls with is_error=1 (lines 9588-9594)', () => {
+  it('builds errByPeriod from activity_message_tool_calls with is_error=1 (lines 9588-9594)', () => {
     insertSession(db, 's1', { startTime: '2026-04-01T10:00:00.000Z', endTime: '2026-04-01T11:00:00.000Z' });
     insertMessage(db, 'm1', 's1');
     insertToolCall(db, 's1', 'm1', 0, 'Bash', null, '2026-04-01T10:01:00.000Z', { isError: 1 });
@@ -725,7 +725,7 @@ describe('getQualityMetricsInputs — commit files population', () => {
     expect(result.releases).toEqual([]);
   });
 
-  it('populates commits.files when commit_files rows exist (lines 11541-11545)', () => {
+  it('populates commits.files when activity_commit_files rows exist (lines 11541-11545)', () => {
     insertSession(db, 's1', { startTime: '2026-04-01T10:00:00.000Z', endTime: '2026-04-01T11:00:00.000Z' });
     insertSessionCommit(db, 's1', 'deadbeef', 'feat: add something', '2026-04-01T10:30:00.000Z', 1);
     insertCommitFile(db, 'deadbeef', 'packages/foo/src/index.ts');
@@ -861,7 +861,7 @@ describe('getCombinedData — agentStats cost and loc (lines 9452, 9455)', () =>
     db = await createTestTrailDatabase();
   });
 
-  it('includes cost and loc in agentStats when session_costs and commits exist', () => {
+  it('includes cost and loc in agentStats when activity_session_costs and commits exist', () => {
     insertSession(db, 's1', {
       source: 'claude_code',
       startTime: '2026-04-01T10:00:00.000Z',
@@ -869,7 +869,7 @@ describe('getCombinedData — agentStats cost and loc (lines 9452, 9455)', () =>
       repoName: 'my-repo',
     });
     inner(db).run(
-      `INSERT OR REPLACE INTO session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
+      `INSERT OR REPLACE INTO activity_session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
        VALUES ('s1', 'claude-opus-4', 100, 50, 0, 0, 1.0)`,
     );
     insertSessionCommit(db, 's1', 'c1', 'feat: something', '2026-04-01T10:30:00.000Z', 1);

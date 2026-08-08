@@ -1,5 +1,5 @@
 /**
- * ファイル×セッション×コミットの生行（`commit_files` JOIN `session_commits` 由来）。
+ * ファイル×セッション×コミットの生行（`activity_commit_files` JOIN `activity_session_commits` 由来）。
  *
  * 編集者の単位に git author を採らないのは、実測で 3 値（表記ゆれ 2 値 + エージェント 1 値）
  * しか存在せず着色が単色に潰れるため。要件も `session_id` / `agent_id` での代替を指定する。

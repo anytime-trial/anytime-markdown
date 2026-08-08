@@ -45,13 +45,13 @@ async function openTestDb() {
   const trailHandle = BetterSqlite3MemoryDb.openInMemory();
 
   // Minimal trail DB schema for attachTrailDbFromHandle
-  trailHandle.run(`CREATE TABLE IF NOT EXISTS c4_manual_elements (
+  trailHandle.run(`CREATE TABLE IF NOT EXISTS activity_c4_manual_elements (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     repo_name TEXT NOT NULL
   ) STRICT`);
-  trailHandle.run(`CREATE TABLE IF NOT EXISTS c4_manual_relationships (
+  trailHandle.run(`CREATE TABLE IF NOT EXISTS activity_c4_manual_relationships (
     repo_name TEXT NOT NULL,
     rel_id TEXT NOT NULL,
     from_id TEXT NOT NULL,
@@ -62,7 +62,7 @@ async function openTestDb() {
 
   // Seed a c4 element for pkg_web-app
   trailHandle.run(
-    `INSERT OR IGNORE INTO c4_manual_elements (id, name, type, repo_name) VALUES (?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO activity_c4_manual_elements (id, name, type, repo_name) VALUES (?, ?, ?, ?)`,
     ['pkg_web-app', 'web-app', 'Container', 'anytime-markdown'],
   );
 

@@ -3,7 +3,7 @@
  *
  * These tests spin up:
  *   - A sql.js trail DB (exported to temp file) with 10 synthetic commits
- *     (6 fix, 4 feat) and commit_files entries
+ *     (6 fix, 4 feat) and activity_commit_files entries
  *   - An in-memory sql.js trail-caravan-book DB with all migrations applied
  *   - The full runBugHistoryIncremental pipeline (real git-blame skipped gracefully)
  *
@@ -125,32 +125,32 @@ const COMMITS: CommitSeed[] = [
 
 /**
  * Creates a synthetic trail DB with:
- *   - sessions table (FK target for session_commits)
- *   - session_commits table (queried by runBugHistoryIncremental)
- *   - commit_files table (queried by linkAffectedFiles)
+ *   - sessions table (FK target for activity_session_commits)
+ *   - activity_session_commits table (queried by runBugHistoryIncremental)
+ *   - activity_commit_files table (queried by linkAffectedFiles)
  */
 function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
 
-  // Phase H-4: trail.sessions / session_commits / commit_files から repo_name 列を撤去した。repo 帰属は
-  // repo_id で表現し、消費側 (runBugHistoryIncremental / linkAffectedFiles) は trail.repos を JOIN する。
-  db.run(`CREATE TABLE repos (
+  // Phase H-4: trail.activity_sessions / activity_session_commits / activity_commit_files から repo_name 列を撤去した。repo 帰属は
+  // repo_id で表現し、消費側 (runBugHistoryIncremental / linkAffectedFiles) は trail.activity_repos を JOIN する。
+  db.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY,
     repo_name TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
   ) STRICT`);
   db.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
     [repoName]
   );
-  const repoIdRow = db.exec('SELECT repo_id FROM repos WHERE repo_name = ?', [repoName]);
+  const repoIdRow = db.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   const repoId = Number(repoIdRow[0]?.values?.[0]?.[0] ?? 0);
 
-  db.run(`CREATE TABLE sessions (
+  db.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY,
     slug TEXT NOT NULL DEFAULT '',
-    repo_id INTEGER REFERENCES repos(repo_id) ON DELETE CASCADE,
+    repo_id INTEGER REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     version TEXT NOT NULL DEFAULT '',
     entrypoint TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
@@ -166,8 +166,8 @@ function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3Memo
     peak_context_tokens INTEGER
   ) STRICT`);
 
-  db.run(`CREATE TABLE session_commits (
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  db.run(`CREATE TABLE activity_session_commits (
+    session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL DEFAULT '',
     author TEXT NOT NULL DEFAULT '',
@@ -181,7 +181,7 @@ function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3Memo
     PRIMARY KEY (session_id, repo_id, commit_hash)
   ) STRICT`);
 
-  db.run(`CREATE TABLE commit_files (
+  db.run(`CREATE TABLE activity_commit_files (
     commit_hash TEXT NOT NULL,
     repo_id INTEGER NOT NULL DEFAULT 0,
     file_path TEXT NOT NULL,
@@ -192,19 +192,19 @@ function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3Memo
   // Insert unique sessions
   const sessionIds = [...new Set(commits.map((c) => c.sessionId))];
   for (const sid of sessionIds) {
-    db.run(`INSERT INTO sessions (id, repo_id) VALUES (?, ?)`, [sid, repoId]);
+    db.run(`INSERT INTO activity_sessions (id, repo_id) VALUES (?, ?)`, [sid, repoId]);
   }
 
   for (const commit of commits) {
     db.run(
-      `INSERT INTO session_commits
+      `INSERT INTO activity_session_commits
          (session_id, commit_hash, commit_message, committed_at, repo_id)
        VALUES (?, ?, ?, ?, ?)`,
       [commit.sessionId, commit.commitHash, commit.commitMessage, commit.committedAt, repoId]
     );
     for (const fp of commit.filePaths) {
       db.run(
-        `INSERT INTO commit_files (commit_hash, repo_id, file_path) VALUES (?, ?, ?)`,
+        `INSERT INTO activity_commit_files (commit_hash, repo_id, file_path) VALUES (?, ?, ?)`,
         [commit.commitHash, repoId, fp]
       );
     }

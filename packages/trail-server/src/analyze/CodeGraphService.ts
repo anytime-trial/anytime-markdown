@@ -118,7 +118,7 @@ export class CodeGraphService {
    *
    * @param override 指定時は config.repositories の代わりに override.repositories を
    *   対象とし、override.trailGraphByRepoId で解析済み TrailGraph（repo.id キー）を流用する。
-   *   MCP analyze_current_code(workspacePath) の per-call パスを current_code_graphs /
+   *   MCP analyze_current_code(workspacePath) の per-call パスを activity_current_code_graphs /
    *   communities 生成へ貫通させるために使う。省略時は従来どおり config.repositories を使う。
    * @returns 対象 repositories の順に並んだ、リポジトリごとの CodeGraph 配列。
    *          空 repositories の場合は空配列を返し、save も行わない。
@@ -129,7 +129,7 @@ export class CodeGraphService {
       repositories: readonly CodeGraphRepository[];
       trailGraphByRepoId?: Record<string, TrailGraph | undefined>;
       /**
-       * `false` なら `current_code_graphs` へ保存せず、キャッシュも更新しない
+       * `false` なら `activity_current_code_graphs` へ保存せず、キャッシュも更新しない
        * （生成のみ行い、保存先は呼び出し側が決める）。
        *
        * release 遡及生成は過去タグの worktree を解析するため、その結果を
@@ -303,7 +303,7 @@ export class CodeGraphService {
    * 任意のリポジトリパスに対し、検出された全言語（TS は tsconfig.json、Python は
    * .py/pyproject）を解析して 1 つの TrailGraph に union する。analyze-exclude を
    * 全言語に反映する。検出言語が無ければ undefined。
-   * Python-only パイプライン（tsconfig 無し）が current_graphs / C4 モデル用の
+   * Python-only パイプライン（tsconfig 無し）が activity_current_graphs / C4 モデル用の
    * TrailGraph を得るために公開する。
    */
   async analyzeRepoTrailGraph(repoPath: string): Promise<TrailGraph | undefined> {

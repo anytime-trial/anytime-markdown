@@ -18,7 +18,7 @@ export type LinkC4ScopeResult = {
 };
 
 /**
- * c4Scope 配列の各要素を trail.c4_manual_elements テーブルで解決し、
+ * c4Scope 配列の各要素を trail.activity_c4_manual_elements テーブルで解決し、
  * caravan_entities / caravan_edges / caravan_spec_doc_entities に INSERT OR IGNORE する。
  *
  * trail DB は呼び出し元により ATTACH 済みであること（AS trail）。
@@ -47,10 +47,10 @@ export function linkByC4Scope(input: LinkC4ScopeInput): LinkC4ScopeResult {
         continue;
       }
 
-      // 2. trail.c4_manual_elements から解決
-      const rows = db.exec(`SELECT id, name FROM trail.c4_manual_elements WHERE id = ?`, [scopeId]);
+      // 2. trail.activity_c4_manual_elements から解決
+      const rows = db.exec(`SELECT id, name FROM trail.activity_c4_manual_elements WHERE id = ?`, [scopeId]);
       if (rows.length === 0 || rows[0].values.length === 0) {
-        logger.warn?.(`[linkByC4Scope] [${recordedAt}] c4_manual_elements row not found, skipping: ${scopeId}`);
+        logger.warn?.(`[linkByC4Scope] [${recordedAt}] activity_c4_manual_elements row not found, skipping: ${scopeId}`);
         skipped_count++;
         continue;
       }

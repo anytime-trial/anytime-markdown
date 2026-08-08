@@ -197,7 +197,7 @@ function compareInstructionRecords(a: InstructionRecord, b: InstructionRecord): 
   return a.endedAt > b.endedAt ? -1 : 1;
 }
 
-/** session_costs をまだ引いていない状態。imported=false で「0 件」と区別する。 */
+/** activity_session_costs をまだ引いていない状態。imported=false で「0 件」と区別する。 */
 const EMPTY_TOKEN_USAGE: InstructionTokenUsage = {
   imported: false,
   inputTokens: 0,
@@ -239,7 +239,7 @@ function toFlightReview(row: readonly unknown[]): FlightReview {
  * 保存先は **caravan-book.db**（activity.db からの移設・2026-08-07）。Flight Record は
  * セッションの生ログではなく「振り返りで読む蒸留データ」であり、レビュー・バグ修正・
  * 乖離と同じ caravan-book.db 側に置く。セッション由来の参照データ（sessions / repos /
- * session_costs / session_commits / verification_runs 等）は activity.db に残るため、
+ * activity_session_costs / activity_session_commits / activity_verification_runs 等）は activity.db に残るため、
  * activity.db を `trail` alias で ATTACH して読む（MemoryApiHandler と同型）。
  *
  * - activity.db が ATTACH できない構成では、トークン・成果物・検証・リポジトリ名解決が
@@ -1076,14 +1076,14 @@ export class FlightRecordDatabase {
       ? [
           `SELECT r.repo_name, i.workspace_path, COUNT(*)
              FROM caravan_instructions i
-             LEFT JOIN trail.sessions s ON s.id = i.origin_session_id
-             LEFT JOIN trail.repos r ON r.repo_id = s.repo_id
+             LEFT JOIN trail.activity_sessions s ON s.id = i.origin_session_id
+             LEFT JOIN trail.activity_repos r ON r.repo_id = s.repo_id
             GROUP BY r.repo_name, i.workspace_path`,
           // 宣言の無いセッション（暗黙グループ）も一覧に出るため、こちらも選択肢に要る
           `SELECT r.repo_name, fr.workspace_path, COUNT(*)
              FROM caravan_flight_reviews fr
-             LEFT JOIN trail.sessions s ON s.id = fr.session_id
-             LEFT JOIN trail.repos r ON r.repo_id = s.repo_id
+             LEFT JOIN trail.activity_sessions s ON s.id = fr.session_id
+             LEFT JOIN trail.activity_repos r ON r.repo_id = s.repo_id
             GROUP BY r.repo_name, fr.workspace_path`,
         ]
       : [
@@ -1210,7 +1210,7 @@ export class FlightRecordDatabase {
    * 経路別見逃し率の算出（読み取りのみ・近似指標）。
    * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の regression 系 fix
    * コミット（別 SHA・同一リポジトリ）が触れた」件数を missed と数える。厳密な因果は問わない。
-   * コミット・リポジトリ情報は activity.db 残留テーブル（repos / session_commits / commit_files）を
+   * コミット・リポジトリ情報は activity.db 残留テーブル（repos / activity_session_commits / activity_commit_files）を
    * ATTACH 経由で読む。未 ATTACH では missed を判定できないため missRate=null に縮退する
    * （0 と区別する。acceptedCount は memory 側だけで数えられるので返す）。
    */
@@ -1245,7 +1245,7 @@ export class FlightRecordDatabase {
     }
 
     const repoIdByName = new Map<string, number>();
-    for (const row of db.exec(`SELECT repo_id, repo_name FROM trail.repos`)[0]?.values ?? []) {
+    for (const row of db.exec(`SELECT repo_id, repo_name FROM trail.activity_repos`)[0]?.values ?? []) {
       repoIdByName.set(row[1] as string, row[0] as number);
     }
 
@@ -1253,7 +1253,7 @@ export class FlightRecordDatabase {
 
     const minDecidedAt = passRows.reduce((min, r) => (r.decidedAt < min ? r.decidedAt : min), passRows[0].decidedAt);
     const fixRes = db.exec(
-      `SELECT DISTINCT commit_hash, committed_at, repo_id, commit_message FROM trail.session_commits
+      `SELECT DISTINCT commit_hash, committed_at, repo_id, commit_message FROM trail.activity_session_commits
        WHERE commit_message GLOB 'fix*' AND committed_at IS NOT NULL AND committed_at >= ?`,
       [minDecidedAt],
     );
@@ -1319,7 +1319,7 @@ export class FlightRecordDatabase {
     });
   }
 
-  /** trail.commit_files をハッシュ集合で引き、hash → (repo_id → file_path 集合) の Map にする（IN 句はチャンク分割）。 */
+  /** trail.activity_commit_files をハッシュ集合で引き、hash → (repo_id → file_path 集合) の Map にする（IN 句はチャンク分割）。 */
   private commitFilesByHashes(hashes: string[]): Map<string, Map<number, Set<string>>> {
     const db = this.ensureDb();
     const result = new Map<string, Map<number, Set<string>>>();
@@ -1329,7 +1329,7 @@ export class FlightRecordDatabase {
       const chunk = unique.slice(i, i + CHUNK);
       const placeholders = chunk.map(() => '?').join(', ');
       const res = db.exec(
-        `SELECT commit_hash, file_path, repo_id FROM trail.commit_files WHERE commit_hash IN (${placeholders})`,
+        `SELECT commit_hash, file_path, repo_id FROM trail.activity_commit_files WHERE commit_hash IN (${placeholders})`,
         chunk,
       );
       for (const row of res[0]?.values ?? []) {
@@ -1373,8 +1373,8 @@ export class FlightRecordDatabase {
   }
 
   /**
-   * ワークスペース名の正本はセッションが属するリポジトリ名（trail.repos.repo_name）。
-   * セッションが trail.sessions に無い（取込前・machine 記録のみ）行と、activity.db を
+   * ワークスペース名の正本はセッションが属するリポジトリ名（trail.activity_repos.repo_name）。
+   * セッションが trail.activity_sessions に無い（取込前・machine 記録のみ）行と、activity.db を
    * ATTACH できない構成では、呼び出し側がパス由来へ縮退する（行を落とさない）。
    */
   private repoNamesBySessionIds(sessionIds: readonly string[]): Map<string, string> {
@@ -1384,7 +1384,7 @@ export class FlightRecordDatabase {
     const placeholders = sessionIds.map(() => '?').join(', ');
     const res = db.exec(
       `SELECT s.id, r.repo_name
-         FROM trail.sessions s JOIN trail.repos r ON r.repo_id = s.repo_id
+         FROM trail.activity_sessions s JOIN trail.activity_repos r ON r.repo_id = s.repo_id
         WHERE s.id IN (${placeholders})`,
       [...sessionIds],
     );
@@ -1395,7 +1395,7 @@ export class FlightRecordDatabase {
     return byId;
   }
 
-  /** trail.session_costs をモデル別に畳む。行が 1 件も無ければ imported=false（0 と区別する）。 */
+  /** trail.activity_session_costs をモデル別に畳む。行が 1 件も無ければ imported=false（0 と区別する）。 */
   private instructionTokenUsage(sessionIds: readonly string[]): InstructionTokenUsage {
     if (!this.trailAttached || sessionIds.length === 0) return EMPTY_TOKEN_USAGE;
     const db = this.ensureDb();
@@ -1403,7 +1403,7 @@ export class FlightRecordDatabase {
     const res = db.exec(
       `SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens),
               SUM(cache_creation_tokens), SUM(estimated_cost_usd)
-       FROM trail.session_costs WHERE session_id IN (${placeholders})
+       FROM trail.activity_session_costs WHERE session_id IN (${placeholders})
        GROUP BY model ORDER BY SUM(estimated_cost_usd) DESC`,
       [...sessionIds],
     );
@@ -1431,7 +1431,7 @@ export class FlightRecordDatabase {
   /**
    * 成果物。コードはコミット済みのみ、ドキュメント（.md）は未コミットも含む。
    *
-   * 未コミット分は trail.message_tool_calls.file_path ではなく trail.messages.tool_calls の
+   * 未コミット分は trail.activity_message_tool_calls.file_path ではなく trail.activity_messages.tool_calls の
    * JSON から採る。file_path 列は取込時の extractFilePath が Read/Edit/Write/Glob/Grep しか
    * 埋めておらず、本プロジェクトで多用する serena（relative_path）・mcp-markdown（path）経由の
    * 編集が 1 件も残らないため。
@@ -1444,8 +1444,8 @@ export class FlightRecordDatabase {
 
     const committed = db.exec(
       `SELECT DISTINCT cf.file_path, sc.commit_hash
-       FROM trail.session_commits sc
-       JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash AND cf.repo_id = sc.repo_id
+       FROM trail.activity_session_commits sc
+       JOIN trail.activity_commit_files cf ON cf.commit_hash = sc.commit_hash AND cf.repo_id = sc.repo_id
        WHERE sc.session_id IN (${placeholders})
        ORDER BY cf.file_path`,
       [...sessionIds],
@@ -1466,7 +1466,7 @@ export class FlightRecordDatabase {
                 json_extract(call.value, '$.input.relative_path'),
                 json_extract(call.value, '$.input.path')
               ) AS target
-       FROM trail.messages m, json_each(m.tool_calls) AS call
+       FROM trail.activity_messages m, json_each(m.tool_calls) AS call
        WHERE m.session_id IN (${placeholders})
          AND m.tool_calls IS NOT NULL AND json_valid(m.tool_calls)
          AND json_extract(call.value, '$.name') IN (${DOC_WRITE_TOOL_NAMES.map(() => '?').join(', ')})
@@ -1495,7 +1495,7 @@ export class FlightRecordDatabase {
     const placeholders = sessionIds.map(() => '?').join(', ');
     const res = db.exec(
       `SELECT kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, started_at
-       FROM trail.verification_runs
+       FROM trail.activity_verification_runs
        WHERE session_id IN (${placeholders})
        ORDER BY started_at`,
       [...sessionIds],

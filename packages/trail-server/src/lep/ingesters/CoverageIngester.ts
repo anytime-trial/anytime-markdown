@@ -17,7 +17,7 @@ export interface CoverageIngesterOptions {
  * を発見し `coverage_report` event を emit する。
  *
  * Step 2a 時点では subscriber が不在。Step 2b の `CoverageImporter` が購読して
- * `release_coverage` / `current_coverage` テーブルに書き込む。
+ * `activity_release_coverage` / `activity_current_coverage` テーブルに書き込む。
  *
  * ファイル存在判定のみで内容パースは行わない (パースは CoverageImporter の責務)。
  */

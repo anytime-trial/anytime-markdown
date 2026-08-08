@@ -34,12 +34,12 @@ const makeCodeGraph = (nodeId: string, generatedAt: string): CodeGraph => ({
 });
 
 const seedRepos = (db: TrailDatabase): void => {
-  inner(db).run('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+  inner(db).run('INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
     1,
     TEST_REPO,
     '2026-01-01T00:00:00.000Z',
   ]);
-  inner(db).run('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+  inner(db).run('INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
     2,
     OTHER_REPO,
     '2026-01-01T00:00:00.000Z',
@@ -47,7 +47,7 @@ const seedRepos = (db: TrailDatabase): void => {
 };
 
 const insertRelease = (db: TrailDatabase, tag: string, releasedAt: string, repoId = 1): void => {
-  inner(db).run('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+  inner(db).run('INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
     tag,
     releasedAt,
     repoId,
@@ -63,11 +63,11 @@ const insertCommit = (
   repoId = 1,
 ): void => {
   inner(db).run(
-    "INSERT OR IGNORE INTO sessions (id, start_time) VALUES (?, '2026-01-01T00:00:00.000Z')",
+    "INSERT OR IGNORE INTO activity_sessions (id, start_time) VALUES (?, '2026-01-01T00:00:00.000Z')",
     [sessionId],
   );
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits
+    `INSERT OR IGNORE INTO activity_session_commits
        (session_id, commit_hash, commit_message, author, committed_at, repo_id)
      VALUES (?, ?, ?, 'a', ?, ?)`,
     [sessionId, sha, message, committedAt, repoId],

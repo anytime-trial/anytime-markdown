@@ -182,7 +182,7 @@ function computeEdges(
  *
  * trail_session_commits + trail_commit_files から Temporal Coupling を計算して返す。
  * パスフィルタは拡張機能と同一のブラックリスト方式（ロックファイル・生成物等を除外）。
- * granularity=subagentType はデータなし（message_tool_calls は 7 日制限）→ 空配列。
+ * granularity=subagentType はデータなし（activity_message_tool_calls は 7 日制限）→ 空配列。
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const query = parseCouplingQuery(request.nextUrl.searchParams);

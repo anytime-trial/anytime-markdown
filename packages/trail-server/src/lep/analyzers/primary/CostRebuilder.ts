@@ -59,7 +59,7 @@ export class CostRebuilder implements Analyzer {
       );
       // LepOrchestrator は onRunEnd の throw を analyzer 単位で errors に収集する
       // (PersistAnalyzer と同じ方針)。握りつぶすと AnalyzeAllRunner が失敗を検知できず、
-      // UI 上は成功表示なのに session_costs が古いまま残ってしまうため re-throw する。
+      // UI 上は成功表示なのに activity_session_costs が古いまま残ってしまうため re-throw する。
       throw err instanceof Error ? err : new Error(String(err));
     }
   }

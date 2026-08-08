@@ -14,7 +14,7 @@ const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb })
 const seedRelease = (db: TrailDatabase, tag: string, repoName: string): void => {
   const repoId = (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
+    `INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
     [tag, '2026-01-01T00:00:00.000Z', repoId],
   );
 };
@@ -100,7 +100,7 @@ describe('TrailDatabase repos (Phase A: repo 正規化基盤)', () => {
       seedRelease(db, 'v9', 'repo-rel');
       db.syncReposFromLegacyRepoNames();
       const expectedId = db.repoIdForName('repo-rel');
-      const res = inner(db).exec('SELECT repo_id FROM releases WHERE tag = ?', ['v9']);
+      const res = inner(db).exec('SELECT repo_id FROM activity_releases WHERE tag = ?', ['v9']);
       expect(Number(res[0]?.values?.[0]?.[0])).toBe(expectedId);
     });
 
@@ -108,7 +108,7 @@ describe('TrailDatabase repos (Phase A: repo 正規化基盤)', () => {
       seedRelease(db, 'v8', '');
       db.syncReposFromLegacyRepoNames();
       const sentinelId = db.repoIdForName('');
-      const res = inner(db).exec('SELECT repo_id FROM releases WHERE tag = ?', ['v8']);
+      const res = inner(db).exec('SELECT repo_id FROM activity_releases WHERE tag = ?', ['v8']);
       expect(Number(res[0]?.values?.[0]?.[0])).toBe(sentinelId);
     });
   });
@@ -118,7 +118,7 @@ describe('TrailDatabase repos (Phase A: repo 正規化基盤)', () => {
       seedRelease(db, 'v7', 'repo-a');
       seedRelease(db, 'v7b', 'repo-b');
       db.syncReposFromLegacyRepoNames();
-      const res = inner(db).exec('SELECT tag, release_id FROM releases ORDER BY tag');
+      const res = inner(db).exec('SELECT tag, release_id FROM activity_releases ORDER BY tag');
       const rows = res[0]?.values ?? [];
       expect(rows.length).toBe(2);
       for (const r of rows) {
@@ -134,32 +134,32 @@ describe('TrailDatabase repos (Phase A: repo 正規化基盤)', () => {
   describe('release 子テーブルの release_id FK (Phase B-2b-iii flip 後)', () => {
     // flip 後、子テーブルは旧 tag/release_tag 列を持たず release_id FK を直接保持する。
     // tag → release_id を解決して子へ書き込み、親 release_id と一致することを確認する。
-    it('release_code_graphs は release_id FK で親 release と一致する', () => {
+    it('activity_release_code_graphs は release_id FK で親 release と一致する', () => {
       seedRelease(db, 'vc', 'repo-c');
       db.syncReposFromLegacyRepoNames();
-      const rel = inner(db).exec('SELECT release_id FROM releases WHERE tag = ?', ['vc']);
+      const rel = inner(db).exec('SELECT release_id FROM activity_releases WHERE tag = ?', ['vc']);
       const relId = Number(rel[0]?.values?.[0]?.[0]);
       expect(relId).toBeGreaterThan(0);
       inner(db).run(
-        `INSERT OR IGNORE INTO release_code_graphs (release_id, graph_json, generated_at)
+        `INSERT OR IGNORE INTO activity_release_code_graphs (release_id, graph_json, generated_at)
          VALUES (?, '{}', '2026-01-01T00:00:00.000Z')`,
         [relId],
       );
-      const child = inner(db).exec('SELECT release_id FROM release_code_graphs WHERE release_id = ?', [relId]);
+      const child = inner(db).exec('SELECT release_id FROM activity_release_code_graphs WHERE release_id = ?', [relId]);
       expect(Number(child[0]?.values?.[0]?.[0])).toBe(relId);
     });
 
-    it('release_graphs も release_id FK で親 release と一致する', () => {
+    it('activity_release_graphs も release_id FK で親 release と一致する', () => {
       seedRelease(db, 'vg', 'repo-g');
       db.syncReposFromLegacyRepoNames();
-      const rel = inner(db).exec('SELECT release_id FROM releases WHERE tag = ?', ['vg']);
+      const rel = inner(db).exec('SELECT release_id FROM activity_releases WHERE tag = ?', ['vg']);
       const relId = Number(rel[0]?.values?.[0]?.[0]);
       inner(db).run(
-        `INSERT OR IGNORE INTO release_graphs (release_id, graph_json, tsconfig_path, project_root, analyzed_at)
+        `INSERT OR IGNORE INTO activity_release_graphs (release_id, graph_json, tsconfig_path, project_root, analyzed_at)
          VALUES (?, '{}', '/t/tsconfig.json', '/t', '2026-01-01T00:00:00.000Z')`,
         [relId],
       );
-      const child = inner(db).exec('SELECT release_id FROM release_graphs WHERE release_id = ?', [relId]);
+      const child = inner(db).exec('SELECT release_id FROM activity_release_graphs WHERE release_id = ?', [relId]);
       expect(Number(child[0]?.values?.[0]?.[0])).toBe(relId);
     });
   });

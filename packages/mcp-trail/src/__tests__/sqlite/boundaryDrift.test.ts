@@ -13,17 +13,17 @@ const NEW_RUN = '2026-08-02T00:00:00.000Z';
 function createDb(): Database {
   const db = new BetterSqlite3(':memory:');
   db.exec(
-    `CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)`,
+    `CREATE TABLE activity_repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)`,
   );
   db.exec(CREATE_BOUNDARY_DRIFT_WARNINGS);
   db.exec(CREATE_BOUNDARY_DRIFT_RUNS);
   for (const idx of CREATE_BOUNDARY_DRIFT_INDEXES) db.exec(idx);
-  db.prepare('INSERT INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)').run(
+  db.prepare('INSERT INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)').run(
     1,
     'anytime-markdown',
     NEW_RUN,
   );
-  db.prepare('INSERT INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)').run(
+  db.prepare('INSERT INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)').run(
     2,
     'other-repo',
     NEW_RUN,
@@ -37,7 +37,7 @@ function insertRun(
   args: { repoId?: number; detectedAt?: string; warningCount?: number; nodeCount?: number },
 ): void {
   db.prepare(
-    `INSERT INTO boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
+    `INSERT INTO activity_boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(repo_id, detected_at) DO UPDATE SET warning_count = warning_count + excluded.warning_count`,
   ).run(args.repoId ?? 1, args.detectedAt ?? NEW_RUN, args.warningCount ?? 0, args.nodeCount ?? 100);
@@ -49,7 +49,7 @@ function insertSpanning(
 ): void {
   insertRun(db, { ...args, warningCount: 1 });
   db.prepare(
-    `INSERT INTO boundary_drift_warnings
+    `INSERT INTO activity_boundary_drift_warnings
        (repo_id, detected_at, kind, target_key, stable_key, span_count, dominance,
         community_count, node_count, severity, breakdown_json)
      VALUES (?, ?, 'boundary_spanning', ?, ?, ?, 0.4, NULL, 10, ?, ?)`,
@@ -70,7 +70,7 @@ function insertFragmentation(
 ): void {
   insertRun(db, { ...args, warningCount: 1 });
   db.prepare(
-    `INSERT INTO boundary_drift_warnings
+    `INSERT INTO activity_boundary_drift_warnings
        (repo_id, detected_at, kind, target_key, stable_key, span_count, dominance,
         community_count, node_count, severity, breakdown_json)
      VALUES (?, ?, 'package_fragmentation', ?, '', NULL, NULL, 12, 40, ?, ?)`,

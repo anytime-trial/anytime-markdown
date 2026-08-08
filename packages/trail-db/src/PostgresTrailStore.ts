@@ -24,7 +24,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
 
   async unsafeClearAll(): Promise<void> {
     const pool = this.ensurePool();
-    // CASCADE により messages / session_commits / session_costs / release_files も消える
+    // CASCADE により messages / activity_session_commits / activity_session_costs / activity_release_files も消える
     await pool.query('DELETE FROM trail_sessions');
     await pool.query('DELETE FROM trail_releases');
     await pool.query('DELETE FROM trail_daily_counts');

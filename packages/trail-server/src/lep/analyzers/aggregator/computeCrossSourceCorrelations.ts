@@ -19,7 +19,7 @@ export interface CrossSourceInput {
   readonly commitFiles: readonly CorrelationCommitFile[];
 }
 
-/** 相関の時間窓 (日)。CrossSourceCorrelator の session_commits 範囲フィルタとも共有する。 */
+/** 相関の時間窓 (日)。CrossSourceCorrelator の activity_session_commits 範囲フィルタとも共有する。 */
 export const DEFAULT_WINDOW_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
 

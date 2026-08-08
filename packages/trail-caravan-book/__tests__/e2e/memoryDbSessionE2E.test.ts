@@ -20,16 +20,16 @@ const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const db = BetterSqlite3MemoryDb.openInMemory();
   db.run('PRAGMA foreign_keys = ON');
-  db.run(`CREATE TABLE sessions (
+  db.run(`CREATE TABLE activity_sessions (
     id TEXT PRIMARY KEY, slug TEXT NOT NULL DEFAULT '', repo_name TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT 'claude_code'
       CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
-  // レビュー取込が参照する列まで含めた最小 fixture（本番 trail.messages は 37 列）。
+  // レビュー取込が参照する列まで含めた最小 fixture（本番 trail.activity_messages は 37 列）。
   // tool_calls / subagent_type / skill が欠けると parseReviewSessions の SELECT が
   // SQL エラーになり、失敗が catch で握り潰されて経路ごと黙って死ぬ。
-  db.run(`CREATE TABLE messages (
-    uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  db.run(`CREATE TABLE activity_messages (
+    uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
     type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT,
     tool_calls TEXT, subagent_type TEXT, skill TEXT,
     is_sidechain INTEGER NOT NULL DEFAULT 0
@@ -38,13 +38,13 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertPair(db: BetterSqlite3MemoryDb, sid: string, ts: string, userText: string): void {
-  db.run(`INSERT INTO sessions (id) VALUES (?)`, [sid]);
+  db.run(`INSERT INTO activity_sessions (id) VALUES (?)`, [sid]);
   db.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content) VALUES (?,?,?,?,?,?)`,
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content) VALUES (?,?,?,?,?,?)`,
     [`${sid}-u`, sid, 'user', ts, null, userText],
   );
   db.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content) VALUES (?,?,?,?,?,?)`,
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content) VALUES (?,?,?,?,?,?)`,
     [`${sid}-a`, sid, 'assistant', ts.replace('00.000', '30.000'), 'ok', null],
   );
 }

@@ -113,7 +113,7 @@ describe('FlightRecordDatabase flight reviews (caravan_flight_reviews)', () => {
 });
 
 describe('FlightRecordDatabase flight reviews S2 (self assessment / lesson candidates)', () => {
-  // NOTE: 旧 TrailDatabase.flightReview.test.ts の S2 ブロックには user_feedback_entries
+  // NOTE: 旧 TrailDatabase.flightReview.test.ts の S2 ブロックには activity_user_feedback_entries
   // （recordUserFeedbackEntry / listUserFeedbackEntries）のテストも含まれていたが、この
   // テーブルは Flight Record 3 テーブル（instructions / caravan_instruction_sessions /
   // caravan_flight_reviews）の移設対象に含まれておらず、FlightRecordDatabase にメソッドが無い

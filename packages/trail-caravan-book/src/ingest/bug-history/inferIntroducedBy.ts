@@ -50,7 +50,7 @@ function parseBlameSha(blameOutput: string): string | null {
 function isFix(db: MemoryDbConnection, sha: string): boolean {
   try {
     const result = db.exec(
-      `SELECT commit_message FROM trail.session_commits WHERE commit_hash = ? LIMIT 1`,
+      `SELECT commit_message FROM trail.activity_session_commits WHERE commit_hash = ? LIMIT 1`,
       [sha]
     );
     const msg = result[0]?.values?.[0]?.[0] as string | undefined;

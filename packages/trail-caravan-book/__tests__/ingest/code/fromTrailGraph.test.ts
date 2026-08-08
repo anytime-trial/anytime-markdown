@@ -22,20 +22,20 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
   return db;
 }
 
-// Phase H-3: trail.current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、
+// Phase H-3: trail.activity_current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、
 // fixture も repos + repo_id PK スキーマで作る。repo_name は repos 経由で JOIN 解決される。
 function makeTrailDb(): BetterSqlite3MemoryDb {
   const trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run(`
-    CREATE TABLE repos (
+    CREATE TABLE activity_repos (
       repo_id    INTEGER PRIMARY KEY,
       repo_name  TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
     ) STRICT
   `);
   trailDb.run(`
-    CREATE TABLE current_code_graphs (
-      repo_id      INTEGER PRIMARY KEY REFERENCES repos(repo_id) ON DELETE CASCADE,
+    CREATE TABLE activity_current_code_graphs (
+      repo_id      INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
       graph_json   TEXT NOT NULL,
       generated_at TEXT NOT NULL,
       updated_at   TEXT NOT NULL
@@ -47,10 +47,10 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 /** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
 function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
   trailDb.run(
-    `INSERT INTO repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
     [repoName, RECORDED_AT]
   );
-  const stmt = trailDb.prepare('SELECT repo_id FROM repos WHERE repo_name = ?');
+  const stmt = trailDb.prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?');
   try {
     const row = stmt.get(repoName);
     return Number(row?.['repo_id'] ?? 0);
@@ -101,7 +101,7 @@ function insertGraph(
 
   const repoId = trailRepoId(trailDb, repoName);
   trailDb.run(
-    `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+    `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(repo_id) DO UPDATE SET graph_json = excluded.graph_json`,
     [repoId, graphJson, RECORDED_AT, RECORDED_AT]
@@ -302,7 +302,7 @@ describe('fromTrailGraph', () => {
   }, 30000);
 
   // ── FTG-6: edge source_type = 'code' ─────────────────────────────────────
-  test('FTG-6: edges have source_type = "code" and source_ref = "current_code_graphs#<repo>"', async () => {
+  test('FTG-6: edges have source_type = "code" and source_ref = "activity_current_code_graphs#<repo>"', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
 
@@ -325,7 +325,7 @@ describe('fromTrailGraph', () => {
     expect(edgeRows[0]?.values).toHaveLength(1);
     const [sourceType, sourceRef, predicate] = edgeRows[0].values[0];
     expect(sourceType).toBe('code');
-    expect(sourceRef).toBe('current_code_graphs#my-repo');
+    expect(sourceRef).toBe('activity_current_code_graphs#my-repo');
     expect(predicate).toBe('relates_to');
 
     trailDb.close();
@@ -408,7 +408,7 @@ describe('fromTrailGraph', () => {
       godNodes: [],
     });
     trailDb.run(
-      `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+      `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, ?)`,
       [trailRepoId(trailDb, 'my-repo'), graphJson, GENERATED_AT, RECORDED_AT]
     );
@@ -503,7 +503,7 @@ describe('fromTrailGraph', () => {
     const trailDb = makeTrailDb();
 
     trailDb.run(
-      `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+      `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, ?)`,
       [trailRepoId(trailDb, 'bad-json-repo'), 'NOT VALID JSON {{{{', RECORDED_AT, RECORDED_AT]
     );
@@ -558,7 +558,7 @@ describe('fromTrailGraph', () => {
       godNodes: [],
     });
     trailDb.run(
-      `INSERT INTO current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+      `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, ?)`,
       [trailRepoId(trailDb, 'fallback-repo'), graphJson, RECORDED_AT, RECORDED_AT]
     );

@@ -11,7 +11,7 @@ function makeDb(): SqlJsCompatDatabase {
 
   // Minimal sessions table (FK target)
   db.run(`
-    CREATE TABLE sessions (
+    CREATE TABLE activity_sessions (
       id TEXT PRIMARY KEY,
       slug TEXT,
       repo_name TEXT NOT NULL DEFAULT '',
@@ -29,7 +29,7 @@ function makeDb(): SqlJsCompatDatabase {
 
   // messages table (source data)
   db.run(`
-    CREATE TABLE messages (
+    CREATE TABLE activity_messages (
       uuid TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -48,9 +48,9 @@ function makeDb(): SqlJsCompatDatabase {
     ) STRICT
   `);
 
-  // message_tool_calls table (destination)
+  // activity_message_tool_calls table (destination)
   db.run(`
-    CREATE TABLE message_tool_calls (
+    CREATE TABLE activity_message_tool_calls (
       session_id TEXT NOT NULL,
       message_uuid TEXT NOT NULL,
       turn_index INTEGER NOT NULL,
@@ -75,7 +75,7 @@ function makeDb(): SqlJsCompatDatabase {
 
 function insertSession(db: SqlJsCompatDatabase, id: string): void {
   db.run(
-    `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '', '', '', '', '', 0, '', 0, '')`,
+    `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '', '', '', '', '', 0, '', 0, '')`,
     [id, id],
   );
 }
@@ -96,7 +96,7 @@ function insertMessage(
   },
 ): void {
   db.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, tool_calls, tool_use_result, model, skill, is_sidechain, parent_uuid)
+    `INSERT INTO activity_messages (uuid, session_id, type, timestamp, tool_calls, tool_use_result, model, skill, is_sidechain, parent_uuid)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       opts.uuid,
@@ -119,7 +119,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     insertSession(db, 's1');
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
-    const result = db.exec('SELECT COUNT(*) AS c FROM message_tool_calls');
+    const result = db.exec('SELECT COUNT(*) AS c FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(0);
     db.close();
   });
@@ -136,7 +136,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     });
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
-    const result = db.exec('SELECT COUNT(*) AS c FROM message_tool_calls');
+    const result = db.exec('SELECT COUNT(*) AS c FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(0);
     db.close();
   });
@@ -160,7 +160,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     analyzer.analyze('s1', db);
 
     const result = db.exec(
-      'SELECT tool_name, call_index FROM message_tool_calls ORDER BY call_index',
+      'SELECT tool_name, call_index FROM activity_message_tool_calls ORDER BY call_index',
     );
     expect(result[0].values).toEqual([
       ['Read', 0],
@@ -182,7 +182,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
 
-    const result = db.exec('SELECT file_path FROM message_tool_calls');
+    const result = db.exec('SELECT file_path FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe('src/index.ts');
     db.close();
   });
@@ -213,7 +213,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
 
-    const result = db.exec('SELECT is_error, error_type FROM message_tool_calls');
+    const result = db.exec('SELECT is_error, error_type FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(1);
     // error_type should be non-null
     expect(result[0].values[0][1]).not.toBeNull();
@@ -242,7 +242,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     });
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
-    const result = db.exec('SELECT is_error, error_type FROM message_tool_calls');
+    const result = db.exec('SELECT is_error, error_type FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(0);
     expect(result[0].values[0][1]).toBeNull();
     db.close();
@@ -268,7 +268,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     });
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
-    const result = db.exec('SELECT turn_exec_ms FROM message_tool_calls');
+    const result = db.exec('SELECT turn_exec_ms FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(2000);
     db.close();
   });
@@ -278,12 +278,12 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     insertSession(db, 's1');
     // Insert with invalid JSON for tool_calls
     db.run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp, tool_calls, is_sidechain)
+      `INSERT INTO activity_messages (uuid, session_id, type, timestamp, tool_calls, is_sidechain)
        VALUES ('m1', 's1', 'assistant', '2026-04-29T00:00:00.000Z', 'NOT-VALID-JSON', 0)`,
     );
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     expect(() => analyzer.analyze('s1', db)).not.toThrow();
-    const result = db.exec('SELECT COUNT(*) AS c FROM message_tool_calls');
+    const result = db.exec('SELECT COUNT(*) AS c FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(0);
     db.close();
   });
@@ -300,13 +300,13 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     });
     // User message with invalid tool_use_result JSON
     db.run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp, tool_use_result, parent_uuid, is_sidechain)
+      `INSERT INTO activity_messages (uuid, session_id, type, timestamp, tool_use_result, parent_uuid, is_sidechain)
        VALUES ('m2', 's1', 'user', '2026-04-29T00:00:01.000Z', 'INVALID-JSON', 'm1', 0)`,
     );
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     expect(() => analyzer.analyze('s1', db)).not.toThrow();
     // Row should still be inserted (just without error info)
-    const result = db.exec('SELECT COUNT(*) AS c FROM message_tool_calls');
+    const result = db.exec('SELECT COUNT(*) AS c FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(1);
     db.close();
   });
@@ -324,7 +324,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
     analyzer.analyze('s1', db); // second call should be no-op
-    const result = db.exec('SELECT COUNT(*) AS c FROM message_tool_calls');
+    const result = db.exec('SELECT COUNT(*) AS c FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(1);
     db.close();
   });
@@ -341,14 +341,14 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     });
     // Non-array tool_use_result
     db.run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp, tool_use_result, parent_uuid, is_sidechain)
+      `INSERT INTO activity_messages (uuid, session_id, type, timestamp, tool_use_result, parent_uuid, is_sidechain)
        VALUES ('m2', 's1', 'user', '2026-04-29T00:00:01.000Z',
          '{"type":"tool_result","tool_use_id":"c1","is_error":false,"content":"ok"}',
          'm1', 0)`,
     );
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
-    const result = db.exec('SELECT is_error FROM message_tool_calls');
+    const result = db.exec('SELECT is_error FROM activity_message_tool_calls');
     expect(result[0].values[0][0]).toBe(0);
     db.close();
   });
@@ -375,7 +375,7 @@ describe('ClaudeCodeBehaviorAnalyzer', () => {
     const analyzer = new ClaudeCodeBehaviorAnalyzer();
     analyzer.analyze('s1', db);
     const result = db.exec(
-      'SELECT message_uuid, turn_index FROM message_tool_calls ORDER BY turn_index',
+      'SELECT message_uuid, turn_index FROM activity_message_tool_calls ORDER BY turn_index',
     );
     expect(result[0].values[0]).toEqual(['m1', 0]);
     expect(result[0].values[1]).toEqual(['m2', 1]);

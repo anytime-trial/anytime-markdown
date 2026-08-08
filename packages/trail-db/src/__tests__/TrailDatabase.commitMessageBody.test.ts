@@ -7,7 +7,7 @@ import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
 
 /**
- * `session_commits.commit_message` はフルメッセージ（件名＋本文）を保持する。
+ * `activity_session_commits.commit_message` はフルメッセージ（件名＋本文）を保持する。
  *
  * 件名だけを格納していると、コミット本文から決定根拠を取り出す
  * `extractCommitRationale` が全件 skip し、Rationale Audit の監査対象が
@@ -25,7 +25,7 @@ const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb })
 
 const insertSession = (db: TrailDatabase, sessionId: string, startTime: string, endTime: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, ?, 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, ?, 0, '', 0, '')`,
     [sessionId, sessionId, startTime, endTime],
   );
 };
@@ -50,7 +50,7 @@ const commit = (dir: string, fileName: string, message: string, date: string): s
 
 const getCommitMessage = (db: TrailDatabase, sessionId: string, hash: string): string => {
   const r = inner(db).exec(
-    `SELECT commit_message FROM session_commits WHERE session_id = ? AND commit_hash = ?`,
+    `SELECT commit_message FROM activity_session_commits WHERE session_id = ? AND commit_hash = ?`,
     [sessionId, hash],
   );
   return String(r[0]?.values[0]?.[0] ?? '');
@@ -61,7 +61,7 @@ const resolve = (db: TrailDatabase, sessionId: string, dir: string, repo: string
     resolveCommits: (sid: string, gitRoot: string, repoName: string) => number;
   }).resolveCommits(sessionId, dir, repo);
 
-describe('session_commits.commit_message はフルメッセージを保持する', () => {
+describe('activity_session_commits.commit_message はフルメッセージを保持する', () => {
   let db: TrailDatabase;
   let tmpRoot: string;
   const sessionId = '22222222-2222-4222-8222-222222222222';

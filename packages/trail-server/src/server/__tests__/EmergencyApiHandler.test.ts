@@ -203,7 +203,7 @@ describe('EmergencyApiHandler', () => {
   });
 
   describe('POST /api/trail/emergency/kill-switch', () => {
-    it('台帳を発動状態で書き、emergency_log へ human/trail-viewer 経路を記録する', async () => {
+    it('台帳を発動状態で書き、activity_emergency_log へ human/trail-viewer 経路を記録する', async () => {
       const captured: CapturedResponse = { status: 0, body: undefined };
       await handler.handleKillSwitch(createPostRequest({ reason: 'runaway' }), createResponse(captured));
       await settle();
@@ -308,7 +308,7 @@ describe('EmergencyApiHandler', () => {
 
     it('記録済みでも git から消えた commit（GC 済み）は 404（何も変更しない）', async () => {
       const gone = 'a'.repeat(40);
-      // safe_points には残るが git には存在しない、という pre-mortem のシナリオ
+      // activity_safe_points には残るが git には存在しない、という pre-mortem のシナリオ
       const staleDb = new EmergencyApiHandler(fakeTrailDb([{ commitHash: gone }]), silentLogger, {
         gitRepoRoot: repoRoot,
       });
@@ -326,7 +326,7 @@ describe('EmergencyApiHandler', () => {
 
   describe('セーフポイント境界（cross-review 合意指摘）', () => {
     it('記録済みセーフポイント以外の commit へは switch しない', async () => {
-      // 別コミットを作る（git 上は実在するが safe_points には無い）
+      // 別コミットを作る（git 上は実在するが activity_safe_points には無い）
       fs.writeFileSync(path.join(repoRoot, 'b.txt'), 'other\n');
       runGit(['add', '.'], repoRoot);
       runGit(['commit', '-m', 'other'], repoRoot);

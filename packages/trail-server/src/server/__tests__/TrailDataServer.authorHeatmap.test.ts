@@ -22,17 +22,17 @@ function seedCommit(
   const inner = (db as unknown as { db: SqlJsDb }).db;
   const repoId = repoIdOf(db);
   inner.run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, repo_id)
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, repo_id)
      VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '', ?)`,
     [args.sessionId, args.sessionId, repoId],
   );
   inner.run(
-    `INSERT OR IGNORE INTO session_commits (session_id, repo_id, commit_hash, commit_message, committed_at, author)
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, repo_id, commit_hash, commit_message, committed_at, author)
      VALUES (?, ?, ?, '', ?, 'ueda')`,
     [args.sessionId, repoId, args.hash, args.at],
   );
   inner.run(
-    `INSERT OR IGNORE INTO commit_files (repo_id, commit_hash, file_path) VALUES (?, ?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (repo_id, commit_hash, file_path) VALUES (?, ?, ?)`,
     [repoId, args.hash, args.filePath],
   );
 }

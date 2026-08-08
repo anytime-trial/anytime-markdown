@@ -109,18 +109,18 @@ beforeAll(async () => {
   memDb.run('PRAGMA foreign_keys = ON');
   runMigrations(memDb);
 
-  // 4. Create synthetic trail DB with c4_manual_elements
+  // 4. Create synthetic trail DB with activity_c4_manual_elements
   trailDb = BetterSqlite3MemoryDb.openInMemory();
   trailDb.run('PRAGMA foreign_keys = ON');
   trailDb.run(
-    `CREATE TABLE c4_manual_elements (
+    `CREATE TABLE activity_c4_manual_elements (
        id TEXT NOT NULL,
        name TEXT NOT NULL DEFAULT '',
        description TEXT NOT NULL DEFAULT ''
      ) STRICT`
   );
   trailDb.run(
-    `INSERT INTO c4_manual_elements (id, name, description) VALUES (?, ?, ?)`,
+    `INSERT INTO activity_c4_manual_elements (id, name, description) VALUES (?, ?, ?)`,
     ['pkg_trail-caravan-book', 'trail-caravan-book', '']
   );
 
