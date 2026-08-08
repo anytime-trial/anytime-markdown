@@ -2154,9 +2154,8 @@ export class TrailDataServer {
       return;
     }
     try {
-      const rows = tag === 'current'
-        ? this.trailDb.getCurrentFileAnalysis(repoName)
-        : this.trailDb.getReleaseFileAnalysis(tag, repoName);
+      // release 分析 (release_file_analysis) は 2026-08-08 に廃止。current 以外のタグは空で返す。
+      const rows = tag === 'current' ? this.trailDb.getCurrentFileAnalysis(repoName) : [];
 
       // C4 model 取得
       const store = this.trailDb.asC4ModelStore();
@@ -2179,9 +2178,7 @@ export class TrailDataServer {
       const centrality = aggregateCentralityToC4(centralityFileScores, elements);
 
       // functionRoles 集計
-      const fnRows = tag === 'current'
-        ? this.trailDb.getCurrentFunctionAnalysis(repoName)
-        : this.trailDb.getReleaseFunctionAnalysis(tag, repoName);
+      const fnRows = tag === 'current' ? this.trailDb.getCurrentFunctionAnalysis(repoName) : [];
       const classified: ClassifiedFunction[] = fnRows.map((r) => ({
         filePath: r.filePath,
         functionName: r.functionName,
@@ -2230,9 +2227,8 @@ export class TrailDataServer {
       return;
     }
     try {
-      const rows = tag === 'current'
-        ? this.trailDb.getCurrentFunctionAnalysis(repoName)
-        : this.trailDb.getReleaseFunctionAnalysis(tag, repoName);
+      // release 分析 (release_function_analysis) は 2026-08-08 に廃止。current 以外のタグは空で返す。
+      const rows = tag === 'current' ? this.trailDb.getCurrentFunctionAnalysis(repoName) : [];
 
       const entries = rows.map((r) => ({
         filePath: r.filePath,

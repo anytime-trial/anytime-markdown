@@ -175,12 +175,12 @@ describe('runPipelineWatchdog', () => {
 
     db.close();
   });
-  it("wave='system' の run は古くても timeout 扱いにしない", async () => {
-    // リグレッション: daemon の生存期間を表す system run は進捗を刻む対象を持たず
-    // heartbeat が進まない。通常 run と同条件で失効させると、正常稼働中の daemon が
-    // 起動 10 分後に必ず 'timeout' で失敗扱いになり、台帳に偽のエラーが積み上がる。
+  it("wave='system' の run は systemTimeoutMinutes 以内なら timeout 扱いにしない", async () => {
+    // daemon の生存期間を表す system run は heartbeat 間隔が通常 run より粗い（5 分毎）。
+    // 通常 run の timeoutMinutes (10 分) と同条件で失効させると、正常稼働中の daemon が
+    // 偽 'timeout' になるため、長い systemTimeoutMinutes (既定 30 分) で判定する。
     const db = await makeMemoryDb();
-    const longAgo = new Date(Date.now() - 120 * 60_000).toISOString();
+    const twentyMinAgo = new Date(Date.now() - 20 * 60_000).toISOString();
     db.run(
       `INSERT INTO pipeline_runs
          (id, scope, wave, tier, started_at, status,
@@ -188,10 +188,10 @@ describe('runPipelineWatchdog', () => {
           edges_inserted, edges_invalidated, drifts_detected,
           items_failed, duration_ms)
        VALUES ('run_system', 'daemon_session', 'system', 0, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-      [longAgo],
+      [twentyMinAgo],
     );
     // 比較対象: 同じだけ古い通常 run は従来どおり失効する
-    insertRunningRun(db, 'run_normal', 'conversation_incremental', longAgo);
+    insertRunningRun(db, 'run_normal', 'conversation_incremental', twentyMinAgo);
 
     const result = runPipelineWatchdog({ db, timeoutMinutes: 10, logger: silentLogger });
 
@@ -201,6 +201,45 @@ describe('runPipelineWatchdog', () => {
     expect(systemRow[0]?.values[0]?.[1]).toBe('');
     const normalRow = db.exec(`SELECT status FROM pipeline_runs WHERE id = 'run_normal'`);
     expect(normalRow[0]?.values[0]?.[0]).toBe('error');
+
+    db.close();
+  });
+
+  it("wave='system' の run も heartbeat が systemTimeoutMinutes を超えて止まればゴーストとして回収する", async () => {
+    // リグレッション (2026-08-08 監査): shutdown の finish() を通らず死んだ daemon の
+    // daemon_session run が 'running' のまま恒久残留していた（ゴースト 4 件）。
+    // daemon は 5 分毎に heartbeat を打つため、長時間止まった run は死んだと判定できる。
+    const db = await makeMemoryDb();
+    const twoHoursAgo = new Date(Date.now() - 120 * 60_000).toISOString();
+    db.run(
+      `INSERT INTO pipeline_runs
+         (id, scope, wave, tier, started_at, status,
+          items_processed, entities_inserted, entities_updated,
+          edges_inserted, edges_invalidated, drifts_detected,
+          items_failed, duration_ms)
+       VALUES ('run_ghost', 'daemon_session', 'system', 0, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
+      [twoHoursAgo],
+    );
+    // heartbeat が生きている system run は開始が古くても回収しない
+    db.run(
+      `INSERT INTO pipeline_runs
+         (id, scope, wave, tier, started_at, status,
+          items_processed, entities_inserted, entities_updated,
+          edges_inserted, edges_invalidated, drifts_detected,
+          items_failed, duration_ms)
+       VALUES ('run_alive', 'daemon_session', 'system', 0, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
+      [twoHoursAgo],
+    );
+    setHeartbeat(db, 'run_alive', new Date(Date.now() - 2 * 60_000).toISOString());
+
+    const result = runPipelineWatchdog({ db, timeoutMinutes: 10, logger: silentLogger });
+
+    expect(result.stale_runs).toBe(1);
+    const ghostRow = db.exec(`SELECT status, error_detail FROM pipeline_runs WHERE id = 'run_ghost'`);
+    expect(ghostRow[0]?.values[0]?.[0]).toBe('error');
+    expect(ghostRow[0]?.values[0]?.[1]).toBe('timeout');
+    const aliveRow = db.exec(`SELECT status FROM pipeline_runs WHERE id = 'run_alive'`);
+    expect(aliveRow[0]?.values[0]?.[0]).toBe('running');
 
     db.close();
   });

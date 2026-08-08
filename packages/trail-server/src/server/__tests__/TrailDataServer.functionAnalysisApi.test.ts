@@ -115,9 +115,9 @@ describe('GET /api/c4/function-analysis', () => {
     expect(unused?.signals.fanInZero).toBe(true);
   });
 
-  it('tag=current uses getCurrentFunctionAnalysis; other tag uses getReleaseFunctionAnalysis', async () => {
+  it('tag=current uses getCurrentFunctionAnalysis; other tag returns empty (release 分析は 2026-08-08 廃止)', async () => {
     db.upsertCurrentFunctionAnalysis([sampleFn('packages/a/current.ts', 'fn', 1, 2)]);
-    // release table is empty → different tag returns empty entries
+    // release 分析は廃止済み → current 以外のタグは常に空 entries
 
     const resCurrent = await fetch(`http://127.0.0.1:${port}/api/c4/function-analysis?repo=repo&tag=current`);
     expect(resCurrent.status).toBe(200);

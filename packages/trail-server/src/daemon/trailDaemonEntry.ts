@@ -196,6 +196,12 @@ let httpChatBridge: ChatBridge | null = null;
 let httpLogLedgerDb: MemoryCoreDb | null = null;
 /** daemon の生存期間を表す wave='system' の run。disposeAll() で閉じる。 */
 let httpSystemRunLedger: PipelineRunLedger | null = null;
+// daemon_session run の生存証明。これが止まったまま systemTimeoutMinutes を超えると
+// pipelineWatchdog が run をゴーストとして回収する（クラッシュ時の 'running' 恒久残留対策）。
+// 間隔は memory-core pipelineWatchdog の systemTimeoutMinutes 既定 30 分と結合しており、
+// 「間隔 × 3 <= 閾値」を割ると正常稼働中の daemon が偽 timeout になる。変更時は両方を見る。
+let httpSystemRunHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+const SYSTEM_RUN_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 /**
  * Wave 1/2/4 の実行台帳ファクトリ。LogService と同じ memory-core.db 接続を共有するため
  * startHttpServer() で確定し、その後の rebuildAnalyzeAllRunner() が LepOrchestrator へ注入する。
@@ -415,6 +421,15 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     });
     const systemRunId = systemRunLedger.start();
     httpSystemRunLedger = systemRunLedger;
+    // 生存 heartbeat。shutdown で finish() できずに死んだ場合も watchdog が回収できるようにする。
+    httpSystemRunHeartbeatTimer = setInterval(() => {
+      try {
+        systemRunLedger.heartbeat();
+      } catch (err) {
+        daemonLogger.error(`[daemon] system run heartbeat error: ${formatError(err)}`);
+      }
+    }, SYSTEM_RUN_HEARTBEAT_INTERVAL_MS);
+    httpSystemRunHeartbeatTimer.unref?.();
     const logService = new LogService(logLedgerDb, systemRunId);
     server.setLogService(logService);
     httpLogLedgerDb = logLedgerCoreDb;
@@ -667,9 +682,13 @@ async function disposeAll(): Promise<void> {
     }
     httpServer = null;
   }
+  if (httpSystemRunHeartbeatTimer) {
+    clearInterval(httpSystemRunHeartbeatTimer);
+    httpSystemRunHeartbeatTimer = null;
+  }
   if (httpSystemRunLedger) {
-    // system run を正常終了として閉じる。閉じないと status='running' のまま残る
-    // （watchdog は system wave を失効させないため自動では回収されない）。
+    // system run を正常終了として閉じる。閉じずに死んだ場合は heartbeat の停止を
+    // pipelineWatchdog (systemTimeoutMinutes) が検知して回収する。
     try {
       httpSystemRunLedger.finish('success');
     } catch (err) {
