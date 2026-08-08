@@ -239,11 +239,17 @@ export function mountKnowledgeGraphPanel(
     bbox: ViewportBox | null,
     viewportDriven: boolean,
   ): void {
-    data = json;
-    availableTypes = json.availableTypes;
     fetchedBbox = bbox;
     // サーバが視野を無視した（座標が無い）なら、以後の視野駆動は無意味なので止める
     if (bbox !== null && json.bboxApplied === false) viewportFetchEnabled = false;
+    availableTypes = json.availableTypes;
+    if (viewportDriven && json.nodes.length === 0) {
+      // 何も無い場所へパンしただけ。図を消すと canvas ごと隠れて、パンで戻ることも
+      // 取り直すこともできなくなる（「0 件」表示のまま操作不能になる）。座標は世界座標
+      // なので、今の図を残しておけばその領域は自然に空白として見える。
+      return;
+    }
+    data = json;
     loadState = json.nodes.length === 0 ? 'empty' : 'ready';
     if (loadState !== 'ready') return;
     syncViewer(buildKnowledgeGraphCoocFile(json, new Date().toISOString()), viewportDriven);

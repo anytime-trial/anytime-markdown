@@ -274,6 +274,33 @@ describe('mountKnowledgeGraphPanel — viewport-driven delivery', () => {
     handle.destroy();
   });
 
+  it('keeps the current figure when the viewport lands on empty space', async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ ...SAMPLE, bboxApplied: true }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    const viewerHost = container.querySelector<HTMLElement>('[data-am-kg-viewer]');
+
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, nodes: [], links: [], clusters: [], bboxApplied: true }));
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 900, minY: 900, maxX: 1000, maxY: 1000 });
+    await flush();
+
+    // 図を消すと canvas ごと隠れ、パンで戻ることも取り直すこともできなくなる
+    expect(viewerHost?.hidden).toBe(false);
+    expect(viewerHandleMock.update).not.toHaveBeenCalled();
+
+    // 戻ってこられること（視野駆動が止まっていない）
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    await flush();
+    expect(viewerHandleMock.update).toHaveBeenCalledWith({
+      file: expect.anything(),
+      preserveViewport: true,
+    });
+    handle.destroy();
+  });
+
   it('drops the viewport when the user changes a filter (操作は全体へ戻す)', async () => {
     fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
     const handle = mountKnowledgeGraphPanel(container, makeProps());
