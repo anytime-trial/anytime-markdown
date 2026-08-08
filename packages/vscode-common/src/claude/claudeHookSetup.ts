@@ -120,7 +120,7 @@ exit 0
 
 // user-feedback.sh — UserPromptSubmit フック。「前の出力を修正する指示」をプレフィルタで検知した
 // 場合のみ trail サーバへ POST する（毎プロンプト送信はしない）。Phase 6 S2 (User Feedback Logging)。
-// 判定の正本は trail-core の detectUserFeedback（サーバ側で再判定・不一致は破棄）。
+// 判定の正本は trail-activity の detectUserFeedback（サーバ側で再判定・不一致は破棄）。
 // ここのプレフィルタ正規表現はその軽量複製で、パターン変更時は両方を更新する。
 // サーバ未起動・タイムアウトは silent skip（常に exit 0・fail-open）。
 function userFeedbackScriptContent(port: number): string {

@@ -592,8 +592,8 @@ describe('listCommunityNodesDirect', () => {
   it('複数コミュニティを communityId 昇順・nodes id 昇順でグループ化する', () => {
     const db = createTestDb();
     insertGraph(db, REPO, [
-      { id: 'trail-core/src/coverage/zNode', label: 'zNode', package: 'trail-core', community: 5 },
-      { id: 'trail-core/src/coverage/aggregateCoverage', label: 'aggregateCoverage', package: 'trail-core', community: 5 },
+      { id: 'trail-activity/src/coverage/zNode', label: 'zNode', package: 'trail-activity', community: 5 },
+      { id: 'trail-activity/src/coverage/aggregateCoverage', label: 'aggregateCoverage', package: 'trail-activity', community: 5 },
       { id: 'trail-viewer/src/hooks/useCoverage', label: 'useCoverage', package: 'trail-viewer', community: 3 },
       { id: 'trail-viewer/src/hooks/useDiff', label: 'useDiff', package: 'trail-viewer', community: 3 },
       { id: 'markdown-core/src/parse', label: 'parse', package: 'markdown-core', community: 1 },
@@ -603,13 +603,13 @@ describe('listCommunityNodesDirect', () => {
     expect(communities.map((c) => c.communityId)).toEqual([1, 3, 5]);
     const c5 = communities.find((c) => c.communityId === 5)!;
     expect(c5.nodes.map((n) => n.id)).toEqual([
-      'trail-core/src/coverage/aggregateCoverage',
-      'trail-core/src/coverage/zNode',
+      'trail-activity/src/coverage/aggregateCoverage',
+      'trail-activity/src/coverage/zNode',
     ]);
     expect(c5.nodes[0]).toEqual({
-      id: 'trail-core/src/coverage/aggregateCoverage',
+      id: 'trail-activity/src/coverage/aggregateCoverage',
       label: 'aggregateCoverage',
-      package: 'trail-core',
+      package: 'trail-activity',
     });
     db.close();
   });

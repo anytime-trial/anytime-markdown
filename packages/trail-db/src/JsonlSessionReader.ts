@@ -2,7 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { TrailMessage, TrailToolCall } from '@anytime-markdown/trail-core';
+import type { TrailMessage, TrailToolCall } from '@anytime-markdown/trail-activity';
 
 import { codexMessageUuid, extractCodexSessionId } from './codexMessageUuid';
 

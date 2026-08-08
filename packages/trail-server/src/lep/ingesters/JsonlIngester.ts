@@ -6,7 +6,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 

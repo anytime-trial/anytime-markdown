@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as vscode from 'vscode';
-import type { PipelineStatusFile, PipelineStatusEntry, PipelineState } from '@anytime-markdown/memory-core';
+import type { PipelineStatusFile, PipelineStatusEntry, PipelineState } from '@anytime-markdown/trail-caravan-book';
 import type { ImportAllPhase } from '@anytime-markdown/trail-db';
 import { readImportAllPhaseStatus } from '@anytime-markdown/trail-server/jobs';
 import { formatLocalDateTime } from '@anytime-markdown/vscode-common';
@@ -38,7 +38,7 @@ const STATIC_ENTRY_DESCRIPTION = '—';
  * 折りたたみ可能な Wave グループ (親ノード) のラベル。LEP の tier (Wave) モデルに対応する:
  * - `Wave 1 · sources`: ingester 群 (tier=1)。ライブ状態は持たず名称のみ静的表示
  * - `Wave 2 · primary`: activity.db 世代バックアップ + importAll 8 phases (tier=2, 旧 importAll 相当)
- * - `Wave 3 · memory` : memory backup + memory-core pipelines (tier=3)
+ * - `Wave 3 · memory` : memory backup + trail-caravan-book pipelines (tier=3)
  * - `Wave 4 · derived`: aggregator 群 (tier=4)。ライブ状態は持たず名称のみ静的表示
  *
  * activity.db / caravan-book.db の世代バックアップは、それぞれを書き込む Wave (2 / 3) の
@@ -288,7 +288,7 @@ function readPipelineStatus(filePath: string | undefined): PipelineStatusFile | 
 // ---------------------------------------------------------------------------
 
 export interface PipelineProviderOptions {
-  /** memory-core が書き込む pipeline-status.json の絶対パス */
+  /** trail-caravan-book が書き込む pipeline-status.json の絶対パス */
   statusFilePath?: string;
   /**
    * activity.db の絶対パス。指定時、先頭に backup ジョブを表示し
@@ -296,7 +296,7 @@ export interface PipelineProviderOptions {
    */
   dbFilePath?: string;
   /**
-   * caravan-book.db の絶対パス。指定時、importAll phases と memory-core
+   * caravan-book.db の絶対パス。指定時、importAll phases と trail-caravan-book
    * pipelines の間に「memory backup」ジョブを表示し、
    * `${memoryDbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
    */
@@ -315,7 +315,7 @@ export interface PipelineProviderOptions {
  *
  *   Wave 1 · sources  ← ingester 群 (静的表示)
  *   Wave 2 · primary  ← activity.db backup + importAll 8 phases
- *   Wave 3 · memory   ← memory backup + memory-core pipelines
+ *   Wave 3 · memory   ← memory backup + trail-caravan-book pipelines
  *   Wave 4 · derived  ← aggregator 群 (静的表示)
  *
  * importAll の per-phase 状態は in-process (setImportAllPhase) と
@@ -376,7 +376,7 @@ export class PipelineProvider
         }
       }
 
-      // 経過時間の表示を tick させるため、running phase (memory-core / importAll) が
+      // 経過時間の表示を tick させるため、running phase (trail-caravan-book / importAll) が
       // あれば mtime 変化なしでも refresh する。
       const status = readPipelineStatus(this._statusFilePath);
       const hasRunningPipeline =
@@ -474,8 +474,8 @@ export class PipelineProvider
       groups.push(new PipelineItem('group', WAVE2_GROUP_LABEL, { children: wave2 }));
     }
 
-    // Wave 3 · memory — memory backup + memory-core pipelines。
-    // memory backup を Wave 3 の先頭に置くことで、memory-core pipelines が
+    // Wave 3 · memory — memory backup + trail-caravan-book pipelines。
+    // memory backup を Wave 3 の先頭に置くことで、trail-caravan-book pipelines が
     // caravan-book.db を書き換える直前の世代バックアップが論理的に対応する。
     const wave3: PipelineItem[] = [];
     if (this._memoryDbFilePath) {

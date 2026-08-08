@@ -157,11 +157,11 @@ export type CombinedPeriodMode = 'day' | 'week';
 /** combined データの取得日数。cutoff の乗数としてのみ使うため任意日数を許す（旧: 30 | 90）。 */
 export type CombinedRangeDays = number;
 
-// --- Domain types (re-exported from trail-core) ---
+// --- Domain types (re-exported from trail-activity) ---
 
-import type { TrailMessage as _TrailMessage } from '@anytime-markdown/trail-core/domain';
+import type { TrailMessage as _TrailMessage } from '@anytime-markdown/trail-activity/domain';
 
-/** @deprecated Import from '@anytime-markdown/trail-core/domain' directly */
+/** @deprecated Import from '@anytime-markdown/trail-activity/domain' directly */
 export type {
   TrailTokenUsage,
   TrailToolCall,
@@ -174,7 +174,7 @@ export type {
   CostDailyEntry,
   TrailPromptEntry,
   TrailEvaluation,
-} from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity/domain';
 
 export type TrailMessage = _TrailMessage & {
   readonly triggerCommitHashes?: readonly string[];

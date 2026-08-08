@@ -29,7 +29,7 @@ export class TrailPanel {
 
   /**
    * 外部デーモンの URL を返す (未設定なら undefined)。
-   * VS Code コマンドが daemon の HTTP API (例: /api/memory-core/pause) を
+   * VS Code コマンドが daemon の HTTP API (例: /api/trail-caravan-book/pause) を
    * 叩く際に使用する。
    */
   public static getDaemonUrl(): string | undefined {

@@ -3,7 +3,7 @@ import {
   openMemoryCoreDb,
   runRagFtsRebuild,
   type MemoryCoreDb,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { MemoryChatLogger } from './types';
 
 /**
@@ -32,7 +32,7 @@ function logPrefix(msg: string): string {
  * - 以降 intervalMs 毎に cron で走らせる
  * - runManual() で即時実行 (コマンドパレットから呼ぶ)
  *
- * 同時実行は内部の `running` フラグで防止する。memory-core 側にも
+ * 同時実行は内部の `running` フラグで防止する。trail-caravan-book 側にも
  * pipeline_state による CAS があるため二重実行は問題ないが、無駄な DB open を避ける。
  */
 export class RebuildScheduler {

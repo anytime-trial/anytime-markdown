@@ -13,7 +13,7 @@
  *     空配列で固定されない（「データはあるのに白紙」を防ぐ）。
  *   - 破棄後・reader 差し替え後に着弾した応答は捨てる（世代チェック）。
  */
-import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-activity';
 import { MemoryReader } from '../../data/readers/MemoryReader';
 import type { MemoryDriftEventRow } from '../../data/types';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';

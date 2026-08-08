@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { detectDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { DriftEventSummary } from '@anytime-markdown/memory-core/query';
+import { detectDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { DriftEventSummary } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const DetectDriftInputSchema = z.object({

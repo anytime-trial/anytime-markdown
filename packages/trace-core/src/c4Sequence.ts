@@ -2,7 +2,7 @@
  * C4 Sequence Model
  *
  * trail-viewer の C4 L3 要素の右クリック「シーケンス表示」で生成する
- * 構造化シーケンスモデル。SequenceAnalyzer (trail-core) が生成し、
+ * 構造化シーケンスモデル。SequenceAnalyzer (trail-activity) が生成し、
  * trace-viewer の buildC4SequenceLayout が graph-core nodes/edges に変換する。
  */
 

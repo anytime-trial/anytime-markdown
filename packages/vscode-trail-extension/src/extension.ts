@@ -2,9 +2,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
-import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
-import { checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
-import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
+import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/trail-caravan-book';
+import { checkArchitecturalAlignment } from '@anytime-markdown/trail-activity';
+import { seedAnalyzeExclude } from '@anytime-markdown/trail-activity/analyzeExclude';
 import {
 	FileChangeResolver,
 	resolveBundledNativeBinding,
@@ -417,7 +417,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// なので拡張側の責務として早期に解決しておく。
 	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
 	// パス構成の正本は trail-db の resolveBundledNativeBinding。実在しなければ undefined を配り、
-	// memory-core 側を better-sqlite3 の既定解決へ落とす（実在しないパスは open を必ず失敗させる）。
+	// trail-caravan-book 側を better-sqlite3 の既定解決へ落とす（実在しないパスは open を必ず失敗させる）。
 	const memoryCoreNativeBinding = resolveBundledNativeBinding(extensionDistPath) ?? undefined;
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
@@ -1101,7 +1101,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Ollama ステータスパネルは vscode-agent-extension に移動済み (Phase 6/7)
 	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。
-	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
+	// 書き手 (trail-caravan-book/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
 	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
 	const dbFilePath = dbStorageDir ? path.join(dbStorageDir, 'activity.db') : undefined;
@@ -1109,7 +1109,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		? path.join(dbStorageDir, 'importall-phase-status.json')
 		: undefined;
 
-	// Pipelines パネル (backup / importAll 8 phases / memory-core pipelines)
+	// Pipelines パネル (backup / importAll 8 phases / trail-caravan-book pipelines)
 	const memoryDbFilePathForPanel = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
 	pipelineProvider = new PipelineProvider({
 		statusFilePath: pipelineStatusPath,

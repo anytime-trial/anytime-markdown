@@ -4,7 +4,7 @@ import type { ImportAllPhase, ImportAllPhaseEvent } from '@anytime-markdown/trai
 
 /**
  * importAll の per-phase 進捗を、デーモンプロセスから VS Code 拡張 UI に
- * 伝えるための JSON ファイル形式。memory-core の pipeline-status.json と
+ * 伝えるための JSON ファイル形式。trail-caravan-book の pipeline-status.json と
  * 同じ位置 (dbStorageDir) に並べて配置する想定。
  *
  * - 単一プロセスのみが書き手 (AnalyzeAllRunner 内の writer)

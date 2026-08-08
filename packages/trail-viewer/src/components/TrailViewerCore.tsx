@@ -30,7 +30,7 @@ import { useCommitCategory } from './CommitCategoryContext';
 import { getTokens } from '../theme/designTokens';
 import { TrailLocaleProvider, useTrailI18n } from '../i18n';
 import type { TrailLocale, TrailI18n } from '../i18n';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 
 import type { C4ViewerCoreProps } from '../c4/components/C4ViewerCore';
 

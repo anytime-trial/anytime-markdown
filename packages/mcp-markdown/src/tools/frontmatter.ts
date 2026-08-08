@@ -1,6 +1,6 @@
 /**
  * frontmatter（related/status/tags 等）を本文を読まずに取得・更新するツール。
- * 解析・直列化は gray-matter（doc-core と同 4.0.3）。更新は atomic write（tmp+rename）で本文を非破壊。
+ * 解析・直列化は gray-matter（markdown-catalog と同 4.0.3）。更新は atomic write（tmp+rename）で本文を非破壊。
  */
 
 import fs from 'node:fs/promises';

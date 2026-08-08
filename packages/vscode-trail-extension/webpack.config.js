@@ -88,7 +88,7 @@ const extensionConfig = {
     vscode: 'commonjs vscode',
     // ws / pg のオプショナル native 依存 (OPTIONAL_NATIVE_EXTERNALS の定義参照)
     ...OPTIONAL_NATIVE_EXTERNALS,
-    // memory-core が require('better-sqlite3') を呼ぶ。webpack に取り込ませると
+    // trail-caravan-book が require('better-sqlite3') を呼ぶ。webpack に取り込ませると
     // 内部の bindings ロジックが壊れて native binary を解決できないため、
     // ランタイムで Node の require に解決させる。dist/node_modules/ に native
     // binary 付きで配置するため CopyPlugin で同梱する。
@@ -109,7 +109,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/]trail-core)/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/]trail-activity)/,
         use: [{
           loader: 'ts-loader',
           options: {
@@ -127,17 +127,17 @@ const extensionConfig = {
       navigator: 'undefined',
     }),
     new CopyPlugin({
-      // memory-core / trail-db / mcp-trail はいずれも better-sqlite3 一本化済 (sql.js 撤去後)。
-      // memory-core の migrations/*.sql は runner が path.join(__dirname, file)
+      // trail-caravan-book / trail-db / mcp-trail はいずれも better-sqlite3 一本化済 (sql.js 撤去後)。
+      // trail-caravan-book の migrations/*.sql は runner が path.join(__dirname, file)
       // で読むため、webpack バンドル後の dist/ 直下にコピーする。
-      // better-sqlite3 とその依存 (bindings / file-uri-to-path) は memory-core が
+      // better-sqlite3 とその依存 (bindings / file-uri-to-path) は trail-caravan-book が
       // require('better-sqlite3') する際に native binary 付きで解決できるよう
       // dist/node_modules/ に丸ごとコピーする (vscode-database-extension と同じパターン)。
       patterns: [
         {
           // win32 では path.resolve が backslash を返し CopyPlugin の glob が
           // 解釈できないため、forward slash に正規化する。
-          from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql').replace(/\\/g, '/'),
+          from: path.resolve(__dirname, '../trail-caravan-book/src/db/migrations/*.sql').replace(/\\/g, '/'),
           to: '[name][ext]',
         },
         {
@@ -220,7 +220,7 @@ const trailStandaloneConfig = {
     rules: [
       {
         test: /\.tsx?$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|trail-core|trail-viewer|markdown-core|spreadsheet-viewer|spreadsheet-core))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](?:graph-core|trail-activity|trail-viewer|markdown-core|spreadsheet-viewer|spreadsheet-core))/,
         use: [{
           loader: 'ts-loader',
           options: {
@@ -301,7 +301,7 @@ const mcpTrailServerConfig = {
   },
   // __dirname / __filename を runtime 値のまま残す。
   // better-sqlite3 の native binary 解決 (dist/node_modules/better-sqlite3) と
-  // memory-core の migrations/*.sql 読み込みのために必要。
+  // trail-caravan-book の migrations/*.sql 読み込みのために必要。
   node: {
     __dirname: false,
     __filename: false,

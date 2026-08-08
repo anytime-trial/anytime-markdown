@@ -1,0 +1,458 @@
+import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
+import { splitEpisodes } from '../canonical/splitEpisodes';
+import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
+import { readMessagesSince } from '../ingest/conversation/readMessages';
+import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
+import { noopLogger, type MemoryLogger } from '../logger';
+import type { OllamaClient } from '@anytime-markdown/agent-core';
+
+type PipelineStatus = 'success' | 'partial' | 'error';
+
+const SCOPE = 'conversation_backfill';
+const QUARANTINE_THRESHOLD = 3;
+/**
+ * 会話 backfill の既定期間 (日)。
+ *
+ * Single source of truth: trail-server/Config.ts と
+ * trail-caravan-book/defaultMemoryCorePipelineRunner.ts はこの定数を import して
+ * 使うこと。各所で別々に数値リテラルを書くと drift する (2026-05 に実際
+ * 5 と 30 が混在した事故あり)。値を変えたいときはここだけ書き換える。
+ */
+export const DEFAULT_CONVERSATION_BACKFILL_DAYS = 30;
+const PROGRESS_LOG_INTERVAL = 10;
+const DEFAULT_EXTRACT_CONCURRENCY = 2;
+
+function resolveExtractConcurrency(): number {
+  const raw = process.env['MEMORY_CORE_EXTRACT_CONCURRENCY'];
+  if (raw === undefined || raw === '') return DEFAULT_EXTRACT_CONCURRENCY;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_EXTRACT_CONCURRENCY;
+  return Math.floor(n);
+}
+
+export interface BackfillResult {
+  status: PipelineStatus;
+  items_processed: number;
+  items_skipped: number;
+  entities_inserted: number;
+  entities_updated: number;
+  edges_inserted: number;
+  edges_invalidated: number;
+  items_failed: number;
+}
+
+function upsertPipelineState(
+  db: MemoryDbConnection,
+  opts: {
+    status: string;
+    last_processed_at?: string;
+    error_detail?: string;
+  }
+): void {
+  const { status, last_processed_at, error_detail } = opts;
+  db.run(
+    `INSERT INTO memory_pipeline_state
+       (scope, status, last_processed_at, error_detail)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(scope) DO UPDATE SET
+       status            = excluded.status,
+       last_processed_at = CASE
+         WHEN excluded.last_processed_at = '' THEN last_processed_at
+         ELSE excluded.last_processed_at
+       END,
+       error_detail      = excluded.error_detail`,
+    [SCOPE, status, last_processed_at ?? '', error_detail ?? '']
+  );
+}
+
+function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
+  const sinceFromDays = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
+  const rows = db.exec(
+    `SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?`,
+    [SCOPE]
+  );
+  const lastProcessedAt = (rows[0]?.values?.[0]?.[0] as string | undefined) ?? '';
+  // Resume from last_processed_at when it's set and newer than the sinceDays
+  // window. This avoids re-scanning sessions whose episodes are already
+  // persisted (existingIds still guards individual episodes, but skipping
+  // sessions entirely saves splitEpisodes + DB scan cost).
+  if (lastProcessedAt !== '' && lastProcessedAt > sinceFromDays) {
+    return lastProcessedAt;
+  }
+  return sinceFromDays;
+}
+
+function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
+  const failedAt = new Date().toISOString();
+  db.run(
+    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+     VALUES (?, ?, ?, ?, ?, 1)
+     ON CONFLICT(scope, item_key) DO UPDATE SET
+       attempt_count = attempt_count + 1,
+       failed_at     = excluded.failed_at,
+       detail        = excluded.detail`,
+    [SCOPE, itemKey, failedAt, reason, detail]
+  );
+}
+
+type BackfillEpisodeOutcome =
+  | { outcome: 'failed' }
+  | { outcome: 'quarantine'; quarantineCursor: string }
+  | { outcome: 'persisted'; stats: PersistStats };
+
+/**
+ * Persists (or records a failure for) a single already-extracted backfill episode.
+ * Returns typed outcome so the caller can update totals and quarantine without
+ * duplicating branching logic.
+ */
+function persistBackfillEpisode(opts: {
+  db: MemoryDbConnection;
+  episode: ReturnType<typeof splitEpisodes>[number];
+  ex: Awaited<ReturnType<typeof extractFactsFromEpisode>> | null;
+  recordedAt: string;
+  consecutiveFailures: number;
+  logger: MemoryLogger;
+}): BackfillEpisodeOutcome {
+  const { db, episode, ex, recordedAt, consecutiveFailures, logger } = opts;
+
+  if (ex === null) {
+    recordFailedItem(
+      db,
+      `${episode.session_id}:${episode.message_uuid_start}`,
+      'extraction_failed',
+      `episode ${episode.message_uuid_start} in session ${episode.session_id}`
+    );
+    const newConsecutive = consecutiveFailures + 1;
+    if (newConsecutive >= QUARANTINE_THRESHOLD) {
+      const quarantineCursor = new Date(
+        new Date(episode.valid_from).getTime() + 1
+      ).toISOString();
+      return { outcome: 'quarantine', quarantineCursor };
+    }
+    return { outcome: 'failed' };
+  }
+
+  try {
+    const stats = persistEpisodeFacts({ db, episode, extracted: ex, recordedAt, logger });
+    return { outcome: 'persisted', stats };
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] runConversationBackfill: persist failed for episode ${episode.message_uuid_start}`,
+      err
+    );
+    recordFailedItem(
+      db,
+      `${episode.session_id}:${episode.message_uuid_start}`,
+      'persist_failed',
+      err instanceof Error ? (err.stack ?? err.message) : String(err)
+    );
+    return { outcome: 'failed' };
+  }
+}
+
+/**
+ * Backfill pipeline that re-reads messages from the last N days (default 7)
+ * from the ATTACHed trail DB, splits them into episodes, runs LLM extraction,
+ * and persists facts.
+ *
+ * Unlike the incremental pipeline, this always starts from `sinceDays` days ago
+ * rather than reading from pipeline_state.last_processed_at.
+ *
+ * On success it also advances the incremental pipeline cursor so the incremental
+ * run skips data that backfill already processed.
+ *
+ * The trail DB must already be ATTACHed as "trail" on `db` via
+ * attachTrailDbFromHandle / attachTrailDbReadOnly before calling this function.
+ */
+export async function runConversationBackfill(opts: {
+  db: MemoryDbConnection;
+  ollama: OllamaClient;
+  sinceDays?: number;
+  logger?: MemoryLogger;
+  model?: string;
+  /**
+   * Persist the in-memory sql.js DB to the underlying file. Called at backfill
+   * start, each session start, and every progress-log interval so a VS Code
+   * reload mid-backfill loses at most PROGRESS_LOG_INTERVAL episodes of work.
+   */
+  save?: () => void;
+  /**
+   * 進捗通知 callback。UI (PipelineStatusWriter) へリアルタイム反映する。
+   * 毎エピソード発火 (incremental と同じ。50 件毎の checkpoint で UI が
+   * 凍って見える問題を避ける)。
+   */
+  progress?: (processed: number, failed: number) => void;
+  /**
+   * 「実際に処理すべきエピソード数」を 1 度だけ通知する callback。
+   * existingIds 控除後の数字なので、UI 分母として正確。事前カウント直後に
+   * 1 回呼ばれる。runEmbeddingBackfill と同じパターン。
+   */
+  onTotal?: (total: number) => void;
+  /**
+   * バッチ境界で確認する中断ゲート。true を返すと以降のバッチを処理せず
+   * early return する (Ollama throttle COOLING 時の会話スキップ用)。cursor は
+   * 前進させないため、次 run で existingIds により冪等に再開する。
+   */
+  shouldStop?: () => boolean;
+}): Promise<BackfillResult> {
+  const { db, ollama, model } = opts;
+  const logger = opts.logger ?? noopLogger;
+  const save = opts.save;
+  const progress = opts.progress;
+  const onTotal = opts.onTotal;
+  const shouldStop = opts.shouldStop;
+  const sinceDays = opts.sinceDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS;
+  const extractConcurrency = resolveExtractConcurrency();
+
+  const startedAt = new Date().toISOString();
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
+
+  // ── 1. Compute sinceISO: max(sinceDays前, last_processed_at) ─────────────
+  // Resume from last_processed_at when it's set, so re-runs after VS Code
+  // reload don't re-scan sessions whose episodes are already in memory_episodes.
+  const sinceISO = computeSinceISO(db, sinceDays);
+
+  // ── 2. Insert pipeline_run + mark state as running ───────────────────────
+  ledger.start(startedAt);
+  upsertPipelineState(db, { status: 'running' });
+
+  // Accumulators
+  const totals: PersistStats & {
+    items_processed: number;
+    items_skipped: number;
+    items_failed: number;
+  } = {
+    items_processed: 0,
+    items_skipped: 0,
+    entities_inserted: 0,
+    entities_updated: 0,
+    edges_inserted: 0,
+    edges_invalidated: 0,
+    items_failed: 0,
+  };
+
+  let maxTimestamp = sinceISO;
+  let consecutiveFailures = 0;
+  let finalStatus: 'success' | 'partial' | 'error' = 'success';
+  let stoppedByThrottle = false;
+
+  // ── 3. Iterate sessions ──────────────────────────────────────────────────
+  // Pre-count sessions for progress display
+  const sessionList = [...readMessagesSince(db, sinceISO)];
+  const totalSessions = sessionList.length;
+  const totalEpisodes = sessionList.reduce(
+    (sum, { messages }) => sum + splitEpisodes(messages).length, 0
+  );
+
+  // Preload episode ids that already exist in memory_episodes (within sinceISO window).
+  // When backfill is interrupted (VS Code reload, OS shutdown), persistEpisodeFacts
+  // is idempotent but extractFactsFromEpisode is not — re-running the LLM extraction
+  // on thousands of already-persisted episodes wastes ~10s/episode. Skipping them
+  // makes the next backfill effectively a resume.
+  const existingIds = new Set<string>();
+  const existsRows = db.exec(
+    `SELECT id FROM memory_episodes WHERE valid_from >= ?`,
+    [sinceISO]
+  );
+  for (const row of existsRows[0]?.values ?? []) {
+    existingIds.add(row[0] as string);
+  }
+
+  const toProcess = totalEpisodes - existingIds.size;
+  logger.info(
+    `[anytime-memory] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
+    `(${existingIds.size} already persisted, ${toProcess} to process, since ${sinceDays}d ago)`
+  );
+  // UI に「正確な分母」を通知 (existingIds 控除後)。orchestrator 側の
+  // convTotalEstimate は user メッセージ全件カウントで膨張するため、UI 表示は
+  // この値で上書きする想定。
+  onTotal?.(toProcess);
+  ledger.heartbeat(totals);
+  save?.();
+
+  let sessionIdx = 0;
+  try {
+    for (const { session_id, messages } of sessionList) {
+      sessionIdx += 1;
+      const episodes = splitEpisodes(messages);
+      logger.info(
+        `[anytime-memory] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
+      );
+      ledger.heartbeat(totals);
+      save?.();
+
+      // Partition episodes into skipped (already in DB) and to-extract.
+      // Doing this up-front lets us batch the LLM calls below.
+      const toExtract: typeof episodes = [];
+      for (const episode of episodes) {
+        const epId = episodeId(episode.session_id, episode.message_uuid_start);
+        if (existingIds.has(epId)) {
+          totals.items_skipped += 1;
+          if (episode.valid_from > maxTimestamp) {
+            maxTimestamp = episode.valid_from;
+          }
+        } else {
+          toExtract.push(episode);
+        }
+      }
+
+      // Concurrent extraction (LLM I/O bound) + serial persist (sql.js is
+      // single-threaded WASM, not thread-safe). With CONCURRENCY=1 this is
+      // equivalent to the previous serial behavior.
+      for (let batchStart = 0; batchStart < toExtract.length; batchStart += extractConcurrency) {
+        // Ollama throttle が COOLING に入ったら次バッチを処理せず中断する。
+        // cursor は据え置き、永続化済み episode は次 run で existingIds が冪等に skip。
+        if (shouldStop?.()) {
+          stoppedByThrottle = true;
+          break;
+        }
+        const batch = toExtract.slice(batchStart, batchStart + extractConcurrency);
+        const recordedAt = new Date().toISOString();
+
+        const extracted = await Promise.all(
+          batch.map(async (ep) => {
+            try {
+              return await extractFactsFromEpisode({
+                ollama,
+                episode: {
+                  raw_excerpt: ep.raw_excerpt,
+                  session_id: ep.session_id,
+                  message_uuid_start: ep.message_uuid_start,
+                  message_uuid_end: ep.message_uuid_end,
+                  valid_from: ep.valid_from,
+                },
+                model,
+                logger,
+              });
+            } catch (err) {
+              logger.error(
+                `[anytime-memory] runConversationBackfill: unexpected error in extractFacts for episode ${ep.message_uuid_start}`,
+                err
+              );
+              return null;
+            }
+          })
+        );
+
+        // Serial persist + bookkeeping. consecutiveFailures advances by 1 per
+        // failed episode within the batch, mirroring the prior serial flow.
+        for (let j = 0; j < batch.length; j++) {
+          const episode = batch[j];
+          const ex = extracted[j];
+
+          totals.items_processed += 1;
+          if (episode.valid_from > maxTimestamp) maxTimestamp = episode.valid_from;
+
+          // UI 通知は毎エピソード発火 (incremental と同じ理由)。
+          // 50 件 checkpoint 間で UI が 0/N のまま動かないように見える
+          // 問題を避ける。DB checkpoint と保存は引き続き 10 件毎。
+          progress?.(totals.items_processed, totals.items_failed);
+
+          // Progress log every PROGRESS_LOG_INTERVAL episodes
+          if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
+            logger.info(`[anytime-memory] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`);
+            ledger.heartbeat(totals);
+            save?.();
+          }
+
+          const episodeResult = persistBackfillEpisode({
+            db, episode, ex, recordedAt, consecutiveFailures, logger,
+          });
+
+          if (episodeResult.outcome === 'quarantine') {
+            totals.items_failed += 1;
+            logger.error(`[anytime-memory] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`);
+            // 失敗 episode + 1ms をカーソルに。後続セッションは再走査可能。
+            upsertPipelineState(db, {
+              status: 'quarantine',
+              last_processed_at: episodeResult.quarantineCursor,
+              error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
+            });
+            ledger.finish('partial', totals, `${QUARANTINE_THRESHOLD} consecutive extraction failures`);
+            return { status: 'partial', ...totals };
+          }
+
+          if (episodeResult.outcome === 'failed') {
+            totals.items_failed += 1;
+            consecutiveFailures += 1;
+            continue;
+          }
+
+          // outcome === 'persisted'
+          consecutiveFailures = 0;
+          const s = episodeResult.stats;
+          totals.entities_inserted += s.entities_inserted;
+          totals.entities_updated += s.entities_updated;
+          totals.edges_inserted += s.edges_inserted;
+          totals.edges_invalidated += s.edges_invalidated;
+        }
+      }
+
+      if (stoppedByThrottle) break;
+
+      // 意図的にここで last_processed_at を前進させない。
+      // 旧実装は max(timestamp seen) をセッション境界毎にカーソル化していたが、
+      // セッション iterate 順 (MIN(timestamp)) と各セッションの MAX timestamp は
+      // 別軸なので、長期セッション 1 つで cursor が一気に飛び、未処理の後続
+      // セッションが WHERE timestamp >= cursor で永久に除外されていた。
+      // 現設計: カーソル前進は「完了時 + quarantine 時のみ」。途中中断は
+      // existingIds preload で冪等に skip するので作業は失われない。
+    }
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] runConversationBackfill: fatal error during session iteration`,
+      err
+    );
+    finalStatus = 'error';
+    // エラー時もカーソルは触らない (上記と同じ理由)。
+    upsertPipelineState(db, {
+      status: 'error',
+      error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
+    });
+    ledger.fail(err, totals);
+    return { status: finalStatus, ...totals };
+  }
+
+  // ── 3.5 Throttle 中断 ─────────────────────────────────────────────────────
+  // COOLING で中断した場合は backfill / incremental どちらの cursor も前進させず
+  // partial で返す。last_processed_at に '' を渡すと既存 cursor が保持される。
+  // 永続化済み episode は次 run の existingIds preload で冪等に skip される。
+  if (stoppedByThrottle) {
+    logger.info(
+      `[anytime-memory] backfill: throttle COOLING — stopping early ` +
+        `(processed=${totals.items_processed}, failed=${totals.items_failed}), cursor unchanged`
+    );
+    upsertPipelineState(db, { status: 'idle', last_processed_at: '' });
+    ledger.finish('partial', totals, 'throttle COOLING — stopped early, cursor unchanged');
+    return { status: 'partial', ...totals };
+  }
+
+  // ── 4. Finalize ──────────────────────────────────────────────────────────
+  const nextSince =
+    maxTimestamp === sinceISO
+      ? sinceISO
+      : new Date(new Date(maxTimestamp).getTime() + 1).toISOString();
+
+  // Update backfill pipeline state
+  upsertPipelineState(db, {
+    status: 'idle',
+    last_processed_at: nextSince,
+  });
+
+  // Also advance incremental cursor so it skips backfilled data
+  db.run(
+    `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+     VALUES ('conversation_incremental', 'idle', ?, '')
+     ON CONFLICT(scope) DO UPDATE SET
+       last_processed_at = CASE
+         WHEN last_processed_at < excluded.last_processed_at THEN excluded.last_processed_at
+         ELSE last_processed_at
+       END`,
+    [nextSince]
+  );
+
+  ledger.finish(finalStatus, totals);
+
+  return { status: finalStatus, ...totals };
+}

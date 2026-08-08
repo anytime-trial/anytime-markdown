@@ -3,7 +3,7 @@ import {
   type IngestAgentReviewResult,
   type MemoryDbConnection,
   type MemoryLogger,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 export async function submitToMemoryCore(input: {

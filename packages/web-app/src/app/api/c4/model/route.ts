@@ -1,5 +1,5 @@
-import type { CommunityRow, ManualElement, ManualRelationship } from "@anytime-markdown/trail-core/c4";
-import { buildFeatureMatrixFromCommunities, fetchC4Model, mergeManualIntoC4Model } from "@anytime-markdown/trail-core/c4";
+import type { CommunityRow, ManualElement, ManualRelationship } from "@anytime-markdown/trail-activity/c4";
+import { buildFeatureMatrixFromCommunities, fetchC4Model, mergeManualIntoC4Model } from "@anytime-markdown/trail-activity/c4";
 import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";

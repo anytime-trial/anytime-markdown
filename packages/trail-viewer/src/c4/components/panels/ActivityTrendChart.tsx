@@ -1,4 +1,4 @@
-import type { TrendPeriod } from '@anytime-markdown/trail-core/c4';
+import type { TrendPeriod } from '@anytime-markdown/trail-activity/c4';
 import type { ChartSpec, Series } from '@anytime-markdown/chart-core';
 import { useMemo, useState } from 'react';
 

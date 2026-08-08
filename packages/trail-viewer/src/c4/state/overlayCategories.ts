@@ -1,4 +1,4 @@
-import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
+import type { MetricOverlay } from '@anytime-markdown/trail-activity/c4';
 
 export type OverlayCategory =
   | 'none'

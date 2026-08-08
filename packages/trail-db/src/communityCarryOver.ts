@@ -10,7 +10,7 @@
  *  1. **stable_key 完全一致**（ノード集合コンテンツハッシュ）: コード無変更 / リネームのみのケースで即継承
  *  2. **ジャッカード類似度フォールバック**: コード差分でノード集合が部分的に変わったケースで類似度上位を引き継ぎ
  *
- * stable_key は packages/trail-core/src/codeGraph.ts の `computeStableKey` で算出される。
+ * stable_key は packages/trail-activity/src/codeGraph.ts の `computeStableKey` で算出される。
  */
 
 /** 旧スナップショット（書き込み前に DB から読み出した行）。 */

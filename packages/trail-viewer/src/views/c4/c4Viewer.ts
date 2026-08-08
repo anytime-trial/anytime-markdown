@@ -33,7 +33,7 @@ import type {
   ImportanceMatrix,
   ManualGroup,
   MetricOverlay,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 import {
   aggregateDsmToC4ComponentLevel,
   aggregateDsmToC4ContainerLevel,
@@ -58,11 +58,11 @@ import {
   mapFileToC4Elements,
   resolveSelectedElementCommunity,
   sortDsmMatrixByName,
-} from '@anytime-markdown/trail-core/c4';
-import type { ArchitectureFileEntry, ArchitectureMatrix, LayerMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
-import type { BusFactorEntry } from '@anytime-markdown/trail-core';
-import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import type { ConfidenceCouplingEdge, DefectRiskEntry, TemporalCouplingEdge } from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity/c4';
+import type { ArchitectureFileEntry, ArchitectureMatrix, LayerMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-activity/c4';
+import type { BusFactorEntry } from '@anytime-markdown/trail-activity';
+import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import type { ConfidenceCouplingEdge, DefectRiskEntry, TemporalCouplingEdge } from '@anytime-markdown/trail-activity';
 
 import {
   computeClaudeActivityColorMap,
@@ -1317,7 +1317,7 @@ export function mountC4Viewer(
       const timer = setTimeout(() => {
         fetchActivityTrendApi(serverUrl, {
           elementId: elemId,
-          period: trendPeriod as import('@anytime-markdown/trail-core/c4').TrendPeriod,
+          period: trendPeriod as import('@anytime-markdown/trail-activity/c4').TrendPeriod,
           granularity: spec_.granularity as import('../../c4/hooks/fetchActivityTrendApi').ActivityTrendGranularity,
           sessionMode: spec_.sessionMode,
           repoName: selectedRepo || undefined,
@@ -2750,7 +2750,7 @@ export function mountC4Viewer(
       hasShowSequenceHandler: props.onShowSequence !== undefined,
       hasExportToNoteHandler: props.onExportToNote !== undefined,
       canShowManualContextActions,
-      levelTargetType: getLevelTargetType() as import('@anytime-markdown/trail-core/c4').C4ElementType,
+      levelTargetType: getLevelTargetType() as import('@anytime-markdown/trail-activity/c4').C4ElementType,
     });
 
     if (!caps.showContextMenu) {

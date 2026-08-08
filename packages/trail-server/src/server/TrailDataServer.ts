@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
-import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
+import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-activity';
+import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-activity/c4';
 import {
   aggregateCoverageFromDb,
   aggregateHeatmapColumnsToC4,
@@ -20,41 +20,41 @@ import {
   fetchC4ModelEntries,
   filterTreeByLevel,
   mapFileToC4Elements,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 import type {
   CallHierarchyDirection,
   CallHierarchyIndex,
   CallHierarchyScope,
-} from '@anytime-markdown/trail-core/c4/callHierarchy';
+} from '@anytime-markdown/trail-activity/c4/callHierarchy';
 import {
   buildCallHierarchyNodeFilter,
   buildIndex as buildCallHierarchyIndex,
   traverse as traverseCallHierarchy,
-} from '@anytime-markdown/trail-core/c4/callHierarchy';
-import { computeAuthorHeatmap, selectTopSessions } from '@anytime-markdown/trail-core/authorHeatmap';
-import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
-import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
-import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
+} from '@anytime-markdown/trail-activity/c4/callHierarchy';
+import { computeAuthorHeatmap, selectTopSessions } from '@anytime-markdown/trail-activity/authorHeatmap';
+import type { ClassifiedFunction } from '@anytime-markdown/trail-activity/centrality';
+import { toCodeGraphNodeId } from '@anytime-markdown/trail-activity/codeGraphNodeId';
+import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-activity/centrality';
 import {
   loadCommitCategories,
   loadCommitCategoriesFromFile,
   loadCommitCategoryLabels,
   loadCommitCategoryLabelsFromFile,
-} from '@anytime-markdown/trail-core/commitCategories';
-import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
-import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
+} from '@anytime-markdown/trail-activity/commitCategories';
+import { aggregateScoresToC4 } from '@anytime-markdown/trail-activity/deadCode';
+import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-activity/domain/metrics';
 import {
   loadSkillCategories,
   loadSkillCategoriesFromFile,
   loadSkillCategoryLabels,
   loadSkillCategoryLabelsFromFile,
-} from '@anytime-markdown/trail-core/skillCategories';
+} from '@anytime-markdown/trail-activity/skillCategories';
 import {
   loadToolCategories,
   loadToolCategoriesFromFile,
   loadToolCategoryLabels,
   loadToolCategoryLabelsFromFile,
-} from '@anytime-markdown/trail-core/toolCategories';
+} from '@anytime-markdown/trail-activity/toolCategories';
 // typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
 import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
 import type { AnalyticsData, CostOptimizationData,MessageRow, SessionCommitRow, SessionRow, TrailDatabase } from '@anytime-markdown/trail-db';
@@ -249,8 +249,8 @@ export interface C4DataProvider {
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
   handleResetClaudeActivity(): void;
-  getManualElements(repoName: string): readonly import('@anytime-markdown/trail-core').ManualElement[];
-  getManualRelationships(repoName: string): readonly import('@anytime-markdown/trail-core').ManualRelationship[];
+  getManualElements(repoName: string): readonly import('@anytime-markdown/trail-activity').ManualElement[];
+  getManualRelationships(repoName: string): readonly import('@anytime-markdown/trail-activity').ManualRelationship[];
 }
 
 // ---------------------------------------------------------------------------
@@ -359,7 +359,7 @@ export class TrailDataServer {
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath 配下の絶対パスを
-    // BetterSqlite3MemoryDb に渡す (memory-core / TrailDatabase と同パターン)。
+    // BetterSqlite3MemoryDb に渡す (trail-caravan-book / TrailDatabase と同パターン)。
     // パス構成は trail-db の resolveBundledNativeBinding が唯一の正で、実在しない場合は
     // null（= better-sqlite3 の既定解決へフォールバック。テスト・ソース実行）。
     const nativeBinding = resolveBundledNativeBinding(this.distPath);
@@ -815,7 +815,7 @@ export class TrailDataServer {
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
     // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
     // （後だと 'open' が指示 ID として食われる）。
-    // Flight Record のワークスペース選択肢。activity.db（指示・運航記録）と memory-core
+    // Flight Record のワークスペース選択肢。activity.db（指示・運航記録）と trail-caravan-book
     // （バグ修正・レビュー・乖離）は別 DB なので、両方の distinct を統合して 1 本で返す。
     t.exact('GET', '/api/trail/workspaces', ({ res }) => void this.handleListWorkspaces(res));
     t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));
@@ -1981,7 +1981,7 @@ export class TrailDataServer {
    * 要素 ID を揃える必要があるメトリクス集約（例: /api/bus-factor?unit=c4）も同じ経路を使う。
    */
   private async resolveC4ModelPayload(releaseId: string, repo?: string): Promise<C4ModelPayload | null> {
-    // trail-core の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
+    // trail-activity の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
     const repoName = repo ?? (this.defaultRepo());
     const provider = this.getC4Provider?.();
     const store = this.trailDb.asC4ModelStore();
@@ -2709,7 +2709,7 @@ export class TrailDataServer {
           sessionId,
           commitHash,
           detectedAt: new Date().toISOString(),
-          matchConfidence: (matchConfidence ?? 'realtime') as import('@anytime-markdown/trail-core').MessageCommitMatchConfidence,
+          matchConfidence: (matchConfidence ?? 'realtime') as import('@anytime-markdown/trail-activity').MessageCommitMatchConfidence,
         });
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
@@ -2840,9 +2840,9 @@ export class TrailDataServer {
         const detailJson = typeof parsed['detailJson'] === 'string' ? parsed['detailJson'] : '{}';
         this.trailDb.recordEmergencyEvent({
           occurredAt: parsed['occurredAt'],
-          event: event as import('@anytime-markdown/trail-core').EmergencyEventKind,
+          event: event as import('@anytime-markdown/trail-activity').EmergencyEventKind,
           reason: typeof parsed['reason'] === 'string' ? parsed['reason'] : '',
-          actor: actor as import('@anytime-markdown/trail-core').EmergencyActor,
+          actor: actor as import('@anytime-markdown/trail-activity').EmergencyActor,
           sessionId: typeof parsed['sessionId'] === 'string' && parsed['sessionId'] !== '' ? parsed['sessionId'] : null,
           detailJson,
         });
@@ -3185,7 +3185,7 @@ export class TrailDataServer {
   /**
    * Flight Record のワークスペース選択肢（4 サブタブ共通）。
    *
-   * activity.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
+   * activity.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、trail-caravan-book 側は
    * 取込時に記録した repo_name。どちらもリポジトリ名なので同じ名前空間として統合する。
    * 片方の DB が読めなくても残りを返す（選択肢が空になると絞り込み自体ができなくなるため、
    * 部分的な結果でも出す）。
@@ -3202,7 +3202,7 @@ export class TrailDataServer {
     try {
       for (const name of await this.memoryApi.listWorkspaces()) names.add(name);
     } catch (e) {
-      this.logger.error('handleListWorkspaces: memory-core side failed', e);
+      this.logger.error('handleListWorkspaces: trail-caravan-book side failed', e);
       partial = true;
     }
     res.writeHead(200, JSON_HEADERS);
@@ -3652,7 +3652,7 @@ export class TrailDataServer {
   }
 
   /** model / trailGraph を SQLite およびプロバイダから取得 */
-  private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-core/c4').C4Model; graph: import('@anytime-markdown/trail-core').TrailGraph } | null> {
+  private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-activity/c4').C4Model; graph: import('@anytime-markdown/trail-activity').TrailGraph } | null> {
     const provider = this.getC4Provider?.();
     const repoName = this.defaultRepo();
 
@@ -3676,7 +3676,7 @@ export class TrailDataServer {
    * createSourceFile（typescript）は呼ばず、child へ渡すための内容収集のみ行う。
    */
   private readComponentSourceFiles(
-    graph: import('@anytime-markdown/trail-core').TrailGraph,
+    graph: import('@anytime-markdown/trail-activity').TrailGraph,
     nodeFilter: (nodeId: string) => boolean,
     logTag: string,
   ): C4SourceFileInput[] {
@@ -3822,7 +3822,7 @@ export class TrailDataServer {
         return;
       }
       const { model, graph } = resolved;
-      const { filterTrailGraphByElement } = await import('@anytime-markdown/trail-core/c4');
+      const { filterTrailGraphByElement } = await import('@anytime-markdown/trail-activity/c4');
       const out = filterTrailGraphByElement(graph, elementId, model);
       if (out.nodes.length === 0) {
         this.logger.warn(`[/api/c4/function-graph] empty result for elementId=${elementId}`);

@@ -1,4 +1,4 @@
-import { fetchC4ModelEntries } from "@anytime-markdown/trail-core/c4";
+import { fetchC4ModelEntries } from "@anytime-markdown/trail-activity/c4";
 import { NextResponse } from "next/server";
 
 import { createC4ModelStore,NO_STORE_HEADERS } from "../../../../lib/api-helpers";

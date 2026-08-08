@@ -4,7 +4,7 @@
  *
  * 由来: cross-review 合意指摘(2026-07-18)。substr によるパッケージ名抽出・
  * pragma_table_info による列存在分岐・HAVING c >= 2 のクラスタ閾値は
- * 壊れても既存テストでは検知できない。列定義は memory-core migration
+ * 壊れても既存テストでは検知できない。列定義は trail-caravan-book migration
  * 015_checklist_ref.sql と同期する。
  */
 const { spawnSync } = require('node:child_process');
@@ -67,13 +67,13 @@ describe('grounding.cjs 観点キー集計', () => {
       writeMemoryDb(ws, {
         withColumn: true,
         rows: [
-          { category: 'logic', file: 'packages/memory-core/src/a.ts', checklist_ref: 'none' },
-          { category: 'logic', file: 'packages/memory-core/src/b.ts', checklist_ref: 'none' },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/a.ts', checklist_ref: 'none' },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/b.ts', checklist_ref: 'none' },
           // 1 件のみの束は HAVING c >= 2 で除外される
           { category: 'perf', file: 'packages/web-app/src/c.ts', checklist_ref: 'none' },
           // 'none' 以外（章あり・未記録）は集計対象外
-          { category: 'logic', file: 'packages/memory-core/src/d.ts', checklist_ref: '§14' },
-          { category: 'logic', file: 'packages/memory-core/src/e.ts', checklist_ref: null },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/d.ts', checklist_ref: '§14' },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/e.ts', checklist_ref: null },
           // P4: 章別 30 日窓 — 窓内の章あり指摘が checklistByRef30d に入り、窓外は除外
           { category: 'perf', file: 'packages/web-app/src/f.ts', checklist_ref: '§14' },
           {
@@ -89,7 +89,7 @@ describe('grounding.cjs 観点キー集計', () => {
     expect(quality.checklistNone).toBe(3);
     expect(quality.checklistRefRecorded).toBe(7);
     expect(quality.checklistNoneClusters).toEqual([
-      { category: 'logic', package: 'memory-core', count: 2 },
+      { category: 'logic', package: 'trail-caravan-book', count: 2 },
     ]);
     // 窓内: §14 は d.ts + f.ts の 2 件（g.ts は 40 日前で窓外）、§12 は 1 件
     expect(quality.checklistByRef30d).toEqual([
@@ -117,7 +117,7 @@ describe('grounding.cjs 観点キー集計', () => {
     const quality = runGroundingQuality((ws) =>
       writeMemoryDb(ws, {
         withColumn: false,
-        rows: [{ category: 'logic', file: 'packages/memory-core/src/a.ts' }],
+        rows: [{ category: 'logic', file: 'packages/trail-caravan-book/src/a.ts' }],
       }),
     );
     expect(quality.checklistNone).toBeNull();

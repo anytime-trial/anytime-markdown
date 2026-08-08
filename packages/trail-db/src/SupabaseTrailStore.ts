@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
-import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { isRetryableRemoteError, summarizeRemoteError, type RemoteErrorLike } from './remoteRetry';
 

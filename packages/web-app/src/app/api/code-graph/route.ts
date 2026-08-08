@@ -1,5 +1,5 @@
-import type { StoredCodeGraph, StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
-import { composeCodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { StoredCodeGraph, StoredCommunity } from '@anytime-markdown/trail-activity/codeGraph';
+import { composeCodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

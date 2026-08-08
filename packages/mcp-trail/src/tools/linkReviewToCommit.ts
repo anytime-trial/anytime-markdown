@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { linkReviewToCommit, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { LinkReviewToCommitResult } from '@anytime-markdown/memory-core/query';
+import { linkReviewToCommit, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { LinkReviewToCommitResult } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const LinkReviewToCommitInputSchema = z.object({

@@ -1,5 +1,5 @@
-import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
-import type { MemoryCoreServiceOptions } from '@anytime-markdown/memory-core';
+import { MemoryCoreService } from '@anytime-markdown/trail-caravan-book/pipeline';
+import type { MemoryCoreServiceOptions } from '@anytime-markdown/trail-caravan-book';
 
 export interface MemoryCoreRunner {
   runAfterImport(): Promise<void>;

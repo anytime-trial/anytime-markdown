@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { DefectRiskEntry } from '@anytime-markdown/trail-core';
+import type { DefectRiskEntry } from '@anytime-markdown/trail-activity';
 import { fetchDefectRiskApi, type DefectRiskFetchParams } from './fetchDefectRiskApi';
 
 export interface UseDefectRiskOptions extends DefectRiskFetchParams {

@@ -16,7 +16,7 @@ jest.mock('../lib/api-helpers', () => ({
   NO_STORE_HEADERS: { 'Cache-Control': 'no-store' },
   resolveRepoId: mockResolveRepoId,
 }));
-jest.mock('@anytime-markdown/trail-core', () => ({ computeDefectRisk: mockComputeDefectRisk }));
+jest.mock('@anytime-markdown/trail-activity', () => ({ computeDefectRisk: mockComputeDefectRisk }));
 
 type MockResp = { _body: Record<string, unknown>; _headers: Record<string, string> };
 

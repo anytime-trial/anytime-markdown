@@ -1,5 +1,5 @@
-import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
-import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-core/authorHeatmap';
+import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
+import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-activity/authorHeatmap';
 import { buildSigmaGraph, type CodeGraphCanvasViewProps } from '../codeGraphSigmaGraph';
 import {
   buildEditFrequencyColorMap,

@@ -28,7 +28,7 @@ export interface RationaleNodeDto {
   readonly createdAt: string;
 }
 
-/** GET /api/trail/flight-reviews の 1 行（trail-core FlightReview のワイヤ形）。 */
+/** GET /api/trail/flight-reviews の 1 行（trail-activity FlightReview のワイヤ形）。 */
 export interface FlightReviewDto {
   readonly id: number;
   readonly sessionId: string;

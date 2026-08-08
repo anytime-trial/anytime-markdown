@@ -5,7 +5,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 export interface CoverageIngesterOptions {
   /** 監視対象 gitRoot 群。各 root の `packages/<pkg>/coverage/coverage-summary.json` をスキャンする */

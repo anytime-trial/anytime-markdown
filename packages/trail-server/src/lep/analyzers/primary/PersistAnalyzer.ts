@@ -2,7 +2,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 export interface PersistAnalyzerOptions {
@@ -13,9 +13,9 @@ export interface PersistAnalyzerOptions {
  * Layer 2 の最終 analyzer: Wave 2 (primary) の末端で `TrailDatabase.save()` を呼び、
  * sql.js の in-memory DB をディスクへ永続化する。
  *
- * **重要**: memory-core (Wave 3) は activity.db を **ディスクパスから read-only attach** する
+ * **重要**: trail-caravan-book (Wave 3) は activity.db を **ディスクパスから read-only attach** する
  * (`defaultMemoryCorePipelineRunner.ts`)。そのため Wave 2 内 (wave_complete:primary が
- * memory-core を起動する前) に save() を完了させる必要がある。旧 `importAll()` 末尾の
+ * trail-caravan-book を起動する前) に save() を完了させる必要がある。旧 `importAll()` 末尾の
  * save() がこのタイミングを担っていたのを引き継ぐ。
  *
  * tier=2 の **最後** に登録することで、他の全 Layer 2 analyzer の DB 書き込み後に save() が走る。

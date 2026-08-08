@@ -3,7 +3,7 @@
  *
  * 保存先は activity.db — Flight Record の指示（instructions / instruction_sessions）と同じ DB に
  * 置くことで、session_id 経由で「どの指示で何を検証したか」を結合できる。
- * スキーマの正本は packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS で、
+ * スキーマの正本は packages/trail-activity/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS で、
  * 本ファイルはその **ミラー**（.mjs から TS を import できないため）。片方だけ変えないこと。
  * 読み取り側（packages/mcp-trail/src/tools/verificationStatus.ts）は SELECT のみで作成しない。
  * 提案: /Shared/anytime-markdown-docs/proposal/20260706-verification-run-db.ja.md
@@ -79,7 +79,7 @@ export function resolveTrailDbPath(workspaceRoot) {
 const TS_GLOB_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z'`;
 const TS_GLOB_NO_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z'`;
 
-// packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS のミラー。
+// packages/trail-activity/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS のミラー。
 // activity.db 側の _migrations（key TEXT PRIMARY KEY）は使わない — verification.db 時代の
 // (version INTEGER, applied_at TEXT) とは形が非互換で、触ると拡張のマイグレーション記録を壊す。
 // 追記のみ・冪等な DDL なのでバージョン管理表を持たずに済む。

@@ -15,7 +15,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: (opts: { workspacePath?: string }) => mockResolveMemoryDbPath(opts),
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({ db: {}, close: jest.fn() }),
   listReviewTargetHints: jest.fn().mockReturnValue([]),

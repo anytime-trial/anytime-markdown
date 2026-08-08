@@ -99,7 +99,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
   const totalCacheRead = byModel.reduce((s, r) => s + r.cacheRead, 0);
 
   // ── 料金表未登録モデルの検知（新モデル追加の主トリガ・proposal/20260719-model-pricing-accuracy）──
-  // 既知 family は trail-core pricing.ts の MODEL_PRICING と同期する（fail-visible: pricing.ts に
+  // 既知 family は trail-activity pricing.ts の MODEL_PRICING と同期する（fail-visible: pricing.ts に
   // family を足してここが古いままなら誤検知として浮上し、沈黙はしない）。
   // 部分一致にするのは、再集計前の旧 DB にフル ID キー（claude-fable-5 等）が残るため。
   // '<synthetic>' 等の番兵値と空は旧 DB の残骸のため対象外。

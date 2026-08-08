@@ -13,7 +13,7 @@ import {
   createSelect,
   createInputLabel,
 } from '@anytime-markdown/ui-core';
-import { SERVICE_CATALOG, filterServices } from '@anytime-markdown/trail-core/c4/services';
+import { SERVICE_CATALOG, filterServices } from '@anytime-markdown/trail-activity/c4/services';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import type {
   C4ElementKind,

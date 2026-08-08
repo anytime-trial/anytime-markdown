@@ -1,5 +1,5 @@
 /**
- * knowledgeGraphPanel — 知識グラフタブ（memory-core の知識グラフを共起ネットワークで表示）。
+ * knowledgeGraphPanel — 知識グラフタブ（trail-caravan-book の知識グラフを共起ネットワークで表示）。
  *
  * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md
  *

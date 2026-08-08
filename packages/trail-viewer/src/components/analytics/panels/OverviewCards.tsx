@@ -1,8 +1,8 @@
 import type React from 'react';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
-import type { QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { QualityMetrics } from '@anytime-markdown/trail-activity/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import type { AnalyticsData, TrailSession } from '../../../domain/parser/types';
 import { VanillaIsland } from '../../../shared/vanillaIsland';
 import { mountOverviewCards } from '../../../views/analytics/panels/overviewCards';

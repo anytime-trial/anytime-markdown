@@ -41,7 +41,7 @@ function buildKnowledgeGraphDb(dbPath: string): void {
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   entity.run('e1', 'Concept', 'trail server', 'TrailDataServer', TS, TS, TS);
-  entity.run('e2', 'Concept', 'memory core', 'memory-core', TS, TS, TS);
+  entity.run('e2', 'Concept', 'memory core', 'trail-caravan-book', TS, TS, TS);
   entity.run('e3', 'File', 'server.ts', 'server.ts', TS, TS, TS);
   entity.run('e4', 'Bug', 'fts crash', 'FTS crash', TS, TS, TS);
   entity.run('e5', 'File', 'orphan.ts', 'orphan.ts', TS, TS, TS);
@@ -89,7 +89,7 @@ describe('MemoryApiHandler.getKnowledgeGraph', () => {
     // 次数: e1=4, e2=3, e3=2, e4=1（失効 x1・無効化 x2・リテラル x3・自己ループ x4 は数えない）
     expect(result?.nodes).toEqual([
       { label: 'TrailDataServer', type: 'Concept', frequency: 4 },
-      { label: 'memory-core', type: 'Concept', frequency: 3 },
+      { label: 'trail-caravan-book', type: 'Concept', frequency: 3 },
       { label: 'server.ts', type: 'File', frequency: 2 },
       { label: 'FTS crash', type: 'Bug', frequency: 1 },
     ]);
@@ -113,7 +113,7 @@ describe('MemoryApiHandler.getKnowledgeGraph', () => {
   it('truncates to the limit and keeps links among the selected nodes only', async () => {
     const result = await handler.getKnowledgeGraph({ limit: 2 });
 
-    expect(result?.nodes.map((n) => n.label)).toEqual(['TrailDataServer', 'memory-core']);
+    expect(result?.nodes.map((n) => n.label)).toEqual(['TrailDataServer', 'trail-caravan-book']);
     expect(result?.links).toEqual([{ a: 0, b: 1, strength: 2 }]);
     expect(result?.truncated).toBe(true);
   });
@@ -124,7 +124,7 @@ describe('MemoryApiHandler.getKnowledgeGraph', () => {
     // Concept 同士のエッジは e1-e2 ×2 のみ。File との混合エッジは次数に入らない
     expect(result?.nodes).toEqual([
       { label: 'TrailDataServer', type: 'Concept', frequency: 2 },
-      { label: 'memory-core', type: 'Concept', frequency: 2 },
+      { label: 'trail-caravan-book', type: 'Concept', frequency: 2 },
     ]);
     expect(result?.links).toEqual([{ a: 0, b: 1, strength: 2 }]);
     expect(result?.totalEntityCount).toBe(2);

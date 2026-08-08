@@ -1,6 +1,6 @@
 'use client';
 
-import type { DocLink } from '@anytime-markdown/trail-core/c4';
+import type { DocLink } from '@anytime-markdown/trail-activity/c4';
 import { TrailViewerApp, applyTrailThemeVars } from '@anytime-markdown/trail-viewer';
 import CloseIcon from '@mui/icons-material/Close';
 import { Box, Dialog, DialogContent, DialogTitle, IconButton } from '@mui/material';

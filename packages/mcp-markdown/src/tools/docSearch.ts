@@ -16,7 +16,7 @@ import {
   type SearchDocsOptions,
   type SearchSectionsOptions,
   type RelationType,
-} from '@anytime-markdown/doc-core';
+} from '@anytime-markdown/markdown-catalog';
 
 export function resolveDocDbPath(rootDir: string): string {
   return process.env.ANYTIME_MARKDOWN_DOC_DB ?? path.join(rootDir, '.anytime', 'markdown', 'catalog.db');
@@ -35,7 +35,7 @@ function openReadonly(rootDir: string): DocDb {
   if (cached && cached.path === dbPath) return cached.db;
   if (!fs.existsSync(dbPath)) {
     throw new Error(
-      `doc-core index not found at ${dbPath}. ` +
+      `markdown-catalog index not found at ${dbPath}. ` +
         `Build it first via the markdown extension ("Rebuild Doc Search Index") or set ANYTIME_MARKDOWN_DOC_DB.`,
     );
   }

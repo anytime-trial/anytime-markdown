@@ -1,7 +1,7 @@
 // status/agentStatusSchema.ts — agent_sessions の DDL と timestamp GLOB 定数
 //
-// trail-core の tables.ts と同等の設計原則（STRICT・CHECK・GLOB timestamp・json_valid）に従うが、
-// trail 非依存を保つため定数・DDL を本パッケージ側で独立に定義する（trail-core を import しない）。
+// trail-activity の tables.ts と同等の設計原則（STRICT・CHECK・GLOB timestamp・json_valid）に従うが、
+// trail 非依存を保つため定数・DDL を本パッケージ側で独立に定義する（trail-activity を import しない）。
 //
 // summary は handoff payload（圧縮ステート JSON）を保持する。json_valid CHECK を付すため、旧スキーマ
 // （CHECK 無し・DEFAULT ''）からは 12-step テーブル再作成で移行する（AgentStatusStore.migrate）。

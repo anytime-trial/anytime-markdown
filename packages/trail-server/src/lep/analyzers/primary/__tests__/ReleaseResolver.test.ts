@@ -2,7 +2,7 @@ import type {
   AnalyzerContext,
   AnalyzerEvent,
   EventBusPublisher,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { ReleaseResolver } from '../ReleaseResolver';
@@ -253,7 +253,7 @@ describe('ReleaseResolver', () => {
 
     await resolver.onRunStart(ctx);
     // session_imported は git_tag ではないので無視される
-    await resolver.onEvent({ kind: 'session_imported', sessionId: 's1', messageCount: 1, repoName: 'r' } as unknown as import('@anytime-markdown/memory-core').AnalyzerEvent, ctx);
+    await resolver.onEvent({ kind: 'session_imported', sessionId: 's1', messageCount: 1, repoName: 'r' } as unknown as import('@anytime-markdown/trail-caravan-book').AnalyzerEvent, ctx);
     await resolver.onRunEnd(ctx);
 
     expect(state.resolveReleasesCalls).toEqual([]);

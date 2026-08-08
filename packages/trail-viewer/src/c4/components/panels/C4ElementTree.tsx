@@ -1,4 +1,4 @@
-import type { C4ReleaseEntry, C4TreeNode } from '@anytime-markdown/trail-core/c4';
+import type { C4ReleaseEntry, C4TreeNode } from '@anytime-markdown/trail-activity/c4';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import type { Dispatch, FC } from 'react';
 import { useMemo } from 'react';

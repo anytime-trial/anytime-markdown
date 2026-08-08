@@ -86,7 +86,7 @@ flowchart TD
         MV["markdown-editor<br/>(Editor foundation)"]
         MR["markdown-rich-editor<br/>(Diagram rendering · derived)"]
         GC["graph-core<br/>(Graph engine)"]
-        TC["trail-core<br/>(TypeScript analysis · C4 · DSM)"]
+        TC["trail-activity<br/>(TypeScript analysis · C4 · DSM)"]
         CC["cms-core<br/>(S3 client)"]
         AC["agent-core<br/>(AI session state)"]
         SC["spreadsheet-core<br/>trace-core"]

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { getReviewRunStatus, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { ReviewRunStatus } from '@anytime-markdown/memory-core/query';
+import { getReviewRunStatus, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { ReviewRunStatus } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const GetReviewRunStatusInputSchema = z.object({

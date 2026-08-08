@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -32,7 +32,7 @@ describe('handleListRecurringBugs', () => {
   });
 
   test('calls listRecurringBugs with correct input', async () => {
-    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleListRecurringBugs({ file_path: 'src/foo.ts', windowDays: 90, minCount: 2 });
 
@@ -46,7 +46,7 @@ describe('handleListRecurringBugs', () => {
   });
 
   test('passes package filter through', async () => {
-    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListRecurringBugs({ package: 'web-app' });
 
@@ -54,7 +54,7 @@ describe('handleListRecurringBugs', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListRecurringBugs({});
 

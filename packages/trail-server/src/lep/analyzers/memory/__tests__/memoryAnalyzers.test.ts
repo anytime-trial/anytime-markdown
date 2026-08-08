@@ -4,9 +4,9 @@ import type {
   MemoryCoreService,
   MemoryDbSession,
   ScopeResult,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
-import { topoSortByDependsOn } from '@anytime-markdown/memory-core';
+import { topoSortByDependsOn } from '@anytime-markdown/trail-caravan-book';
 
 import { BugHistoryMemoryAnalyzer } from '../BugHistoryMemoryAnalyzer';
 import { CodeMemoryAnalyzer } from '../CodeMemoryAnalyzer';

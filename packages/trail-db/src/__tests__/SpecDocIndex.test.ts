@@ -117,7 +117,7 @@ describe('SpecDocIndex.findByC4Element', () => {
       '---',
       'title: "A"',
       'c4Scope:',
-      '  - "pkg_trail-core"',
+      '  - "pkg_trail-activity"',
       '  - pkg_trail-db',
       '---',
       '# A',
@@ -131,11 +131,11 @@ describe('SpecDocIndex.findByC4Element', () => {
 
     const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
 
-    await expect(index.findByC4Element('pkg_trail-core')).resolves.toEqual([
-      { specPath: 'spec/a.md', c4Scope: ['pkg_trail-core', 'pkg_trail-db'] },
+    await expect(index.findByC4Element('pkg_trail-activity')).resolves.toEqual([
+      { specPath: 'spec/a.md', c4Scope: ['pkg_trail-activity', 'pkg_trail-db'] },
     ]);
     await expect(index.findByC4Element('pkg_trail-db')).resolves.toEqual([
-      { specPath: 'spec/a.md', c4Scope: ['pkg_trail-core', 'pkg_trail-db'] },
+      { specPath: 'spec/a.md', c4Scope: ['pkg_trail-activity', 'pkg_trail-db'] },
     ]);
     await expect(index.findByC4Element('pkg_missing')).resolves.toEqual([]);
   });

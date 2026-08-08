@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 import { copyFileSync, existsSync, rmSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';

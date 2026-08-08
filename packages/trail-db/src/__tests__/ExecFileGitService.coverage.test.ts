@@ -410,13 +410,13 @@ describe('getHeadCommit', () => {
 describe('getChangedPackages', () => {
   it('extracts unique package names from paths', () => {
     mockExecReturn(
-      'packages/trail-core/src/index.ts\n' +
+      'packages/trail-activity/src/index.ts\n' +
       'packages/trail-db/src/Service.ts\n' +
-      'packages/trail-core/src/types.ts\n' +
+      'packages/trail-activity/src/types.ts\n' +
       'README.md\n',
     );
     const result = makeService().getChangedPackages('v1', 'v2');
-    expect(result).toContain('trail-core');
+    expect(result).toContain('trail-activity');
     expect(result).toContain('trail-db');
     expect(result).toHaveLength(2);
   });

@@ -9,7 +9,7 @@ import {
   type AnalyzerEvent,
   type EventBusPublisher,
   type MemoryDbConnection,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 import { PrReviewFindingAnalyzer } from '../PrReviewFindingAnalyzer';
 

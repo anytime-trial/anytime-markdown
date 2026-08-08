@@ -1,10 +1,10 @@
 import type {
   BoundaryDriftThresholds,
   BoundaryDriftWarning,
-} from '@anytime-markdown/trail-core/domain/model';
-import { DEFAULT_BOUNDARY_DRIFT_THRESHOLDS } from '@anytime-markdown/trail-core/domain/model';
-import { detectBoundaryDrift } from '@anytime-markdown/trail-core/domain/usecase';
-import { computeStableKey } from '@anytime-markdown/trail-core/codeGraph';
+} from '@anytime-markdown/trail-activity/domain/model';
+import { DEFAULT_BOUNDARY_DRIFT_THRESHOLDS } from '@anytime-markdown/trail-activity/domain/model';
+import { detectBoundaryDrift } from '@anytime-markdown/trail-activity/domain/usecase';
+import { computeStableKey } from '@anytime-markdown/trail-activity/codeGraph';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import type { Logger } from '../runtime/Logger';

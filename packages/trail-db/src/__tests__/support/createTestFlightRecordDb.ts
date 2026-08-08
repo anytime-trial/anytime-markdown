@@ -23,7 +23,7 @@ import {
   CREATE_SESSION_COSTS,
   CREATE_SESSIONS,
   CREATE_VERIFICATION_RUNS,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import { FlightRecordDatabase } from '../../FlightRecordDatabase';
 import type { DbLogger } from '../../DbLogger';

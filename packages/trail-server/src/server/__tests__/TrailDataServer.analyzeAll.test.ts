@@ -7,7 +7,7 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { RunnerStatus } from '@anytime-markdown/memory-core';
+import type { RunnerStatus } from '@anytime-markdown/trail-caravan-book';
 import type { AnalyzeAllRunner } from '../../runner/AnalyzeAllRunner';
 
 function makeStatus(overrides: Partial<RunnerStatus> = {}): RunnerStatus {

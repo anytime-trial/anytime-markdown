@@ -1,14 +1,14 @@
 ---
 name: anytime-trail-review
 effort: low
-description: コードレビュー結果を出力する際の Markdown 書式（memory-core ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象/観点の4メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
+description: コードレビュー結果を出力する際の Markdown 書式（trail-caravan-book ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象/観点の4メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
 ---
 
 # レビュー指摘の書式
 
 更新日: 2026-08-07
 
-コードレビュー結果を出力する際の Markdown 書式。`memory-core/src/ingest/review` パーサ（Route A: review .md doc / Route B: session 抽出 / Route C: agent review）がこの書式を前提に finding を抽出するため、**指摘を確実に Memory に蓄積したい場合は本書式に従う**こと。
+コードレビュー結果を出力する際の Markdown 書式。`trail-caravan-book/src/ingest/review` パーサ（Route A: review .md doc / Route B: session 抽出 / Route C: agent review）がこの書式を前提に finding を抽出するため、**指摘を確実に Memory に蓄積したい場合は本書式に従う**こと。
 
 ## 0. 最小要件（これだけは外さない）
 
@@ -151,7 +151,7 @@ target_refs:               # 任意。レビュー対象パス
 カテゴリ・重大度はパーサが自動推論もするが、明示するほうが精度が高い。観点は推論されない（明示のみ。省略・不正値は未記録 null）。
 
 > [!IMPORTANT]
-> **対象は「見出し」ではなく機械が読む値**である。パーサは `- **対象**:` 行のバッククォート内（無ければ素の値）を `target_file_path` として採り、`trail.commit_files` に実在するリポジトリへ解決してから、レビュー後 30 日以内の修正コミットと突き合わせる（`memory-core/src/ingest/review/linkAddresses.ts`）。この 3 段のどこかで落ちると、その指摘は Flight Record の Review タブで永久に「判定対象外」になり、対処したかどうかを追跡できない。
+> **対象は「見出し」ではなく機械が読む値**である。パーサは `- **対象**:` 行のバッククォート内（無ければ素の値）を `target_file_path` として採り、`trail.commit_files` に実在するリポジトリへ解決してから、レビュー後 30 日以内の修正コミットと突き合わせる（`trail-caravan-book/src/ingest/review/linkAddresses.ts`）。この 3 段のどこかで落ちると、その指摘は Flight Record の Review タブで永久に「判定対象外」になり、対処したかどうかを追跡できない。
 >
 > - **リポジトリに実在するパスを書く**。本文のコード例に出てくる架空のパス（`src/foo.ts` 等）は解決に失敗する（2026-08-06 実測: パスが記録されている 157 件のうち 83 件がリポジトリ未解決）
 > - **対象行を省略しない**。省略すると本文からの推測に落ち、その多くは NULL になる（同実測: 947 件中 790 件が対象欠落）

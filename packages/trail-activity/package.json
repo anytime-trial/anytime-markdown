@@ -1,0 +1,76 @@
+{
+  "name": "@anytime-markdown/trail-activity",
+  "version": "0.44.0",
+  "license": "MIT",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./analyze": "./src/analyze.ts",
+    "./analyzer": "./src/analyzer/index.ts",
+    "./importance": "./src/importance/index.ts",
+    "./transform": "./src/transform/index.ts",
+    "./model": "./src/model/index.ts",
+    "./formatDate": "./src/formatDate.ts",
+    "./gitExecutable": "./src/gitExecutable.ts",
+    "./domain": "./src/domain/index.ts",
+    "./domain/model": "./src/domain/model/index.ts",
+    "./domain/model/commitPrefix": "./src/domain/model/commitPrefix.ts",
+    "./domain/port": "./src/domain/port/index.ts",
+    "./domain/usecase": "./src/domain/usecase/index.ts",
+    "./domain/engine": "./src/domain/engine/index.ts",
+    "./domain/schema": "./src/domain/schema/index.ts",
+    "./domain/reader": "./src/domain/reader/index.ts",
+    "./domain/metrics": "./src/domain/metrics/index.ts",
+    "./c4": "./src/c4/index.ts",
+    "./c4/services": "./src/c4/services/catalog.ts",
+    "./c4/callHierarchy": "./src/c4/callHierarchy/index.ts",
+    "./codeGraph": "./src/codeGraph.ts",
+    "./codeGraphDiff": "./src/codeGraphDiff.ts",
+    "./codeGraphNodeId": "./src/codeGraphNodeId.ts",
+    "./authorHeatmap": "./src/authorHeatmap/index.ts",
+    "./deadCode": "./src/deadCode/index.ts",
+    "./analyzeExclude": "./src/analyzeExclude/index.ts",
+    "./commitCategories": {
+      "browser": "./src/commitCategories/browser.ts",
+      "default": "./src/commitCategories/index.ts"
+    },
+    "./toolCategories": {
+      "browser": "./src/toolCategories/browser.ts",
+      "default": "./src/toolCategories/index.ts"
+    },
+    "./skillCategories": {
+      "browser": "./src/skillCategories/browser.ts",
+      "default": "./src/skillCategories/index.ts"
+    },
+    "./centrality": "./src/centrality/index.ts",
+    "./classify": "./src/classify/index.ts"
+  },
+  "scripts": {
+    "test": "jest --maxWorkers=1",
+    "gen:service-icons": "node scripts/gen-service-icons.mjs"
+  },
+  "peerDependencies": {
+    "@anytime-markdown/code-analysis-core": "*",
+    "@anytime-markdown/code-analysis-typescript": "*",
+    "@anytime-markdown/graph-core": "*",
+    "typescript": ">=5.0.0"
+  },
+  "devDependencies": {
+    "@iconify-json/logos": "1.2.11",
+    "@types/jest": "30.0.0",
+    "@types/minimatch": "5.1.2",
+    "esbuild": "0.25.4",
+    "jest": "30.2.0",
+    "simple-icons": "16.17.0",
+    "ts-jest": "29.4.11",
+    "ts-node": "10.9.2",
+    "typescript": "6.0.3"
+  },
+  "dependencies": {
+    "ignore": "7.0.5",
+    "minimatch": "9.0.9"
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * 解析パイプライン → boundary_drift_warnings の結線（T3）のユニットテスト。
  *
- * 判定そのものは trail-core 側で検証済みなので、ここでは「何を DB へ渡すか」と
+ * 判定そのものは trail-activity 側で検証済みなので、ここでは「何を DB へ渡すか」と
  * 「失敗してもパイプラインを止めないか」だけを見る。
  */
 import type { Logger } from '../../runtime/Logger';

@@ -1,4 +1,4 @@
-import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain/model/commitPrefix';
+import { extractCommitPrefix } from '@anytime-markdown/trail-activity/domain/model/commitPrefix';
 
 // ---------------------------------------------------------------------------
 // Quality Rates

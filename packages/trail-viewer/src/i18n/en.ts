@@ -668,7 +668,7 @@ export const en: TrailI18n = {
   'viewer.tab.flightRecord': 'Flight Record',
   // chat (top-level tab to the right of Flight Record; formerly a Memory sub-tab)
   'viewer.tab.chat': 'Chat',
-  // knowledgeGraph (to the right of Flight Record; memory-core knowledge graph as a cooccurrence network)
+  // knowledgeGraph (to the right of Flight Record; trail-caravan-book knowledge graph as a cooccurrence network)
   'viewer.tab.knowledgeGraph': 'Knowledge Graph',
   'knowledgeGraph.loading': 'Loading…',
   'knowledgeGraph.loadFailed': 'Failed to load the knowledge graph (the Trail server may be stopped)',

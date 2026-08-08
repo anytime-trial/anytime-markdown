@@ -30,7 +30,7 @@ export type FindingStatusFilter = '' | FindingStatus;
 
 /**
  * Review サブタブの絞り込み条件。各値の空文字は「すべて」で、複数指定は AND で効く。
- * severity / category は列挙を型で固定しない — severity は memory-core が取り込んだ
+ * severity / category は列挙を型で固定しない — severity は trail-caravan-book が取り込んだ
  * 文字列がそのまま入り（未知値も表に出る）、category はレビュー側が自由に付けるため。
  */
 export interface FindingFilter {
@@ -55,7 +55,7 @@ function isBlank(value: string | null): boolean {
 /**
  * 表示する対処状態を決める。
  *
- * `notLinkable` の条件は memory-core の `linkAddresses`（対処コミットの自動リンク）が
+ * `notLinkable` の条件は trail-caravan-book の `linkAddresses`（対処コミットの自動リンク）が
  * 母集合を絞る条件と**同じもの**を写している: severity=info は対象外、対象ファイルパスと
  * 解決済みリポジトリの両方が揃っていなければ照合できない。片方だけ変えると、
  * 「判定対象なのに永久に未対処」あるいは「対象外なのに未対処表示」が生まれる。

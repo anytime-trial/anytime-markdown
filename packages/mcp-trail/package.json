@@ -18,8 +18,8 @@
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/markdown-eval-core": "*",
-    "@anytime-markdown/memory-core": "*",
-    "@anytime-markdown/trail-core": "*",
+    "@anytime-markdown/trail-caravan-book": "*",
+    "@anytime-markdown/trail-activity": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
     "better-sqlite3": "12.4.1",
     "zod": "4.3.6"

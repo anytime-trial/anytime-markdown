@@ -1,10 +1,10 @@
-import type { CommitFileRow, SessionFileRow } from '@anytime-markdown/trail-core';
+import type { CommitFileRow, SessionFileRow } from '@anytime-markdown/trail-activity';
 import {
   computeConfidenceCoupling,
   computeSessionConfidenceCoupling,
   computeSessionCoupling,
   computeTemporalCoupling,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

@@ -2,7 +2,7 @@
  * TourMode — vanilla DOM view.
  * Thin port of c4/canvas/TourMode.tsx.
  */
-import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/c4';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import type { TourStep } from '../../c4/canvas/tourTargets';
 

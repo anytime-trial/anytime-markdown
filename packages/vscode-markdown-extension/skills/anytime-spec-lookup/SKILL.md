@@ -17,9 +17,9 @@ description: anytime-markdown の設計書（<docsRoot>/spec）を低トーク�
 
 ```yaml
 related:
-  - to: "spec/41.trail-core/trail-core.ja.md"
+  - to: "spec/41.trail-activity/trail-activity.ja.md"
     type: depends-on
-  - "spec/42.memory-core/memory-core.ja.md"   # 素の文字列 = references
+  - "spec/42.trail-caravan-book/trail-caravan-book.ja.md"   # 素の文字列 = references
 ```
 
 型: `references`（弱い参照・既定） / `depends-on` / `implements` / `part-of` / `supersedes` / `refines`。

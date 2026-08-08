@@ -5,7 +5,7 @@ import type {
   CombinedRangeDays,
   ToolMetrics,
 } from '../../domain/parser/types';
-import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain/model/commitPrefix';
+import { extractCommitPrefix } from '@anytime-markdown/trail-activity/domain/model/commitPrefix';
 import type { CommitBaselineSummary, CommitPrefixBaseline } from '../../domain/parser/types';
 
 const REGRESSION_FIX_RE = /^fix\([^)]*regression[^)]*\)/i;

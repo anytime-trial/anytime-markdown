@@ -2,7 +2,7 @@
  * Phase 6 S5-C: ドリフト推移チャート（FR-27）。
  * jsdom では実チャート描画を検証できないため、spec 構築と空状態の縮退を固定する。
  */
-import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-activity';
 import { buildDriftHistorySpec, mountDriftHistoryChart } from '../driftHistoryChart';
 
 const t = (key: string): string => key;

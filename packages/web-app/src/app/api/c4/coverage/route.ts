@@ -1,5 +1,5 @@
-import { aggregateCoverageFromDb, fetchC4Model } from "@anytime-markdown/trail-core/c4";
-import type { ReleaseCoverageRow } from "@anytime-markdown/trail-core/domain";
+import { aggregateCoverageFromDb, fetchC4Model } from "@anytime-markdown/trail-activity/c4";
+import type { ReleaseCoverageRow } from "@anytime-markdown/trail-activity/domain";
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";

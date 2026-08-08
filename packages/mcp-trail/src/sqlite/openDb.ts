@@ -79,7 +79,7 @@ export async function openMemoryDb(
   }
   db.pragma('busy_timeout = 5000');
   // activity.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON。
-  // instruction_sessions の FK は宣言のみの運用 — trail-core tables.ts のコメント参照）
+  // instruction_sessions の FK は宣言のみの運用 — trail-activity tables.ts のコメント参照）
   db.pragma('foreign_keys = OFF');
   return wrapOpenedDb(db, dbPath, mode);
 }

@@ -41,7 +41,7 @@ import {
   type SelfAssessment,
   type VerificationKind,
   type VerificationRunStatus,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 type Database = SqlJsCompatDatabase;
 
@@ -245,7 +245,7 @@ function toFlightReview(row: readonly unknown[]): FlightReview {
  * - trail.* への書き込みは移行処理（destructiveMigrateFromTrailDb）の退避・DROP のみ。それ以外の
  *   メソッドは trail.* を SELECT でしか触らない（アプリ層規律。better-sqlite3 は
  *   ATTACH 単位の readonly を強制できないため）。
- * - スキーマ正本は trail-core の DDL 定数。writer が冪等 CREATE する方針は activity.db
+ * - スキーマ正本は trail-activity の DDL 定数。writer が冪等 CREATE する方針は activity.db
  *   時代から不変（デーモン未起動でも mcp-trail の直書きが先行しうるため）。
  */
 export class FlightRecordDatabase {
@@ -267,7 +267,7 @@ export class FlightRecordDatabase {
 
   /**
    * caravan-book.db を開き、Flight Record テーブルを冪等作成し、activity.db が在れば ATTACH する。
-   * 副作用: caravan-book.db が無い場合はファイルを新規作成する（memory-core の migration は
+   * 副作用: caravan-book.db が無い場合はファイルを新規作成する（trail-caravan-book の migration は
    * 自前の _migrations で版管理しており、先にこのファイルが出来ていても衝突しない）。
    */
   init(): void {
@@ -295,7 +295,7 @@ export class FlightRecordDatabase {
         ),
     });
     // 拡張の memory pipeline / MemoryApiHandler と同一ファイルを共有するため WAL を保証する。
-    // openMemoryCoreDb（memory-core パッケージ）だけに任せると、本クラスが先に DB ファイルを
+    // openMemoryCoreDb（trail-caravan-book パッケージ）だけに任せると、本クラスが先に DB ファイルを
     // 作った環境で既定の DELETE ジャーナルのまま読み書きが競合する（前提はコメントでなく
     // 実装で担保する）。WAL にできないビルドは握りつぶさず警告する。
     const journalMode = String(inner.pragma('journal_mode = WAL', { simple: true }));

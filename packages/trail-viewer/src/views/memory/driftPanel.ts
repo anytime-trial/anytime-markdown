@@ -15,7 +15,7 @@ import {
 } from '@anytime-markdown/ui-core';
 import type { SelectOption } from '@anytime-markdown/ui-core';
 import type { MemoryDriftEventRow } from '../../data/types';
-import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-activity';
 import { mountDriftHistoryChart } from './driftHistoryChart';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { computeFixTarget, filterDriftRows } from '../../components/memory/driftFilter';

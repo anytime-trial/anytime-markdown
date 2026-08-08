@@ -5,7 +5,7 @@ import {
   type AnalyzerEvent,
   type MemoryDbConnection,
   type PrReviewIngestInput,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 import {
   extractPrReviewFindingInputs,
@@ -24,7 +24,7 @@ export interface PrReviewFindingAnalyzerOptions {
 
 /**
  * `pr_review_imported` を購読し、PR review の body + コメントから finding を抽出して
- * `ingestPrReview`（memory-core）で **review 本体と同時に** `memory_reviews` /
+ * `ingestPrReview`（trail-caravan-book）で **review 本体と同時に** `memory_reviews` /
  * `memory_review_findings` へ書き込む (Step 5: activity.db から caravan-book.db への付け替え)。
  *
  * - `ingestPrReview` は bodyHash 一致で即 skip する冪等 API のため、review 行を先に空

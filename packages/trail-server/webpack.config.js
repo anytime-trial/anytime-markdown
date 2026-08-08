@@ -57,7 +57,7 @@ const serverConfig = {
     new CopyPlugin({
       patterns: [
         {
-          from: path.resolve(__dirname, '../memory-core/src/db/migrations/*.sql'),
+          from: path.resolve(__dirname, '../trail-caravan-book/src/db/migrations/*.sql'),
           to: '[name][ext]',
         },
         // tree-sitter wasm（Python コードグラフ解析用）を dist/wasm/ に同梱する。

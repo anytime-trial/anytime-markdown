@@ -2,8 +2,8 @@
 jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn() };
 });
 

@@ -1,9 +1,9 @@
 /**
  * catalog.db（markdown 拡張専用）の ingest ランナー。
  *
- * doc-core / node:sqlite を拡張ホスト本体に取り込まず、同梱した node バンドル
+ * markdown-catalog / node:sqlite を拡張ホスト本体に取り込まず、同梱した node バンドル
  * `dist/doc-ingest.js` を子プロセス（`process.execPath` + `ELECTRON_RUN_AS_NODE`）として
- * 起動して ingest する。これにより拡張本体バンドルは doc-core 非依存を保ち、
+ * 起動して ingest する。これにより拡張本体バンドルは markdown-catalog 非依存を保ち、
  * 非 WSL（Electron）環境でも本物の Node 実行系で node:sqlite を使える。
  */
 
@@ -36,7 +36,7 @@ export class DocIngestRunner implements vscode.Disposable {
    */
   runOnce(mode: 'ingest' | 'index-only' = 'ingest'): Promise<DocIngestRunResult | null> {
     if (this.running) {
-      MarkdownLogger.info('[doc-core] ingest already running; skip');
+      MarkdownLogger.info('[markdown-catalog] ingest already running; skip');
       return Promise.resolve(null);
     }
     this.running = true;
@@ -56,10 +56,10 @@ export class DocIngestRunner implements vscode.Disposable {
         out += d.toString();
       });
       child.stderr.on('data', (d: Buffer) => {
-        MarkdownLogger.warn(`[doc-core] ${d.toString().trimEnd()}`);
+        MarkdownLogger.warn(`[markdown-catalog] ${d.toString().trimEnd()}`);
       });
       child.on('error', (err) => {
-        MarkdownLogger.error('[doc-core] ingest spawn failed', err);
+        MarkdownLogger.error('[markdown-catalog] ingest spawn failed', err);
         this.running = false;
         resolve(null);
       });
@@ -67,15 +67,15 @@ export class DocIngestRunner implements vscode.Disposable {
         this.running = false;
         if (code !== 0) {
           const tail = out.trim();
-          MarkdownLogger.error(`[doc-core] ingest exited with code=${code}${tail ? ` stdout=${tail}` : ''}`);
+          MarkdownLogger.error(`[markdown-catalog] ingest exited with code=${code}${tail ? ` stdout=${tail}` : ''}`);
           resolve(null);
           return;
         }
-        MarkdownLogger.info(`[doc-core] ingest ${out.trim()} (db=${this.dbPath})`);
+        MarkdownLogger.info(`[markdown-catalog] ingest ${out.trim()} (db=${this.dbPath})`);
         try {
           resolve(JSON.parse(out.trim()) as DocIngestRunResult);
         } catch (err) {
-          MarkdownLogger.warn(`[doc-core] ingest output parse failed: ${String(err)}`);
+          MarkdownLogger.warn(`[markdown-catalog] ingest output parse failed: ${String(err)}`);
           resolve(null);
         }
       });

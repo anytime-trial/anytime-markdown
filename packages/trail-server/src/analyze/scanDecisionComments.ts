@@ -3,7 +3,7 @@ import type { DecisionComment } from './analyzeChildProtocol';
 
 /**
  * WHY / RATIONALE / 理由 接頭辞にマッチする。i=大小無視, 行頭の `:` / `：` 両対応。
- * （memory-core/extractComments.ts から移設。挙動を変えないこと）
+ * （trail-caravan-book/extractComments.ts から移設。挙動を変えないこと）
  */
 const COMMENT_PATTERN = /(?:WHY|RATIONALE|理由)\s*[:：]\s*(.+)/i;
 
@@ -53,7 +53,7 @@ function namedNodeIdent(node: ts.Node): string | null {
  * `DecisionComment[]` として抽出する純粋関数。DB 書込・memory 依存を持たないため
  * analyze-child（typescript 同梱）からそのまま呼べる。
  *
- * memory-core/extractComments.ts の走査部を切り出したもの。memory 側の ingest
+ * trail-caravan-book/extractComments.ts の走査部を切り出したもの。memory 側の ingest
  * （Decision entity / edge への変換）は ingestDecisionComments に残す。
  *
  * @param program analyzeWithProgram が構築した ts.Program

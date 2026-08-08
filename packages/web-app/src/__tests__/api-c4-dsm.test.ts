@@ -10,7 +10,7 @@ jest.mock('../lib/api-helpers', () => ({
   NO_STORE_HEADERS: { 'Cache-Control': 'no-store' },
 }));
 
-jest.mock('@anytime-markdown/trail-core/c4', () => ({
+jest.mock('@anytime-markdown/trail-activity/c4', () => ({
   buildSourceMatrix: mockBuildSourceMatrix,
 }));
 

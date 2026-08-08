@@ -6,7 +6,7 @@
 jest.mock('@anytime-markdown/code-analysis-typescript/analyze', () => ({
   analyze: jest.fn(() => ({ nodes: [], edges: [], metadata: { projectRoot: '/tmp/repo', analyzedAt: '2026-01-01', fileCount: 0 } })),
 }));
-jest.mock('@anytime-markdown/trail-core/analyzeExclude', () => ({
+jest.mock('@anytime-markdown/trail-activity/analyzeExclude', () => ({
   loadAnalyzeExclude: jest.fn(() => {
     const ignore = require('ignore');
     return ignore();
@@ -17,7 +17,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { CodeGraphService } from '../CodeGraphService';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
 
 function writePkg(repoRoot: string, pkg: string, json: Record<string, unknown>): void {
   const dir = path.join(repoRoot, 'packages', pkg);

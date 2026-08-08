@@ -1,7 +1,7 @@
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import type { AnalyticsData } from '../../../domain/parser/types';
-import type { QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { QualityMetrics } from '@anytime-markdown/trail-activity/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { formatDoraValue } from '../widgets/doraValueDisplay';
 import { mountCyclingCard } from '../widgets/cyclingCard';

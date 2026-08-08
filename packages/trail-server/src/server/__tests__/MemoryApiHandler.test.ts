@@ -1,6 +1,6 @@
-jest.mock('@anytime-markdown/memory-core', () => {
+jest.mock('@anytime-markdown/trail-caravan-book', () => {
   // Real BetterSqlite3MemoryDb は使う (better-sqlite3 への依存を mock しない)
-  const actual = jest.requireActual('@anytime-markdown/memory-core');
+  const actual = jest.requireActual('@anytime-markdown/trail-caravan-book');
   return {
     ...actual,
     resolveDrift: jest.fn(() => ({ resolved: true })),
@@ -8,7 +8,7 @@ jest.mock('@anytime-markdown/memory-core', () => {
 });
 
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
-import { BetterSqlite3MemoryDb, runMigrations, type MemoryDbSqlValue } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, runMigrations, type MemoryDbSqlValue } from '@anytime-markdown/trail-caravan-book';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -261,7 +261,7 @@ describe('MemoryApiHandler', () => {
       expect(rows.length).toBe(2);
     });
 
-    // activity.db が ATTACH できない構成でも一覧そのものは memory-core だけで引ける。
+    // activity.db が ATTACH できない構成でも一覧そのものは trail-caravan-book だけで引ける。
     // instruction_sessions を引けないことを理由に行を落とすと、Bug Fixed タブが丸ごと空になる。
     it('activity.db が無ければ指示 ID をセッション ID へフォールバックし、行は落とさない', async () => {
       const rows = await handler.getBugHistory({});

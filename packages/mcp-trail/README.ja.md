@@ -139,10 +139,10 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 > 書き込み完了後、TrailDataServer は `model-updated` を WebSocket 通知するため、Trail Viewer 側のキャッシュも自動再取得される（Reload Window 不要）。
 
 
-### 4.7 ドリフト検出（memory-core）
+### 4.7 ドリフト検出（trail-caravan-book）
 
 設計仕様とコード実装の乖離（ドリフト）を管理する。\
-memory-core DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きする。TrailDataServer は不要。
+trail-caravan-book DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きする。TrailDataServer は不要。
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
@@ -151,7 +151,7 @@ memory-core DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きす�
 | `resolve_drift` | `event_id` / `resolution_note` / `resolved_at?` | ドリフトイベントを解決済みとしてマークし、解決メモを記録する |
 
 
-### 4.8 レビューエージェント（memory-core）
+### 4.8 レビューエージェント（trail-caravan-book）
 
 AI レビューエージェントの実行管理とレビュー対象の優先順位付け。
 
@@ -163,7 +163,7 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `list_review_target_hints` | `limit?` | ドリフトイベント・バグ修正・未レビューファイルに基づく優先レビュー対象候補を返す |
 
 
-### 4.9 バグ履歴（memory-core）
+### 4.9 バグ履歴（trail-caravan-book）
 
 コミット単位のバグ修正履歴と繰り返しバグのパターン分析。
 
@@ -173,7 +173,7 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `list_recurring_bugs` | `package?` / `file_path?` / `caused_by_entity_id?` / `windowDays?` / `minCount?` | 一定期間内に繰り返し発生しているバググループを一覧する |
 
 
-### 4.10 レビュー所見（memory-core）
+### 4.10 レビュー所見（trail-caravan-book）
 
 レビュー結果の追跡と対応済みコミットのリンク管理。
 
@@ -184,9 +184,9 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `link_review_to_commit` | `finding_id` / `commit_sha` / `addressed_at?` / `override_auto?` | レビュー所見を特定コミットで対応済みとしてマークし、`addresses` エッジを挿入する |
 
 
-### 4.11 メモリグラフ検索（memory-core）
+### 4.11 メモリグラフ検索（trail-caravan-book）
 
-memory-core に蓄積されたエンティティ・関係・会話エピソードをクエリで検索する。\
+trail-caravan-book に蓄積されたエンティティ・関係・会話エピソードをクエリで検索する。\
 `OLLAMA_BASE_URL` 未設定時はキーワードマッチのみ（ベクトル検索なし）。
 
 | ツール | 主要パラメータ | 用途 |

@@ -4,7 +4,7 @@
  * 検査するのは「取りこぼしの数え方」そのもの。escalate の除外・破損申告の切り分け・
  * 列未マイグレーション時の測定不能表明は、どれも壊れても件数が減るだけで
  * 「シグナルが出ていない＝健全」に見えてしまい、既存テストでは検知できない。
- * 列定義は trail-core の CREATE_DOCTRINE_JUDGMENTS と同期する。
+ * 列定義は trail-activity の CREATE_DOCTRINE_JUDGMENTS と同期する。
  */
 const { spawnSync } = require('node:child_process');
 const { DatabaseSync } = require('node:sqlite');

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { listRecurringBugs, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { RecurringBugGroup } from '@anytime-markdown/memory-core/query';
+import { listRecurringBugs, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { RecurringBugGroup } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const ListRecurringBugsInputSchema = z.object({

@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
-import type { C4Model } from '@anytime-markdown/trail-core';
+import type { C4Model } from '@anytime-markdown/trail-activity';
 import type {
   ConfidenceCouplingEdge,
   TemporalCouplingEdge,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 import {
   aggregateGhostEdgesToC4,
   type C4GhostEdge,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 
 export function useC4GhostEdges(
   edges: ReadonlyArray<TemporalCouplingEdge | ConfidenceCouplingEdge>,

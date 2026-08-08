@@ -5,7 +5,7 @@
  * All draw logic is verbatim from the React source.
  */
 
-import type { C4Model, C4Element, CoverageDiffMatrix, CoverageMatrix, CoverageEntry } from '@anytime-markdown/trail-core/c4';
+import type { C4Model, C4Element, CoverageDiffMatrix, CoverageMatrix, CoverageEntry } from '@anytime-markdown/trail-activity/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import {
   COVERAGE_HIGH,

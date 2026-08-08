@@ -5,7 +5,7 @@
  */
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import type { AnalyticsPanelProps, PeriodDays } from '../../components/analytics/types';
-import type { QualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import type { QualityMetrics } from '@anytime-markdown/trail-activity/domain/metrics';
 import type { TrailThemeTokens } from '../../theme/designTokens';
 import type { CombinedChartsContentThemeProps } from './charts/combined/combinedChartsContent';
 // Inline types mirroring the context value shapes (context interfaces are not exported)

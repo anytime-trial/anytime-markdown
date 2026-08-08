@@ -1,13 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import {
   computeDeploymentFrequency,
   computeReleaseQualityTimeSeries,
-} from '@anytime-markdown/trail-core/domain/metrics';
+} from '@anytime-markdown/trail-activity/domain/metrics';
 import type {
   DateRange,
   ReleaseQualityBucket,
-} from '@anytime-markdown/trail-core/domain/metrics';
+} from '@anytime-markdown/trail-activity/domain/metrics';
 
 export class ReleasesReader {
   constructor(private readonly client: SupabaseClient) {}

@@ -401,7 +401,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
             mappings: z
               .array(
                 z.object({
-                  elementId: z.string().describe('C4 element id (e.g. pkg_trail-core/coverage)'),
+                  elementId: z.string().describe('C4 element id (e.g. pkg_trail-activity/coverage)'),
                   elementType: z.string().describe('C4 element type (component, container, etc.)'),
                   role: roleEnum.describe('primary / secondary / dependency'),
                 }),
@@ -420,7 +420,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Drift detection tools (memory-core)
+  //  Drift detection tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -549,7 +549,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_threat_framework',
-    { description: "Return the agentic threat framework (5 tactics, 17 techniques ADR.T0001-T0017) ported from Uber's ADR (Apache-2.0). Read-only static data compiled into trail-core — no DB or network access. Use it to ground threat analysis of agent sessions: pass `tactic` to narrow to one tactic's techniques, omit it for the full framework. Each technique carries id / name / jaName / description.", inputSchema: {
+    { description: "Return the agentic threat framework (5 tactics, 17 techniques ADR.T0001-T0017) ported from Uber's ADR (Apache-2.0). Read-only static data compiled into trail-activity — no DB or network access. Use it to ground threat analysis of agent sessions: pass `tactic` to narrow to one tactic's techniques, omit it for the full framework. Each technique carries id / name / jaName / description.", inputSchema: {
       tactic: GetThreatFrameworkInputSchema.shape.tactic,
     }, },
     async (args) => {
@@ -632,7 +632,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Review agent tools (memory-core)
+  //  Review agent tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -687,7 +687,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Bug history tools (memory-core)
+  //  Bug history tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -722,7 +722,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Review tools (memory-core)
+  //  Review tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -793,7 +793,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Memory graph search (memory-core)
+  //  Memory graph search (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(

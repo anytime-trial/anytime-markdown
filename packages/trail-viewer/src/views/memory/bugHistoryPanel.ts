@@ -2,7 +2,7 @@
  * BugHistory パネル（Flight Record の Bug Fixed サブタブの中身）。
  *
  * 2026-08-05 に Memory の Bugs サブタブから Flight Record へ移設した。パネル実体は複製せず
- * マウント元だけを移したため、ファイルは `views/memory/` に残っている（データ源が memory-core
+ * マウント元だけを移したため、ファイルは `views/memory/` に残っている（データ源が trail-caravan-book
  * であることは変わらない）。React ラッパ `components/memory/BugHistoryPanel.tsx` は消費者が
  * 無くなったため同日に削除した。
  *

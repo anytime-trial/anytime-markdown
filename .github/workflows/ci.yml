@@ -886,7 +886,7 @@ jobs:
           files: packages/vscode-extension-pack/*.vsix
           generate_release_notes: true
 
-  # anytime-trail は memory-core / trail-db 経由で better-sqlite3 (native binding)
+  # anytime-trail は trail-caravan-book / trail-db 経由で better-sqlite3 (native binding)
   # を同梱するため OS/アーキ別のマトリクスビルドが必要。
   # prepare-native-binding.cjs が VS Code 用 Node v22 binary を取得するので
   # TARGET_ARCH / TARGET_PLATFORM を env で指定して target 別 binary を取得する。

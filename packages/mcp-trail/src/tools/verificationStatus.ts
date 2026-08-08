@@ -1,7 +1,7 @@
 /**
  * get_verification_status — activity.db の verification_runs（検証実施台帳）の読み取り。
  * 台帳は「何が実施済みか」を答えるだけで実行を決めない。判定不能・記録なしは常に needsRun へ倒す。
- * スキーマ正本は packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS
+ * スキーマ正本は packages/trail-activity/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS
  * （writer のミラーは scripts/verification-db.mjs）。本ファイルは SELECT のみで作成しない。
  */
 
@@ -10,14 +10,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
 import { resolveWorkspacePath } from '../dbPath';
 
 const execFileAsync = promisify(execFile);
 
-/** trail-core の VERIFICATION_KINDS のミラー（mcp-trail は trail-core に依存しないため）。 */
+/** trail-activity の VERIFICATION_KINDS のミラー（mcp-trail は trail-activity に依存しないため）。 */
 export const VERIFICATION_KINDS = ['unit', 'build', 'next-build', 'typecheck', 'lint', 'e2e', 'manual'] as const;
 export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 

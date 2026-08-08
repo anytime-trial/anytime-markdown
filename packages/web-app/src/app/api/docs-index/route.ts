@@ -1,5 +1,5 @@
-import type { DocLink } from "@anytime-markdown/trail-core/c4";
-import { fetchC4Model } from "@anytime-markdown/trail-core/c4";
+import type { DocLink } from "@anytime-markdown/trail-activity/c4";
+import { fetchC4Model } from "@anytime-markdown/trail-activity/c4";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 

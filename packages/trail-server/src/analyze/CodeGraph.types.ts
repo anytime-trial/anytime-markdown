@@ -7,4 +7,4 @@ export type {
   CodeGraphQueryResult,
   CodeGraphRepository,
   EdgeConfidence,
-} from '@anytime-markdown/trail-core/codeGraph';
+} from '@anytime-markdown/trail-activity/codeGraph';

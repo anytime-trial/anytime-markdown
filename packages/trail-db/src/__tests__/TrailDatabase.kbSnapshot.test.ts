@@ -1,5 +1,5 @@
-import type { IKnowledgeBaseSnapshotter, KbShrinkAlert, TrailGraph } from '@anytime-markdown/trail-core';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { IKnowledgeBaseSnapshotter, KbShrinkAlert, TrailGraph } from '@anytime-markdown/trail-activity';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 import type { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';

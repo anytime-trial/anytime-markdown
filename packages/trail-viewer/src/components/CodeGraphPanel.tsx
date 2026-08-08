@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
 import { type CodeGraphGhostEdge } from './CodeGraphCanvas';
-import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
+import { toCodeGraphNodeId } from '@anytime-markdown/trail-activity/codeGraphNodeId';
 import { useCodeGraph } from '../hooks/useCodeGraph';
 import { useAuthorHeatmap } from '../hooks/useAuthorHeatmap';
 import { isOverrideColorBy, type CodeGraphColorBy } from '../views/codeGraphCanvas';
@@ -15,7 +15,7 @@ import {
   type CodeGraphPanelProps as VanillaProps,
   type CodeGraphScrubberGranularity,
 } from '../views/codeGraphPanel';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 import {
   buildPlaybackList,
   canPlay,
@@ -29,7 +29,7 @@ import {
 import type { CodeGraphPlaybackResult } from '../views/codeGraphPanel';
 import { useCodeGraphReleases } from '../hooks/useCodeGraphReleases';
 import { useCodeGraphCommits } from '../hooks/useCodeGraphCommits';
-import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
+import { diffCodeGraphs } from '@anytime-markdown/trail-activity/codeGraphDiff';
 import { useTrailI18n } from '../i18n';
 import type { TrailI18n } from '../i18n';
 

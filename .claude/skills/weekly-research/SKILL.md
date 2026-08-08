@@ -36,7 +36,7 @@ ls -1 <docsRoot>/report/weekly-research/ 2>/dev/null | sort -r | head -1
 ### 1. Claude Code / Anthropic
 - Claude Code の新機能・アップデート・リリースノート
 - Claude API の変更点（モデル追加・廃止・破壊的変更を含む）
-- Claude 各モデルの料金改定有無（改定・新モデル価格を検知したら trail-core `pricing.ts` の `MODEL_PRICING` 現行化を提案する。参照: proposal/20260719-model-pricing-accuracy）
+- Claude 各モデルの料金改定有無（改定・新モデル価格を検知したら trail-activity `pricing.ts` の `MODEL_PRICING` 現行化を提案する。参照: proposal/20260719-model-pricing-accuracy）
 - Anthropic 公式ブログの新着記事
 
 ### 2. Codex / OpenAI
@@ -210,12 +210,12 @@ Trail は **エージェントによるソフトウェア開発プロセスそ�
 
 - コードグラフ生成・コミュニティ要約（`current_code_graphs` / community mappings / reverse-spec）
 - セッション・コミット・レビューの記録と因果追跡（`messages` / `session_commits` / `memory_reviews`）
-- メモリグラフ検索（`search_memory`）。設計書検索（doc-core: 構造 + FTS + embedding）は mcp-markdown 側のみ（trail 側の doc-core は 2026-08-06 に廃止）
+- メモリグラフ検索（`search_memory`）。設計書検索（markdown-catalog: 構造 + FTS + embedding）は mcp-markdown 側のみ（trail 側の markdown-catalog は 2026-08-06 に廃止）
 - メモリ蒸留（auto memory）・drift 検知
 
 **生成手順:**
 
-1. トピック 10 の潮流候補・新プリミティブ・RAG 動向（トピック 4）のうち、**Trail の上記目的（効率／品質／要件適合）に効く応用余地のあるもの**を 1〜3 件に絞る（例: GraphRAG/reranker → コミュニティ要約検索の精度向上で文脈供給を効率化、Dynamic Workflows → レビューのサブエージェント化で不具合検知を強化、新埋め込みモデル → doc-core 再埋め込みで設計書検索の要件適合を改善）。
+1. トピック 10 の潮流候補・新プリミティブ・RAG 動向（トピック 4）のうち、**Trail の上記目的（効率／品質／要件適合）に効く応用余地のあるもの**を 1〜3 件に絞る（例: GraphRAG/reranker → コミュニティ要約検索の精度向上で文脈供給を効率化、Dynamic Workflows → レビューのサブエージェント化で不具合検知を強化、新埋め込みモデル → markdown-catalog 再埋め込みで設計書検索の要件適合を改善）。
 2. 各候補について「Trail の現状」「適用で得られる価値（**効率／品質／要件適合のどれに効くか**）」「リスク・コスト（特にトークン消費への影響）」を 1〜2 行でメモする。
 3. **`anytime-analysis` スキルを起動して提案書を別ファイルで生成する。** 形式は原則 `lightweight`（改善提案）、複数案の合意形成が必要なら `rfc`。週次は知見が複数領域に跨るため、根拠を厚くする場合は `--deep`（反証付き）を付けてよい。
    - 起動例: `/anytime-analysis lightweight trail のコミュニティ要約検索に reranker を導入`

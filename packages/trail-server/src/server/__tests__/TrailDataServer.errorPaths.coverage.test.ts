@@ -2,8 +2,8 @@
 jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
@@ -12,7 +12,7 @@ import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { LogService } from '../../services/LogService';
-import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
+import { fetchC4Model } from '@anytime-markdown/trail-activity/c4';
 
 const mockedFetchC4Model = fetchC4Model as jest.MockedFunction<typeof fetchC4Model>;
 

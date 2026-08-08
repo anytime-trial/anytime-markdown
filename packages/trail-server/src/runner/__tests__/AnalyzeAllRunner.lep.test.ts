@@ -8,7 +8,7 @@ import {
   runMigrations,
   type MemoryDbConnection,
   type PipelineStatusFile,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
@@ -140,7 +140,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
 
     const status = await runner.runOnce('manual');
     expect(status.lastError).toContain('importAll: save boom');
-    expect(status.lastError).toContain('memory-core: mem boom');
+    expect(status.lastError).toContain('trail-caravan-book: mem boom');
     expect(status.ticksRun).toBe(0);
   });
 

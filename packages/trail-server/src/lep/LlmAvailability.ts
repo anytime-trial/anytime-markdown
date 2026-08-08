@@ -1,4 +1,4 @@
-import type { Analyzer } from '@anytime-markdown/memory-core';
+import type { Analyzer } from '@anytime-markdown/trail-caravan-book';
 
 /**
  * Wave 3 (memory) 開始前の LLM プロバイダ Pre-flight ヘルスチェック (設計書 12 章)。

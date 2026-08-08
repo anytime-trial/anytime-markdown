@@ -1,5 +1,5 @@
-import type { C4Element, C4ElementType, C4Model, ComplexityMatrix, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
-import { buildC4ElementById, collectDescendantIds, computeCommunityOverlay, mapFileToC4Elements } from '@anytime-markdown/trail-core/c4';
+import type { C4Element, C4ElementType, C4Model, ComplexityMatrix, CoverageMatrix } from '@anytime-markdown/trail-activity/c4';
+import { buildC4ElementById, collectDescendantIds, computeCommunityOverlay, mapFileToC4Elements } from '@anytime-markdown/trail-activity/c4';
 import type { CellAlign, HeaderSpan } from '@anytime-markdown/spreadsheet-core';
 import {
   createInMemorySheetAdapter,

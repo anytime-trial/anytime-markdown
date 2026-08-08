@@ -2,7 +2,7 @@ import type {
   AnalyzerContext,
   AnalyzerEvent,
   EventBusPublisher,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { CrossSourceCorrelationRow } from '@anytime-markdown/trail-db';
 
 import { CrossSourceCorrelator, type CrossSourceDataSource } from '../CrossSourceCorrelator';

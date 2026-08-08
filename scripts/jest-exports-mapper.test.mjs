@@ -2,7 +2,7 @@
 //
 // 背景: jest の moduleNameMapper に `^@scope/pkg/(.*)$` → `src/$1` のワイルドカードを
 // 手書きすると、package.json の exports が「subpath ＝ src 以下のパス」という規約から
-// 外れた瞬間に解決できなくなる（trail-core の `./c4/services` → `src/c4/services/catalog.ts`）。
+// 外れた瞬間に解決できなくなる（trail-activity の `./c4/services` → `src/c4/services/catalog.ts`）。
 // exports を単一の正として mapper を生成することで、この乖離を構造的に断つ。
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';

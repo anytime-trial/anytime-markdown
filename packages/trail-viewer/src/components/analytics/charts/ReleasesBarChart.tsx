@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
+import type { ReleaseQualityBucket } from '@anytime-markdown/trail-activity/domain/metrics';
 import { useTrailTheme } from '../../TrailThemeContext';
 import { useTrailI18n } from '../../../i18n';
 import { VanillaIsland } from '../../../shared/vanillaIsland';

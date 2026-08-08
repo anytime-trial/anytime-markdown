@@ -11,7 +11,7 @@ import {
   CREATE_FLIGHT_REVIEWS,
   CREATE_INSTRUCTION_SESSIONS,
   CREATE_INSTRUCTIONS,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import { FlightRecordDatabase } from '../FlightRecordDatabase';
 import { openBetterSqlite3 } from '../internal/loadBetterSqlite3';

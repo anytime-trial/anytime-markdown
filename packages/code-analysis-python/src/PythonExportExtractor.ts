@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 
 /**
- * `/api/c4/functions` 用の export シンボル。trail-core の ExportedSymbol と構造互換
+ * `/api/c4/functions` 用の export シンボル。trail-activity の ExportedSymbol と構造互換
  * （id = `<relPath>::<name>`、method は `<relPath>::<Class>::<method>`、`file::` 前置なし）。
  */
 export interface PythonExportedSymbol {

@@ -1,11 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CostOptimizationData } from '../../domain/parser/types';
-import { computeQualityMetrics } from '@anytime-markdown/trail-core/domain/metrics';
+import { computeQualityMetrics } from '@anytime-markdown/trail-activity/domain/metrics';
 import type {
   DateRange,
   QualityMetrics,
-} from '@anytime-markdown/trail-core/domain/metrics';
-import { calculateCost } from '@anytime-markdown/trail-core/domain/engine';
+} from '@anytime-markdown/trail-activity/domain/metrics';
+import { calculateCost } from '@anytime-markdown/trail-activity/domain/engine';
 
 export class MetricsReader {
   constructor(private readonly client: SupabaseClient) {}

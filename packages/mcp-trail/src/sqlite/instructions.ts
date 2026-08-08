@@ -11,7 +11,7 @@ import {
   CREATE_INSTRUCTIONS,
   CREATE_INSTRUCTION_SESSIONS,
   CREATE_INSTRUCTION_INDEXES,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 export interface OpenInstructionInput {
   readonly sessionId: string;
@@ -123,7 +123,7 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
         );
         if (superseded > 0) {
           console.error(
-            `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration: ${superseded} session link(s) superseded by memory-core side (old links retained in instruction_sessions__pre_move_backup)`,
+            `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration: ${superseded} session link(s) superseded by trail-caravan-book side (old links retained in instruction_sessions__pre_move_backup)`,
           );
         }
       }

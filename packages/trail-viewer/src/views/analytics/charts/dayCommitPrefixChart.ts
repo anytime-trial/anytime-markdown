@@ -3,7 +3,7 @@
  * (`components/analytics/charts/DayCommitPrefixChart.tsx` の素 DOM 等価)。
  * 非同期でコミットデータを取得し、内部で loading 状態を管理する。
  */
-import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
+import { extractCommitPrefix } from '@anytime-markdown/trail-activity/domain';
 import type { TrailSessionCommit } from '../../../domain/parser/types';
 import type { ThemeColors } from '../../../theme/designTokens';
 import { buildPieSpec } from '../../../components/analytics/charts/specs/buildPieSpec';

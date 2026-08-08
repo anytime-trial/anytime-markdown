@@ -1,4 +1,4 @@
-import type { BoundaryDriftWarning } from '@anytime-markdown/trail-core';
+import type { BoundaryDriftWarning } from '@anytime-markdown/trail-activity';
 
 import type { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
@@ -31,7 +31,7 @@ function spanning(communityId: number, severity = 4.5): BoundaryDriftWarning {
     severity,
     breakdown: [
       { key: 'trail-server', nodeCount: 20 },
-      { key: 'trail-core', nodeCount: 18 },
+      { key: 'trail-activity', nodeCount: 18 },
       { key: 'trail-db', nodeCount: 12 },
     ],
   };
@@ -79,7 +79,7 @@ describe('TrailDatabase: boundary_drift_warnings', () => {
     expect(row.communityCount).toBeNull();
     expect(row.breakdown).toEqual([
       { key: 'trail-server', nodeCount: 20 },
-      { key: 'trail-core', nodeCount: 18 },
+      { key: 'trail-activity', nodeCount: 18 },
       { key: 'trail-db', nodeCount: 12 },
     ]);
   });
@@ -170,7 +170,7 @@ describe('TrailDatabase: boundary_drift_warnings', () => {
   });
 
   it('検出回に警告件数と対象ノード数を記録する', () => {
-    db.recordBoundaryDriftWarnings(1, T0, [spanning(3), fragmentation('trail-core')], new Map(), 100);
+    db.recordBoundaryDriftWarnings(1, T0, [spanning(3), fragmentation('trail-activity')], new Map(), 100);
 
     expect(db.listBoundaryDriftRuns({ repoId: 1 })[0]).toMatchObject({
       warningCount: 2,

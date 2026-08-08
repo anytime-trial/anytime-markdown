@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { PythonLanguageAnalyzer } from '@anytime-markdown/code-analysis-python';
-import { buildIndex, traverse } from '@anytime-markdown/trail-core/c4/callHierarchy';
+import { buildIndex, traverse } from '@anytime-markdown/trail-activity/c4/callHierarchy';
 
 const APP_PY = `from pkg.models import make_dog
 

@@ -8,7 +8,7 @@ const mockComputeFileHotspot = jest.fn();
 const mockResolveSupabaseEnv = jest.fn();
 const mockCreateClient = jest.fn();
 
-jest.mock('@anytime-markdown/trail-core/c4', () => ({
+jest.mock('@anytime-markdown/trail-activity/c4', () => ({
   computeFileHotspot: mockComputeFileHotspot,
 }));
 

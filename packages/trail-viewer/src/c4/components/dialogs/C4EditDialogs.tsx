@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { SERVICE_CATALOG } from '@anytime-markdown/trail-core/c4/services';
+import { SERVICE_CATALOG } from '@anytime-markdown/trail-activity/c4/services';
 import { VanillaIsland } from '../../../shared/vanillaIsland';
 import {
   mountAddElementDialog,

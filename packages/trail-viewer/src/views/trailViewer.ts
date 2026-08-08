@@ -470,7 +470,7 @@ export function mountTrailViewer(
       store: instructionStore,
       reviewStore: flightReviewStore,
       findingStore: flightFindingStore,
-      // Bug Fixed / Drift サブタブは memory-core を直接読む（指示 store とは別経路）
+      // Bug Fixed / Drift サブタブは trail-caravan-book を直接読む（指示 store とは別経路）
       serverUrl,
       // 指摘の対象ファイルを開けるのは host（VS Code 拡張）が居るときだけ。配線は C4 の
       // 「ファイルを開く」と同じ props.c4.onOpenFile を共有する（経路を二重に持たない）。

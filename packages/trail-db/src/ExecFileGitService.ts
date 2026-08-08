@@ -4,10 +4,10 @@ import type {
   IGitService,
   MergeCommitEntry,
   FileStatEntry,
-} from '@anytime-markdown/trail-core';
-import { isCodeFile } from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
+import { isCodeFile } from '@anytime-markdown/trail-activity';
 import { execFileSync } from 'node:child_process';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

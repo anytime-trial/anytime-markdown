@@ -8,7 +8,7 @@ description: anytime-markdown の Markdown ドキュメントを検索・調査�
 更新日: 2026-07-11
 
 原則: 加重コストの本丸は「文脈サイズ × 再読込（cache_read）」。**Markdown 本文をメイン文脈に載せない**ことが削減の核心。
-mcp-markdown ツールはそれを実現する手段（[[markdown-ext-doc-core-pipeline]] / [[markdown-ext-bundle-mcp-markdown]]）。
+mcp-markdown ツールはそれを実現する手段（[[markdown-ext-markdown-catalog-pipeline]] / [[markdown-ext-bundle-mcp-markdown]]）。
 
 ## A. 検索・編集の使い分け（目的 → ツール）
 

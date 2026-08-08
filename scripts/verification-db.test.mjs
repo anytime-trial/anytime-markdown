@@ -134,11 +134,11 @@ test('listRuns: commit / 期間でフィルタする', () => {
   db.close();
 });
 
-// 回帰: writer の DDL は trail-core の正本のミラー。CREATE TABLE IF NOT EXISTS は先に作った側が
+// 回帰: writer の DDL は trail-activity の正本のミラー。CREATE TABLE IF NOT EXISTS は先に作った側が
 // 勝つため、CHECK が緩い方が先に走るとテーブルがその制約で固定される。文字列で突合して守る。
-test('SCHEMA_STATEMENTS: verification_runs の DDL が trail-core の正本と一致する', () => {
+test('SCHEMA_STATEMENTS: verification_runs の DDL が trail-activity の正本と一致する', () => {
   const canonicalSrc = fs.readFileSync(
-    path.join(import.meta.dirname, '..', 'packages', 'trail-core', 'src', 'domain', 'schema', 'tables.ts'),
+    path.join(import.meta.dirname, '..', 'packages', 'trail-activity', 'src', 'domain', 'schema', 'tables.ts'),
     'utf8',
   );
   const globs = Object.fromEntries(

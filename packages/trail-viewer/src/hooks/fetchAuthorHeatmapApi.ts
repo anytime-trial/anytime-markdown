@@ -1,4 +1,4 @@
-import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-core/authorHeatmap';
+import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-activity/authorHeatmap';
 
 export interface AuthorHeatmapFetchParams {
   readonly repo: string;

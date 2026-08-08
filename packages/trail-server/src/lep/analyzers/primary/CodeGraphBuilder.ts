@@ -2,7 +2,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
 
 type AnalyzeReleaseFn = NonNullable<Parameters<TrailDatabase['importAll']>[3]>;
@@ -11,7 +11,7 @@ export interface CodeGraphBuilderOptions {
   readonly trailDb: TrailDatabase;
   /** 監視対象 gitRoot 群。`gitRoots[0]` を primary とみなす */
   readonly gitRoots: readonly string[];
-  /** release コード解析関数 (trail-core の analyze)。未指定なら release codegraph は生成しない */
+  /** release コード解析関数 (trail-activity の analyze)。未指定なら release codegraph は生成しない */
   readonly analyzeFn?: AnalyzeReleaseFn;
   /** analyze から除外するディレクトリパターン (省略時は trail-db デフォルト) */
   readonly excludePatterns?: readonly string[];

@@ -399,7 +399,7 @@ slugify() {
 ```
 
 > [!NOTE]
-> name に英字が含まれない場合（CJK のみ）、現行 sed フィルタ後に空文字となるため必ず fallback が発火する。例: name="スクリプトトレース" + label="trail-core" + id=5 → `feature-trail-core-5`。
+> name に英字が含まれない場合（CJK のみ）、現行 sed フィルタ後に空文字となるため必ず fallback が発火する。例: name="スクリプトトレース" + label="trail-activity" + id=5 → `feature-trail-activity-5`。
 
 
 #### スラグ衝突対策
@@ -487,7 +487,7 @@ slugifyAll() {
 - 該当 0 件ならセクションごと削除
 
 ## 整合性チェック（出力前必須）
-- mappings に指定された C4 要素 ID の package と、allMembers の package が乖離している場合は §8 制約セクションに格上げして注記する（例: 「DB のメタは trace-* だが実メンバーは trail-core/* に存在する。要メタ再生成」）
+- mappings に指定された C4 要素 ID の package と、allMembers の package が乖離している場合は §8 制約セクションに格上げして注記する（例: 「DB のメタは trace-* だが実メンバーは trail-activity/* に存在する。要メタ再生成」）
 - 乖離検出条件: mappings 全要素のパッケージ集合と、allMembers のパッケージ集合の和集合に対するジャッカード係数が 0.3 未満
 ```
 
@@ -660,7 +660,7 @@ Container 責務の導出優先順:
 
 | ID | 名称 | 概要 | 主要 C4 要素 | 詳細 |
 | --- | --- | --- | --- | --- |
-| 5 | カバレッジ計算 | カバレッジ集計と差分... | pkg_trail-core/coverage | [→](03.feature-detail/feature-coverage.ja.md) |
+| 5 | カバレッジ計算 | カバレッジ集計と差分... | pkg_trail-activity/coverage | [→](03.feature-detail/feature-coverage.ja.md) |
 
 ## 未命名コミュニティ
 

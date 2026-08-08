@@ -6,7 +6,7 @@
  * Fixed-size canvas (not 100%): set from cssWidth/cssHeight.
  */
 
-import type { HeatmapAxis, HeatmapMatrix } from '@anytime-markdown/trail-core/c4';
+import type { HeatmapAxis, HeatmapMatrix } from '@anytime-markdown/trail-activity/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { truncate } from '../../../c4/canvasHelpers';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';

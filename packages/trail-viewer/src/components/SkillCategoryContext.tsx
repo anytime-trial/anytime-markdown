@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo } from 'react';
-import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS, resolveSkillCategory } from '@anytime-markdown/trail-core/skillCategories';
+import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS, resolveSkillCategory } from '@anytime-markdown/trail-activity/skillCategories';
 import { useTrailTheme } from './TrailThemeContext';
 
 function generateOverflowColor(index: number, isDark: boolean): string {

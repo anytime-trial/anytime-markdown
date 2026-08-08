@@ -19,16 +19,16 @@ import type {
   ImportanceMatrix,
   LayerMatrix,
   SizeMatrix,
-} from '@anytime-markdown/trail-core/c4';
-import type { BusFactorEntry } from '@anytime-markdown/trail-core';
-import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
+} from '@anytime-markdown/trail-activity/c4';
+import type { BusFactorEntry } from '@anytime-markdown/trail-activity';
+import type { ArchitectureLayer } from '@anytime-markdown/trail-activity/codeGraph';
 import {
   aggregateDsmToC4ComponentLevel,
   aggregateDsmToC4ContainerLevel,
   aggregateDsmToC4SystemLevel,
   resolveSelectedElementCommunity,
-} from '@anytime-markdown/trail-core/c4';
-import type { CommunitySummary } from '@anytime-markdown/trail-core/codeGraph';
+} from '@anytime-markdown/trail-activity/c4';
+import type { CommunitySummary } from '@anytime-markdown/trail-activity/codeGraph';
 
 export interface DsmDegree {
   readonly in: number;

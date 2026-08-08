@@ -48,8 +48,8 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
-import type { FileAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
-import type { FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
+import type { FileAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
+import type { FunctionAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
 
 // ---------------------------------------------------------------------------
 // Internal helpers (cast-based access pattern used throughout existing tests)

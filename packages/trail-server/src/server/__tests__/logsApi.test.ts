@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb } from '@anytime-markdown/trail-caravan-book';
 import { LogService } from '../../services/LogService';
 import { makeLogDb, SYSTEM_RUN_ID } from '../../services/__tests__/logServiceTestUtils';
 import { handlePostLogs } from '../logsApi';

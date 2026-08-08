@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -35,7 +35,7 @@ describe('handleListReviewTargetHints', () => {
   });
 
   test('passes limit through', async () => {
-    const { listReviewTargetHints: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listReviewTargetHints: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListReviewTargetHints({ limit: 5 });
 
@@ -43,7 +43,7 @@ describe('handleListReviewTargetHints', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListReviewTargetHints({});
 

@@ -30,8 +30,8 @@ jest.mock('../../shared/vanillaIsland', () => ({
 }));
 
 import { act, render } from '@testing-library/react';
-import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
-import type { CodeGraphDiff } from '@anytime-markdown/trail-core/codeGraphDiff';
+import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
+import type { CodeGraphDiff } from '@anytime-markdown/trail-activity/codeGraphDiff';
 import { CodeGraphPanel } from '../CodeGraphPanel';
 import { TrailLocaleProvider } from '../../i18n';
 

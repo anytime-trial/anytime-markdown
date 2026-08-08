@@ -7,7 +7,7 @@ import type {
   DocLink,
   DsmMatrix,
   FeatureMatrix,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 
 export interface AnalysisProgress {
   /** 現在のフェーズ名（空文字で非表示） */

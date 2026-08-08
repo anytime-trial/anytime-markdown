@@ -2,7 +2,7 @@ import * as React from 'react';
 import type {
   HotspotGranularity,
   TrendPeriod,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 
 import { useTrailI18n } from '../../../i18n/context';
 import { VanillaIsland } from '../../../shared/vanillaIsland';

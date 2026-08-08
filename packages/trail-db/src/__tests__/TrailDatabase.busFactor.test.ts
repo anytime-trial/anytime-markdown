@@ -47,29 +47,29 @@ describe('TrailDatabase.fetchFileAuthorCommits', () => {
 
   it('ファイル×著者×コミットを返す', () => {
     insertSessionCommit(db, 's1', 'h1', 'Taro', RECENT);
-    insertCommitFile(db, 'h1', 'packages/trail-core/src/a.ts');
-    insertCommitFile(db, 'h1', 'packages/trail-core/src/b.ts');
+    insertCommitFile(db, 'h1', 'packages/trail-activity/src/a.ts');
+    insertCommitFile(db, 'h1', 'packages/trail-activity/src/b.ts');
 
     const rows = db.fetchFileAuthorCommits({});
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => r.author === 'Taro' && r.commitHash === 'h1')).toBe(true);
     expect(rows.map((r) => r.filePath).sort()).toEqual([
-      'packages/trail-core/src/a.ts',
-      'packages/trail-core/src/b.ts',
+      'packages/trail-activity/src/a.ts',
+      'packages/trail-activity/src/b.ts',
     ]);
   });
 
   it('著者が空のコミットは除外する', () => {
     insertSessionCommit(db, 's1', 'h1', '', RECENT);
-    insertCommitFile(db, 'h1', 'packages/trail-core/src/a.ts');
+    insertCommitFile(db, 'h1', 'packages/trail-activity/src/a.ts');
     expect(db.fetchFileAuthorCommits({})).toEqual([]);
   });
 
   it('sinceIso より前のコミットは除外する', () => {
     insertSessionCommit(db, 's1', 'h-old', 'Taro', '2020-01-01T00:00:00.000Z');
-    insertCommitFile(db, 'h-old', 'packages/trail-core/src/a.ts');
+    insertCommitFile(db, 'h-old', 'packages/trail-activity/src/a.ts');
     insertSessionCommit(db, 's2', 'h-new', 'Taro', RECENT);
-    insertCommitFile(db, 'h-new', 'packages/trail-core/src/a.ts');
+    insertCommitFile(db, 'h-new', 'packages/trail-activity/src/a.ts');
 
     const rows = db.fetchFileAuthorCommits({ sinceIso: '2026-01-01T00:00:00.000Z' });
     expect(rows).toHaveLength(1);
@@ -79,7 +79,7 @@ describe('TrailDatabase.fetchFileAuthorCommits', () => {
   it('同一コミットが複数セッションに紐づくと重複行で返る（一意化は算出側の責務）', () => {
     insertSessionCommit(db, 's1', 'h1', 'Taro', RECENT);
     insertSessionCommit(db, 's2', 'h1', 'Taro', RECENT);
-    insertCommitFile(db, 'h1', 'packages/trail-core/src/a.ts');
+    insertCommitFile(db, 'h1', 'packages/trail-activity/src/a.ts');
 
     const rows = db.fetchFileAuthorCommits({});
     expect(rows).toHaveLength(2);

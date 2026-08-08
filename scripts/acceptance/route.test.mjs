@@ -52,7 +52,7 @@ const TEST_CONFIG = {
   categories: {
     ui: ["packages/web-app/src/"],
     persistence: ["packages/trail-db/"],
-    schema: ["packages/trail-core/src/domain/schema/"],
+    schema: ["packages/trail-activity/src/domain/schema/"],
     packages: ["basename:package.json"],
     security: [".github/workflows/"],
     loop: [".claude/skills/anytime-loop-start/"],

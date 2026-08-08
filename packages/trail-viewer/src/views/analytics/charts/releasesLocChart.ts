@@ -3,7 +3,7 @@
  * (`components/analytics/charts/ReleasesLocChart.tsx` の素 DOM 等価)。
  */
 import type { ChartSpec } from '@anytime-markdown/chart-core';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import type { ThemeColors } from '../../../theme/designTokens';
 import { mountAnytimeChartView } from '../anytimeChartView';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';

@@ -27,7 +27,7 @@ export interface InstructionDeliverableDto {
 
 export type VerificationKindDto = 'unit' | 'build' | 'next-build' | 'typecheck' | 'lint' | 'e2e' | 'manual';
 
-/** trail-core の InstructionVerificationRun の DTO（kind ごとに最新 1 件）。 */
+/** trail-activity の InstructionVerificationRun の DTO（kind ごとに最新 1 件）。 */
 export interface InstructionVerificationRunDto {
   readonly kind: VerificationKindDto;
   readonly package: string;

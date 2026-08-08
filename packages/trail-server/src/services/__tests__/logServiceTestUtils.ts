@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb, runMigrations } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, runMigrations } from '@anytime-markdown/trail-caravan-book';
 import { LogService } from '../LogService';
 
 export const SYSTEM_RUN_ID = 'system-run-for-log-service-tests';

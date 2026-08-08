@@ -6,7 +6,7 @@ import {
   SyncService,
 } from "@anytime-markdown/trail-db";
 import { FileBackupManager } from "@anytime-markdown/database-core/FileBackupManager";
-import { formatLocalDateTime } from "@anytime-markdown/trail-core/formatDate";
+import { formatLocalDateTime } from "@anytime-markdown/trail-activity/formatDate";
 import { AnytimeDatabaseEditorProvider } from "./providers/AnytimeDatabaseEditorProvider";
 import { DatabaseProvider, BackupTreeItem, type DbFile } from "./providers/DatabaseProvider";
 import {

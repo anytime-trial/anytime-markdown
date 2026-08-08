@@ -4,8 +4,8 @@
  * ジャンプアイコンがコールバックを発火することを保証する。
  */
 import { describe, expect, test } from '@jest/globals';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import type { FeatureMatrix } from '@anytime-markdown/trail-activity/c4';
 import { appendSelectedElementDetailSections, type SelectedElementDetailOptions } from '../selectedElementDetailsPanel';
 import type { SelectedElementInfo } from '../selectedElementInfo';
 

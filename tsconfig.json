@@ -3,7 +3,7 @@
 	"references": [
 		{ "path": "packages/graph-core" },
 		{ "path": "packages/graph-viewer" },
-		{ "path": "packages/trail-core" },
+		{ "path": "packages/trail-activity" },
 		{ "path": "packages/trail-viewer" },
 		{ "path": "packages/trail-db" },
 		{ "path": "packages/trace-core" },

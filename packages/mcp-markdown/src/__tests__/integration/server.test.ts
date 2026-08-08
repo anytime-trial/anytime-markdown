@@ -23,7 +23,7 @@ describe('mcp-markdown integration', () => {
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it('should list all 15 tools (8 editor + 4 doc-core search + 3 markdown helpers)', async () => {
+  it('should list all 15 tools (8 editor + 4 markdown-catalog search + 3 markdown helpers)', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
     // editor tools
@@ -35,7 +35,7 @@ describe('mcp-markdown integration', () => {
     expect(names).toContain('sanitize_markdown');
     expect(names).toContain('format_markdown');
     expect(names).toContain('compute_diff');
-    // doc-core search tools
+    // markdown-catalog search tools
     expect(names).toContain('search_docs');
     expect(names).toContain('search_sections');
     expect(names).toContain('doc_backlinks');

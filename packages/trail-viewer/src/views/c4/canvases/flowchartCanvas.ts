@@ -5,7 +5,7 @@
  * Single-shot draw (no rAF loop): redraws on mount and on each update call.
  */
 
-import type { FlowGraph, FlowNode } from '@anytime-markdown/trail-core/analyzer';
+import type { FlowGraph, FlowNode } from '@anytime-markdown/trail-activity/analyzer';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 

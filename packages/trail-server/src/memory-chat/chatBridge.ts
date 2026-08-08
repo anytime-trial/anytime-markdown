@@ -4,7 +4,7 @@ import {
   type ChatChunk,
   type ChatTurnInput,
   type MemoryCoreDb,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { ChatProvider, HealthCheckResult } from '@anytime-markdown/llm-core';
 import {
   OllamaChatProvider,
@@ -49,7 +49,7 @@ function logPrefix(level: string, msg: string): string {
 /**
  * Memory chat の extension ホスト側エントリポイント。
  * TrailDataServer の WebSocket メッセージ (chat.send / chat.abort /
- * provider.recheck) を受けて memory-core の ChatService をストリーミング呼び出し、
+ * provider.recheck) を受けて trail-caravan-book の ChatService をストリーミング呼び出し、
  * 結果を `chat.chunk` / `provider.status` で送り返す。
  */
 export class ChatBridge {

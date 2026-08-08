@@ -11,7 +11,7 @@ import { createTooltip, createSpinner } from '@anytime-markdown/ui-core';
 import { agentBrandColors } from '../../../theme/designTokens';
 import { applyThinScrollbar } from '../../../theme/thinScrollbar';
 import { buildDaySession } from '../../../components/analytics/helpers';
-import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
+import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-activity/formatDate';
 import { mountSessionMetricsPanel } from './sessionMetricsPanel';
 import { mountSessionCacheTimeline } from '../charts/sessionCacheTimeline';
 import { mountSessionToolUsageChart } from '../charts/sessionToolUsageChart';

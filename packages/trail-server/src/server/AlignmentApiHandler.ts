@@ -1,6 +1,6 @@
 import type * as http from 'node:http';
 
-import { type AlignmentInput, checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
+import { type AlignmentInput, checkArchitecturalAlignment } from '@anytime-markdown/trail-activity';
 import {
   FileChangeResolver,
   SpecDocIndex,

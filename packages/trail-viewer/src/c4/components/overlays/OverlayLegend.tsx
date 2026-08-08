@@ -1,5 +1,5 @@
 import * as React from 'react';
-import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
+import type { MetricOverlay } from '@anytime-markdown/trail-activity/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { useTrailI18n } from '../../../i18n/context';
 import { VanillaIsland } from '../../../shared/vanillaIsland';

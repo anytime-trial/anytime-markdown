@@ -1,6 +1,6 @@
 import type { IRemoteTrailStore } from '../../IRemoteTrailStore';
 import type { SessionRow, MessageRow } from '../../TrailDatabase';
-import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 
 type SessionCostRow = {
   session_id: string;

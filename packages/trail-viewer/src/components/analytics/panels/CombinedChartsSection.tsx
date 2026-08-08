@@ -19,8 +19,8 @@ import type {
   DateRange,
   QualityMetrics,
   ReleaseQualityBucket,
-} from '@anytime-markdown/trail-core/domain/metrics';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import type {
   AgentMetric,
   ChartMetric,

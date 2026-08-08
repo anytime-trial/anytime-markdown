@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 import { createHash } from 'node:crypto';
 
 import type { Database as BetterSqlite3Database } from 'better-sqlite3';
@@ -16,9 +16,9 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  AI_FIRST_TRY_FIX_WINDOW_MS, buildReleaseFromGitData, calculateCost, computeConfidenceCoupling, computeSessionConfidenceCoupling, computeSessionCoupling, computeSubagentTypeConfidenceCoupling, computeSubagentTypeCoupling, computeTemporalCoupling, CREATE_C4_MANUAL_ELEMENTS, CREATE_C4_MANUAL_GROUPS, CREATE_C4_MANUAL_INDEXES, CREATE_ACCEPTANCE_INDEXES, CREATE_ACCEPTANCE_RECORDS, boundaryDriftTargetKey, type BoundaryDriftBreakdownEntry, type BoundaryDriftKind, type BoundaryDriftWarning, CREATE_BOUNDARY_DRIFT_INDEXES, CREATE_BOUNDARY_DRIFT_RUNS, CREATE_BOUNDARY_DRIFT_WARNINGS, CREATE_DOCTRINE_JUDGMENTS, CREATE_DOCTRINE_JUDGMENT_INDEXES, CREATE_C4_MANUAL_RELATIONSHIPS, CREATE_CODE_DECISION_COMMENTS, CREATE_COMMIT_FILES, CREATE_CROSS_SOURCE_CORRELATIONS, CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES, CREATE_CURRENT_CODE_GRAPH_COMMUNITIES, CREATE_CURRENT_CODE_GRAPHS, CREATE_CURRENT_COVERAGE, CREATE_CURRENT_COVERAGE_INDEXES, CREATE_CURRENT_FILE_ANALYSIS, CREATE_CURRENT_FUNCTION_ANALYSIS, CREATE_CURRENT_GRAPHS, CREATE_DAILY_COUNTS, CREATE_DORA_METRICS, CREATE_EMERGENCY_INDEXES, CREATE_EMERGENCY_LOG, CREATE_FILE_ANALYSIS_INDEXES, CREATE_INDEXES, CREATE_VERIFICATION_RUN_INDEXES, CREATE_VERIFICATION_RUNS, CREATE_USER_FEEDBACK_ENTRIES, CREATE_USER_FEEDBACK_INDEXES, CREATE_MESSAGE_COMMITS, CREATE_MESSAGE_TOOL_CALLS, CREATE_MESSAGE_TOOL_CALLS_INDEXES, CREATE_MESSAGES, CREATE_PR_REVIEW_COMMENTS, CREATE_PR_REVIEW_FINDINGS, CREATE_PR_REVIEW_FINDINGS_INDEXES, CREATE_PR_REVIEW_INDEXES, CREATE_PR_REVIEWS, CREATE_RELEASE_CODE_GRAPH_COMMUNITIES, CREATE_COMMIT_CODE_GRAPHS, CREATE_RELEASE_CODE_GRAPHS, CREATE_RELEASE_COVERAGE, CREATE_RELEASE_FILES, CREATE_RELEASE_GRAPHS, CREATE_RELEASE_INDEXES, CREATE_RELEASES, CREATE_REPOS, CREATE_SAFE_POINTS, CREATE_SESSION_COMMIT_RESOLUTIONS, CREATE_SESSION_COMMITS, CREATE_SESSION_COSTS, CREATE_SESSIONS, CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE, CREATE_SKILL_MODELS_RESOLVED_VIEW, DEFAULT_SKILL_MODELS, extractSkillName, isAiFirstTryFailureCommit, isCodeFile, isCountableModel, isKnownPricingModel, resolvePricingModelName, trailToC4, } from '@anytime-markdown/trail-core';
-import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FileAuthorCommitRow, type IC4ModelStore, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
-import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
+  AI_FIRST_TRY_FIX_WINDOW_MS, buildReleaseFromGitData, calculateCost, computeConfidenceCoupling, computeSessionConfidenceCoupling, computeSessionCoupling, computeSubagentTypeConfidenceCoupling, computeSubagentTypeCoupling, computeTemporalCoupling, CREATE_C4_MANUAL_ELEMENTS, CREATE_C4_MANUAL_GROUPS, CREATE_C4_MANUAL_INDEXES, CREATE_ACCEPTANCE_INDEXES, CREATE_ACCEPTANCE_RECORDS, boundaryDriftTargetKey, type BoundaryDriftBreakdownEntry, type BoundaryDriftKind, type BoundaryDriftWarning, CREATE_BOUNDARY_DRIFT_INDEXES, CREATE_BOUNDARY_DRIFT_RUNS, CREATE_BOUNDARY_DRIFT_WARNINGS, CREATE_DOCTRINE_JUDGMENTS, CREATE_DOCTRINE_JUDGMENT_INDEXES, CREATE_C4_MANUAL_RELATIONSHIPS, CREATE_CODE_DECISION_COMMENTS, CREATE_COMMIT_FILES, CREATE_CROSS_SOURCE_CORRELATIONS, CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES, CREATE_CURRENT_CODE_GRAPH_COMMUNITIES, CREATE_CURRENT_CODE_GRAPHS, CREATE_CURRENT_COVERAGE, CREATE_CURRENT_COVERAGE_INDEXES, CREATE_CURRENT_FILE_ANALYSIS, CREATE_CURRENT_FUNCTION_ANALYSIS, CREATE_CURRENT_GRAPHS, CREATE_DAILY_COUNTS, CREATE_DORA_METRICS, CREATE_EMERGENCY_INDEXES, CREATE_EMERGENCY_LOG, CREATE_FILE_ANALYSIS_INDEXES, CREATE_INDEXES, CREATE_VERIFICATION_RUN_INDEXES, CREATE_VERIFICATION_RUNS, CREATE_USER_FEEDBACK_ENTRIES, CREATE_USER_FEEDBACK_INDEXES, CREATE_MESSAGE_COMMITS, CREATE_MESSAGE_TOOL_CALLS, CREATE_MESSAGE_TOOL_CALLS_INDEXES, CREATE_MESSAGES, CREATE_PR_REVIEW_COMMENTS, CREATE_PR_REVIEW_FINDINGS, CREATE_PR_REVIEW_FINDINGS_INDEXES, CREATE_PR_REVIEW_INDEXES, CREATE_PR_REVIEWS, CREATE_RELEASE_CODE_GRAPH_COMMUNITIES, CREATE_COMMIT_CODE_GRAPHS, CREATE_RELEASE_CODE_GRAPHS, CREATE_RELEASE_COVERAGE, CREATE_RELEASE_FILES, CREATE_RELEASE_GRAPHS, CREATE_RELEASE_INDEXES, CREATE_RELEASES, CREATE_REPOS, CREATE_SAFE_POINTS, CREATE_SESSION_COMMIT_RESOLUTIONS, CREATE_SESSION_COMMITS, CREATE_SESSION_COSTS, CREATE_SESSIONS, CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE, CREATE_SKILL_MODELS_RESOLVED_VIEW, DEFAULT_SKILL_MODELS, extractSkillName, isAiFirstTryFailureCommit, isCodeFile, isCountableModel, isKnownPricingModel, resolvePricingModelName, trailToC4, } from '@anytime-markdown/trail-activity';
+import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FileAuthorCommitRow, type IC4ModelStore, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-activity';
+import type { AnalyzeOptions } from '@anytime-markdown/trail-activity/analyze';
 import ignore from 'ignore';
 
 import { aggregateCommitPrefixBaseline, aggregateCommitPrefixStats, aggregateQualityRates, type CommitBaselineSummary } from './combinedDataAggregators';
@@ -37,7 +37,7 @@ export interface DecisionCommentInput {
   readonly symbolName: string | null;
 }
 
-/** getDecisionComments の行（memory-core の ingestDecisionComments が消費）。 */
+/** getDecisionComments の行（trail-caravan-book の ingestDecisionComments が消費）。 */
 export interface DecisionCommentRow {
   readonly file_path: string;
   readonly line: number;
@@ -124,11 +124,11 @@ export interface ImportAllLepOptions {
     currentCoverageImported?: number;
   };
 }
-import type { FileSessionCommitRow } from '@anytime-markdown/trail-core/authorHeatmap';
-import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
-import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-core/c4';
-import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
-import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
+import type { FileSessionCommitRow } from '@anytime-markdown/trail-activity/authorHeatmap';
+import type { FeatureMatrix } from '@anytime-markdown/trail-activity/c4';
+import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-activity/c4';
+import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-activity/codeGraph';
+import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
 
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
 import { normalizeCodexRecords } from './codexNormalize';
@@ -138,7 +138,7 @@ import { JsonlSessionReader } from './JsonlSessionReader';
 import type { RawLine } from './rawLine';
 import { collectClaudeCodeSessionDirs, type ImportAllSessionDir } from './sessionDirs';
 import { buildMessageInsertParams, extractAgentInfo, extractSessionMetaFromLines, parseJsonlLines, type SessionRowMeta } from './sessionImport';
-export type { ReleaseCoverageRow, ReleaseFileRow, ReleaseRow } from '@anytime-markdown/trail-core';
+export type { ReleaseCoverageRow, ReleaseFileRow, ReleaseRow } from '@anytime-markdown/trail-activity';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
@@ -173,7 +173,7 @@ export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
 /**
  * boundary_drift_warnings の 1 行。
  *
- * 判定結果（trail-core の BoundaryDriftWarning）は kind による discriminated union だが、
+ * 判定結果（trail-activity の BoundaryDriftWarning）は kind による discriminated union だが、
  * 永続化層は 1 テーブルに正規化するため指標列を null 許容の平坦な形で持つ。
  * kind と指標の整合は CREATE TABLE の CHECK が担保する。
  */
@@ -680,7 +680,7 @@ interface CombinedData {
 //  SQL statements
 // ---------------------------------------------------------------------------
 
-// Schema constants imported from trail-core (see import at top of file)
+// Schema constants imported from trail-activity (see import at top of file)
 
 
 
@@ -690,9 +690,9 @@ interface CombinedData {
 
 
 
-// DEFAULT_SKILL_MODELS imported from trail-core (see import at top of file)
+// DEFAULT_SKILL_MODELS imported from trail-activity (see import at top of file)
 
-// CREATE_INDEXES imported from trail-core (see import at top of file)
+// CREATE_INDEXES imported from trail-activity (see import at top of file)
 
 const INSERT_SESSION = `INSERT OR REPLACE INTO sessions
   (id, slug, repo_id, version, entrypoint, model,
@@ -757,7 +757,7 @@ function readSubagentTypeFromMeta(jsonlPath: string): string | null {
   }
 }
 
-// extractSkillName imported from trail-core (see import at top of file)
+// extractSkillName imported from trail-activity (see import at top of file)
 
 // ---------------------------------------------------------------------------
 //  Cost classification helpers
@@ -1713,7 +1713,7 @@ export class TrailDatabase {
 
     // better-sqlite3 は webpack bundle 環境では `'better-sqlite3': 'commonjs better-sqlite3'`
     // で externals 化されており、ランタイムで `dist/node_modules/better-sqlite3/` の
-    // native binary を解決する。memory-core と同じパターン。
+    // native binary を解決する。trail-caravan-book と同じパターン。
     // 旧 sql.js + sql-wasm 16/2GB ヒープ制約は better-sqlite3 (ネイティブ) では発生しない。
     //
     // native binary の解決 (bindings 推測の回避) は openBetterSqlite3 に集約している。
@@ -3643,7 +3643,7 @@ export class TrailDatabase {
     db.run(CREATE_CURRENT_FUNCTION_ANALYSIS);
     // architectural centrality 関連カラムの追加。既存 DB に対して
     // CREATE TABLE IF NOT EXISTS は no-op になるため ALTER TABLE で補う。
-    // CHECK 制約は ALTER ADD COLUMN では付かないが、insert 経路は trail-core の型で守る。
+    // CHECK 制約は ALTER ADD COLUMN では付かないが、insert 経路は trail-activity の型で守る。
     this.runAlterStatements(db, [
       'ALTER TABLE current_file_analysis ADD COLUMN cross_pkg_in_count INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_file_analysis ADD COLUMN external_consumer_pkgs INTEGER NOT NULL DEFAULT 0',
@@ -3655,7 +3655,7 @@ export class TrailDatabase {
       "ALTER TABLE current_function_analysis ADD COLUMN function_role TEXT NOT NULL DEFAULT 'peripheral'",
       // C4 architecture overlay (UI / Logic 分類) の category 列。
       // CHECK 制約は新規 DB の CREATE TABLE で付与し、既存 DB への ALTER では
-      // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
+      // 型安全を trail-activity の TS 型で担保する (centrality 列と同方針)。
       "ALTER TABLE current_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
       // Phase 6 S5-D: Newly Active Code Detection のシグナル列（列ごとに独立した ALTER）
       'ALTER TABLE current_file_analysis ADD COLUMN newly_active INTEGER NOT NULL DEFAULT 0',
@@ -4951,7 +4951,7 @@ export class TrailDatabase {
 
   // PR review の永続化（旧 pr_reviews / pr_review_comments / pr_review_findings）は
   // memory_reviews / memory_review_findings（source_kind='pr_comment'）へ統合した（2026-08-07）。
-  // 取込は memory-core の ingestPrReview、読み出しは trail-server の prReviewMemorySource が担う。
+  // 取込は trail-caravan-book の ingestPrReview、読み出しは trail-server の prReviewMemorySource が担う。
 
   /**
    * CrossSourceCorrelator (Step 4d) 用: committed_at が有効な session_commits を返す。
@@ -5162,7 +5162,7 @@ export class TrailDatabase {
     }
     stmt.free();
     if (unknownModels.size > 0) {
-      // 料金表に無いモデルは既定単価で推計される。新モデル追加時は trail-core pricing.ts を現行化する
+      // 料金表に無いモデルは既定単価で推計される。新モデル追加時は trail-activity pricing.ts を現行化する
       this.logger.warn(
         `rebuildSessionCosts: unknown pricing model(s), default rates applied: ${[...unknownModels].join(', ')}`,
       );
@@ -5839,7 +5839,7 @@ export class TrailDatabase {
       // として全件 skip し、Rationale Audit の監査対象が恒久的に 0 件になる。
       // 件名を取り出す消費側（MetricsReader / *CommitPrefixChart / runBugHistoryIncremental
       // 等）は split('\n')[0] を通すので影響を受けない。ただし全文を照合する消費側は
-      // 挙動が変わる: memory-core の linkAddresses はメッセージ全体を小文字化して
+      // 挙動が変わる: trail-caravan-book の linkAddresses はメッセージ全体を小文字化して
       // レビュー指摘と突き合わせるため、照合対象が本文まで広がる。過剰リンクに倒れない
       // よう、同 PR でキーワード配点を一致数比例へ変更してある。
       const trimmedBody = body.trimEnd();
@@ -6921,12 +6921,12 @@ export class TrailDatabase {
 
   // ---------------------------------------------------------------------------
   //  Decision comments (code_decision_comments) — analyze-child が抽出し
-  //  memory-core が読む中継テーブル。repo 単位 wash-away。
+  //  trail-caravan-book が読む中継テーブル。repo 単位 wash-away。
   // ---------------------------------------------------------------------------
 
   /**
    * repo の decision comment を洗い替え保存する（既存を全削除 → 全行 INSERT）。
-   * comment_hash は memory-core の Decision canonName と同式 sha1(repo:file:line:text)[0:16]。
+   * comment_hash は trail-caravan-book の Decision canonName と同式 sha1(repo:file:line:text)[0:16]。
    */
   saveDecisionComments(
     repoName: string,
@@ -6951,7 +6951,7 @@ export class TrailDatabase {
     }
   }
 
-  /** repo の decision comment を読み出す（memory-core の ingestDecisionComments 用）。 */
+  /** repo の decision comment を読み出す（trail-caravan-book の ingestDecisionComments 用）。 */
   getDecisionComments(repoName: string): DecisionCommentRow[] {
     const db = this.ensureDb();
     const repoId = this.repoIdForNameReadonly(repoName);
@@ -7132,7 +7132,7 @@ export class TrailDatabase {
     );
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
-    const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
+    const stored = JSON.parse(json) as import('@anytime-markdown/trail-activity/codeGraph').StoredCodeGraph;
     const hasStableKey = columnExists(db, 'current_code_graph_communities', 'stable_key');
     const select = hasStableKey
       ? 'SELECT community_id, label, name, summary, stable_key FROM current_code_graph_communities WHERE repo_id = ?'
@@ -7471,7 +7471,7 @@ export class TrailDatabase {
     );
     const json = graphResult[0]?.values?.[0]?.[0];
     if (typeof json !== 'string') return null;
-    const stored = JSON.parse(json) as import('@anytime-markdown/trail-core/codeGraph').StoredCodeGraph;
+    const stored = JSON.parse(json) as import('@anytime-markdown/trail-activity/codeGraph').StoredCodeGraph;
     const hasStableKey = columnExists(db, 'release_code_graph_communities', 'stable_key');
     const sql = hasStableKey
       ? 'SELECT community_id, label, name, summary, stable_key FROM release_code_graph_communities WHERE release_id = ?'

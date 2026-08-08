@@ -5,12 +5,12 @@
 // 新規利用箇所は C4Reader を直接参照すること（@deprecated 相当）。
 
 import { createClient } from '@supabase/supabase-js';
-import type { TrailGraph } from '@anytime-markdown/trail-core/model';
+import type { TrailGraph } from '@anytime-markdown/trail-activity/model';
 import type {
   C4ModelEntry,
   C4ModelResult,
   IC4ModelStore,
-} from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity/domain';
 import { C4Reader } from '../data/readers/C4Reader';
 
 export class SupabaseC4ModelStore implements IC4ModelStore {

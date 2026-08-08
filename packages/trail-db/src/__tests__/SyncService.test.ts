@@ -1,7 +1,7 @@
 
 import { SyncService } from '../SyncService';
 import type { IRemoteTrailStore } from '../IRemoteTrailStore';
-import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 import { createTestTrailDatabase } from './support/createTestDb';
 
 const createDb = createTestTrailDatabase;

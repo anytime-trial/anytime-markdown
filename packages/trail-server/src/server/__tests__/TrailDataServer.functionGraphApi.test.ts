@@ -1,7 +1,7 @@
 
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn().mockResolvedValue(null) };
 });
 
@@ -9,9 +9,9 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
-import type { C4ModelPayload } from '@anytime-markdown/trail-core/c4';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import { fetchC4Model } from '@anytime-markdown/trail-activity/c4';
+import type { C4ModelPayload } from '@anytime-markdown/trail-activity/c4';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
 
 const minimalModel: C4ModelPayload['model'] = {
   level: 'code',

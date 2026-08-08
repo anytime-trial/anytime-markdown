@@ -3,8 +3,8 @@ import { Command } from 'commander';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService, PipelineRunLedger, createPipelineRunLedgerFactory } from '@anytime-markdown/memory-core/pipeline';
-import { type MemoryCoreLogSink, type LepStage, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, PipelineRunLedger, createPipelineRunLedgerFactory } from '@anytime-markdown/trail-caravan-book/pipeline';
+import { type MemoryCoreLogSink, type LepStage, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/trail-caravan-book';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { TrailDataServer } from './server/TrailDataServer';
@@ -83,7 +83,7 @@ program
     const gitRoots = opts.gitRoots ? String(opts.gitRoots).split(',').filter(Boolean) : [];
     // CLI は standalone（typescript 同梱）のため /api/trail/refresh の release 解析は
     // in-process `analyze` を analyzeReleaseFn として注入する（daemon は analyze-child へ委譲）。
-    const { analyze } = await import('@anytime-markdown/trail-core/analyze');
+    const { analyze } = await import('@anytime-markdown/trail-activity/analyze');
     // caravan-book.db は activity.db と同じ dbStorageDir に置かれる。ここで明示的に渡す
     // （MemoryApiHandler 側の cwd 基準の暗黙解決を廃したため。解決結果は従来と同一）。
     const memoryDbPath = join(dbStorageDir, 'caravan-book.db');
@@ -262,8 +262,8 @@ program
     const url = `http://${opts.host}:${actualPort}`;
     logger.info('daemon listening', { url });
 
-    // MemoryCoreService — daemon は memory-core ingest pipeline をホストする。
-    // pause/resume 状態は `${TRAIL_HOME}/memory-core-runner.json` に永続化され、
+    // MemoryCoreService — daemon は trail-caravan-book ingest pipeline をホストする。
+    // pause/resume 状態は `${TRAIL_HOME}/trail-caravan-book-runner.json` に永続化され、
     // VS Code 拡張 reload 後・daemon 再起動後も保持される。
     const memoryCoreLogSink: MemoryCoreLogSink = {
       appendLine: (msg: string) => logger.info(msg),
@@ -273,7 +273,7 @@ program
       logSink: memoryCoreLogSink,
       trailDbPath: join(dbStorageDir, 'activity.db'),
       ...(memoryCorePrimaryGitRoot ? { gitRoot: memoryCorePrimaryGitRoot } : {}),
-      statePath: join(TRAIL_HOME, 'memory-core-runner.json'),
+      statePath: join(TRAIL_HOME, 'trail-caravan-book-runner.json'),
       backfillDays: lepConfig.memory.conversation.backfillDays,
       // lep.json の llm を ingest パイプラインへ通す (baseUrl は openMemoryDbSession
       // が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
@@ -284,7 +284,7 @@ program
       },
       ...(throttledOllamaFactory ? { ollamaFactory: throttledOllamaFactory } : {}),
     });
-    logger.info('memory-core service constructed (orchestrated by AnalyzeAllRunner)', {
+    logger.info('trail-caravan-book service constructed (orchestrated by AnalyzeAllRunner)', {
       gitRoot: memoryCorePrimaryGitRoot ?? null,
     });
 
@@ -321,12 +321,12 @@ program
       intervalMin: lepConfig.memory.fts.rebuildIntervalMinutes,
     });
 
-    // AnalyzeAllRunner は importAll → memory-core runOnce('periodic') を順次実行する
+    // AnalyzeAllRunner は importAll → trail-caravan-book runOnce('periodic') を順次実行する
     // (= VS Code 拡張の anytime-trail.analyzeAll コマンドと同じデータフロー)。
     // メモリ取込が import より先に走ってしまうレースを避けるため 1 runner に統合済。
-    // pause/resume は AnalyzeAllRunner が一元管理する (旧 memory-core 側の pause は使われない)。
+    // pause/resume は AnalyzeAllRunner が一元管理する (旧 trail-caravan-book 側の pause は使われない)。
     // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ caravan-book.db を共有するため
-    // WAL で開き、migration はここで走らせない (スキーマの所有は memory-core 側)。
+    // WAL で開き、migration はここで走らせない (スキーマの所有は trail-caravan-book 側)。
     // caravan-book.db が未作成の間は pipeline_runs が無いので記録を諦める (null 返し)。
     const ledgerCoreDb = await openMemoryCoreDb(memoryDbPath, {
       ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
@@ -417,7 +417,7 @@ program
       logger.info('shutdown requested', { signal });
       try { throttleStatusWriter?.stop(); } catch (err) { logger.error('throttle status writer stop failed', err); }
       try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
-      try { await memoryCoreService.dispose(); } catch (err) { logger.error('memory-core dispose failed', err); }
+      try { await memoryCoreService.dispose(); } catch (err) { logger.error('trail-caravan-book dispose failed', err); }
       try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
       // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
       try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
@@ -472,7 +472,7 @@ program
 
 const analyzeAllCmd = program
   .command('analyze-all')
-  .description('Control analyzeAll pipeline (importAll + memory-core) on the running daemon');
+  .description('Control analyzeAll pipeline (importAll + trail-caravan-book) on the running daemon');
 
 analyzeAllCmd
   .command('pause')

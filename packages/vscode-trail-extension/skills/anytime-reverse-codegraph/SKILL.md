@@ -192,10 +192,10 @@ Step 2 で命名済みのコミュニティを「フィーチャー」とみな�
    ノード ID → C4 component への変換ルール:
 
    ```
-   ノード id 例: "trail-core/src/coverage/aggregateCoverage"
-   → package: "trail-core"
+   ノード id 例: "trail-activity/src/coverage/aggregateCoverage"
+   → package: "trail-activity"
    → src 以降の第 1 ディレクトリ: "coverage"
-   → C4 component: "pkg_trail-core/coverage"
+   → C4 component: "pkg_trail-activity/coverage"
    
    ```
 
@@ -236,7 +236,7 @@ role 判定基準:
     "communityId": 5,
     "communityName": "カバレッジ計算",
     "components": [
-      { "elementId": "pkg_trail-core/coverage", "nodes": ["aggregateCoverage", "computeCoverageDiff"] },
+      { "elementId": "pkg_trail-activity/coverage", "nodes": ["aggregateCoverage", "computeCoverageDiff"] },
       { "elementId": "pkg_trail-viewer/hooks", "nodes": ["useCoverage", "useCoverageDiff"] }
     ]
   },
@@ -245,7 +245,7 @@ role 判定基準:
 
 出力（JSON のみ、説明文不要）:
 {"mappings":[
-  {"communityId":5,"elementId":"pkg_trail-core/coverage","elementType":"component","role":"primary"},
+  {"communityId":5,"elementId":"pkg_trail-activity/coverage","elementType":"component","role":"primary"},
   {"communityId":5,"elementId":"pkg_trail-viewer/hooks","elementType":"component","role":"dependency"}
 ]}
 ```
@@ -260,7 +260,7 @@ role 判定基準:
     {
       "communityId": 5,
       "mappings": [
-        { "elementId": "pkg_trail-core/coverage", "elementType": "component", "role": "primary" },
+        { "elementId": "pkg_trail-activity/coverage", "elementType": "component", "role": "primary" },
         { "elementId": "pkg_trail-viewer/hooks", "elementType": "component", "role": "dependency" }
       ]
     },

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { runReviewAgent, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { RunReviewAgentResult } from '@anytime-markdown/memory-core/query';
+import { runReviewAgent, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { RunReviewAgentResult } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const RunReviewAgentInputSchema = z.object({

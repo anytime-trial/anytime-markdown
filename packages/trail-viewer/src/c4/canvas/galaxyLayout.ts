@@ -1,5 +1,5 @@
 import type { FunctionAnalysisApiEntry } from '../hooks/fetchFunctionAnalysisApi';
-import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/c4';
 import type { CommunityGroup } from './communityGroup';
 
 /** Golden angle ≈ 137.5° — evenly distributes spiral arms. */

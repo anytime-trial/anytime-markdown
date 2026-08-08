@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -42,7 +42,7 @@ describe('handleListReviewRuns', () => {
   });
 
   test('filters by status (E8)', async () => {
-    const { listReviewRuns: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listReviewRuns: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleListReviewRuns({ status: 'success' });
 
@@ -52,7 +52,7 @@ describe('handleListReviewRuns', () => {
   });
 
   test('passes all filters through', async () => {
-    const { listReviewRuns: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listReviewRuns: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListReviewRuns({
       trigger_kind: 'mcp',
@@ -72,7 +72,7 @@ describe('handleListReviewRuns', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListReviewRuns({});
 

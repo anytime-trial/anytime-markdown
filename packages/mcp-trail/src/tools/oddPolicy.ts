@@ -8,7 +8,7 @@ import {
   type OddResolution,
   OPERATION_KINDS,
   serializeOddRegistry,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 import { z } from 'zod';
 
 import { resolveWorkspacePath } from '../dbPath';

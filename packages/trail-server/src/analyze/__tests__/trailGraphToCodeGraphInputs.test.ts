@@ -1,4 +1,4 @@
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
 
 import { trailGraphToCodeGraphInputs } from '../trailGraphToCodeGraphInputs';
 

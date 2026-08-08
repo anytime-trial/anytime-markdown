@@ -2,9 +2,9 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 
-import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
-import type { DocLink, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
-import type { IC4ModelStore } from '@anytime-markdown/trail-core';
+import { fetchC4Model } from '@anytime-markdown/trail-activity/c4';
+import type { DocLink, FeatureMatrix } from '@anytime-markdown/trail-activity/c4';
+import type { IC4ModelStore } from '@anytime-markdown/trail-activity';
 
 import type { Logger } from '../runtime/Logger';
 

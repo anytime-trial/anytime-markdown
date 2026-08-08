@@ -1,4 +1,4 @@
-import type { C4Element, C4ElementType, C4Model } from '@anytime-markdown/trail-core/c4';
+import type { C4Element, C4ElementType, C4Model } from '@anytime-markdown/trail-activity/c4';
 
 const BOUNDARY_TYPES: ReadonlySet<C4ElementType> = new Set(['system', 'container', 'containerDb']);
 

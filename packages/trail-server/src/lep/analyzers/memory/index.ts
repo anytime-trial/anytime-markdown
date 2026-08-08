@@ -1,4 +1,4 @@
-import type { Analyzer, MemoryCoreService } from '@anytime-markdown/memory-core';
+import type { Analyzer, MemoryCoreService } from '@anytime-markdown/trail-caravan-book';
 
 import { BugHistoryMemoryAnalyzer } from './BugHistoryMemoryAnalyzer';
 import { CodeMemoryAnalyzer } from './CodeMemoryAnalyzer';
@@ -41,7 +41,7 @@ export interface CreateMemoryAnalyzersOptions {
 
 /**
  * 7 個の memory analyzer を生成して返す。共有 {@link MemoryWaveSessionProvider} を内部に持ち、
- * 全 analyzer が同じ memory-core セッションを使う。返り値の `provider` は Wave 3 完了後の
+ * 全 analyzer が同じ trail-caravan-book セッションを使う。返り値の `provider` は Wave 3 完了後の
  * `closeIfOpen()` 用に `AnalyzeAllRunner` へ渡す。
  *
  * 並び順は dependsOn を満たす (Drift は content の後、Embedding は最後)。

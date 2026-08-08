@@ -14,12 +14,12 @@ import type {
   AnalyticsData,
   ITrailReader,
   TrailRelease,
-} from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity/domain';
 import type {
   DateRange,
   QualityMetrics,
   ReleaseQualityBucket,
-} from '@anytime-markdown/trail-core/domain/metrics';
+} from '@anytime-markdown/trail-activity/domain/metrics';
 import { SessionReader } from '../data/readers/SessionReader';
 import { AnalyticsReader } from '../data/readers/AnalyticsReader';
 import { CombinedDataReader } from '../data/readers/CombinedDataReader';

@@ -27,7 +27,7 @@ export const ID_TO_PKG = {
   MR: ['markdown-rich-editor'],
   MC: ['markdown-core'],
   GC: ['graph-core'],
-  TC: ['trail-core'],
+  TC: ['trail-activity'],
   CC: ['cms-core'],
   AC: ['agent-core'],
   SC: ['spreadsheet-core', 'trace-core'],

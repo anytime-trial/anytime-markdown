@@ -1,5 +1,5 @@
-import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
-import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
+import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
+import { diffCodeGraphs } from '@anytime-markdown/trail-activity/codeGraphDiff';
 import {
   buildSigmaGraph,
   needsGraphRebuild,

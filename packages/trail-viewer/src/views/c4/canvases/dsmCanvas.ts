@@ -5,8 +5,8 @@
  * All draw functions are verbatim from the React source.
  */
 
-import type { C4Model, DsmMatrix } from '@anytime-markdown/trail-core/c4';
-import { clusterMatrix, detectCycles } from '@anytime-markdown/trail-core/c4';
+import type { C4Model, DsmMatrix } from '@anytime-markdown/trail-activity/c4';
+import { clusterMatrix, detectCycles } from '@anytime-markdown/trail-activity/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { truncate, clampViewport } from '../../../c4/canvasHelpers';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
