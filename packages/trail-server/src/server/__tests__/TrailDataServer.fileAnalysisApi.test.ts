@@ -118,9 +118,9 @@ describe('GET /api/c4/file-analysis', () => {
     expect(body.elementMatrix).toHaveProperty('functionRoles');
   });
 
-  it('tag=current uses getCurrentFileAnalysis; other tag uses getReleaseFileAnalysis', async () => {
+  it('tag=current uses getCurrentFileAnalysis; other tag returns empty (release 分析は 2026-08-08 廃止)', async () => {
     db.upsertCurrentFileAnalysis([sampleRow('packages/a/current.ts', 70, 30)]);
-    // release table is empty → different tag returns empty entries
+    // release 分析は廃止済み → current 以外のタグは常に空 entries
     const resCurrent = await fetch(`http://127.0.0.1:${port}/api/c4/file-analysis?repo=myrepo&tag=current`);
     expect(resCurrent.status).toBe(200);
     const bodyCurrent = await resCurrent.json() as { entries: unknown[] };

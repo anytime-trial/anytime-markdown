@@ -149,36 +149,10 @@ export interface IRemoteTrailStore {
     line_count: number; cyclomatic_complexity_max: number;
     category: string;
   }[]): Promise<void>;
-  /** [DESTRUCTIVE] trail_release_file_analysis を全削除する（洗い替え同期用）。 */
-  unsafeClearReleaseFileAnalysis(): Promise<void>;
-  upsertReleaseFileAnalysis(rows: readonly {
-    release_id: number; file_path: string;
-    importance_score: number; fan_in_total: number; cognitive_complexity_max: number; function_count: number;
-    dead_code_score: number;
-    signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
-    signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string;
-    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
-    analyzed_at: string;
-    line_count: number; cyclomatic_complexity_max: number;
-    category: string;
-  }[]): Promise<void>;
   /** [DESTRUCTIVE] trail_current_function_analysis を全削除する（洗い替え同期用）。 */
   unsafeClearCurrentFunctionAnalysis(): Promise<void>;
   upsertCurrentFunctionAnalysis(rows: readonly {
     repo_id: number; file_path: string; function_name: string; start_line: number;
-    end_line: number; language: string;
-    fan_in: number; cognitive_complexity: number; data_mutation_score: number;
-    side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number;
-    fan_out: number; distinct_callees: number; function_role: string;
-    analyzed_at: string;
-    cyclomatic_complexity: number;
-  }[]): Promise<void>;
-  /** [DESTRUCTIVE] trail_release_function_analysis を全削除する（洗い替え同期用）。 */
-  unsafeClearReleaseFunctionAnalysis(): Promise<void>;
-  upsertReleaseFunctionAnalysis(rows: readonly {
-    release_id: number; file_path: string; function_name: string; start_line: number;
     end_line: number; language: string;
     fan_in: number; cognitive_complexity: number; data_mutation_score: number;
     side_effect_score: number; line_count: number; importance_score: number;

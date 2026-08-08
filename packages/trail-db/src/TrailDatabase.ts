@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  AI_FIRST_TRY_FIX_WINDOW_MS, buildReleaseFromGitData, calculateCost, computeConfidenceCoupling, computeSessionConfidenceCoupling, computeSessionCoupling, computeSubagentTypeConfidenceCoupling, computeSubagentTypeCoupling, computeTemporalCoupling, CREATE_C4_MANUAL_ELEMENTS, CREATE_C4_MANUAL_GROUPS, CREATE_C4_MANUAL_INDEXES, CREATE_ACCEPTANCE_INDEXES, CREATE_ACCEPTANCE_RECORDS, boundaryDriftTargetKey, type BoundaryDriftBreakdownEntry, type BoundaryDriftKind, type BoundaryDriftWarning, CREATE_BOUNDARY_DRIFT_INDEXES, CREATE_BOUNDARY_DRIFT_RUNS, CREATE_BOUNDARY_DRIFT_WARNINGS, CREATE_DOCTRINE_JUDGMENTS, CREATE_DOCTRINE_JUDGMENT_INDEXES, CREATE_C4_MANUAL_RELATIONSHIPS, CREATE_CODE_DECISION_COMMENTS, CREATE_COMMIT_FILES, CREATE_CROSS_SOURCE_CORRELATIONS, CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES, CREATE_CURRENT_CODE_GRAPH_COMMUNITIES, CREATE_CURRENT_CODE_GRAPHS, CREATE_CURRENT_COVERAGE, CREATE_CURRENT_COVERAGE_INDEXES, CREATE_CURRENT_FILE_ANALYSIS, CREATE_CURRENT_FUNCTION_ANALYSIS, CREATE_CURRENT_GRAPHS, CREATE_DAILY_COUNTS, CREATE_DORA_METRICS, CREATE_EMERGENCY_INDEXES, CREATE_EMERGENCY_LOG, CREATE_FILE_ANALYSIS_INDEXES, CREATE_INDEXES, CREATE_VERIFICATION_RUN_INDEXES, CREATE_VERIFICATION_RUNS, CREATE_USER_FEEDBACK_ENTRIES, CREATE_USER_FEEDBACK_INDEXES, CREATE_MESSAGE_COMMITS, CREATE_MESSAGE_TOOL_CALLS, CREATE_MESSAGE_TOOL_CALLS_INDEXES, CREATE_MESSAGES, CREATE_PR_REVIEW_COMMENTS, CREATE_PR_REVIEW_FINDINGS, CREATE_PR_REVIEW_FINDINGS_INDEXES, CREATE_PR_REVIEW_INDEXES, CREATE_PR_REVIEWS, CREATE_RELEASE_CODE_GRAPH_COMMUNITIES, CREATE_COMMIT_CODE_GRAPHS, CREATE_RELEASE_CODE_GRAPHS, CREATE_RELEASE_COVERAGE, CREATE_RELEASE_FILE_ANALYSIS, CREATE_RELEASE_FILES, CREATE_RELEASE_FUNCTION_ANALYSIS, CREATE_RELEASE_GRAPHS, CREATE_RELEASE_INDEXES, CREATE_RELEASES, CREATE_REPOS, CREATE_SAFE_POINTS, CREATE_SESSION_COMMIT_RESOLUTIONS, CREATE_SESSION_COMMITS, CREATE_SESSION_COSTS, CREATE_SESSIONS, CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE, CREATE_SKILL_MODELS_RESOLVED_VIEW, DEFAULT_SKILL_MODELS, extractSkillName, isAiFirstTryFailureCommit, isCodeFile, isCountableModel, isKnownPricingModel, resolvePricingModelName, trailToC4, } from '@anytime-markdown/trail-core';
+  AI_FIRST_TRY_FIX_WINDOW_MS, buildReleaseFromGitData, calculateCost, computeConfidenceCoupling, computeSessionConfidenceCoupling, computeSessionCoupling, computeSubagentTypeConfidenceCoupling, computeSubagentTypeCoupling, computeTemporalCoupling, CREATE_C4_MANUAL_ELEMENTS, CREATE_C4_MANUAL_GROUPS, CREATE_C4_MANUAL_INDEXES, CREATE_ACCEPTANCE_INDEXES, CREATE_ACCEPTANCE_RECORDS, boundaryDriftTargetKey, type BoundaryDriftBreakdownEntry, type BoundaryDriftKind, type BoundaryDriftWarning, CREATE_BOUNDARY_DRIFT_INDEXES, CREATE_BOUNDARY_DRIFT_RUNS, CREATE_BOUNDARY_DRIFT_WARNINGS, CREATE_DOCTRINE_JUDGMENTS, CREATE_DOCTRINE_JUDGMENT_INDEXES, CREATE_C4_MANUAL_RELATIONSHIPS, CREATE_CODE_DECISION_COMMENTS, CREATE_COMMIT_FILES, CREATE_CROSS_SOURCE_CORRELATIONS, CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES, CREATE_CURRENT_CODE_GRAPH_COMMUNITIES, CREATE_CURRENT_CODE_GRAPHS, CREATE_CURRENT_COVERAGE, CREATE_CURRENT_COVERAGE_INDEXES, CREATE_CURRENT_FILE_ANALYSIS, CREATE_CURRENT_FUNCTION_ANALYSIS, CREATE_CURRENT_GRAPHS, CREATE_DAILY_COUNTS, CREATE_DORA_METRICS, CREATE_EMERGENCY_INDEXES, CREATE_EMERGENCY_LOG, CREATE_FILE_ANALYSIS_INDEXES, CREATE_INDEXES, CREATE_VERIFICATION_RUN_INDEXES, CREATE_VERIFICATION_RUNS, CREATE_USER_FEEDBACK_ENTRIES, CREATE_USER_FEEDBACK_INDEXES, CREATE_MESSAGE_COMMITS, CREATE_MESSAGE_TOOL_CALLS, CREATE_MESSAGE_TOOL_CALLS_INDEXES, CREATE_MESSAGES, CREATE_PR_REVIEW_COMMENTS, CREATE_PR_REVIEW_FINDINGS, CREATE_PR_REVIEW_FINDINGS_INDEXES, CREATE_PR_REVIEW_INDEXES, CREATE_PR_REVIEWS, CREATE_RELEASE_CODE_GRAPH_COMMUNITIES, CREATE_COMMIT_CODE_GRAPHS, CREATE_RELEASE_CODE_GRAPHS, CREATE_RELEASE_COVERAGE, CREATE_RELEASE_FILES, CREATE_RELEASE_GRAPHS, CREATE_RELEASE_INDEXES, CREATE_RELEASES, CREATE_REPOS, CREATE_SAFE_POINTS, CREATE_SESSION_COMMIT_RESOLUTIONS, CREATE_SESSION_COMMITS, CREATE_SESSION_COSTS, CREATE_SESSIONS, CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE, CREATE_SKILL_MODELS_RESOLVED_VIEW, DEFAULT_SKILL_MODELS, extractSkillName, isAiFirstTryFailureCommit, isCodeFile, isCountableModel, isKnownPricingModel, resolvePricingModelName, trailToC4, } from '@anytime-markdown/trail-core';
 import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FileAuthorCommitRow, type IC4ModelStore, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -283,8 +283,6 @@ const RELEASE_CHILD_DDL: Readonly<Record<string, string>> = {
   release_coverage: CREATE_RELEASE_COVERAGE,
   release_code_graphs: CREATE_RELEASE_CODE_GRAPHS,
   release_code_graph_communities: CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
-  release_file_analysis: CREATE_RELEASE_FILE_ANALYSIS,
-  release_function_analysis: CREATE_RELEASE_FUNCTION_ANALYSIS,
 };
 
 // Phase C-2 flip: current_* テーブル名 → 新スキーマ (repo_id PK) DDL の対応表。
@@ -373,19 +371,12 @@ const SESSION_COMMIT_DROP_REPO_NAME_DDL: Readonly<Record<string, string>> = {
   session_commit_resolutions: CREATE_SESSION_COMMIT_RESOLUTIONS,
 };
 
-// Phase H-5: releases サブツリーのテーブル名 → 新スキーマ (repo_name 列を撤去した) DDL の対応表。
+// Phase H-5: releases テーブル名 → 新スキーマ (repo_name 列を撤去した) DDL の対応表。
 // migrateDropReleaseSubtreeRepoName が repo_name 物理撤去の 12-step 再構築で引く。
-// - releases: PK は release_id 単独 (repo_name は非 PK) のため、撤去後も PK 不変。
-// - release_file_analysis: PK (release_id, repo_name, file_path) → (release_id, file_path) へ張替。
-// - release_function_analysis: PK (release_id, repo_name, file_path, function_name, start_line) →
-//   (release_id, file_path, function_name, start_line) へ張替。
-// release_id が (repo, tag) を一意に決めるため repo_name は冗長で、PK から除いても重複は生じない。
-// repo_name が必要な read (SyncService の Supabase trail_releases / trail_release_*_analysis ミラー含む)
-// は releases→repos JOIN で repo_name を、release 行は release_id→releases.tag を射影する (下流契約は不変)。
+// releases の PK は release_id 単独 (repo_name は非 PK) のため、撤去後も PK 不変。
+// release_file_analysis / release_function_analysis は 2026-08-08 に機能ごと廃止 (init() で DROP)。
 const RELEASE_SUBTREE_DROP_REPO_NAME_DDL: Readonly<Record<string, string>> = {
   releases: CREATE_RELEASES,
-  release_file_analysis: CREATE_RELEASE_FILE_ANALYSIS,
-  release_function_analysis: CREATE_RELEASE_FUNCTION_ANALYSIS,
 };
 
 /**
@@ -2017,8 +2008,6 @@ export class TrailDatabase {
     { table: 'release_coverage', oldTagCol: 'release_tag' },
     { table: 'release_code_graphs', oldTagCol: 'release_tag' },
     { table: 'release_code_graph_communities', oldTagCol: 'release_tag' },
-    { table: 'release_file_analysis', oldTagCol: 'release_tag' },
-    { table: 'release_function_analysis', oldTagCol: 'release_tag' },
   ];
 
   /** 子テーブルのうち 1 つでも旧スキーマ（tag 参照）のまま残っているか。 */
@@ -3012,42 +3001,30 @@ export class TrailDatabase {
     db.run(`ALTER TABLE "${table}__new" RENAME TO "${table}"`);
   }
 
-  // Phase H-5 flip 対象の releases サブツリー 3 テーブル。子 (release_file_analysis /
-  // release_function_analysis) を親 (releases) より先に再構築する: releases__new RENAME 時点で子の
-  // FK 参照先が壊れないようにする (FK は init で OFF のため runtime 強制はされないが意図を明示する)。
+  // Phase H-5 flip 対象。release_file_analysis / release_function_analysis は 2026-08-08 に
+  // 機能ごと廃止したため、対象は releases のみ。
   private static readonly RELEASE_SUBTREE_REPO_NAME_TABLES: readonly string[] = [
-    'release_file_analysis',
-    'release_function_analysis',
     'releases',
   ];
 
   /**
-   * Phase H-5: releases サブツリー 3 テーブル (releases / release_file_analysis /
-   * release_function_analysis) から非正規化キャッシュの repo_name 列を物理撤去する (冪等)。
+   * Phase H-5: releases から非正規化キャッシュの repo_name 列を物理撤去する (冪等)。
    * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
    *
-   * - 各テーブルに repo_name 列が在る時のみ実行する (`columnExists` ガードで冪等)。
-   * - 撤去前に repo_name から repos を self-seed する。releases.repo_id が未解決の行は repo_name から
+   * - repo_name 列が在る時のみ実行する (`columnExists` ガードで冪等)。
+   * - 撤去前に repo_name から repos を self-seed し、releases.repo_id が未解決の行は repo_name から
    *   backfill する (Phase B-2b-iii flip / additive backfill が既に repo_id を埋めている前提だが、退化 DB
-   *   防御のため再実行する)。release_*_analysis は repo_id 列を持たず release_id FK で repo 帰属を表すため、
-   *   repo_id の backfill は releases 側のみ行う (repos の self-seed は子テーブルの repo_name からも行う)。
-   * - 新スキーマ (repo_name を持たない CREATE_RELEASES / CREATE_RELEASE_*_ANALYSIS DDL) へ
-   *   INSERT...SELECT で共有列をコピーする。repo_name 列は新スキーマに無いため自然に落ちる。
-   *   release_*_analysis は PK から repo_name を除いた形 (release_id が (repo, tag) を一意に決めるため
-   *   重複は生じない)。静的 DDL に無い ALTER 由来の列 (release_file_analysis の cross_pkg_in_count 等は
-   *   静的 DDL に含むため通常該当しないが、想定外列の保全のため) は宣言型を保ったまま `__new` へ復元してから
-   *   copy する (rebuildReleaseSubtreeTableDroppingRepoName 参照)。
-   * - CREATE_RELEASES / CREATE_RELEASE_FILE_ANALYSIS / CREATE_RELEASE_FUNCTION_ANALYSIS の実行前に呼ぶ。
-   *   新規 DB / 撤去済 DB は no-op。
+   *   防御のため再実行する)。
+   * - 新スキーマ (repo_name を持たない CREATE_RELEASES DDL) へ INSERT...SELECT で共有列をコピーする。
+   *   repo_name 列は新スキーマに無いため自然に落ちる。静的 DDL に無い ALTER 由来の列は宣言型を保ったまま
+   *   `__new` へ復元してから copy する (rebuildReleaseSubtreeTableDroppingRepoName 参照)。
+   * - CREATE_RELEASES の実行前に呼ぶ。新規 DB / 撤去済 DB は no-op。
    * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
    *
-   * 撤去後、release_*_analysis の repo フィルタは release_id (releaseIdForTag 解決) で行う。repo_name が
-   * 必要な read メソッド (SyncService の getReleases / getAllReleaseFileAnalysis /
-   * getAllReleaseFunctionAnalysis 経由で Supabase trail_releases / trail_release_*_analysis ミラーへ運ぶ
-   * ものを含む) は releases→repos JOIN で r.repo_name を、release 行は release_id→releases.tag を
-   * 射影し、結果行のキー名 (repo_name / release_tag) を維持する (下流契約・Supabase ミラーは不変)。
-   * repo_id=0 sentinel など repos に未解決の releases 行は LEFT JOIN + COALESCE(r.repo_name, '') で
-   * '' に落とす (旧 repo_name='' と等価)。
+   * 撤去後、repo_name が必要な read メソッド (SyncService の getReleases 経由で Supabase trail_releases
+   * ミラーへ運ぶものを含む) は releases→repos JOIN で r.repo_name を射影し、結果行のキー名 (repo_name) を
+   * 維持する (下流契約・Supabase ミラーは不変)。repo_id=0 sentinel など repos に未解決の releases 行は
+   * LEFT JOIN + COALESCE(r.repo_name, '') で '' に落とす (旧 repo_name='' と等価)。
    */
   private migrateDropReleaseSubtreeRepoName(db: Database): void {
     for (const table of TrailDatabase.RELEASE_SUBTREE_REPO_NAME_TABLES) {
@@ -3489,8 +3466,6 @@ export class TrailDatabase {
     { table: 'release_coverage', tagCol: 'release_tag' },
     { table: 'release_code_graphs', tagCol: 'release_tag' },
     { table: 'release_code_graph_communities', tagCol: 'release_tag' },
-    { table: 'release_file_analysis', tagCol: 'release_tag' },
-    { table: 'release_function_analysis', tagCol: 'release_tag' },
   ];
 
   /**
@@ -3619,11 +3594,9 @@ export class TrailDatabase {
     // 新規 DB / flip 済 DB では no-op。子テーブル (release_code_graph_communities 等) も
     // ここで rebuild するため、それらの CREATE 文より前に実行する。
     this.migrateReleasesFlip(db);
-    // Phase H-5: releases / release_file_analysis / release_function_analysis から repo_name 列
-    // (非正規化キャッシュ) を物理撤去する。migrateReleasesFlip が先に release_id / repo_id を入れた後に呼ぶ。
-    // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため CREATE_RELEASES / CREATE_RELEASE_*_ANALYSIS の
-    // 前に呼ぶ。新規 DB / 撤去済 DB では no-op (flip が新 DDL で repo_name なしに再構築済の場合も含む)。
-    // release_*_analysis は PK から repo_name を除いた形へ張替える (rebuildReleaseSubtreeTableDroppingRepoName)。
+    // Phase H-5: releases から repo_name 列 (非正規化キャッシュ) を物理撤去する。
+    // migrateReleasesFlip が先に release_id / repo_id を入れた後、CREATE_RELEASES の前に呼ぶ。
+    // 新規 DB / 撤去済 DB では no-op。
     this.migrateDropReleaseSubtreeRepoName(db);
     db.run(CREATE_RELEASES);
     db.run(CREATE_RELEASE_FILES);
@@ -3632,8 +3605,10 @@ export class TrailDatabase {
     for (const idx of CREATE_CURRENT_COVERAGE_INDEXES) {
       db.run(idx);
     }
-    // 既存 DB に残った未使用テーブルを除去（行 0 件のため安全）
-    for (const orphan of ['c4_models', 'release_features']) {
+    // 既存 DB に残った未使用テーブルを除去（行 0 件のため安全）。
+    // release_file_analysis / release_function_analysis は書込が未配線のまま読取だけ実装されていた
+    // release 分析の残骸（常に 0 件・2026-08-08 に機能ごと廃止）。
+    for (const orphan of ['c4_models', 'release_features', 'release_file_analysis', 'release_function_analysis']) {
       try {
         db.run(`DROP TABLE IF EXISTS ${orphan}`);
       } catch (e) {
@@ -3657,9 +3632,7 @@ export class TrailDatabase {
     ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
     this.migrateFileAnalysisSchema(db);
     db.run(CREATE_CURRENT_FILE_ANALYSIS);
-    db.run(CREATE_RELEASE_FILE_ANALYSIS);
     db.run(CREATE_CURRENT_FUNCTION_ANALYSIS);
-    db.run(CREATE_RELEASE_FUNCTION_ANALYSIS);
     // architectural centrality 関連カラムの追加。既存 DB に対して
     // CREATE TABLE IF NOT EXISTS は no-op になるため ALTER TABLE で補う。
     // CHECK 制約は ALTER ADD COLUMN では付かないが、insert 経路は trail-core の型で守る。
@@ -3669,25 +3642,15 @@ export class TrailDatabase {
       'ALTER TABLE current_file_analysis ADD COLUMN total_in_count INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_file_analysis ADD COLUMN is_barrel INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_file_analysis ADD COLUMN centrality_score REAL NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN cross_pkg_in_count INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN external_consumer_pkgs INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN total_in_count INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN is_barrel INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN centrality_score REAL NOT NULL DEFAULT 0',
       'ALTER TABLE current_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_function_analysis ADD COLUMN fan_out INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_function_analysis ADD COLUMN distinct_callees INTEGER NOT NULL DEFAULT 0',
       "ALTER TABLE current_function_analysis ADD COLUMN function_role TEXT NOT NULL DEFAULT 'peripheral'",
-      "ALTER TABLE release_function_analysis ADD COLUMN function_role TEXT NOT NULL DEFAULT 'peripheral'",
       // C4 architecture overlay (UI / Logic 分類) の category 列。
       // CHECK 制約は新規 DB の CREATE TABLE で付与し、既存 DB への ALTER では
       // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
       "ALTER TABLE current_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
-      "ALTER TABLE release_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
       // Phase 6 S5-D: Newly Active Code Detection のシグナル列（列ごとに独立した ALTER）
       'ALTER TABLE current_file_analysis ADD COLUMN newly_active INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN newly_active INTEGER NOT NULL DEFAULT 0',
     ]);
     for (const idx of CREATE_FILE_ANALYSIS_INDEXES) {
       db.run(idx);
@@ -3788,8 +3751,33 @@ export class TrailDatabase {
     for (const idx of CREATE_BOUNDARY_DRIFT_INDEXES) {
       db.run(idx);
     }
-    // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
-    this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
+    // message_uuid + call_index の一意性は、現行 DDL では CREATE TABLE 内 UNIQUE 制約
+    // (sqlite_autoindex) が担う。テーブル制約を持たない旧スキーマの DB のみ明示 UNIQUE
+    // インデックスで補い、制約が在る DB では冗長な明示インデックスを DROP して一本化する
+    // (2026-08-08 監査: UNIQUE が autoindex 含め 3 重になっていた)。
+    const hasAutoUniqueMtc =
+      (db.exec(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND tbl_name='message_tool_calls' AND name LIKE 'sqlite_autoindex_message_tool_calls%'",
+      )[0]?.values?.length ?? 0) > 0;
+    if (hasAutoUniqueMtc) {
+      db.run('DROP INDEX IF EXISTS idx_message_tool_calls_message_uuid_call_index');
+    } else {
+      this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
+    }
+    // 旧命名世代の idx_mtc_* は現行の idx_message_tool_calls_* と定義が完全重複しており、
+    // 容量 (~150MB) と書込コストだけを消費していた (2026-08-08 監査で検出)。無条件に落とす。
+    for (const legacyIdx of [
+      'idx_mtc_session',
+      'idx_mtc_tool_name',
+      'idx_mtc_timestamp',
+      'idx_mtc_skill',
+      'idx_mtc_is_error',
+      'idx_mtc_turn',
+      'idx_mtc_ts_turn',
+      'idx_mtc_unique',
+    ]) {
+      db.run(`DROP INDEX IF EXISTS ${legacyIdx}`);
+    }
   }
 
   /**
@@ -3843,10 +3831,7 @@ export class TrailDatabase {
     this.runAlterStatements(db, [
       'ALTER TABLE current_file_analysis ADD COLUMN line_count INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_file_analysis ADD COLUMN cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN line_count INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_file_analysis ADD COLUMN cyclomatic_complexity_max INTEGER NOT NULL DEFAULT 0',
       'ALTER TABLE current_function_analysis ADD COLUMN cyclomatic_complexity INTEGER NOT NULL DEFAULT 0',
-      'ALTER TABLE release_function_analysis ADD COLUMN cyclomatic_complexity INTEGER NOT NULL DEFAULT 0',
     ]);
 
     // service_type カラム追加（既存 DB 向け）
@@ -4654,9 +4639,7 @@ export class TrailDatabase {
   private migrateFileAnalysisSchema(db: Database): void {
     const tables = [
       'current_file_analysis',
-      'release_file_analysis',
       'current_function_analysis',
-      'release_function_analysis',
     ];
     for (const table of tables) {
       const exists = db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`);
@@ -10914,101 +10897,6 @@ export class TrailDatabase {
     this.save();
   }
 
-  upsertReleaseFileAnalysis(releaseTag: string, rows: readonly FileAnalysisRow[]): void {
-    if (rows.length === 0) return;
-    const db = this.ensureDb();
-    // flip 後 release_file_analysis は release_id FK。tag を解決する。
-    const releaseId = this.releaseIdForTag(db, releaseTag);
-    if (releaseId == null) {
-      this.logger.warn(`[upsertReleaseFileAnalysis] no release for tag=${releaseTag}, skip`);
-      return;
-    }
-    // Phase H-5: release_file_analysis.repo_name 列は撤去済。fileAnalysisRowParams は先頭に repo_name を
-    // 含む (current 系で slice(1) して使う) ため、release も release_id を先頭に置き repo_name を slice(1) で
-    // 除いて続ける。repo 帰属は release_id FK (releases→repos) で表現する。
-    for (const r of rows) {
-      db.run(
-        `INSERT OR REPLACE INTO release_file_analysis (
-          release_id, file_path,
-          importance_score, fan_in_total, cognitive_complexity_max, line_count, cyclomatic_complexity_max, function_count,
-          dead_code_score,
-          signal_orphan, signal_fan_in_zero, signal_no_recent_churn,
-          signal_zero_coverage, signal_isolated_community,
-          is_ignored, ignore_reason,
-          cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
-          category, newly_active,
-          analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [releaseId, ...this.fileAnalysisRowParams(r).slice(1)],
-      );
-    }
-  }
-
-  getReleaseFileAnalysis(releaseTag: string, _repoName: string): FileAnalysisRow[] {
-    const db = this.ensureDb();
-    const releaseId = this.releaseIdForTag(db, releaseTag);
-    if (releaseId == null) return [];
-    // Phase H-5: release_file_analysis.repo_name 列は撤去済。release_id が (repo, tag) を一意に決めるため
-    // repo フィルタは release_id のみで十分 (旧 repoName 引数は冗長になったため未使用)。結果の repoName は
-    // releases.repo_id → repos を LEFT JOIN して射影する (repo_id 未解決/sentinel は '' = 旧 repo_name='' と
-    // 等価・結果キー repoName は不変)。
-    const result = db.exec(
-      `SELECT COALESCE(repo.repo_name, '') AS repo_name, rfa.file_path,
-              rfa.importance_score, rfa.fan_in_total, rfa.cognitive_complexity_max, rfa.line_count, rfa.cyclomatic_complexity_max, rfa.function_count,
-              rfa.dead_code_score,
-              rfa.signal_orphan, rfa.signal_fan_in_zero, rfa.signal_no_recent_churn,
-              rfa.signal_zero_coverage, rfa.signal_isolated_community,
-              rfa.is_ignored, rfa.ignore_reason,
-              rfa.cross_pkg_in_count, rfa.external_consumer_pkgs, rfa.total_in_count, rfa.is_barrel, rfa.centrality_score,
-              rfa.category, rfa.newly_active,
-              rfa.analyzed_at
-       FROM release_file_analysis rfa
-       JOIN releases rel ON rel.release_id = rfa.release_id
-       LEFT JOIN repos repo ON repo.repo_id = rel.repo_id
-       WHERE rfa.release_id = ?`,
-      [releaseId],
-    );
-    const values = result[0]?.values ?? [];
-    return values.map((r) => ({
-      repoName: asText(r[0] ?? ''),
-      filePath: asText(r[1] ?? ''),
-      importanceScore: Number(r[2] ?? 0),
-      fanInTotal: Number(r[3] ?? 0),
-      cognitiveComplexityMax: Number(r[4] ?? 0),
-      lineCount: Number(r[5] ?? 0),
-      cyclomaticComplexityMax: Number(r[6] ?? 0),
-      functionCount: Number(r[7] ?? 0),
-      deadCodeScore: Number(r[8] ?? 0),
-      signals: {
-        orphan: Number(r[9] ?? 0) === 1,
-        fanInZero: Number(r[10] ?? 0) === 1,
-        noRecentChurn: Number(r[11] ?? 0) === 1,
-        zeroCoverage: Number(r[12] ?? 0) === 1,
-        isolatedCommunity: Number(r[13] ?? 0) === 1,
-      },
-      isIgnored: Number(r[14] ?? 0) === 1,
-      ignoreReason: asText(r[15] ?? ''),
-      crossPkgInCount: Number(r[16] ?? 0),
-      externalConsumerPkgs: Number(r[17] ?? 0),
-      totalInCount: Number(r[18] ?? 0),
-      isBarrel: Number(r[19] ?? 0) === 1,
-      centralityScore: Number(r[20] ?? 0),
-      category: parseCategory(r[21]),
-      newlyActive: Number(r[22] ?? 0) === 1,
-      analyzedAt: asText(r[23] ?? ''),
-    }));
-  }
-
-  clearReleaseFileAnalysis(releaseTag: string, _repoName: string): void {
-    const db = this.ensureDb();
-    const releaseId = this.releaseIdForTag(db, releaseTag);
-    if (releaseId == null) return;
-    // Phase H-5: release_file_analysis.repo_name 列は撤去済。release_id が (repo, tag) を一意に決めるため
-    // repo フィルタは release_id のみで十分 (旧 repoName 引数は冗長になったため未使用)。
-    db.run('DELETE FROM release_file_analysis WHERE release_id = ?', [releaseId]);
-    this.save();
-  }
-
   // ---------------------------------------------------------------------------
   //  Function Analysis (Dead Code Detection)
   // ---------------------------------------------------------------------------
@@ -11087,93 +10975,6 @@ export class TrailDatabase {
     // 「指定 repo の行を削除」のため未登録 repo を upsert する必要はない。repoIdForNameReadonly で
     // 解決 (未登録は -1 → 何も削除しない)。ghost repo 行を作らない。
     db.run('DELETE FROM current_function_analysis WHERE repo_id = ?', [this.repoIdForNameReadonly(repoName)]);
-    this.save();
-  }
-
-  upsertReleaseFunctionAnalysis(releaseTag: string, rows: readonly FunctionAnalysisRow[]): void {
-    if (rows.length === 0) return;
-    const db = this.ensureDb();
-    // flip 後 release_function_analysis は release_id FK。tag を解決する。
-    const releaseId = this.releaseIdForTag(db, releaseTag);
-    if (releaseId == null) {
-      this.logger.warn(`[upsertReleaseFunctionAnalysis] no release for tag=${releaseTag}, skip`);
-      return;
-    }
-    // Phase H-5: release_function_analysis.repo_name 列は撤去済。repo 帰属は release_id FK
-    // (releases→repos) で表現する。INSERT 列から repo_name を除く。
-    for (const r of rows) {
-      db.run(
-        `INSERT OR REPLACE INTO release_function_analysis (
-          release_id, file_path, function_name, start_line,
-          end_line, language, fan_in, cognitive_complexity, cyclomatic_complexity,
-          data_mutation_score, side_effect_score, line_count,
-          importance_score, signal_fan_in_zero,
-          fan_out, distinct_callees, function_role,
-          analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          releaseId, r.filePath, r.functionName, r.startLine,
-          r.endLine, r.language, r.fanIn, r.cognitiveComplexity, r.cyclomaticComplexity,
-          r.dataMutationScore, r.sideEffectScore, r.lineCount,
-          r.importanceScore, r.signalFanInZero ? 1 : 0,
-          r.fanOut, r.distinctCallees, r.functionRole,
-          r.analyzedAt,
-        ],
-      );
-    }
-    this.save();
-  }
-
-  getReleaseFunctionAnalysis(releaseTag: string, _repoName: string): FunctionAnalysisRow[] {
-    const db = this.ensureDb();
-    const releaseId = this.releaseIdForTag(db, releaseTag);
-    if (releaseId == null) return [];
-    // Phase H-5: release_function_analysis.repo_name 列は撤去済。release_id が (repo, tag) を一意に決めるため
-    // repo フィルタは release_id のみで十分 (旧 repoName 引数は冗長になったため未使用)。結果の repoName は
-    // releases.repo_id → repos を LEFT JOIN して射影する (結果キー repoName は不変)。
-    const result = db.exec(
-      `SELECT COALESCE(repo.repo_name, '') AS repo_name, rfa.file_path, rfa.function_name, rfa.start_line,
-              rfa.end_line, rfa.language, rfa.fan_in, rfa.cognitive_complexity, rfa.cyclomatic_complexity,
-              rfa.data_mutation_score, rfa.side_effect_score, rfa.line_count,
-              rfa.importance_score, rfa.signal_fan_in_zero,
-              rfa.fan_out, rfa.distinct_callees, rfa.function_role,
-              rfa.analyzed_at
-       FROM release_function_analysis rfa
-       JOIN releases rel ON rel.release_id = rfa.release_id
-       LEFT JOIN repos repo ON repo.repo_id = rel.repo_id
-       WHERE rfa.release_id = ?`,
-      [releaseId],
-    );
-    const values = result[0]?.values ?? [];
-    return values.map((r) => ({
-      repoName: asText(r[0] ?? ''),
-      filePath: asText(r[1] ?? ''),
-      functionName: asText(r[2] ?? ''),
-      startLine: Number(r[3] ?? 0),
-      endLine: Number(r[4] ?? 0),
-      language: asText(r[5] ?? ''),
-      fanIn: Number(r[6] ?? 0),
-      cognitiveComplexity: Number(r[7] ?? 0),
-      cyclomaticComplexity: Number(r[8] ?? 0),
-      dataMutationScore: Number(r[9] ?? 0),
-      sideEffectScore: Number(r[10] ?? 0),
-      lineCount: Number(r[11] ?? 0),
-      importanceScore: Number(r[12] ?? 0),
-      signalFanInZero: Number(r[13] ?? 0) === 1,
-      fanOut: Number(r[14] ?? 0),
-      distinctCallees: Number(r[15] ?? 0),
-      functionRole: (['hub', 'leaf', 'orchestrator', 'peripheral'].includes(asText(r[16] ?? '')) ? asText(r[16]) : 'peripheral') as 'hub' | 'leaf' | 'orchestrator' | 'peripheral',
-      analyzedAt: asText(r[17] ?? ''),
-    }));
-  }
-
-  clearReleaseFunctionAnalysis(releaseTag: string, _repoName: string): void {
-    const db = this.ensureDb();
-    const releaseId = this.releaseIdForTag(db, releaseTag);
-    if (releaseId == null) return;
-    // Phase H-5: release_function_analysis.repo_name 列は撤去済。release_id が (repo, tag) を一意に決めるため
-    // repo フィルタは release_id のみで十分 (旧 repoName 引数は冗長になったため未使用)。
-    db.run('DELETE FROM release_function_analysis WHERE release_id = ?', [releaseId]);
     this.save();
   }
 
@@ -11846,64 +11647,6 @@ export class TrailDatabase {
     }));
   }
 
-  getAllReleaseFileAnalysis(): Array<{
-    release_id: number; release_tag: string; repo_name: string; file_path: string;
-    importance_score: number; fan_in_total: number; cognitive_complexity_max: number; function_count: number;
-    dead_code_score: number;
-    signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
-    signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string;
-    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
-    analyzed_at: string;
-    line_count: number; cyclomatic_complexity_max: number;
-    category: string;
-  }> {
-    const db = this.ensureDb();
-    const result = db.exec(
-      // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
-      // Phase H-5: rfa.repo_name 列は撤去済。SyncService が Supabase trail_release_file_analysis へ運ぶ
-      // (release_tag, repo_name, file_path) PK 契約を維持するため、release_tag は releases.tag を、
-      // repo_name は releases.repo_id → repos を LEFT JOIN して COALESCE(repo.repo_name, '') を射影する
-      // (repo_id 未解決/sentinel は '' = 旧 repo_name='' と等価・結果キーは不変)。
-      `SELECT r.tag, COALESCE(repo.repo_name, '') AS repo_name, rfa.file_path, rfa.importance_score, rfa.fan_in_total, rfa.cognitive_complexity_max, rfa.function_count,
-              rfa.dead_code_score, rfa.signal_orphan, rfa.signal_fan_in_zero, rfa.signal_no_recent_churn,
-              rfa.signal_zero_coverage, rfa.signal_isolated_community, rfa.is_ignored, rfa.ignore_reason,
-              rfa.cross_pkg_in_count, rfa.external_consumer_pkgs, rfa.total_in_count, rfa.is_barrel, rfa.centrality_score,
-              rfa.analyzed_at, rfa.line_count, rfa.cyclomatic_complexity_max, rfa.category, r.release_id
-       FROM release_file_analysis rfa
-       JOIN releases r ON r.release_id = rfa.release_id
-       LEFT JOIN repos repo ON repo.repo_id = r.repo_id`,
-    );
-    const values = result[0]?.values ?? [];
-    return values.map((r) => ({
-      release_tag: asText(r[0] ?? ''),
-      repo_name: asText(r[1] ?? ''),
-      file_path: asText(r[2] ?? ''),
-      importance_score: Number(r[3] ?? 0),
-      fan_in_total: Number(r[4] ?? 0),
-      cognitive_complexity_max: Number(r[5] ?? 0),
-      function_count: Number(r[6] ?? 0),
-      dead_code_score: Number(r[7] ?? 0),
-      signal_orphan: Number(r[8] ?? 0),
-      signal_fan_in_zero: Number(r[9] ?? 0),
-      signal_no_recent_churn: Number(r[10] ?? 0),
-      signal_zero_coverage: Number(r[11] ?? 0),
-      signal_isolated_community: Number(r[12] ?? 0),
-      is_ignored: Number(r[13] ?? 0),
-      ignore_reason: asText(r[14] ?? ''),
-      cross_pkg_in_count: Number(r[15] ?? 0),
-      external_consumer_pkgs: Number(r[16] ?? 0),
-      total_in_count: Number(r[17] ?? 0),
-      is_barrel: Number(r[18] ?? 0),
-      centrality_score: Number(r[19] ?? 0),
-      analyzed_at: asText(r[20] ?? ''),
-      line_count: Number(r[21] ?? 0),
-      cyclomatic_complexity_max: Number(r[22] ?? 0),
-      category: parseCategory(r[23]),
-      release_id: Number(r[24] ?? 0),
-    }));
-  }
-
   getAllCurrentFunctionAnalysis(): Array<{
     repo_id: number; repo_name: string; file_path: string; function_name: string; start_line: number;
     end_line: number; language: string;
@@ -11948,58 +11691,6 @@ export class TrailDatabase {
       analyzed_at: asText(r[16] ?? ''),
       cyclomatic_complexity: Number(r[17] ?? 0),
       repo_id: Number(r[18] ?? 0),
-    }));
-  }
-
-  getAllReleaseFunctionAnalysis(): Array<{
-    release_id: number; release_tag: string; repo_name: string; file_path: string; function_name: string; start_line: number;
-    end_line: number; language: string;
-    fan_in: number; cognitive_complexity: number; data_mutation_score: number;
-    side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number;
-    fan_out: number; distinct_callees: number; function_role: string;
-    analyzed_at: string;
-    cyclomatic_complexity: number;
-  }> {
-    const db = this.ensureDb();
-    const result = db.exec(
-      // flip 後は release_id FK。Supabase 同期は release_tag キーのため releases へ JOIN する。
-      // Phase H-5: rfa.repo_name 列は撤去済。SyncService が Supabase trail_release_function_analysis へ運ぶ
-      // (release_tag, repo_name, file_path, function_name, start_line) PK 契約を維持するため、release_tag は
-      // releases.tag を、repo_name は releases.repo_id → repos を LEFT JOIN して射影する (結果キーは不変)。
-      `SELECT r.tag, COALESCE(repo.repo_name, '') AS repo_name, rfa.file_path, rfa.function_name, rfa.start_line,
-              rfa.end_line, rfa.language, rfa.fan_in, rfa.cognitive_complexity,
-              rfa.data_mutation_score, rfa.side_effect_score, rfa.line_count,
-              rfa.importance_score, rfa.signal_fan_in_zero,
-              rfa.fan_out, rfa.distinct_callees, rfa.function_role,
-              rfa.analyzed_at,
-              rfa.cyclomatic_complexity, r.release_id
-       FROM release_function_analysis rfa
-       JOIN releases r ON r.release_id = rfa.release_id
-       LEFT JOIN repos repo ON repo.repo_id = r.repo_id`,
-    );
-    const values = result[0]?.values ?? [];
-    return values.map((r) => ({
-      release_tag: asText(r[0] ?? ''),
-      repo_name: asText(r[1] ?? ''),
-      file_path: asText(r[2] ?? ''),
-      function_name: asText(r[3] ?? ''),
-      start_line: Number(r[4] ?? 0),
-      end_line: Number(r[5] ?? 0),
-      language: asText(r[6] ?? ''),
-      fan_in: Number(r[7] ?? 0),
-      cognitive_complexity: Number(r[8] ?? 0),
-      data_mutation_score: Number(r[9] ?? 0),
-      side_effect_score: Number(r[10] ?? 0),
-      line_count: Number(r[11] ?? 0),
-      importance_score: Number(r[12] ?? 0),
-      signal_fan_in_zero: Number(r[13] ?? 0),
-      fan_out: Number(r[14] ?? 0),
-      distinct_callees: Number(r[15] ?? 0),
-      function_role: asText(r[16] ?? 'peripheral'),
-      analyzed_at: asText(r[17] ?? ''),
-      cyclomatic_complexity: Number(r[18] ?? 0),
-      release_id: Number(r[19] ?? 0),
     }));
   }
 
@@ -12348,7 +12039,7 @@ export class TrailDatabase {
     const counts = new Map<string, { rowId: string; filePath: string; count: number }>();
     for (const r of activityRows) {
       if (!r.subagentType || !r.filePath) continue;
-      const key = `${r.subagentType} ${r.filePath}`;
+      const key = `${r.subagentType}\x00${r.filePath}`;
       const cur = counts.get(key);
       if (cur) {
         cur.count++;

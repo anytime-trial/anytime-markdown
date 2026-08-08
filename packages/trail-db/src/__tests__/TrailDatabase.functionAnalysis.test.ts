@@ -74,22 +74,12 @@ describe('TrailDatabase: current_function_analysis CRUD', () => {
   });
 });
 
-describe('TrailDatabase: release_function_analysis CRUD', () => {
-  let db: TrailDatabase;
-
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
-    const rawDb = (db as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
-    rawDb.run('INSERT INTO releases (tag) VALUES (?)', ['v1.0.0']);
-  });
-
-  it('upsertRelease / getRelease / clearRelease', () => {
-    db.upsertReleaseFunctionAnalysis('v1.0.0', [sample('a.ts', 'foo', 1, 3)]);
-    const rows = db.getReleaseFunctionAnalysis('v1.0.0', 'repo');
-    expect(rows.length).toBe(1);
-    expect(rows[0].fanIn).toBe(3);
-    db.clearReleaseFunctionAnalysis('v1.0.0', 'repo');
-    expect(db.getReleaseFunctionAnalysis('v1.0.0', 'repo').length).toBe(0);
+describe('TrailDatabase: release_function_analysis は廃止済み (2026-08-08)', () => {
+  it('init 後に release_function_analysis テーブルが存在しない', async () => {
+    const db = await createTestTrailDatabase();
+    const rawDb = (db as unknown as { ensureDb(): { exec(sql: string): Array<{ values: unknown[][] }> } }).ensureDb();
+    const rows = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='release_function_analysis'");
+    expect(rows[0]?.values?.length ?? 0).toBe(0);
   });
 });
 

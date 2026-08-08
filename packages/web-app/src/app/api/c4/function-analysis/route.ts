@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { NO_STORE_HEADERS, resolveRepoId, resolveReleaseId } from "../../../../lib/api-helpers";
+import { NO_STORE_HEADERS, resolveRepoId } from "../../../../lib/api-helpers";
 import { resolveSupabaseEnv } from "../../../../lib/supabase-env";
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +41,7 @@ function normalizeFunctionRole(value: string): FunctionRole {
  *
  * 拡張機能の /api/c4/function-analysis と互換。
  * tag === 'current' のときは trail_current_function_analysis を、
- * 特定タグのときは trail_release_function_analysis を返す。
+ * current 以外のタグは空を返す (release 分析は 2026-08-08 に廃止)。
  * file クエリパラメータで特定ファイルに絞り込みも可能。
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -66,9 +66,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (repoId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
       q = supabase.from('trail_current_function_analysis').select('*').eq('repo_id', repoId);
     } else {
-      const releaseId = await resolveReleaseId(supabase, tag, repoId);
-      if (releaseId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
-      q = supabase.from('trail_release_function_analysis').select('*').eq('release_id', releaseId);
+      // release 分析 (trail_release_function_analysis) は 2026-08-08 に廃止。current 以外のタグは空で返す。
+      return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
     }
     if (file) {
       q = q.eq('file_path', file);

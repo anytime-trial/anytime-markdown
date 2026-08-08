@@ -1183,60 +1183,37 @@ describe('TrailDatabase: legacy DB migration on init', () => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
 
-    const targetTables = ['releases', 'release_file_analysis', 'release_function_analysis'];
-    // 3 テーブルから repo_name が消えている。
-    for (const t of targetTables) {
-      expect(colsOf(t)).not.toContain('repo_name');
-    }
-    // releases は repo_id を残す。release_*_analysis は repo_id を持たず release_id FK で repo 帰属を表す。
+    // releases から repo_name が消え、repo_id と release_id 単独 PK を保つ。
+    expect(colsOf('releases')).not.toContain('repo_name');
     expect(colsOf('releases')).toContain('repo_id');
-    expect(colsOf('release_file_analysis')).toContain('release_id');
-    expect(colsOf('release_function_analysis')).toContain('release_id');
-
-    // PK 張替: releases は release_id 単独 (不変)、release_*_analysis は repo_name を除いた新 PK。
     expect(pkOf('releases')).toEqual(['release_id']);
-    expect(pkOf('release_file_analysis')).toEqual(['file_path', 'release_id']);
-    expect(pkOf('release_function_analysis')).toEqual(['file_path', 'function_name', 'release_id', 'start_line']);
 
-    // データ保全: 行が残り、release_id・主要指標が保持されている。
+    // release_file_analysis / release_function_analysis は 2026-08-08 に機能ごと廃止され、
+    // legacy テーブルは createTables (init) が DROP する（リグレッションテスト）。
+    const tableExists = (t: string): boolean =>
+      ((inner.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${t}'`)[0]?.values?.length ?? 0) > 0);
+    expect(tableExists('release_file_analysis')).toBe(false);
+    expect(tableExists('release_function_analysis')).toBe(false);
+
+    // データ保全: releases の行・主要指標が保持されている。
     expect(Number(inner.exec("SELECT repo_id FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(repoId);
     expect(Number(inner.exec("SELECT total_lines FROM releases WHERE tag = 'v1.0.0'")[0]?.values?.[0]?.[0])).toBe(4200);
-    expect(Number(inner.exec("SELECT dead_code_score FROM release_file_analysis WHERE release_id = 1 AND file_path = 'src/h5.ts'")[0]?.values?.[0]?.[0])).toBe(88);
-    expect(Number(inner.exec("SELECT fan_in FROM release_function_analysis WHERE release_id = 1 AND file_path = 'src/h5.ts' AND function_name = 'foo'")[0]?.values?.[0]?.[0])).toBe(5);
 
-    // 重複が生じないこと: 新 PK (release_id, file_path[, ...]) は理論上一意のため row 数は不変 (各 1)。
-    expect(Number(inner.exec('SELECT COUNT(*) FROM release_file_analysis')[0]?.values?.[0]?.[0])).toBe(1);
-    expect(Number(inner.exec('SELECT COUNT(*) FROM release_function_analysis')[0]?.values?.[0]?.[0])).toBe(1);
-
-    // read 契約: getReleases は repos JOIN で repo_name を復元する (Supabase trail_releases ミラー)。
+    // read 契約: getReleases は repos JOIN で repo_name を結果に復元する (Supabase trail_releases ミラー)。
     expect(db.getReleases().find((r) => r.tag === 'v1.0.0')?.repo_name).toBe('h5-repo');
     // getDoraReleases も repo_name を復元する。
     expect(
       (db as unknown as { getDoraReleases(): Array<{ tag: string; repoName: string }> }).getDoraReleases()
         .find((r) => r.tag === 'v1.0.0')?.repoName,
     ).toBe('h5-repo');
-    // getReleaseFileAnalysis / getReleaseFunctionAnalysis は releases→repos JOIN で repoName を復元する。
-    const rfa = db.getReleaseFileAnalysis('v1.0.0', 'h5-repo');
-    expect(rfa.map((r) => r.repoName)).toEqual(['h5-repo']);
-    expect(rfa[0].deadCodeScore).toBe(88);
-    const rfn = db.getReleaseFunctionAnalysis('v1.0.0', 'h5-repo');
-    expect(rfn.map((r) => r.repoName)).toEqual(['h5-repo']);
-    expect(rfn[0].fanIn).toBe(5);
-    // SyncService 用 read: release_tag + repo_name を含む (Supabase trail_release_*_analysis PK)。
-    const allRfa = (db as unknown as { getAllReleaseFileAnalysis(): Array<{ release_tag: string; repo_name: string; file_path: string }> }).getAllReleaseFileAnalysis();
-    expect(allRfa).toContainEqual(expect.objectContaining({ release_tag: 'v1.0.0', repo_name: 'h5-repo', file_path: 'src/h5.ts' }));
-    const allRfn = (db as unknown as { getAllReleaseFunctionAnalysis(): Array<{ release_tag: string; repo_name: string; function_name: string }> }).getAllReleaseFunctionAnalysis();
-    expect(allRfn).toContainEqual(expect.objectContaining({ release_tag: 'v1.0.0', repo_name: 'h5-repo', function_name: 'foo' }));
 
     // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了し、データも保持される。
     expect(() => {
       (db as unknown as { createTables(): void }).createTables();
     }).not.toThrow();
-    for (const t of targetTables) {
-      expect(colsOf(t)).not.toContain('repo_name');
-    }
-    expect(db.getReleaseFileAnalysis('v1.0.0', 'h5-repo')).toHaveLength(1);
-    expect(db.getReleaseFunctionAnalysis('v1.0.0', 'h5-repo')).toHaveLength(1);
+    expect(colsOf('releases')).not.toContain('repo_name');
+    expect(tableExists('release_file_analysis')).toBe(false);
+    expect(db.getReleases().find((r) => r.tag === 'v1.0.0')?.repo_name).toBe('h5-repo');
 
     db.close();
   });

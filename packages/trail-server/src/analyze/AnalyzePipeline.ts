@@ -659,8 +659,8 @@ function selectReleases<T extends { tag: string }>(
  * `generate()` の override へ渡す。`persist: false` により current_code_graphs は汚さない
  * （保存は `saveReleaseCodeGraph` が行う）。
  *
- * TODO: release_file_analysis / release_function_analysis への保存は将来タスクで対応する。
- * リリースごとの dead code 解析は現時点では未実装（Task 13 スコープ外）。
+ * リリースごとの file/function 解析 (release_file_analysis / release_function_analysis) は
+ * 2026-08-08 に廃止した（書込が未配線のまま利用実績ゼロだったため。解析は current 側のみ）。
  */
 export async function runAnalyzeReleaseCodePipeline(
   opts: AnalyzeReleaseOpts,

@@ -679,15 +679,9 @@ describe('Phase H-1/F: dora_metrics and release tables — no-op on fresh DB', (
     expect(cols).not.toContain('repo_name');
   });
 
-  it('release_file_analysis has no repo_name column if it exists', () => {
+  it('release_file_analysis is dropped (機能廃止 2026-08-08)', () => {
     const res = inner(db).exec("SELECT name FROM sqlite_master WHERE type='table' AND name='release_file_analysis'");
-    if ((res[0]?.values ?? []).length === 0) {
-      expect(true).toBe(true);
-      return;
-    }
-    const colRes = inner(db).exec("PRAGMA table_info('release_file_analysis')");
-    const cols = (colRes[0]?.values ?? []).map((r) => r[1] as string);
-    expect(cols).not.toContain('repo_name');
+    expect((res[0]?.values ?? []).length).toBe(0);
   });
 });
 
@@ -702,15 +696,9 @@ describe('migrateReleaseChildrenReleaseId — fresh DB has release_id already', 
   beforeEach(async () => { db = await createTestTrailDatabase(); });
   afterEach(() => db.close());
 
-  it('release_file_analysis has release_id column', () => {
+  it('release_file_analysis is dropped (機能廃止 2026-08-08)', () => {
     const res = inner(db).exec("SELECT name FROM sqlite_master WHERE type='table' AND name='release_file_analysis'");
-    if ((res[0]?.values ?? []).length === 0) {
-      expect(true).toBe(true);
-      return;
-    }
-    const colRes = inner(db).exec("PRAGMA table_info('release_file_analysis')");
-    const cols = (colRes[0]?.values ?? []).map((r) => r[1] as string);
-    expect(cols).toContain('release_id');
+    expect((res[0]?.values ?? []).length).toBe(0);
   });
 
   it('releases has no repo_name (backfillReleaseRepoIds returns early)', () => {
