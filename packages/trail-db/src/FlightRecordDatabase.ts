@@ -1,9 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { Database as BetterSqlite3Database } from 'better-sqlite3';
-
-import { loadBetterSqlite3 } from './internal/loadBetterSqlite3';
+import { openBetterSqlite3 } from './internal/loadBetterSqlite3';
 import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import {
@@ -45,6 +43,17 @@ import {
 } from '@anytime-markdown/trail-core';
 
 type Database = SqlJsCompatDatabase;
+
+export interface FlightRecordDatabaseOptions {
+  /** trail.db の絶対パス。ATTACH できた場合のみセッション由来の列が埋まる。 */
+  readonly trailDbPath?: string | null;
+  /**
+   * 拡張の dist ディレクトリ。バンドル済み better-sqlite3 の native binary 解決に使う。
+   * 未指定だとバンドル環境で init() が throw する（openBetterSqlite3 の Why not 参照）。
+   */
+  readonly distPath?: string | null;
+  readonly logger?: DbLogger;
+}
 
 /** destructiveMigrateFromTrailDb の判別可能な結果。成功と部分失敗を型で区別する。 */
 export interface FlightRecordMigrationResult {
@@ -243,12 +252,16 @@ export class FlightRecordDatabase {
   private trailAttached = false;
   private readonly logger: DbLogger;
 
+  private readonly trailDbPath: string | null;
+  private readonly distPath: string | null;
+
   constructor(
     private readonly memoryDbPath: string,
-    private readonly trailDbPath: string | null = null,
-    logger?: DbLogger,
+    options: FlightRecordDatabaseOptions = {},
   ) {
-    this.logger = logger ?? noopDbLogger;
+    this.trailDbPath = options.trailDbPath ?? null;
+    this.distPath = options.distPath ?? null;
+    this.logger = options.logger ?? noopDbLogger;
   }
 
   /**
@@ -258,8 +271,16 @@ export class FlightRecordDatabase {
    */
   init(): void {
     if (this.db) return;
-    const Ctor = loadBetterSqlite3();
-    const inner: BetterSqlite3Database = new Ctor(this.memoryDbPath);
+    // native binary の解決は openBetterSqlite3 に集約する。ここで `new Ctor(path)` を直に
+    // 書くと、webpack-bundled 拡張で bindings が .node を推測できず init が必ず throw し、
+    // flight 系エンドポイントが配布物でだけ全滅する（loadBetterSqlite3.ts の Why not 参照）。
+    const inner = openBetterSqlite3(this.memoryDbPath, {
+      distPath: this.distPath,
+      onBundledBindingMissing: (expected) =>
+        this.logger.warn(
+          `[FlightRecordDatabase] bundled better_sqlite3.node not found at ${expected}; falling back to bindings resolution (this fails in bundled builds)`,
+        ),
+    });
     // 拡張の memory pipeline / MemoryApiHandler と同一ファイルを共有するため WAL を保証する。
     // openMemoryCoreDb（memory-core パッケージ）だけに任せると、本クラスが先に DB ファイルを
     // 作った環境で既定の DELETE ジャーナルのまま読み書きが競合する（前提はコメントでなく

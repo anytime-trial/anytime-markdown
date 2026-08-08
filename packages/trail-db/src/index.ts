@@ -1,4 +1,8 @@
 export { FlightRecordDatabase } from './FlightRecordDatabase';
+export type { FlightRecordDatabaseOptions } from './FlightRecordDatabase';
+// バンドル済み better_sqlite3.node のパス構成を知る唯一の関数。trail-db 外（trail-server /
+// 拡張本体）が memory-core へ nativeBinding を渡すときも、パスを組み立て直さずこれを使う。
+export { resolveBundledNativeBinding } from './internal/loadBetterSqlite3';
 export {
   TrailDatabase,
   InMemoryTrailStorage,

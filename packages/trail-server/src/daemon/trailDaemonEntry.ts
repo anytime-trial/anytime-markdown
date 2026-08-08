@@ -19,7 +19,7 @@ import {
   createPipelineRunLedgerFactory,
 } from '@anytime-markdown/memory-core/pipeline';
 import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
-import { TrailDatabase } from '@anytime-markdown/trail-db';
+import { resolveBundledNativeBinding, TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { checkLlmAvailability } from '../lep/LlmAvailability';
 import { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
@@ -401,8 +401,9 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     if (!opts.memoryDbPath) {
       throw new Error('logService requires memoryDbPath');
     }
-    const nativeBinding =
-      lsCfg.nativeBinding ?? path.join(opts.distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+    // 実在確認込みで解決する。実在しないパスを渡すと openMemoryCoreDb は必ず失敗するため、
+    // 見つからないときは undefined を渡して better-sqlite3 の既定解決へ落とす。
+    const nativeBinding = lsCfg.nativeBinding ?? resolveBundledNativeBinding(opts.distPath) ?? undefined;
     const logLedgerCoreDb = await openMemoryCoreDb(opts.memoryDbPath, { nativeBinding });
     const logLedgerDb = logLedgerCoreDb.conn ?? logLedgerCoreDb.db;
     const systemRunLedger = new PipelineRunLedger({

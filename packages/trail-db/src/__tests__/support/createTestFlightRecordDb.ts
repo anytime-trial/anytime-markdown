@@ -27,7 +27,7 @@ import {
 
 import { FlightRecordDatabase } from '../../FlightRecordDatabase';
 import type { DbLogger } from '../../DbLogger';
-import { loadBetterSqlite3 } from '../../internal/loadBetterSqlite3';
+import { openBetterSqlite3 } from '../../internal/loadBetterSqlite3';
 
 export interface FlightRecordTestContext {
   readonly db: FlightRecordDatabase;
@@ -43,8 +43,7 @@ export interface FlightRecordTestContext {
 
 /** trail.db 側に必要なセッション由来テーブルを作って開いたまま返す（シード用ハンドル）。 */
 function createSeedableTrailDb(trailDbPath: string): BetterSqlite3Database {
-  const Ctor = loadBetterSqlite3();
-  const trail = new Ctor(trailDbPath);
+  const trail = openBetterSqlite3(trailDbPath);
   // 本番の trail.db と同じ FK OFF（better-sqlite3 は既定 ON。repos を張らない部分シードを許す）
   trail.pragma('foreign_keys = OFF');
   for (const ddl of [
@@ -66,7 +65,7 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
   const trailDbPath = path.join(tempDir, 'trail.db');
   const memoryDbPath = path.join(tempDir, 'memory-core.db');
   const trail = createSeedableTrailDb(trailDbPath);
-  const db = new FlightRecordDatabase(memoryDbPath, trailDbPath, logger);
+  const db = new FlightRecordDatabase(memoryDbPath, { trailDbPath, logger });
   db.init();
   const run = (handle: BetterSqlite3Database) =>
     (sql: string, params: readonly unknown[] = []): void => {
@@ -76,8 +75,7 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
       }
       handle.prepare(sql).run(...params);
     };
-  const Ctor = loadBetterSqlite3();
-  const memory = new Ctor(memoryDbPath);
+  const memory = openBetterSqlite3(memoryDbPath);
   return {
     db,
     tempDir,
@@ -101,7 +99,7 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
 export function createUninitializedFlightRecordDb(): { db: FlightRecordDatabase; cleanup(): void } {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-db-'));
   return {
-    db: new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), path.join(tempDir, 'trail.db')),
+    db: new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath: path.join(tempDir, 'trail.db') }),
     cleanup(): void {
       fs.rmSync(tempDir, { recursive: true, force: true });
     },

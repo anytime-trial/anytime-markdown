@@ -7,6 +7,7 @@ import { checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
 import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 import {
 	FileChangeResolver,
+	resolveBundledNativeBinding,
 	SpecDocIndex,
 	TrailDatabase,
 	WorkspaceC4ElementProvider,
@@ -415,14 +416,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	//   - memory chat (ChatBridge / RebuildScheduler)
 	// なので拡張側の責務として早期に解決しておく。
 	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
-	const memoryCoreNativeBinding = path.join(
-		extensionDistPath,
-		'node_modules',
-		'better-sqlite3',
-		'build',
-		'Release',
-		'better_sqlite3.node',
-	);
+	// パス構成の正本は trail-db の resolveBundledNativeBinding。実在しなければ undefined を配り、
+	// memory-core 側を better-sqlite3 の既定解決へ落とす（実在しないパスは open を必ず失敗させる）。
+	const memoryCoreNativeBinding = resolveBundledNativeBinding(extensionDistPath) ?? undefined;
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
 			TrailLogger.warn(
