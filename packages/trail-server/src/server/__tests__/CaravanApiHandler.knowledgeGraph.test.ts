@@ -65,6 +65,59 @@ function buildKnowledgeGraphDb(dbPath: string): void {
   db.close();
 }
 
+/**
+ * ハブ&スポーク構造。ハブ 2 件（h1 / h2）はそれぞれ次数 3 のスポークを持つが、
+ * ハブ同士は繋がっていない。次数上位 N でノードを選ぶとハブだけが残り、
+ * リンクが 1 本も引けない「孤立ノードだけの図」になる。
+ */
+function buildHubAndSpokeDb(dbPath: string): void {
+  const db = new BetterSqlite3(dbPath);
+  db.exec(`CREATE TABLE caravan_entities (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    canonical_name TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_updated_at TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    UNIQUE (type, canonical_name)
+  ) STRICT`);
+  db.exec(`CREATE TABLE caravan_edges (
+    id TEXT PRIMARY KEY,
+    subject_entity_id TEXT NOT NULL,
+    predicate TEXT NOT NULL,
+    object_entity_id TEXT,
+    object_literal TEXT,
+    valid_from TEXT NOT NULL,
+    valid_to TEXT,
+    recorded_at TEXT NOT NULL
+  ) STRICT`);
+  db.exec(`CREATE TABLE caravan_edge_invalidations (
+    id TEXT PRIMARY KEY,
+    edge_id TEXT NOT NULL,
+    invalidated_at TEXT NOT NULL,
+    reason TEXT NOT NULL
+  ) STRICT`);
+
+  const entity = db.prepare(
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const edge = db.prepare(
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, object_literal, valid_from, valid_to, recorded_at)
+     VALUES (?, ?, 'relates_to', ?, NULL, ?, NULL, ?)`,
+  );
+  for (const hub of ['h1', 'h2']) {
+    entity.run(hub, 'Package', hub, hub, TS, TS, TS);
+    for (let i = 0; i < 3; i += 1) {
+      const spoke = `${hub}s${i}`;
+      entity.run(spoke, 'File', spoke, spoke, TS, TS, TS);
+      edge.run(`e-${spoke}`, hub, spoke, TS, TS);
+    }
+  }
+  db.close();
+}
+
 describe('CaravanApiHandler.getKnowledgeGraph', () => {
   let tmpDir: string;
   let dbPath: string;
@@ -139,9 +192,63 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
     expect(result?.nodes.length).toBe(4);
   });
 
+  it('falls back to the top-degree node when the limit cannot fit a single pair', async () => {
+    const result = await handler.getKnowledgeGraph({ limit: 1 });
+
+    expect(result?.nodes.map((n) => n.label)).toEqual(['TrailDataServer']);
+    expect(result?.links).toEqual([]);
+    expect(result?.truncated).toBe(true);
+  });
+
   it('returns null when the db does not exist (distinct from an empty graph)', async () => {
     const missing = new CaravanApiHandler(makeMockLogger(), path.join(tmpDir, 'missing.db'));
     expect(await missing.getKnowledgeGraph({})).toBeNull();
     missing.dispose();
+  });
+});
+
+describe('CaravanApiHandler.getKnowledgeGraph — hub and spoke', () => {
+  let tmpDir: string;
+  let handler: CaravanApiHandler;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-hub-test-'));
+    const dbPath = path.join(tmpDir, 'caravan-book.db');
+    buildHubAndSpokeDb(dbPath);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+  });
+
+  afterEach(() => {
+    handler.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('never returns a node without a link (hubs alone would be isolated)', async () => {
+    // 次数上位 2 件はハブ h1 / h2 だが両者は繋がっていない。旧選定では links が空になる。
+    const result = await handler.getKnowledgeGraph({ limit: 2 });
+
+    expect(result?.nodes).toHaveLength(2);
+    expect(result?.links.length).toBeGreaterThan(0);
+    const linkedIndices = new Set(result?.links.flatMap((l) => [l.a, l.b]));
+    expect([...linkedIndices].sort()).toEqual([0, 1]);
+    // ハブ 1 件 + そのスポーク 1 件が選ばれる（ハブ 2 件ではない）
+    expect(result?.nodes.map((n) => n.type)).toEqual(['Package', 'File']);
+    expect(result?.truncated).toBe(true);
+  });
+
+  it('leaves a slot unfilled rather than adding a node that would be isolated', async () => {
+    const result = await handler.getKnowledgeGraph({ limit: 5 });
+
+    // h1 + スポーク 3 件で 4 枠。残り 1 枠に h2 を入れると相手が居ないので入れない
+    expect(result?.nodes.map((n) => n.label)).toEqual(['h1', 'h1s0', 'h1s1', 'h1s2']);
+    const linkedIndices = new Set(result?.links.flatMap((l) => [l.a, l.b]));
+    expect(linkedIndices.size).toBe(result?.nodes.length);
+  });
+
+  it('reports frequency as the global degree, not the degree inside the returned subgraph', async () => {
+    const result = await handler.getKnowledgeGraph({ limit: 2 });
+
+    // ハブの次数はスポーク 3 本ぶん。返却部分グラフ内の 1 本ではない
+    expect(result?.nodes[0]?.frequency).toBe(3);
   });
 });

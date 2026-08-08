@@ -226,6 +226,39 @@ function clampLimit(limit: number | undefined, def: number, max = 200): number {
   return Math.min(limit ?? def, max);
 }
 
+/**
+ * 知識グラフのノード選定で走査するエッジペア数の、ノード上限に対する倍率。
+ * 貪欲選択は「limit に収まらないペア」を読み飛ばして次を見るため、limit と同数の
+ * ペアだけでは埋まらないことがある。大きすぎると 1 リクエストの転送量が増えるだけなので
+ * 実用上の充填率とコストの折衷値。
+ */
+const KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER = 20;
+
+/**
+ * 知識グラフのノード集合を、順位付け済みのエッジペア列から貪欲に組み立てる。
+ * ペアの端点しか採らないので、返る ID はすべて少なくとも 1 本のリンクを持つ。
+ *
+ * @param pairRows `[a, b]` の 2 列。呼び出し側が重要度の降順に並べて渡す
+ * @param limit ノード数の上限
+ */
+function selectEdgeInducedNodeIds(
+  pairRows: readonly (readonly SqlValue[])[],
+  limit: number,
+): Set<string> {
+  const selected = new Set<string>();
+  for (const row of pairRows) {
+    const a = toStr(row[0]);
+    const b = toStr(row[1]);
+    const need = (selected.has(a) ? 0 : 1) + (selected.has(b) ? 0 : 1);
+    // 収まらないペアは読み飛ばす（片端が既出のペアなら後から 1 枠で入る）
+    if (need === 0 || selected.size + need > limit) continue;
+    selected.add(a);
+    selected.add(b);
+    if (selected.size >= limit) break;
+  }
+  return selected;
+}
+
 function toBindParams(arr: unknown[]): SqlValue[] {
   return arr as SqlValue[];
 }
@@ -1520,21 +1553,53 @@ export class CaravanApiHandler {
             ${typeFilter}
         )`;
       const typeBinds = types.length > 0 ? [...types, ...types] : [];
-
-      const nodeResult = db.exec(
-        `WITH ${activeCte},
+      const degCte = `
         deg AS (
           SELECT id, SUM(c) AS d FROM (
             SELECT s AS id, COUNT(*) AS c FROM active GROUP BY s
             UNION ALL
             SELECT o AS id, COUNT(*) AS c FROM active GROUP BY o
           ) GROUP BY id
+        )`;
+
+      // ノード選定はエッジ誘導。両端がともに重要なペア（次数の min が大きい順）から
+      // 貪欲に採り、その端点をノード集合とする。次数上位 N を先に選ぶ方式では、ハブの相手
+      // （低次数のスポーク）が全員カットラインの外へ落ちるため、ハブだけがリンク 1 本も
+      // 持たない点として図に残る。
+      // 次数の「和」ではなく「min」で並べるのは、和だと巨大ハブ 1 個とその低次数スポーク
+      // ばかりが上位を占め、図が星形 1 個（実測 150 ノード / 149 リンク）に潰れるため。
+      // min なら両端とも次数の高いペアが優先され、実測で同じ 150 ノードに 437 リンクが残る。
+      const pairResult = db.exec(
+        `WITH ${activeCte}, ${degCte},
+        pairs AS (
+          SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
+          FROM active
+          GROUP BY MIN(s, o), MAX(s, o)
         )
+        SELECT p.a, p.b
+        FROM pairs p
+        JOIN deg dg_a ON dg_a.id = p.a
+        JOIN deg dg_b ON dg_b.id = p.b
+        ORDER BY MIN(dg_a.d, dg_b.d) DESC, p.strength DESC, p.a, p.b
+        LIMIT ?`,
+        toBindParams([...typeBinds, limit * KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER]),
+      );
+
+      const selectedIds = selectEdgeInducedNodeIds(pairResult[0]?.values ?? [], limit);
+
+      // ペアが 1 つも収まらない場合（limit = 1・有効エッジ 0 本）だけ次数上位 N へ退避する。
+      // 空集合を IN 句へ渡すと 0 件になり「データが無い」と区別できなくなる。
+      const idFilter = selectedIds.size > 0
+        ? `WHERE en.id IN (${[...selectedIds].map(() => '?').join(',')})`
+        : '';
+      const nodeResult = db.exec(
+        `WITH ${activeCte}, ${degCte}
         SELECT en.id, en.display_name, en.type, deg.d
         FROM deg JOIN caravan_entities en ON en.id = deg.id
+        ${idFilter}
         ORDER BY deg.d DESC, en.id
         LIMIT ?`,
-        toBindParams([...typeBinds, limit]),
+        toBindParams([...typeBinds, ...selectedIds, limit]),
       );
       const nodeRows = (nodeResult[0]?.values ?? []).map((row) => ({
         id: toStr(row[0]),

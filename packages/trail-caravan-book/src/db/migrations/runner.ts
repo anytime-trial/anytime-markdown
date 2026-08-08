@@ -38,6 +38,7 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 22, file: '022_review_finding_extracted_by.sql' },
   { version: 23, apply: applyTablePrefix },
   { version: 24, apply: applyTablePrefixFts, requiresFts5: true },
+  { version: 25, file: '025_defines_predicate.sql' },
 ]
 
 /**

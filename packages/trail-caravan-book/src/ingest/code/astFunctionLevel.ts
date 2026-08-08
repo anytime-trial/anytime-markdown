@@ -235,6 +235,88 @@ function upsertLibraryEntity(
   return eId;
 }
 
+/**
+ * Insert the File → Function ownership edge. Idempotent via the deterministic
+ * edge ID. Returns true when a new row was written.
+ */
+function insertDefinesEdge(
+  db: CaravanDbConnection,
+  fileEntityId: string,
+  functionEntityId: string,
+  nodeId: string,
+  recordedAt: string,
+  logger: CaravanLogger
+): boolean {
+  const eId = astEdgeId(fileEntityId, 'defines', functionEntityId);
+  try {
+    db.run(
+      `INSERT INTO caravan_edges
+         (id, subject_entity_id, predicate, object_entity_id,
+          valid_from, recorded_at, source_type, source_ref,
+          confidence, confidence_label, modality)
+       VALUES (?, ?, 'defines', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+       ON CONFLICT(id) DO NOTHING`,
+      [eId, fileEntityId, functionEntityId, recordedAt, recordedAt, `ast_node:${nodeId}`]
+    );
+    return db.getRowsModified() > 0;
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] astFunctionLevel: failed to insert defines edge node="${nodeId}"`,
+      err
+    );
+    return false;
+  }
+}
+
+/**
+ * Upsert a Function entity for every function / class / interface node, plus the
+ * File that owns it, and connect them with a `defines` edge.
+ *
+ * Without that edge a Function is never an endpoint of any edge — `call` and
+ * `inheritance` edges are folded up to file granularity — so it would be isolated
+ * in the graph from the moment it is created.
+ *
+ * Mutates `currentEntityIds`: both the Function and its owning File must be in the
+ * set or `runCodeReconciliation` soft-deletes them on the next pass.
+ */
+function ingestSymbolNodes(input: {
+  db: CaravanDbConnection;
+  repoName: string;
+  graph: TrailGraph;
+  recordedAt: string;
+  logger: CaravanLogger;
+  currentEntityIds: Set<string>;
+}): { function_entities_upserted: number; edges_inserted: number } {
+  const { db, repoName, graph, recordedAt, logger, currentEntityIds } = input;
+  const stats = { function_entities_upserted: 0, edges_inserted: 0 };
+
+  for (const node of graph.nodes) {
+    if (node.type !== 'function' && node.type !== 'class' && node.type !== 'interface') {
+      continue;
+    }
+    const fnEntityId = upsertFunctionEntity(
+      db,
+      repoName,
+      node.filePath,
+      node.label,
+      node.parent,
+      recordedAt,
+      logger,
+    );
+    currentEntityIds.add(fnEntityId);
+    stats.function_entities_upserted += 1;
+
+    // file ノードがグラフに無い Function もあるため、ここで File も upsert する。
+    const ownerFileId = upsertFileEntity(db, node.filePath, recordedAt, logger);
+    currentEntityIds.add(ownerFileId);
+    if (insertDefinesEdge(db, ownerFileId, fnEntityId, node.id, recordedAt, logger)) {
+      stats.edges_inserted += 1;
+    }
+  }
+
+  return stats;
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 type EdgeMeta = { factType: 'imports' | 'calls' | 'extends'; predicate: 'depends_on' | 'relates_to' };
@@ -286,23 +368,12 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
     nodeById.set(node.id, node);
   }
 
-  // ── Upsert Function entities for function / class / interface nodes ──────
-  for (const node of graph.nodes) {
-    if (node.type !== 'function' && node.type !== 'class' && node.type !== 'interface') {
-      continue;
-    }
-    const fnEntityId = upsertFunctionEntity(
-      db,
-      repoName,
-      node.filePath,
-      node.label,
-      node.parent,
-      recordedAt,
-      logger,
-    );
-    currentEntityIds.add(fnEntityId);
-    stats.function_entities_upserted += 1;
-  }
+  // ── Upsert Function entities and their owning File ───────────────────────
+  const symbolStats = ingestSymbolNodes({
+    db, repoName, graph, recordedAt, logger, currentEntityIds,
+  });
+  stats.function_entities_upserted += symbolStats.function_entities_upserted;
+  stats.edges_inserted += symbolStats.edges_inserted;
 
   // ── Process edges ─────────────────────────────────────────────────────────
   for (const edge of graph.edges) {
