@@ -84,7 +84,7 @@ export function runMigrations(conn: MemoryDbConnection): void {
       const ts = new Date().toISOString();
       // eslint-disable-next-line no-console
       console.log(
-        `[${ts}] [WARN] trail-caravan-book: migration ${migration.file} skipped (SQLite build lacks FTS5)`,
+        `[${ts}] [WARN] trail-caravan-book: migration ${migration.file ?? `v${migration.version}`} skipped (SQLite build lacks FTS5)`,
       );
       continue;
     }

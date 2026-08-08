@@ -120,6 +120,26 @@ export function openVerificationLedger(dbPath) {
   }
   const db = new DatabaseSync(dbPath, { enableForeignKeyConstraints: false });
   db.exec('PRAGMA busy_timeout = 5000');
+  // テーブル名接頭辞移行（2026-08-08）: 本スクリプトは拡張と独立した writer のため、
+  // TrailDatabase が未改名の DB へ先に書くと、旧 verification_runs の履歴を残したまま
+  // 新名の空テーブルを作ってしまう（cross-review 指摘）。旧名実在かつ新名不在なら
+  // SCHEMA_STATEMENTS（IF NOT EXISTS）より先に改名する（存在ガードで冪等）。
+  const prefixNames = new Set(
+    db
+      .prepare(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('verification_runs', 'activity_verification_runs')`,
+      )
+      .all()
+      .map((r) => r.name),
+  );
+  if (prefixNames.has('verification_runs') && !prefixNames.has('activity_verification_runs')) {
+    db.exec('ALTER TABLE verification_runs RENAME TO activity_verification_runs');
+  } else if (prefixNames.has('verification_runs') && prefixNames.has('activity_verification_runs')) {
+    // どちらが正か機械決定できないため自動マージしない（split-brain の可視化のみ）
+    console.warn(
+      `[verification-db] legacy verification_runs coexists with activity_verification_runs at ${dbPath}; manual consolidation required (rows in the legacy table are not read)`,
+    );
+  }
   for (const sql of SCHEMA_STATEMENTS) db.exec(sql);
   return db;
 }

@@ -157,3 +157,23 @@ test('SCHEMA_STATEMENTS: activity_verification_runs の DDL が trail-activity �
 test('VERIFICATION_KINDS: RFC の 7 種別', () => {
   assert.deepEqual([...VERIFICATION_KINDS], ['unit', 'build', 'next-build', 'typecheck', 'lint', 'e2e', 'manual']);
 });
+
+test('openVerificationLedger: 旧 verification_runs だけの DB は改名して履歴を引き継ぐ', () => {
+  const dbPath = path.join(tmpDir, 'legacy.db');
+  // 旧名スキーマの DB を再現（接頭辞移行前の writer が作った状態）
+  const legacy = openVerificationLedger(dbPath);
+  recordRun(legacy, baseRun);
+  legacy.exec('ALTER TABLE activity_verification_runs RENAME TO verification_runs');
+  legacy.close();
+
+  const db = openVerificationLedger(dbPath);
+  const names = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%verification_runs'`)
+    .all()
+    .map((r) => r.name);
+  assert.deepEqual(names, ['activity_verification_runs']);
+  // 旧履歴が新名テーブルから読める（空の新テーブルで座礁しない）
+  const verified = queryVerifiedKinds(db, { packageName: baseRun.package, codeStateHash: baseRun.commitHash });
+  assert.equal(verified.size, 1);
+  db.close();
+});

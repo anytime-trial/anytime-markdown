@@ -42,6 +42,20 @@ function listTables(conn: MemoryDbConnection): Set<string> {
 }
 
 export function applyTablePrefix(conn: MemoryDbConnection): void {
+  // FTS5 非対応ビルドで skip された v13 が残っていると、改名後に FTS5 対応ビルドで
+  // 開いたとき v13 が再実行され、旧名 memory_pipeline_state 前提の 12-step 再作成が
+  // no such table で落ちる（cross-review 指摘 2026-08-08）。v13 の非 FTS 部分
+  // （pipeline_state の scope CHECK 拡張）は v21 の全再作成（上位互換 CHECK）で
+  // 常に上書き済みのため、ここで v13 を適用済みへ記帳しても schema 等価。
+  // FTS 部分は v24（requiresFts5）が新名で作り直すため欠落しない。
+  const applied13 =
+    (conn.exec(`SELECT 1 FROM _migrations WHERE version = 13`)[0]?.values?.length ?? 0) > 0;
+  if (!applied13) {
+    conn.run(`INSERT OR IGNORE INTO _migrations (version, applied_at) VALUES (?, ?)`, [
+      13,
+      new Date().toISOString(),
+    ]);
+  }
   const statements = planTableRenames(listTables(conn), CARAVAN_RUNNER_TABLE_RENAMES);
   if (statements.length === 0) return;
   // FK 有効時のみ他テーブルの REFERENCES 句が新名へ書き換わるため、改名中は明示的に ON にする
