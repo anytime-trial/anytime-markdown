@@ -4,7 +4,8 @@ import { parseFixCommit } from '../ingest/bug-history/parseFixCommit';
 import { buildBugEntity } from '../ingest/bug-history/buildBugEntity';
 import { linkAffectedFiles } from '../ingest/bug-history/linkAffectedFiles';
 import { inferIntroducedBy } from '../ingest/bug-history/inferIntroducedBy';
-import { linkRootCauseEpisode } from '../ingest/bug-history/linkRootCauseEpisode';
+import { linkRootCauseEpisode, relinkNullRootCauseEpisodes } from '../ingest/bug-history/linkRootCauseEpisode';
+import { extractCommitBody } from '../ingest/bug-history/extractCommitBody';
 import { upsertBugEntity, upsertCommitEntity, upsertBugFix, insertFixesEdge } from '../ingest/bug-history/persist';
 import { entityId } from '../canonical/entityId';
 import { noopLogger, type CaravanLogger } from '../logger';
@@ -125,6 +126,14 @@ export async function runBugHistoryIncremental(opts: {
   // ままになり、Flight Record でどのワークスペースを選んでも Bug Fixed が 0 件になる。
   // 埋めるのはこの repo のコミットに紐づく行だけ（他リポジトリの行には触らない）。
   backfillBugFixWorkspace(db, repoName, logger);
+
+  // ── 0.5 root_cause_episode の再リンク ────────────────────────────────────
+  // episode は bug_history より後から取込まれることが常態のため、新規コミットが
+  // 無い実行でも毎回リンクを試みる（冪等・0 件更新に収束する。spec §6.7）。
+  const relinked = relinkNullRootCauseEpisodes(db, { workspace: repoName, logger });
+  if (relinked > 0) {
+    logger.info(`[anytime-memory] bug history incremental: relinked root_cause_episode for ${relinked} rows`);
+  }
 
   // ── 1. Read last_processed_at ────────────────────────────────────────────
   const lastProcessedAt = readPipelineState(db);
@@ -268,6 +277,7 @@ export async function runBugHistoryIncremental(opts: {
         recordedAt,
         sessionId,
         introducedCommitSha: introResult.introduced_commit_sha,
+        bodyExcerpt: extractCommitBody(row.commit_message),
         workspace: row.repo_name,
       });
 

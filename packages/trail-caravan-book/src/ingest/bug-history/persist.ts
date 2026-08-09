@@ -59,6 +59,8 @@ export function upsertBugFix(
     recordedAt: string;
     sessionId: string | null;
     introducedCommitSha: string | null;
+    /** コミット本文（件名以降・trailer 除去済み）。extractCommitBody の出力（spec §6.7） */
+    bodyExcerpt: string;
     /**
      * 取込元リポジトリの repo_name。caravan-book.db は複数ワークスペースを 1 つの DB へ
      * 集約するため、これが無いと Flight Record で他ワークスペースのバグが混ざる。
@@ -67,15 +69,18 @@ export function upsertBugFix(
     workspace: string;
   }
 ): void {
+  // introduced_commit_sha / body_excerpt は「後から null / '' の再取込」で既存の
+  // 非 null 値を失わないよう COALESCE / NULLIF で保全する（spec §6.7。全行 null の実測原因）。
   db.run(
     `INSERT INTO caravan_bug_fixes
        (id, commit_sha, bug_entity_id, package, category, subject_summary,
         affected_file_paths_json, related_session_id, introduced_commit_sha,
-        committed_at, recorded_at, workspace)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        body_excerpt, committed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        affected_file_paths_json = excluded.affected_file_paths_json,
-       introduced_commit_sha    = excluded.introduced_commit_sha,
+       introduced_commit_sha    = COALESCE(excluded.introduced_commit_sha, introduced_commit_sha),
+       body_excerpt             = COALESCE(NULLIF(excluded.body_excerpt, ''), body_excerpt),
        workspace                = excluded.workspace`,
     [
       opts.id,
@@ -87,6 +92,7 @@ export function upsertBugFix(
       JSON.stringify(opts.affectedFilePaths),
       opts.sessionId,
       opts.introducedCommitSha,
+      opts.bodyExcerpt,
       opts.committedAt,
       opts.recordedAt,
       opts.workspace,
