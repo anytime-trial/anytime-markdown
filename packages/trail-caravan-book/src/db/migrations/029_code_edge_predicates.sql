@@ -19,10 +19,21 @@ INSERT OR IGNORE INTO caravan_relation_types (predicate, cardinality, directiona
 --
 -- 対象を source_ref の fact 種別で絞るのは、1 本の File 間の辺に import / call / inheritance の
 -- fact が畳まれ得るためである。source_ref は最初に辺を作った fact しか保持しないので、
--- 「call が最初だったが import でもある」辺はここで無効化されてしまう。これは再取込時に
--- import fact が同一 id を再挿入し、ingestAstFacts の復活経路（ON CONFLICT DO UPDATE で
--- valid_to を NULL へ戻す）が無効化を剥がすことで自己是正する。
+-- 「call が最初だったが import でもある」辺もここで無効化される。これは再取込時に import fact が
+-- 同一 id を再挿入し、ingestAstFacts の復活経路（ON CONFLICT DO UPDATE で valid_to を NULL へ
+-- 戻し source_ref を張り替える）が無効化を剥がすことで自己是正する。
 -- **復活経路が無いと、この UPDATE は File 間リンクを恒久的に消す。**
+--
+-- import を伴わない「呼び出しだけ」の File 対は relates_to が無効のまま残るが、これは正しい。
+-- その対のリンクは新しい `calls` 辺が引き継ぐのであって、消えるわけではない。
+--
+-- caravan_edge_invalidations へは記録しない。readActiveEdges（runKnowledgeGraphLayout）が
+-- 無効化記録のある辺を valid_to と無関係に恒久除外するため、記録すると復活後もレイアウトから
+-- 消えたままになる。ここでの無効化は述語の付け替えに伴う一時的なもので、監査対象の意味的な
+-- 無効化（rule_exclusive / spec_updated 等）とは別種である。
+--
+-- 前提: この UPDATE は「ウォーターマークを巻き戻せば次サイクルが全量再取込する」ことに依存する。
+-- runCodeIncremental は ingestAstFacts が完走した run でのみウォーターマークを前進させる。
 UPDATE caravan_edges
    SET valid_to = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
  WHERE source_type = 'code'

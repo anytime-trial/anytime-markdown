@@ -281,11 +281,14 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     }
     this.save();
 
-    // reconciliation: code_incremental が skipped なら entity_ids 空のため
-    // 全 entity 誤 soft-delete を避けて reconciliation も skip する (ハード制約)。
+    // reconciliation: entity_ids が空なら全 entity 誤 soft-delete になるため skip する
+    // (ハード制約)。status==='skipped' だけを見ていると、ingestAstFacts が実行できず
+    // entity_ids が空のまま status が success / partial になる経路（TrailGraph 欠落）を
+    // 素通りさせるため、集合そのものを条件にする。
+    const reconciliationUnsafe = codeWasSkipped || codeEntityIds.size === 0;
     this.status?.start('code_reconciliation');
     try {
-      if (codeWasSkipped) {
+      if (reconciliationUnsafe) {
         this.status?.finish('code_reconciliation', 'skipped', 0, 0);
       } else {
         const reconResult = runCodeReconciliation({

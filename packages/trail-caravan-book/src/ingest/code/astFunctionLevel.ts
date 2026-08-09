@@ -242,6 +242,10 @@ const DEFINES_ERROR_LOG_LIMIT = 3;
  * Insert the File → Function ownership edge. Idempotent via the deterministic
  * edge ID.
  *
+ * 衝突時は下のメイン辺ループと同じ復活付き upsert を使う。`defines` を無効化する経路は
+ * 現状 無いが、辺挿入が同一ファイル・同一テーブル・同一 id 生成関数を使いながら復活可否だけ
+ * 食い違っていると、将来 `defines` を無効化する処理が入った時にこちらだけが恒久ゴースト化する。
+ *
  * `quiet` suppresses the per-node error log once the caller has already emitted
  * enough of them; the caller still receives 'failed' and reports the total.
  */
@@ -261,7 +265,11 @@ function insertDefinesEdge(
           valid_from, recorded_at, source_type, source_ref,
           confidence, confidence_label, modality)
        VALUES (?, ?, 'defines', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-       ON CONFLICT(id) DO NOTHING`,
+       ON CONFLICT(id) DO UPDATE SET
+         valid_to    = NULL,
+         source_ref  = excluded.source_ref,
+         recorded_at = excluded.recorded_at
+         WHERE caravan_edges.valid_to IS NOT NULL`,
       [eId, fileEntityId, functionEntityId, recordedAt, recordedAt, `ast_node:${nodeId}`]
     );
     return db.getRowsModified() > 0 ? 'inserted' : 'duplicate';
@@ -476,6 +484,12 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
     // 既存の code 由来 relates_to を無効化しており、剥がす経路が無いと再取込しても
     // valid_to が残ったまま（＝辺は在るのに検索から見えない）ゴーストになるため。
     // 既に有効な辺は WHERE で弾き、rows_modified を 0 に保って再取込が冪等に見えるようにする。
+    //
+    // source_ref も張り替える。029 が無効化するのは「source_ref が calls / extends fact を
+    // 指す relates_to」で、それが復活するのは同じ File 対に内部 import fact が在るとき
+    // だけなので、据え置くと「述語は import なのに来歴は calls」という嘘が残り、同じ
+    // WHERE 条件を使う将来のバックフィルが正当な辺を再無効化する。
+    // valid_from は据え置く（辺は元から有効で、無効化は移行の副産物だったと読むため）。
     const eId = astEdgeId(sourceEntityId, predicate, targetEntityId);
     try {
       db.run(
@@ -484,7 +498,10 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
             valid_from, recorded_at, source_type, source_ref,
             confidence, confidence_label, modality)
          VALUES (?, ?, ?, ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-         ON CONFLICT(id) DO UPDATE SET valid_to = NULL
+         ON CONFLICT(id) DO UPDATE SET
+           valid_to    = NULL,
+           source_ref  = excluded.source_ref,
+           recorded_at = excluded.recorded_at
            WHERE caravan_edges.valid_to IS NOT NULL`,
         [eId, sourceEntityId, predicate, targetEntityId, recordedAt, recordedAt, `code_fact:${fId}`]
       );
