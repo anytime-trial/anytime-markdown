@@ -119,6 +119,37 @@ describe('getBugCausality', () => {
     close();
   }, 30000);
 
+  test('file_path は完全一致 or dir prefix のみ（auth.ts が auth.tsx に誤ヒットしない）', async () => {
+    const { db, close } = await openSeededDb();
+
+    // auth.tsx だけを触った別のバグ修正を足す
+    db.run(
+      `INSERT INTO caravan_entities
+         (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
+          first_seen_at, last_updated_at, recorded_at)
+       VALUES ('bug3', 'Bug', 'bug3', 'tsx 側のバグ', '[]', '[]', '{}', ?, ?, ?)`,
+      [NOW, NOW, NOW],
+    );
+    db.run(
+      `INSERT INTO caravan_bug_fixes
+         (id, commit_sha, bug_entity_id, package, category, subject_summary,
+          body_excerpt, affected_file_paths_json, committed_at, recorded_at, workspace)
+       VALUES ('bf3', 'fff9999aaa', 'bug3', 'web-app', 'logic', 'tsx bug', '',
+               '["packages/web-app/src/auth.tsx"]', ?, ?, 'test-repo')`,
+      [NOW, NOW],
+    );
+
+    const byFile = getBugCausality(db, { file_path: 'packages/web-app/src/auth.ts' });
+    expect(byFile.cards.map((c) => c.fix_commit.sha)).not.toContain('fff9999aaa');
+    expect(byFile.cards).toHaveLength(2);
+
+    // dir prefix は一致する
+    const byDir = getBugCausality(db, { file_path: 'packages/web-app/src', limit: 5 });
+    expect(byDir.cards).toHaveLength(3);
+
+    close();
+  }, 30000);
+
   test('no filter or no hit → matched=false with empty cards', async () => {
     const { db, close } = await openSeededDb();
 

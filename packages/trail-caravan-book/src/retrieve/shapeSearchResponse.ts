@@ -102,8 +102,11 @@ export function fetchEntityAliases(db: CaravanDbConnection, ids: string[]): Map<
         result.set(id, parsed.filter((a): a is string => typeof a === 'string'));
       }
     } catch (err) {
-      // aliases_json は CHECK (json_valid) 済み。壊れていても aliases 無しで返すだけ
-      void err;
+      // aliases_json は CHECK (json_valid) 済み。壊れていても aliases 無しで返すが、無言にはしない
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[${new Date().toISOString()}] [WARN] fetchEntityAliases: broken aliases_json id=${id}: ${String(err)}`,
+      );
     }
   }
   return result;

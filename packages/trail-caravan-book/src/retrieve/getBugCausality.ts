@@ -40,6 +40,11 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+/** LIKE パターンへ埋め込むユーザー入力の % / _ / \ を無効化する（ESCAPE '\\' とペアで使う） */
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityInput): GetBugCausalityResult {
   const conditions: string[] = [];
   const params: (string | number)[] = [];
@@ -49,14 +54,19 @@ export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityI
     params.push(`${input.commit_sha}%`);
   }
   if (input.file_path) {
-    conditions.push(`bf.affected_file_paths_json LIKE ?`);
-    params.push(`%${input.file_path}%`);
+    // JSON 配列への LIKE 部分一致は auth.ts が auth.tsx にも当たる。json_each で
+    // 「完全一致 or ディレクトリ prefix」に限定する（getBugHistory / listRecurringBugs と同流儀）
+    conditions.push(
+      `EXISTS (SELECT 1 FROM json_each(bf.affected_file_paths_json) je
+                WHERE je.value = ? OR je.value LIKE ? ESCAPE '\\')`,
+    );
+    params.push(input.file_path, `${escapeLike(input.file_path)}/%`);
   }
   if (input.query) {
     // 空白区切りトークンの AND（subject_summary か Bug 表示名のどちらかに現れること）
     for (const token of input.query.split(/\s+/).filter((t) => t.length > 0)) {
-      conditions.push(`(bf.subject_summary LIKE ? OR bug.display_name LIKE ?)`);
-      params.push(`%${token}%`, `%${token}%`);
+      conditions.push(`(bf.subject_summary LIKE ? ESCAPE '\\' OR bug.display_name LIKE ? ESCAPE '\\')`);
+      params.push(`%${escapeLike(token)}%`, `%${escapeLike(token)}%`);
     }
   }
   if (conditions.length === 0) {
@@ -122,16 +132,22 @@ export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityI
       const files = Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
       affectedFiles = files.slice(0, 3);
       if (files.length > 0) {
-        const likeConds = files.map(() => `affected_file_paths_json LIKE ?`).join(' OR ');
+        // json_each の完全一致で数える（LIKE 部分一致は別ファイルの再発を混入させる）
+        const ph2 = files.map(() => '?').join(', ');
         const fileRows = db.exec(
-          `SELECT COUNT(*) FROM caravan_bug_fixes WHERE id != ? AND (${likeConds})`,
-          [bugFixId, ...files.map((f) => `%${JSON.stringify(f).slice(1, -1)}%`)],
+          `SELECT COUNT(DISTINCT bf2.id)
+             FROM caravan_bug_fixes bf2, json_each(bf2.affected_file_paths_json) je
+            WHERE bf2.id != ? AND je.value IN (${ph2})`,
+          [bugFixId, ...files],
         );
         sameFileBugCount = Number(fileRows[0]?.values?.[0]?.[0] ?? 0);
       }
     } catch (err) {
-      // affected_file_paths_json は CHECK (json_valid) 済みだが、防御的に 0 のまま進める
-      void err;
+      // affected_file_paths_json は CHECK (json_valid) 済み。壊れていても 0 で続行するが、無言にはしない
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[${new Date().toISOString()}] [WARN] getBugCausality: broken affected_file_paths_json id=${bugFixId}: ${String(err)}`,
+      );
     }
 
     // 関連する決定: Bug と任意の述語で結ばれた Decision（向き不問）

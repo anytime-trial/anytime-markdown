@@ -162,6 +162,34 @@ describe('getPlanContext (integration)', () => {
     close();
   }, 30000);
 
+  test('取得時の件数上限（SECTION_CAPS）で落ちた分も truncated に報告される', async () => {
+    const { db, close } = await openSeededDb();
+
+    // decisions 上限 10 に対し 11 件を接続する
+    for (let i = 2; i <= 12; i++) {
+      db.run(
+        `INSERT INTO caravan_entities
+           (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
+            summary, first_seen_at, last_updated_at, recorded_at)
+         VALUES (?, 'Decision', ?, ?, '[]', '[]', '{}', '', ?, ?, ?)`,
+        [`dec${i}`, `decision ${i}`, `decision ${i}`, NOW, NOW, NOW],
+      );
+      db.run(
+        `INSERT INTO caravan_edges
+           (id, subject_entity_id, predicate, object_entity_id, valid_from, valid_to, recorded_at,
+            source_type, source_ref, confidence, confidence_label, modality)
+         VALUES (?, ?, 'rationale_for', 'file1', ?, NULL, ?, 'conversation', 't', 0.8, 'EXTRACTED', 'asserted')`,
+        [`ed_dec${i}`, `dec${i}`, NOW, NOW],
+      );
+    }
+
+    const result = getPlanContext(db, { target_paths: ['packages/web-app/src/auth.ts'], token_budget: 100_000 });
+    expect(result.decisions).toHaveLength(10);
+    expect(result.truncated['decisions']).toBe(2); // 全 12 件（dec1 + dec2..12）− 上限 10
+
+    close();
+  }, 30000);
+
   test('empty target_paths → empty result; unrelated path → empty sections', async () => {
     const { db, close } = await openSeededDb();
 
