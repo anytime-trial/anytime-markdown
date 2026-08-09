@@ -68,8 +68,10 @@ function readActiveEdges(db: CaravanDbConnection): EdgeRow[] {
  */
 function computeGraphVersion(edges: readonly EdgeRow[]): string {
   const pairs = edges.map(({ s, o }) => (s < o ? `${s}>${o}` : `${o}>${s}`));
-  pairs.sort();
-  const hash = createHash('sha1');
+  // 比較は符号位置順に固定する。`localeCompare` は照合順がロケール・ICU の版で変わるため、
+  // 同じエッジ集合でも実行環境ごとに違う指紋になり、レイアウトの再計算を無駄に誘発する。
+  pairs.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const hash = createHash('sha256');
   for (const pair of pairs) hash.update(pair).update('\n');
   return `${edges.length}:${hash.digest('hex').slice(0, 16)}`;
 }
