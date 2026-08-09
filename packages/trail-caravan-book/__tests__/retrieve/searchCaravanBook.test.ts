@@ -149,3 +149,121 @@ describe('searchCaravanBook', () => {
     expect(result.entities.some((e) => e.id === 'id1')).toBe(false);
   });
 });
+
+// ---- 2026-08-09 検索経路修理のリグレッションテスト（proposal 20260809-knowledge-graph-utilization）----
+
+function insertEntityAt(
+  db: BetterSqlite3CaravanDb,
+  id: string,
+  displayName: string,
+  embedding: Float32Array,
+  lastUpdatedAt: string,
+  summary = ''
+): void {
+  const blob = encodeEmbedding(embedding);
+  db.run(
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json, summary, embedding, first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, 'Tool', ?, ?, '[]', '[]', '{}', ?, ?, ?, ?, ?)`,
+    [id, id, displayName, summary, blob, lastUpdatedAt, lastUpdatedAt, lastUpdatedAt]
+  );
+}
+
+function insertEdge(db: BetterSqlite3CaravanDb, id: string, subj: string, obj: string): void {
+  const t = new Date().toISOString();
+  db.run(
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, attributes_json)
+     VALUES (?, ?, 'relates_to', ?, ?, ?, 'conversation', 'ep-reg', '{}')`,
+    [id, subj, obj, t, t]
+  );
+}
+
+describe('searchCaravanBook regression: candidate pool / low-info / edges', () => {
+  let db: BetterSqlite3CaravanDb;
+  let mockOllama: OllamaClient;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    mockOllama = {
+      embeddings: jest.fn().mockResolvedValue({ embedding: Float32Array.from([1, 0, 0]) }),
+      generate: jest.fn(),
+    };
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  test('R1: 挿入順で 200 件を超えた位置にある最新エンティティが見つかる（候補プールの回帰）', async () => {
+    const old = '2026-01-01T00:00:00.000Z';
+    for (let i = 0; i < 210; i++) {
+      insertEntityAt(db, `filler${i}`, `Filler ${i}`, Float32Array.from([0, 1, 0]), old);
+    }
+    insertEntityAt(db, 'target', 'RecentTarget', Float32Array.from([1, 0, 0]), new Date().toISOString());
+
+    const result = await searchCaravanBook({
+      db,
+      ollama: mockOllama,
+      input: { query: 'recent target', limit: 5, hops: 0 },
+    });
+
+    expect(result.entities[0]?.id).toBe('target');
+    expect(result.entities[0]?.score).toBeCloseTo(1.0, 4);
+  });
+
+  test('R2: 低情報エンティティ（不明のバグ等）は結果に含まれない', async () => {
+    const t = new Date().toISOString();
+    insertEntityAt(db, 'garbage', '不明のバグ', Float32Array.from([1, 0, 0]), t);
+    insertEntityAt(db, 'real', 'CaravanApiHandler.ts', Float32Array.from([0.98, 0.2, 0]), t);
+
+    const result = await searchCaravanBook({
+      db,
+      ollama: mockOllama,
+      input: { query: 'caravan api', limit: 5, hops: 0 },
+    });
+
+    expect(result.entities.some((e) => e.display_name === '不明のバグ')).toBe(false);
+    expect(result.entities[0]?.id).toBe('real');
+  });
+
+  test('R3: edges は両端の display_name を含み、トップエンティティが object 側の辺も返す', async () => {
+    const t = new Date().toISOString();
+    insertEntityAt(db, 'ea', 'AlphaEntity', Float32Array.from([1, 0, 0]), t);
+    insertEntityAt(db, 'eb', 'BetaEntity', Float32Array.from([0.9, 0.4, 0]), t);
+    insertEntityAt(db, 'ec', 'GammaOutside', Float32Array.from([0, 0, 1]), t);
+    insertEdge(db, 'edge_ab', 'ea', 'eb');
+    insertEdge(db, 'edge_ca', 'ec', 'ea'); // トップ ea が object 側
+
+    const result = await searchCaravanBook({
+      db,
+      ollama: mockOllama,
+      input: { query: 'alpha', limit: 2, hops: 1 },
+    });
+
+    const ab = result.edges.find((e) => e.id === 'edge_ab');
+    expect(ab?.subject_name).toBe('AlphaEntity');
+    expect(ab?.object_name).toBe('BetaEntity');
+    const ca = result.edges.find((e) => e.id === 'edge_ca');
+    expect(ca).toBeDefined();
+    expect(ca?.subject_name).toBe('GammaOutside');
+  });
+
+  test('R4: edges は上限 100 件で、トップ同士の辺が優先して残る', async () => {
+    const t = new Date().toISOString();
+    insertEntityAt(db, 'hub', 'HubEntity', Float32Array.from([1, 0, 0]), t);
+    insertEntityAt(db, 'peer', 'PeerEntity', Float32Array.from([0.9, 0.4, 0]), t);
+    insertEdge(db, 'edge_hub_peer', 'hub', 'peer');
+    for (let i = 0; i < 105; i++) {
+      insertEntityAt(db, `spoke${i}`, `Spoke ${i}`, Float32Array.from([0, 0, 1]), t);
+      insertEdge(db, `edge_spoke${i}`, 'hub', `spoke${i}`);
+    }
+
+    const result = await searchCaravanBook({
+      db,
+      ollama: mockOllama,
+      input: { query: 'hub', limit: 2, hops: 1 },
+    });
+
+    expect(result.edges.length).toBeLessThanOrEqual(100);
+    expect(result.edges.some((e) => e.id === 'edge_hub_peer')).toBe(true);
+  });
+});

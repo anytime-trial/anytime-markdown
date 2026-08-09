@@ -1,12 +1,13 @@
 import type { CaravanDbConnection } from '../db/connection/types';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import {
-  searchCaravanBook,
+  fetchGraphContext,
   vectorTopK,
   type SearchInput,
   type SearchResult,
   type SearchEntity,
 } from '../retrieve/searchCaravanBook';
+import { isLowInformationEntity } from '../retrieve/entityQuality';
 import { tokenizeForFts5 } from './tokenizeForFts5';
 import { reciprocalRankFusion, type RankSource } from './reciprocalRankFusion';
 
@@ -106,23 +107,33 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
   });
   const tBm25 = nowMs();
 
-  // 2. Vector top-K
-  const vecEntities = await vectorTopK({
-    db,
-    ollama,
-    embedModel,
-    input: {
-      query: input.query,
-      entity_types: input.entity_types,
-      since: input.since,
-    },
-    limit: vecLimit,
-  });
+  // 2. Vector top-K。ollama 不通時は BM25 のみへ縮退する（従来は検索全体が
+  //    失敗し、embedding 基盤の無い環境で結果ゼロになっていた）
+  let vecEntities: SearchEntity[] = [];
+  try {
+    vecEntities = await vectorTopK({
+      db,
+      ollama,
+      embedModel,
+      input: {
+        query: input.query,
+        entity_types: input.entity_types,
+        since: input.since,
+      },
+      limit: vecLimit,
+    });
+  } catch (err) {
+    const stack = err instanceof Error ? (err.stack ?? String(err)) : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[${new Date().toISOString()}] [WARN] hybridSearchCaravanBook vector arm degraded to BM25-only: ${stack}`,
+    );
+  }
   const vecHits = vecEntities.map((e, i) => ({ id: e.id, rank: i }));
   const tVec = nowMs();
 
-  // 3. RRF
-  const fused = reciprocalRankFusion(bm25Hits, vecHits, rrfK).slice(0, finalLimit);
+  // 3. RRF（低情報エンティティ除外後に finalLimit へ切るため、ここでは切らない）
+  const fused = reciprocalRankFusion(bm25Hits, vecHits, rrfK);
   const tRrf = nowMs();
   logPerf({
     bm25_ms: tBm25 - t0,
@@ -145,31 +156,23 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
 
   const entities: FusedEntity[] = [];
   for (const f of fused) {
+    if (entities.length >= finalLimit) break;
     const base = vecById.get(f.id) ?? extraById.get(f.id);
     if (!base) continue;
+    // vec アームは vectorTopK 内で除外済みだが、BM25 のみで hit した id はここが唯一の関所
+    if (isLowInformationEntity(base.display_name, base.summary)) continue;
     entities.push({ ...base, score: f.score, sources: f.sources });
   }
 
-  // 5. hops=1 のときは searchCaravanBook を fused id 集合で再実行して edges/episodes を取る
-  if ((input.hops ?? 1) === 0) {
+  // 5. hops=1 のときは fused エンティティの周辺文脈を直接取得する
+  //    （従来は searchCaravanBook を再実行してベクトル検索を二重に走らせ、
+  //    さらに edges を subject 側だけでフィルタして object 側の接続を落としていた）
+  if ((input.hops ?? 1) === 0 || entities.length === 0) {
     return { entities, edges: [], episodes: [] };
   }
 
-  const fullResult = await searchCaravanBook({
-    db,
-    ollama,
-    embedModel,
-    input: {
-      ...input,
-      limit: finalLimit,
-    },
-  });
-  const fusedIds = new Set(entities.map((e) => e.id));
-  return {
-    entities,
-    edges: fullResult.edges.filter((e) => fusedIds.has(e.subject_id)),
-    episodes: fullResult.episodes,
-  };
+  const { edges, episodes } = fetchGraphContext(db, entities.map((e) => e.id));
+  return { entities, edges, episodes };
 }
 
 function hydrateEntities(db: CaravanDbConnection, ids: string[]): SearchEntity[] {

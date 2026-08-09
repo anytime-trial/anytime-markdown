@@ -158,3 +158,88 @@ describe('hybridSearchCaravanBook', () => {
     expect(result.entities[0]?.id).toBe('e1');
   });
 });
+
+// ---- 2026-08-09 検索経路修理のリグレッションテスト ----
+
+describe('hybridSearchCaravanBook regression: degrade / edges', () => {
+  const dbs: string[] = [];
+  let db: CaravanDbConnection;
+  let close: () => void;
+
+  beforeEach(async () => {
+    const tmpDb = makeTmpDb();
+    dbs.push(tmpDb);
+    const opened = await openCaravanBookDb(tmpDb);
+    db = opened.db;
+    close = opened.close;
+  });
+
+  afterEach(() => close());
+
+  afterAll(() => {
+    for (const p of dbs) {
+      try {
+        fs.unlinkSync(p);
+      } catch (_) {}
+    }
+  });
+
+  test('D1: ollama 不通でも BM25 の結果を返す（現状は全滅する）', async () => {
+    insertEntity(db, 'e1', 'knowledge_graph_panel', 'knowledgeGraphPanel.ts', 'ビューアのパネル', Float32Array.from([1, 0, 0]));
+    upsertEntityFts(db, 'e1');
+
+    const brokenOllama = {
+      embeddings: jest.fn().mockRejectedValue(new Error('connect ECONNREFUSED')),
+      generate: jest.fn(),
+    } as unknown as Parameters<typeof hybridSearchCaravanBook>[0]['ollama'];
+
+    const result = await hybridSearchCaravanBook({
+      db,
+      ollama: brokenOllama,
+      input: { query: 'knowledgeGraphPanel', final_limit: 5, hops: 0 },
+    });
+
+    expect(result.entities.map((e) => e.id)).toContain('e1');
+  });
+
+  test('D2: hops=1 でトップエンティティが object 側の辺も display_name 付きで返す', async () => {
+    insertEntity(db, 'e1', 'target_entity', 'TargetEntity', '検索対象', Float32Array.from([1, 0, 0]));
+    insertEntity(db, 'e3', 'outside_entity', 'OutsideEntity', '外部', Float32Array.from([0, 0, 1]));
+    upsertEntityFts(db, 'e1');
+    upsertEntityFts(db, 'e3');
+    db.run(
+      `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, attributes_json)
+       VALUES ('edge_oe', 'e3', 'relates_to', 'e1', ?, ?, 'conversation', 'ep-x', '{}')`,
+      [TS, TS],
+    );
+
+    const ollama = createMockOllamaClient({ fixedEmbedding: Float32Array.from([1, 0, 0]) });
+    const result = await hybridSearchCaravanBook({
+      db,
+      ollama,
+      input: { query: 'TargetEntity', final_limit: 2, hops: 1 },
+    });
+
+    const edge = result.edges.find((e) => e.id === 'edge_oe');
+    expect(edge).toBeDefined();
+    expect(edge?.subject_name).toBe('OutsideEntity');
+    expect(edge?.object_name).toBe('TargetEntity');
+  });
+
+  test('D3: 低情報エンティティは BM25 側から来ても結果に含まれない', async () => {
+    insertEntity(db, 'g1', 'unknown_bug', '不明のバグ', '', Float32Array.from([0, 1, 0]));
+    insertEntity(db, 'e1', 'real_bug_fix', 'realBugFix', 'バグ修正関数', Float32Array.from([1, 0, 0]));
+    upsertEntityFts(db, 'g1');
+    upsertEntityFts(db, 'e1');
+
+    const ollama = createMockOllamaClient({ fixedEmbedding: Float32Array.from([1, 0, 0]) });
+    const result = await hybridSearchCaravanBook({
+      db,
+      ollama,
+      input: { query: '不明のバグ realBugFix', final_limit: 5, hops: 0 },
+    });
+
+    expect(result.entities.some((e) => e.display_name === '不明のバグ')).toBe(false);
+    expect(result.entities.map((e) => e.id)).toContain('e1');
+  });
+});

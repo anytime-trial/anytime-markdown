@@ -15,7 +15,8 @@ jest.mock('../../dbPath', () => ({
 jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openCaravanBookDb: (...args: unknown[]) => mockOpenCaravanBookDb(...args),
-  searchCaravanBook: (...args: unknown[]) => mockSearchCaravanBookFn(...args),
+  // ツールは 2026-08-09 からハイブリッド経路を呼ぶ（素の searchCaravanBook は不使用）
+  hybridSearchCaravanBook: (...args: unknown[]) => mockSearchCaravanBookFn(...args),
 }));
 
 jest.mock('@anytime-markdown/agent-core', () => ({
@@ -40,7 +41,7 @@ describe('handleSearchCaravanBook', () => {
     });
   });
 
-  test('calls searchCaravanBook with correct input and returns result', async () => {
+  test('calls hybridSearchCaravanBook with correct input and returns result', async () => {
     const result = await handleSearchCaravanBook({ query: 'test runner' });
 
     expect(mockOpenCaravanBookDb).toHaveBeenCalledTimes(1);
@@ -49,7 +50,12 @@ describe('handleSearchCaravanBook', () => {
     expect(mockOpenCaravanBookDb).toHaveBeenCalledWith('/tmp/mcp-trail-test/caravan-book.db');
     expect(mockSearchCaravanBookFn).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: { query: 'test runner' },
+        input: expect.objectContaining({
+          query: 'test runner',
+          final_limit: 20,
+          bm25_limit: 30,
+          vec_limit: 30,
+        }),
       })
     );
     expect(result.entities).toHaveLength(1);
@@ -68,12 +74,15 @@ describe('handleSearchCaravanBook', () => {
 
     expect(mockSearchCaravanBookFn).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: {
+        input: expect.objectContaining({
           query: 'dependency',
           entity_types: ['Package'],
           limit: 5,
           hops: 0,
-        },
+          final_limit: 5,
+          bm25_limit: 30,
+          vec_limit: 30,
+        }),
       })
     );
   });

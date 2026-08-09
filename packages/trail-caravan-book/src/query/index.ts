@@ -16,8 +16,11 @@ export { noopLogger } from '../logger';
 export type { CaravanLogger } from '../logger';
 
 // 検索
-export { searchCaravanBook, vectorTopK } from '../retrieve/searchCaravanBook';
+export { searchCaravanBook, vectorTopK, fetchGraphContext } from '../retrieve/searchCaravanBook';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from '../retrieve/searchCaravanBook';
+export { hybridSearchCaravanBook } from '../rag/hybridSearchCaravanBook';
+export type { HybridSearchInput, HybridSearchResult } from '../rag/hybridSearchCaravanBook';
+export { isLowInformationEntity } from '../retrieve/entityQuality';
 
 // バグ履歴
 export { listRecurringBugs } from '../retrieve/listRecurringBugs';

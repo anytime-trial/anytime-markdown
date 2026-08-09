@@ -2,6 +2,7 @@ import type { CaravanDbConnection, SqlValue } from '../db/connection/types';
 import { toUint8ArrayOrNull } from '../db/connection/blobUtil';
 import { decodeEmbedding } from '../embedding/codec';
 import { cosineSimilarity } from '../embedding/cosine';
+import { isLowInformationEntity } from './entityQuality';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 export interface SearchInput {
@@ -24,8 +25,10 @@ export interface SearchEntity {
 export interface SearchEdge {
   id: string;
   subject_id: string;
+  subject_name: string | null;
   predicate: string;
   object_id: string | null;
+  object_name: string | null;
   object_literal: string | null;
   source_type: string;
   valid_from: string;
@@ -55,8 +58,22 @@ interface EntityCandidate {
 }
 
 /**
+ * 意味検索の候補プール。全 active エンティティ（4 万件超）の embedding を
+ * 毎クエリ復号すると遅いため、直近更新分に限定して走査する。
+ */
+// SHORTCUT: 意味検索の候補を直近更新 500 件の貪欲プールに限定する. ceiling: それより古い実体は語彙一致(BM25 アーム)でしか到達できない. upgrade: 「古い実体が意味検索でヒットしない」報告か検索レイテンシ悪化を観測したら sqlite-vec 等の ANN 索引へ移行する.
+const VECTOR_CANDIDATE_POOL = 500;
+
+/** hops=1 で返すエッジの上限。トップエンティティ同士の辺を優先して残す */
+const MAX_EDGES = 100;
+
+/**
  * クエリベクトルに対しコサイン類似度で caravan_entities をランク付けし
  * 上位 `limit` 件を返す。RAG ハイブリッド検索からも参照される。
+ * 候補は `last_updated_at DESC` の直近 VECTOR_CANDIDATE_POOL 件
+ * （旧実装は ORDER BY なし LIMIT 200 で、実質 rowid 順＝最古の 200 件しか
+ * 探索できず、完全一致すら取りこぼしていた）。
+ * 低情報エンティティ（「不明のバグ」等のプレースホルダ名）は除外する。
  */
 export async function vectorTopK(opts: {
   db: CaravanDbConnection;
@@ -88,7 +105,7 @@ export async function vectorTopK(opts: {
   }
 
   const whereClause = `WHERE ${conditions.join(' AND ')}`;
-  const sql = `SELECT id, type, display_name, summary, embedding FROM caravan_entities ${whereClause} LIMIT 200`;
+  const sql = `SELECT id, type, display_name, summary, embedding FROM caravan_entities ${whereClause} ORDER BY last_updated_at DESC LIMIT ${VECTOR_CANDIDATE_POOL}`;
   const rows = db.exec(sql, params.length > 0 ? params : undefined);
   const rawRows = rows[0]?.values ?? [];
 
@@ -98,6 +115,7 @@ export async function vectorTopK(opts: {
     const type = row[1] as string;
     const display_name = row[2] as string;
     const summary = row[3] as string;
+    if (isLowInformationEntity(display_name, summary)) continue;
     const embBlob = toUint8ArrayOrNull(row[4]);
     if (embBlob == null) continue;
 
@@ -129,57 +147,63 @@ export async function vectorTopK(opts: {
   }));
 }
 
-export async function searchCaravanBook(opts: {
-  db: CaravanDbConnection;
-  ollama: OllamaClient;
-  embedModel?: string;
-  input: SearchInput;
-}): Promise<SearchResult> {
-  const { db, ollama, embedModel, input } = opts;
-  const limit = input.limit ?? 20;
-
-  const topEntities = await vectorTopK({ db, ollama, embedModel, input, limit });
-
-  // Step 5/6: handle hops
-  if ((input.hops ?? 1) === 0 || topEntities.length === 0) {
-    return { entities: topEntities, edges: [], episodes: [] };
+/**
+ * トップエンティティ集合の周辺文脈（エッジ・エピソード）を取得する。
+ * searchCaravanBook と hybridSearchCaravanBook の共通経路。
+ *
+ * - エッジはトップエンティティが subject / object どちら側でも対象にする
+ *   （旧実装は subject 側のみで、ハブへ張られた辺が欠落していた）
+ * - 両端の display_name を同梱する（hex ID だけの応答は後段で名前解決
+ *   できず利用不能だった）
+ * - 上限 MAX_EDGES 件。トップ同士を結ぶ辺 → 新しい辺の順で残す
+ */
+export function fetchGraphContext(
+  db: CaravanDbConnection,
+  topIds: string[],
+): { edges: SearchEdge[]; episodes: SearchEpisode[] } {
+  if (topIds.length === 0) {
+    return { edges: [], episodes: [] };
   }
 
-  const topIds = topEntities.map((e) => e.id);
-
-  // Step 6: query active edges
-  const edgePlaceholders = topIds.map(() => '?').join(', ');
+  const ph = topIds.map(() => '?').join(', ');
   const edgeRows = db.exec(
-    `SELECT id, subject_entity_id, predicate, object_entity_id, object_literal, source_type, valid_from, source_ref, confidence_label
-     FROM caravan_edges
-     WHERE subject_entity_id IN (${edgePlaceholders}) AND valid_to IS NULL`,
-    topIds
+    `SELECT ed.id, ed.subject_entity_id, sub.display_name AS subject_display_name, ed.predicate,
+            ed.object_entity_id, obj.display_name AS object_display_name, ed.object_literal,
+            ed.source_type, ed.valid_from, ed.source_ref, ed.confidence_label,
+            (ed.subject_entity_id IN (${ph}) AND ed.object_entity_id IN (${ph})) AS both_top
+       FROM caravan_edges ed
+       LEFT JOIN caravan_entities sub ON sub.id = ed.subject_entity_id
+       LEFT JOIN caravan_entities obj ON obj.id = ed.object_entity_id
+      WHERE (ed.subject_entity_id IN (${ph}) OR ed.object_entity_id IN (${ph})) AND ed.valid_to IS NULL
+      ORDER BY both_top DESC, ed.valid_from DESC
+      LIMIT ${MAX_EDGES}`,
+    [...topIds, ...topIds, ...topIds, ...topIds],
   );
 
   const edges: SearchEdge[] = (edgeRows[0]?.values ?? []).map((row) => ({
     id: row[0] as string,
     subject_id: row[1] as string,
-    predicate: row[2] as string,
-    object_id: row[3] as string | null,
-    object_literal: row[4] as string | null,
-    source_type: row[5] as string,
-    valid_from: row[6] as string,
-    source_ref: row[7] as string,
-    confidence_label: row[8] as string,
+    subject_name: row[2] as string | null,
+    predicate: row[3] as string,
+    object_id: row[4] as string | null,
+    object_name: row[5] as string | null,
+    object_literal: row[6] as string | null,
+    source_type: row[7] as string,
+    valid_from: row[8] as string,
+    source_ref: row[9] as string,
+    confidence_label: row[10] as string,
   }));
 
-  // Step 7: get episodes (cap at 3 per entity)
-  const epPlaceholders = topIds.map(() => '?').join(', ');
+  // Episodes (cap at 3 per entity)
   const epRows = db.exec(
     `SELECT ee.entity_id, me.id, me.session_id, me.valid_from, me.raw_excerpt
      FROM caravan_episode_entities ee
      JOIN caravan_episodes me ON me.id = ee.episode_id
-     WHERE ee.entity_id IN (${epPlaceholders})
+     WHERE ee.entity_id IN (${ph})
      ORDER BY me.valid_from DESC`,
-    topIds
+    topIds,
   );
 
-  // Collect episodes, cap 3 per entity
   const entityEpCount = new Map<string, number>();
   const seenEpisodeIds = new Set<string>();
   const episodes: SearchEpisode[] = [];
@@ -210,5 +234,24 @@ export async function searchCaravanBook(opts: {
     });
   }
 
+  return { edges, episodes };
+}
+
+export async function searchCaravanBook(opts: {
+  db: CaravanDbConnection;
+  ollama: OllamaClient;
+  embedModel?: string;
+  input: SearchInput;
+}): Promise<SearchResult> {
+  const { db, ollama, embedModel, input } = opts;
+  const limit = input.limit ?? 20;
+
+  const topEntities = await vectorTopK({ db, ollama, embedModel, input, limit });
+
+  if ((input.hops ?? 1) === 0 || topEntities.length === 0) {
+    return { entities: topEntities, edges: [], episodes: [] };
+  }
+
+  const { edges, episodes } = fetchGraphContext(db, topEntities.map((e) => e.id));
   return { entities: topEntities, edges, episodes };
 }

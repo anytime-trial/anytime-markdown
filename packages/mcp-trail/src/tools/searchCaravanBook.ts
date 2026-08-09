@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
 import {
-  searchCaravanBook,
+  hybridSearchCaravanBook,
   openCaravanBookDb,
 } from '@anytime-markdown/trail-caravan-book/query';
 import type { SearchResult } from '@anytime-markdown/trail-caravan-book/query';
@@ -27,10 +27,19 @@ export async function handleSearchCaravanBook(input: SearchCaravanBookInput): Pr
 
   try {
     const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
-    return await searchCaravanBook({
+    const limit = input.limit ?? 20;
+    // ハイブリッド経路（BM25 が識別子一致・vector が意味検索を担い RRF で融合。
+    // ollama 不通時は BM25 のみへ縮退する）。素の searchCaravanBook は
+    // vector 単独のため識別子クエリを取りこぼす。
+    return await hybridSearchCaravanBook({
       db: memHandle.db,
       ollama,
-      input,
+      input: {
+        ...input,
+        final_limit: limit,
+        bm25_limit: Math.max(30, limit),
+        vec_limit: Math.max(30, limit),
+      },
     });
   } finally {
     memHandle.close();
