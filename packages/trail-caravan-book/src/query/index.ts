@@ -38,6 +38,8 @@ export type {
 } from '../retrieve/communitySummaries';
 
 // バグ履歴
+export { getBugCausality } from '../retrieve/getBugCausality';
+export type { GetBugCausalityInput, GetBugCausalityResult, BugCausalityCard } from '../retrieve/getBugCausality';
 export { listRecurringBugs } from '../retrieve/listRecurringBugs';
 export type { RecurringBugGroup, BugFixSummary } from '../retrieve/listRecurringBugs';
 export { getBugHistory } from '../retrieve/getBugHistory';
