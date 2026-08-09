@@ -676,6 +676,8 @@ export const ja: TrailI18n = {
   'knowledgeGraph.typeFilter': '種別',
   'knowledgeGraph.typeAll': '全種別',
   'knowledgeGraph.nodeLimit': '表示件数',
+  // カード表示（card スキン）で 1 列に縦へ積む枚数。超えた分はカラム内で右へ折り返す
+  'knowledgeGraph.cardRows': 'カードの縦の枚数',
   'knowledgeGraph.nodeLimitSlowSuffix': '（数秒）',
   'knowledgeGraph.shownCount': '表示 {{shown}} / 全 {{total}} 件',
   'flightRecord.filter.outcome': '成否',

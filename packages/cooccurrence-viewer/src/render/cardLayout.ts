@@ -24,12 +24,27 @@ export const CARD_COLUMN_HEADER_HEIGHT = 40;
 /** サブクラスタ見出しのために空ける高さ。 */
 export const CARD_SUB_HEADER_HEIGHT = 28;
 /**
- * 1 レーンに積むカードの上限行数。超えたらカラム内で右へ折り返す。
+ * 1 レーンに積むカードの上限行数の既定値。超えたらカラム内で右へ折り返す。
  *
  * 折り返さないと、1 カラムに語が集中したとき（知識グラフの偏った種別で実際に起きる）縦に
  * 間延びして他のカラムと比べられない（要件書 §7 pre-mortem）。
+ *
+ * 見る人の画面の高さと「縦に何枚並べたいか」は環境と目的で変わるため、値は
+ * {@link CardLayoutInput.maxRows} で差し替えられる。ここはその既定値。
  */
 export const CARD_MAX_ROWS = 20;
+
+/**
+ * 上限行数を「1 レーンに 1 枚以上の整数」へ正規化する。
+ *
+ * 0 以下を許すと、どのカードも上限に達したものとして扱われ、1 枚ごとにレーンが増えて
+ * カラムが横へ無限に伸びる。UI 側が固定の選択肢でも、この純関数は他の呼び出し元
+ * （`.cooc.json` ビューア）からも呼ばれるため、ここで塞ぐ。
+ */
+function normalizeMaxRows(maxRows: number | undefined): number {
+  if (maxRows === undefined || !Number.isFinite(maxRows)) return CARD_MAX_ROWS;
+  return Math.max(1, Math.floor(maxRows));
+}
 
 /** サブクラスタ見出しのアンカー（世界座標。テキストの左下）。 */
 export interface CardSubHeaderPlacement {
@@ -58,6 +73,11 @@ export interface CardLayoutInput {
   file: CooccurrenceFile;
   /** 絞り込み後の表示対象。消えた語はカードを作らず、カラムは詰める（要件書 §2.4）。 */
   visibleNodeIndexes: ReadonlySet<number>;
+  /**
+   * 1 レーンに縦へ積むカードの上限行数。省略時は {@link CARD_MAX_ROWS}。
+   * 1 未満・小数は 1 以上の整数へ正規化する。
+   */
+  maxRows?: number;
 }
 
 export interface CardLayoutResult {
@@ -87,6 +107,7 @@ function displayOrder(file: CooccurrenceFile, indexes: readonly number[]): numbe
 
 export function computeCardLayout(input: CardLayoutInput): CardLayoutResult {
   const { file, visibleNodeIndexes } = input;
+  const maxRows = normalizeMaxRows(input.maxRows);
   const membership = clusterMembership(file);
   const clusters = file.spec.clusters ?? [];
 
@@ -136,13 +157,13 @@ export function computeCardLayout(input: CardLayoutInput): CardLayoutResult {
       const subcluster = 'subcluster' in group ? group.subcluster : undefined;
       if (subcluster !== undefined) {
         // 見出しがレーンの末尾へ孤立しないよう、見出し + 1 枚が入らなければ先に折り返す。
-        if (rows >= CARD_MAX_ROWS) newLane();
+        if (rows >= maxRows) newLane();
         subHeaders.push({ subcluster, x: laneLeft(), y: y + CARD_SUB_HEADER_HEIGHT });
         y += CARD_SUB_HEADER_HEIGHT;
         maxBottom = Math.max(maxBottom, y);
       }
       for (const index of displayOrder(file, group.members)) {
-        if (rows >= CARD_MAX_ROWS) newLane();
+        if (rows >= maxRows) newLane();
         positions[index] = [laneLeft() + CARD_WIDTH / 2, y + CARD_HEIGHT / 2];
         order.push(index);
         y += CARD_HEIGHT + CARD_GAP_Y;
@@ -174,6 +195,7 @@ export function computeCardLayout(input: CardLayoutInput): CardLayoutResult {
       cardCount,
       hasUnclustered,
       subHeaderCount,
+      maxRows,
     },
   };
 }
