@@ -158,9 +158,10 @@ describe('migration 023/024 (table prefix)', () => {
     expect(names).toContain('caravan_entities');
     expect(names).toContain('caravan_relation_types');
 
-    // seed（relation_types 22 件。025 の defines を含む）が新名テーブルに引き継がれている
+    // seed（relation_types 24 件。025 の defines と 029 の calls / extends を含む）が
+    // 新名テーブルに引き継がれている
     const count = db.exec('SELECT COUNT(*) FROM caravan_relation_types')[0]?.values[0][0];
-    expect(count).toBe(22);
+    expect(count).toBe(24);
 
     close();
   }, 30000);

@@ -156,6 +156,11 @@ export async function runCodeIncremental(opts: {
   }
 
   // ── 6. ingestFromTrailGraph ──────────────────────────────────────────────
+  //
+  // `graphIngestOk` は「この graph をコードグラフ由来の取込が消化しきったか」を表し、
+  // ウォーターマークの前進条件（10.）を決める。6. と 7. だけがコードグラフを消費するため、
+  // 8. / 9.（decision comment・commit rationale）の失敗はここに含めない。
+  let graphIngestOk = true;
   try {
     const stats = fromTrailGraph({ db, repoName, recordedAt, logger });
     totals.items_processed += stats.packages_upserted + stats.files_upserted;
@@ -165,10 +170,17 @@ export async function runCodeIncremental(opts: {
     logger.error(`[anytime-memory] runCodeIncremental: fromTrailGraph failed`, err);
     failureDetails.push(`fromTrailGraph: ${describeError(err)}`);
     hasIngestFailure = true;
+    graphIngestOk = false;
   }
 
   // ── 7. ingestAstFacts ────────────────────────────────────────────────────
+  //
+  // 完走したかを `astFactsRan` で持つ。ウォーターマークの前進条件（10.）がこれに依存する:
+  // ここが走らない run で前進させると、migration 025 / 029 のようにウォーターマークの
+  // 巻き戻しを再取込のトリガとして使うバックフィルが、再取込されないまま焼き切れる。
+  // 失敗は `graphIngestOk` へも落とす（`hasIngestFailure` は run の status 判定専用）。
   const currentEntityIds = new Set<string>();
+  let astFactsRan = false;
   if (graph) {
     try {
       const stats = ingestAstFacts({ db, repoName, graph, commitSha, recordedAt, logger });
@@ -176,15 +188,26 @@ export async function runCodeIncremental(opts: {
       totals.entities_inserted += stats.facts_inserted + stats.function_entities_upserted;
       totals.edges_inserted += stats.edges_inserted;
       for (const id of stats.current_entity_ids) currentEntityIds.add(id);
+      astFactsRan = true;
     } catch (err) {
       logger.error(`[anytime-memory] runCodeIncremental: ingestAstFacts failed`, err);
       failureDetails.push(`ingestAstFacts: ${describeError(err)}`);
       hasIngestFailure = true;
+      graphIngestOk = false;
     }
   } else {
-    logger.warn?.(
-      `[anytime-memory] runCodeIncremental: activity_current_graphs に TrailGraph が無いため ingestAstFacts をスキップ (repo="${repoName}")`
+    // スキップではなく失敗として扱う。スキップ判定（3.）が読む activity_current_code_graphs と
+    // 実データの activity_current_graphs は別テーブルで、前者に行があり後者が空・破損という
+    // ズレが起こり得る。warn で流すと「取込ゼロなのに success」になり、ウォーターマークだけが
+    // 進む。
+    logger.error(
+      `[anytime-memory] runCodeIncremental: activity_current_graphs に TrailGraph が無い ` +
+        `(repo="${repoName}") — ingestAstFacts を実行できずウォーターマークを進めない`,
+      new Error('missing TrailGraph in activity_current_graphs')
     );
+    failureDetails.push('ingestAstFacts: activity_current_graphs に TrailGraph が無い');
+    hasIngestFailure = true;
+    graphIngestOk = false;
   }
 
   // ── 8. ingestDecisionComments（trail.activity_code_decision_comments を読む）─────────
@@ -241,7 +264,27 @@ export async function runCodeIncremental(opts: {
   const finalStatus = hasIngestFailure ? 'partial' : 'success';
 
   // ── 10. UPDATE pipeline_state ────────────────────────────────────────────
-  upsertPipelineState(db, { status: 'idle', last_processed_at: graphUpdatedAt });
+  //
+  // ウォーターマークは、この graph をコードグラフ由来の取込（6. / 7.）が消化しきった run で
+  // のみ前進させる。`last_processed_at` を省くと upsertPipelineState は既存値を据え置くので、
+  // 次サイクルが同じ graph を再取込する。
+  //
+  // 判定に `hasIngestFailure` を混ぜないのは、8. / 9.（decision comment・commit rationale）の
+  // 失敗がウォーターマークの意味（＝どの graph まで取り込んだか）と無関係だからである。混ぜると
+  // それらが恒久的に失敗する状態に入った時点でウォーターマークが永久に固まり、全量取込が毎
+  // サイクル回り続ける（9. は据え置き中 sinceCommittedAt=null で git 全履歴を走る）。
+  const advanceWatermark = astFactsRan && graphIngestOk;
+  if (!advanceWatermark) {
+    logger.warn?.(
+      `[anytime-memory] runCodeIncremental: コードグラフ取込が完走しなかったため ` +
+        `ウォーターマークを据え置く (repo="${repoName}", astFactsRan=${astFactsRan}, ` +
+        `graphIngestOk=${graphIngestOk})`
+    );
+  }
+  upsertPipelineState(db, {
+    status: 'idle',
+    last_processed_at: advanceWatermark ? graphUpdatedAt : undefined,
+  });
 
   // ── 11. finalize pipeline_run ────────────────────────────────────────────
   ledger.finish(finalStatus, totals, failureDetails.join('\n'));

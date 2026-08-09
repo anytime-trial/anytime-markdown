@@ -1,7 +1,7 @@
 import type { CaravanDbConnection } from '../db/connection/types';
 import type { CaravanLogger } from '../logger';
 import type { DriftEventInput } from './report';
-import { THRESHOLDS, decideSeverity } from './policy';
+import { THRESHOLDS, decideSeverity, CODE_STRUCTURAL_PREDICATES } from './policy';
 
 export function detectReviewUnfixed(input: {
   db: CaravanDbConnection;
@@ -77,6 +77,10 @@ export function detectReviewVsCode(input: {
 }): DriftEventInput[] {
   const { db, existingSpecVsCodeKeys = new Set(), logger } = input;
 
+  // 除外述語は CODE_STRUCTURAL_PREDICATES（コンパイル時のリテラル配列）から組み立てる。
+  // ここを 'relates_to' 決め打ちにすると、述語が分かれるたびに 3 箇所の一つだけが取り残される。
+  const excludedPredicates = CODE_STRUCTURAL_PREDICATES.map((p) => `'${p}'`).join(', ');
+
   let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
@@ -87,7 +91,7 @@ export function detectReviewVsCode(input: {
        WHERE valid_to IS NULL
          AND modality = 'asserted'
          AND confidence >= 0.6
-         AND predicate NOT IN ('relates_to')
+         AND predicate NOT IN (${excludedPredicates})
        GROUP BY subject_entity_id, predicate
        HAVING rev_v IS NOT NULL AND code_v IS NOT NULL AND rev_v != code_v`,
     );

@@ -1,6 +1,7 @@
 import type { CaravanDbConnection } from '../db/connection/types';
 import { canonicalize } from '../canonical/canonicalize';
 import type { CaravanLogger } from '../logger';
+import { CODE_STRUCTURAL_PREDICATES } from './policy';
 export type { DriftType } from './policy';
 
 export type DriftCandidate = {
@@ -46,7 +47,7 @@ export function detectThreeSourceDrifts(input: {
   const {
     db,
     minConfidence = 0.6,
-    excludePredicates = ['relates_to'],
+    excludePredicates = [...CODE_STRUCTURAL_PREDICATES],
     logger,
   } = input;
 

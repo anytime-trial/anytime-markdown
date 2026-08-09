@@ -25,9 +25,19 @@ export const DEFAULT_SEVERITY: Record<DriftType, Severity> = {
   spec_clarification_recurring: 'warn',
 };
 
+/**
+ * コード構造由来で、複数ソース間の値比較に意味を持たない述語。
+ *
+ * drift は「同じ (subject, predicate) を spec / review / code が違う値で主張している」ことを
+ * 見る仕組みだが、これらはファイル対の構造事実であって主張の食い違いを持たない。
+ * migration 029 で call / inheritance が `relates_to` から `calls` / `extends` へ分かれた際、
+ * 除外リストが `relates_to` 決め打ちのままだと、意図せず網から外れる。
+ */
+export const CODE_STRUCTURAL_PREDICATES = ['relates_to', 'calls', 'extends', 'defines'] as const;
+
 export const THRESHOLDS = {
   minConfidence: 0.6,
-  excludePredicates: ['relates_to'],
+  excludePredicates: [...CODE_STRUCTURAL_PREDICATES],
 
   // regression_cluster
   regressionWindowDays: 90,
@@ -59,8 +69,8 @@ export function decideSeverity(
   confidence: number,
   overlap: { spec_vs_code?: boolean } = {},
 ): Severity {
-  // predicate='relates_to' は info 降格（compare 段階で除外されるが二重防御）
-  if (predicate === 'relates_to') return 'info';
+  // コード構造由来の述語は info 降格（compare 段階で除外されるが二重防御）
+  if ((CODE_STRUCTURAL_PREDICATES as readonly string[]).includes(predicate)) return 'info';
   // review_vs_code が spec_vs_code と重複時は info 降格
   if (drift_type === 'review_vs_code' && overlap.spec_vs_code) return 'info';
   // confidence 低い場合は降格
