@@ -9,6 +9,7 @@
  * 色だけでなくテキストでも示す（色のみで情報を伝えない）。
  */
 import { escapeHtml } from '../shared/escapeHtml';
+import { workspaceLabel } from '../shared/workspaceLabel';
 import type { CaravanFlightReviewFindingRow } from '../data/types';
 
 export type FindingsTranslate = (key: string) => string;
@@ -196,9 +197,10 @@ export function renderFindingSection(input: {
 /**
  * Review サブタブの全指示横断表。
  *
- * 列順は「指摘 → 状態 → レビュー日 → 重大度 → カテゴリ → 対象 → 指示」。指摘本文を先頭に
- * 置くのは、この表を読む目的が「何を指摘されたか」であって、どの指示に属するかは
- * 絞り込み・行クリックで辿る二次情報のため。thead と tbody は同じ順で並べる
+ * 列順は「指摘 → 状態 → レビュー日 → 重大度 → カテゴリ → 対象 → ワークスペース → 指示」。
+ * 指摘本文を先頭に置くのは、この表を読む目的が「何を指摘されたか」であって、どの指示に
+ * 属するかは絞り込み・行クリックで辿る二次情報のため。ワークスペースを指示の直前へ置くのは
+ * 同じ「どの文脈の記録か」を答える列だから。thead と tbody は同じ順で並べる
  * （片方だけ替えると値が別の列へ入り、件数を見るテストでは捕まらない）。
  */
 export function renderFindingTable(input: {
@@ -234,6 +236,7 @@ export function renderFindingTable(input: {
         <td data-am-finding-nowrap-cell>${severityChip(t, row.severity)}</td>
         <td data-am-finding-nowrap-cell>${escapeHtml(row.category)}</td>
         <td data-am-finding-target-cell>${targetCell(t, row, linkable)}</td>
+        <td data-am-finding-nowrap-cell>${escapeHtml(workspaceLabel(row.workspace))}</td>
         <td>${escapeHtml(labelOf(row.instructionId))}</td>
       </tr>`,
     )
@@ -252,6 +255,7 @@ export function renderFindingTable(input: {
         <th>${escapeHtml(t('flightRecord.findings.column.severity'))}</th>
         <th>${escapeHtml(t('flightRecord.findings.column.category'))}</th>
         <th>${escapeHtml(t('flightRecord.findings.column.target'))}</th>
+        <th>${escapeHtml(t('flightRecord.column.workspace'))}</th>
         <th>${escapeHtml(t('flightRecord.column.instruction'))}</th>
       </tr></thead>
       <tbody>${rows}</tbody>

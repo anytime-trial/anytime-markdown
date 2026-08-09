@@ -19,13 +19,21 @@ export function getTrailViewerTabDefs({
   hasC4,
   hasTrace,
 }: TrailViewerTabOptions): ReadonlyArray<TrailViewerTabDef> {
+  // 並び順は push 順が決める（`value` は歴史的な採番で、順序を表さない）。
+  // 掲示順: アクティビティ → 実行記録 → C4モデル → 知識グラフ → パイプライン →
+  //         トレース → 関数ツリー → Chat。
   const tabs: TrailViewerTabDef[] = [
     { value: 0, id: 'trail-tab-0', panelId: 'trail-panel-0', i18nKey: 'viewer.tab.analytics', preloadIndex: 0 },
+    { value: 9, id: 'trail-tab-9', panelId: 'trail-panel-9', i18nKey: 'viewer.tab.flightRecord' },
   ];
 
   if (hasC4) {
     tabs.push({ value: 4, id: 'trail-tab-4', panelId: 'trail-panel-4', i18nKey: 'viewer.tab.model', preloadIndex: 4 });
   }
+
+  tabs.push({ value: 11, id: 'trail-tab-11', panelId: 'trail-panel-11', i18nKey: 'viewer.tab.knowledgeGraph' });
+  tabs.push({ value: 6, id: 'trail-tab-6', panelId: 'trail-panel-6', i18nKey: 'viewer.tab.caravan' });
+
   if (hasTrace || hasC4) {
     tabs.push({ value: 5, id: 'trail-tab-5', panelId: 'trail-panel-5', i18nKey: 'viewer.tab.trace' });
   }
@@ -33,10 +41,6 @@ export function getTrailViewerTabDefs({
     tabs.push({ value: 7, id: 'trail-tab-7', panelId: 'trail-panel-7', i18nKey: 'viewer.tab.functionTree' });
   }
 
-  tabs.push({ value: 6, id: 'trail-tab-6', panelId: 'trail-panel-6', i18nKey: 'viewer.tab.caravan' });
-  tabs.push({ value: 9, id: 'trail-tab-9', panelId: 'trail-panel-9', i18nKey: 'viewer.tab.flightRecord' });
-  // 知識グラフは Flight Record の右隣（値は歴史順で 11。並び順は push 順が決める）
-  tabs.push({ value: 11, id: 'trail-tab-11', panelId: 'trail-panel-11', i18nKey: 'viewer.tab.knowledgeGraph' });
   tabs.push({ value: 10, id: 'trail-tab-10', panelId: 'trail-panel-10', i18nKey: 'viewer.tab.chat' });
 
   return tabs;

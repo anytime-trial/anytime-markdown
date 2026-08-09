@@ -4,23 +4,55 @@ describe('trail viewer tab definitions', () => {
   it('does not include the legacy Releases / Prompts / Messages tabs in top-level tabs', () => {
     const tabs = getTrailViewerTabDefs({ hasC4: true, hasTrace: true });
 
-    expect(tabs.map((tab) => tab.value)).toEqual([0, 4, 5, 7, 6, 9, 11, 10]);
     expect(tabs.some((tab) => tab.i18nKey === 'viewer.tab.releases')).toBe(false);
     expect(tabs.some((tab) => tab.i18nKey === 'viewer.tab.prompts')).toBe(false);
     expect(tabs.some((tab) => tab.i18nKey === 'viewer.tab.messages')).toBe(false);
   });
 
-  it('places Knowledge Graph immediately to the right of Flight Record, with Chat last', () => {
-    const tabs = getTrailViewerTabDefs({ hasC4: false, hasTrace: false });
-    const values = tabs.map((tab) => tab.value);
+  // 掲示順の正本。`value` は歴史的な採番で順序を表さないため、i18n キーの並びで検査する
+  // （値の列だけを見ると「番号順に並んでいないのは壊れている」と読み違える）。
+  it('orders tabs as Activity / Flight Record / C4 / Knowledge Graph / Pipeline / Trace / Function Tree / Chat', () => {
+    const tabs = getTrailViewerTabDefs({ hasC4: true, hasTrace: true });
 
-    expect(values.at(-3)).toBe(9);
-    expect(values.at(-2)).toBe(11);
-    expect(values.at(-1)).toBe(10);
-    expect(tabs.at(-2)?.i18nKey).toBe('viewer.tab.knowledgeGraph');
-    expect(tabs.at(-2)?.panelId).toBe('trail-panel-11');
-    expect(tabs.at(-1)?.i18nKey).toBe('viewer.tab.chat');
-    expect(tabs.at(-1)?.panelId).toBe('trail-panel-10');
+    expect(tabs.map((tab) => tab.i18nKey)).toEqual([
+      'viewer.tab.analytics',
+      'viewer.tab.flightRecord',
+      'viewer.tab.model',
+      'viewer.tab.knowledgeGraph',
+      'viewer.tab.caravan',
+      'viewer.tab.trace',
+      'viewer.tab.functionTree',
+      'viewer.tab.chat',
+    ]);
+    expect(tabs.map((tab) => tab.value)).toEqual([0, 9, 4, 11, 6, 5, 7, 10]);
+    // panelId は value 由来。並べ替えで対応がずれるとタブと中身が食い違う。
+    expect(tabs.map((tab) => tab.panelId)).toEqual(tabs.map((tab) => `trail-panel-${tab.value}`));
+  });
+
+  it('keeps the relative order when the C4 / trace tabs are unavailable', () => {
+    const tabs = getTrailViewerTabDefs({ hasC4: false, hasTrace: false });
+
+    // C4 依存タブ（model=4 / trace=5 / functionTree=7）が落ちても残りの順序は変わらない。
+    expect(tabs.map((tab) => tab.i18nKey)).toEqual([
+      'viewer.tab.analytics',
+      'viewer.tab.flightRecord',
+      'viewer.tab.knowledgeGraph',
+      'viewer.tab.caravan',
+      'viewer.tab.chat',
+    ]);
+  });
+
+  it('shows trace without the C4-only tabs when only trace data exists', () => {
+    const tabs = getTrailViewerTabDefs({ hasC4: false, hasTrace: true });
+
+    expect(tabs.map((tab) => tab.i18nKey)).toEqual([
+      'viewer.tab.analytics',
+      'viewer.tab.flightRecord',
+      'viewer.tab.knowledgeGraph',
+      'viewer.tab.caravan',
+      'viewer.tab.trace',
+      'viewer.tab.chat',
+    ]);
   });
 
   it('accepts 10 (Chat) and 11 (Knowledge Graph) as deep-linkable initialTab values', () => {

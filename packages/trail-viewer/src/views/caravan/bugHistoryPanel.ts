@@ -18,6 +18,7 @@ import { createChip, createSelect, createTooltip } from '@anytime-markdown/ui-co
 import type { CaravanBugHistoryRow, CaravanRecurringBugRow } from '../../data/types';
 import type { CaravanReader } from '../../data/readers/CaravanReader';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
+import { workspaceLabel } from '../../shared/workspaceLabel';
 import { mountBugCausalPanel } from './bugCausalPanel';
 
 // MUI Chip color → CSS 変数マッピング
@@ -263,6 +264,7 @@ export function mountBugHistoryPanel(
       th(props.t('flightRecord.bugfix.column.summary')),
       th(props.t('flightRecord.bugfix.column.date')),
       th(props.t('flightRecord.bugfix.column.category')),
+      th(props.t('flightRecord.column.workspace')),
       th(props.t('flightRecord.column.instruction')),
       th(''),
     );
@@ -319,6 +321,11 @@ export function mountBugHistoryPanel(
       const catColorVar = CATEGORY_COLOR_VAR[row.category] ?? 'var(--am-color-text-secondary)';
       catCell.appendChild(styledChip(row.category, catColorVar));
 
+      // ワークスペース（絞り込みを「すべて」にしたまま横断で見るときの出所）
+      const workspaceCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
+      workspaceCell.dataset['amBugWorkspace'] = '';
+      workspaceCell.textContent = workspaceLabel(row.workspace);
+
       // 指示名（クリックで指示タブへ遷移してその指示を選択）
       const instructionCell = td('max-width:220px;overflow:hidden;');
       const instructionCellContent = instructionButton(row.instructionId);
@@ -345,7 +352,7 @@ export function mountBugHistoryPanel(
         precededCell.appendChild(precededChip);
       }
 
-      tr.append(summaryCell, dateCell, catCell, instructionCell, precededCell);
+      tr.append(summaryCell, dateCell, catCell, workspaceCell, instructionCell, precededCell);
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);

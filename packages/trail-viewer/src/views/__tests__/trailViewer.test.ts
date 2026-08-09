@@ -224,17 +224,16 @@ describe('mountTrailViewer', () => {
     expect(container.querySelector('[aria-label="chat-panel"]')).toBeNull();
   });
 
-  it('知識グラフタブは Flight Record の右隣、Chat は末尾に置かれる', () => {
+  it('タブは アクティビティ / 実行記録 / 知識グラフ / パイプライン / Chat の順に並ぶ', () => {
     const container = document.createElement('div');
+    // C4 / トレースのデータが無い props なので、C4 依存タブ（4 / 5 / 7）は出ない。
     const h = mountTrailViewer(container, makeBaseProps({ initialTab: 0 }));
 
     // ui-core createTabs は id / aria-controls を描画しないため data-value で順序を見る
     const tabValues = [...container.querySelectorAll('[role="tab"]')].map((el) =>
       el.getAttribute('data-value'),
     );
-    expect(tabValues.at(-3)).toBe('9');
-    expect(tabValues.at(-2)).toBe('11');
-    expect(tabValues.at(-1)).toBe('10');
+    expect(tabValues).toEqual(['0', '9', '11', '6', '10']);
 
     h.destroy();
   });
