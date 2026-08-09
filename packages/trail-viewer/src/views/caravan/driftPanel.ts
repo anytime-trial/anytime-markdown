@@ -18,6 +18,7 @@ import type { CaravanDriftEventRow } from '../../data/types';
 import type { DriftHistoryPoint } from '@anytime-markdown/trail-activity';
 import { mountDriftHistoryChart } from './driftHistoryChart';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
+import { workspaceLabel } from '../../shared/workspaceLabel';
 import { computeFixTarget, filterDriftRows } from '../../components/caravan/driftFilter';
 import type { FixTarget } from '../../components/caravan/driftFilter';
 import { mountDriftDetailDialog, type DriftDetailDialogProps } from './driftDetailDialog';
@@ -230,12 +231,19 @@ export function mountDriftPanel(
     placement: 'top',
   });
 
+  // i18n の効く見出しは参照を保持して update() で振り直す。ヘッダは mount 時に一度だけ
+  // 組み立てるため、保持しないと言語切替後も最初の言語のまま残る。
+  const fixTargetHeaderCell = makeHeaderCell(props.t('flightRecord.drift.fixTarget'));
+  const severityHeaderCell = makeHeaderCell(props.t('flightRecord.drift.filterSeverity'));
+  const workspaceHeaderCell = makeHeaderCell(props.t('flightRecord.column.workspace'));
+
   headerRow.append(
     makeHeaderCell('Subject'),
     makeHeaderCell(typeHeaderInner),
-    makeHeaderCell(props.t('flightRecord.drift.fixTarget')),
-    makeHeaderCell(props.t('flightRecord.drift.filterSeverity')),
+    fixTargetHeaderCell,
+    severityHeaderCell,
     makeHeaderCell('Detected'),
+    workspaceHeaderCell,
     makeHeaderCell(''),
   );
   thead.appendChild(headerRow);
@@ -333,6 +341,13 @@ export function mountDriftPanel(
         'font-size:0.7rem;color:var(--am-color-text-secondary);padding:4px 8px;white-space:nowrap;';
       detectedCell.textContent = row.detectedAt.slice(0, 10);
 
+      // ワークスペース（絞り込みを「すべて」にしたまま横断で見るときの出所）
+      const workspaceCell = document.createElement('td');
+      workspaceCell.dataset['amDriftWorkspace'] = '';
+      workspaceCell.style.cssText =
+        'font-size:0.7rem;color:var(--am-color-text-secondary);padding:4px 8px;white-space:nowrap;';
+      workspaceCell.textContent = workspaceLabel(row.workspace);
+
       // Action cell
       const actionCell = document.createElement('td');
       actionCell.style.cssText = 'padding:4px 8px;text-align:right;white-space:nowrap;';
@@ -352,7 +367,7 @@ export function mountDriftPanel(
         actionCell.appendChild(detailBtn);
       }
 
-      tr.append(subjectCell, typeCell, fixTargetCell, severityCell, detectedCell, actionCell);
+      tr.append(subjectCell, typeCell, fixTargetCell, severityCell, detectedCell, workspaceCell, actionCell);
       tbody.appendChild(tr);
     }
 
@@ -399,6 +414,9 @@ export function mountDriftPanel(
       severitySelect.update({ options: buildSeverityOptions(), ariaLabel: props.t('flightRecord.drift.filterSeverity') });
       typeSelect.update({ options: buildTypeOptions(), ariaLabel: props.t('flightRecord.drift.filterType') });
       fixTargetSelect.update({ options: buildFixTargetOptions(), ariaLabel: props.t('flightRecord.drift.fixTarget') });
+      fixTargetHeaderCell.textContent = props.t('flightRecord.drift.fixTarget');
+      severityHeaderCell.textContent = props.t('flightRecord.drift.filterSeverity');
+      workspaceHeaderCell.textContent = props.t('flightRecord.column.workspace');
       switchLabelText.textContent = props.t('flightRecord.drift.unresolvedOnly');
       switchHandle.update({ ariaLabel: props.t('flightRecord.drift.unresolvedOnly') });
       helpTooltip.update({ title: buildTypeHelpTooltip() });

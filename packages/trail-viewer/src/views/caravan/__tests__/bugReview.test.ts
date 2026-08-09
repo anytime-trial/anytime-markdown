@@ -392,7 +392,7 @@ describe('mountBugHistoryPanel', () => {
     expect(trs.length).toBe(1);
   });
 
-  it('列は Summary / Date / Category / 指示 の順で、Package・Commit を出さない', async () => {
+  it('列は Summary / Date / Category / ワークスペース / 指示 の順で、Package・Commit を出さない', async () => {
     const c = document.createElement('div');
     const reader = makeReader({
       getBugHistory: () => Promise.resolve([makeBugRow({ package: 'trail-viewer', commitSha: 'deadbeef123' })]),
@@ -403,16 +403,35 @@ describe('mountBugHistoryPanel', () => {
 
     const heads = [...c.querySelectorAll('[aria-label="bug-history-table"] thead th')]
       .map((el) => el.textContent);
-    expect(heads.slice(0, 4)).toEqual([
+    expect(heads.slice(0, 5)).toEqual([
       'flightRecord.bugfix.column.summary',
       'flightRecord.bugfix.column.date',
       'flightRecord.bugfix.column.category',
+      'flightRecord.column.workspace',
       'flightRecord.column.instruction',
     ]);
 
     const rowText = c.querySelector('[aria-label="bug-history-table"] tbody tr')?.textContent ?? '';
     expect(rowText).not.toContain('trail-viewer');
     expect(rowText).not.toContain('deadbeef');
+  });
+
+  it('ワークスペース列は行の workspace を出し、未解決（空文字）はダッシュにする', async () => {
+    const c = document.createElement('div');
+    const reader = makeReader({
+      getBugHistory: () => Promise.resolve([
+        makeBugRow({ id: 'b1', bugEntityId: 'e1', workspace: 'anytime-trade' }),
+        makeBugRow({ id: 'b2', bugEntityId: 'e2', workspace: '' }),
+      ]),
+      listRecurringBugs: () => Promise.resolve([]),
+    });
+    mountBugHistoryPanel(c, baseProps({ reader }));
+    await flush();
+
+    const cells = [...c.querySelectorAll('[aria-label="bug-history-table"] [data-am-bug-workspace]')]
+      .map((el) => el.textContent);
+    // 空セルにしないのは、ワークスペースの概念が無い行と見分けが付かなくなるため。
+    expect(cells).toEqual(['anytime-trade', '—']);
   });
 
   it('指示名セルのクリックで onSelectInstruction を呼び、行選択は起きない', async () => {

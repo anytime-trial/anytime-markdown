@@ -2,8 +2,9 @@
  * flightReviewFindingsView の純関数（絞り込み・カテゴリ列挙）と Review 表の列順。
  *
  * 列順を検査するのは、Review タブの表が「指摘 → 状態 → レビュー日 → 重要度 → カテゴリ →
- * 対象 → 指示」の順で読まれる前提で設計されているため。thead / tbody のどちらかだけを
- * 並べ替えると値が別の列へ入るが、件数や文字列の存在だけを見るテストは素通りする。
+ * 対象 → ワークスペース → 指示」の順で読まれる前提で設計されているため。thead / tbody の
+ * どちらかだけを並べ替えると値が別の列へ入るが、件数や文字列の存在だけを見るテストは
+ * 素通りする。
  */
 import {
   deriveFindingStatus,
@@ -156,7 +157,7 @@ describe('renderFindingTable', () => {
     labelOf: () => '指示ラベル',
   };
 
-  it('列は 指摘 / 状態 / レビュー日 / 重要度 / カテゴリ / 対象 / 指示 の順', () => {
+  it('列は 指摘 / 状態 / レビュー日 / 重要度 / カテゴリ / 対象 / ワークスペース / 指示 の順', () => {
     expect(headerTexts(renderFindingTable(input))).toEqual([
       'flightRecord.findings.column.finding',
       'flightRecord.findings.column.status',
@@ -164,6 +165,7 @@ describe('renderFindingTable', () => {
       'flightRecord.findings.column.severity',
       'flightRecord.findings.column.category',
       'flightRecord.findings.column.target',
+      'flightRecord.column.workspace',
       'flightRecord.column.instruction',
     ]);
   });
@@ -176,7 +178,14 @@ describe('renderFindingTable', () => {
     expect(cells[3]).toContain('data-am-finding-severity');
     expect(cells[4]).toBe('logic');
     expect(cells[5]).toContain('data-am-finding-target');
-    expect(cells[6]).toBe('指示ラベル');
+    expect(cells[6]).toBe('anytime-markdown');
+    expect(cells[7]).toBe('指示ラベル');
+  });
+
+  it('ワークスペース未解決（空文字）は空セルにせずダッシュで出す', () => {
+    // 空セルだと「ワークスペースの概念が無い行」と見分けが付かない。
+    const cells = cellHtml(renderFindingTable({ ...input, findings: [finding({ workspace: '' })] }));
+    expect(cells[6]).toBe('—');
   });
 
   it('状態セルは 3 値を data-status で出し、判定対象外には理由を title で添える', () => {
