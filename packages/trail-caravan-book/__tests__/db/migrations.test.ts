@@ -35,14 +35,14 @@ describe('migrations', () => {
     close();
   }, 30000);
 
-  test('seed data: 22 relation types inserted', async () => {
+  test('seed data: 24 relation types inserted', async () => {
     const { db, close } = await openCaravanBookDb(tmpDb);
 
     const result = db.exec('SELECT COUNT(*) FROM caravan_relation_types');
     const count = result[0]?.values[0][0] as number;
     // Phase 1: 15 seeds, Phase 2 adds rationale_for + imports_module = 17, Phase 2.7 adds 4 = 21,
-    // migration 025 adds defines = 22 total
-    expect(count).toBe(22);
+    // migration 025 adds defines = 22, migration 029 adds calls + extends = 24 total
+    expect(count).toBe(24);
 
     close();
   }, 30000);

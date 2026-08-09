@@ -345,7 +345,10 @@ function ingestSymbolNodes(input: {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-type EdgeMeta = { factType: 'imports' | 'calls' | 'extends'; predicate: 'depends_on' | 'relates_to' };
+type EdgeMeta = {
+  factType: 'imports' | 'calls' | 'extends';
+  predicate: 'depends_on' | 'relates_to' | 'calls' | 'extends';
+};
 
 /**
  * Maps a TrailEdge type to the fact_type and predicate used when inserting into
@@ -356,8 +359,8 @@ function resolveEdgeMeta(edgeType: string, target: string, internalFilePaths: Se
     const predicate: 'depends_on' | 'relates_to' = internalFilePaths.has(target) ? 'relates_to' : 'depends_on';
     return { factType: 'imports', predicate };
   }
-  if (edgeType === 'call') return { factType: 'calls', predicate: 'relates_to' };
-  if (edgeType === 'inheritance') return { factType: 'extends', predicate: 'relates_to' };
+  if (edgeType === 'call') return { factType: 'calls', predicate: 'calls' };
+  if (edgeType === 'inheritance') return { factType: 'extends', predicate: 'extends' };
   return null; // skip type_use, implementation, override
 }
 
@@ -368,8 +371,11 @@ function resolveEdgeMeta(edgeType: string, target: string, internalFilePaths: Se
  * Processes edges of type 'import', 'call', and 'inheritance':
  * - 'import'      → fact_type='imports',  predicate='depends_on' (external Library)
  *                    or 'relates_to' (internal File)
- * - 'call'        → fact_type='calls',    predicate='relates_to'
- * - 'inheritance' → fact_type='extends',  predicate='relates_to'
+ * - 'call'        → fact_type='calls',    predicate='calls'
+ * - 'inheritance' → fact_type='extends',  predicate='extends'
+ *
+ * 述語は fact_type ごとに分ける（migration 029）。以前は call / inheritance / 内部 import が
+ * すべて `relates_to` になり、辺だけを見て「呼び出し」と「import」を区別できなかった。
  *
  * Idempotent: duplicate (file_path, symbol_path, fact_type, fact_value, commit_sha)
  * tuples are silently ignored via INSERT OR IGNORE.
@@ -464,7 +470,12 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
       targetEntityId = upsertFileEntity(db, targetFilePath, recordedAt, logger);
     }
 
-    // ── Insert edge (idempotent via ON CONFLICT DO NOTHING) ───────────────
+    // ── Insert edge (idempotent via ON CONFLICT) ──────────────────────────
+    //
+    // 衝突時は DO NOTHING ではなく valid_to を剥がす。migration 029 が述語の付け替えのために
+    // 既存の code 由来 relates_to を無効化しており、剥がす経路が無いと再取込しても
+    // valid_to が残ったまま（＝辺は在るのに検索から見えない）ゴーストになるため。
+    // 既に有効な辺は WHERE で弾き、rows_modified を 0 に保って再取込が冪等に見えるようにする。
     const eId = astEdgeId(sourceEntityId, predicate, targetEntityId);
     try {
       db.run(
@@ -473,14 +484,16 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
             valid_from, recorded_at, source_type, source_ref,
             confidence, confidence_label, modality)
          VALUES (?, ?, ?, ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-         ON CONFLICT(id) DO NOTHING`,
+         ON CONFLICT(id) DO UPDATE SET valid_to = NULL
+           WHERE caravan_edges.valid_to IS NOT NULL`,
         [eId, sourceEntityId, predicate, targetEntityId, recordedAt, recordedAt, `code_fact:${fId}`]
       );
       if (db.getRowsModified() > 0) stats.edges_inserted += 1;
     } catch (err) {
       logger.error(
         `[anytime-memory] astFunctionLevel: failed to insert edge pred="${predicate}" ` +
-          `src="${filePath}" tgt="${edge.target}"`,
+          `src="${filePath}" tgt="${edge.target}" ` +
+          `(caravan_relation_types に '${predicate}' が無い＝migration 029 未適用の可能性)`,
         err
       );
     }

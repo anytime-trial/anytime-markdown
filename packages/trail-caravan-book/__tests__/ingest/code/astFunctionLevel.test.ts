@@ -158,8 +158,8 @@ describe('ingestAstFacts', () => {
     db.close();
   }, 30000);
 
-  // ── AFL-3: call edge → relates_to edge + calls fact ─────────────────────
-  test('AFL-3: call edge → calls fact + relates_to edge', async () => {
+  // ── AFL-3: call edge → calls edge + calls fact ──────────────────────────
+  test('AFL-3: call edge → calls fact + calls edge', async () => {
     const db = await makeDb();
     const srcFile = 'src/foo.ts';
     const targetFile = 'src/bar.ts';
@@ -189,11 +189,18 @@ describe('ingestAstFacts', () => {
     expect(sp).toBe(callerFn.id);
     expect(fp).toBe(srcFile);
 
+    // defines 辺も同時に張られるため、呼び出し由来の辺は source_ref で特定する
+    const edgeRows = db.exec(
+      `SELECT predicate FROM caravan_edges WHERE source_ref LIKE 'code_fact:%'`
+    );
+    expect(edgeRows[0].values).toHaveLength(1);
+    expect(edgeRows[0].values[0][0]).toBe('calls');
+
     db.close();
   }, 30000);
 
-  // ── AFL-4: inheritance edge → extends fact + relates_to edge ─────────────
-  test('AFL-4: inheritance edge → extends fact + relates_to edge', async () => {
+  // ── AFL-4: inheritance edge → extends fact + extends edge ────────────────
+  test('AFL-4: inheritance edge → extends fact + extends edge', async () => {
     const db = await makeDb();
     const srcFile = 'src/child.ts';
     const targetFile = 'src/parent.ts';
@@ -223,7 +230,7 @@ describe('ingestAstFacts', () => {
       `SELECT predicate FROM caravan_edges WHERE source_ref LIKE 'code_fact:%'`
     );
     expect(edgeRows[0].values).toHaveLength(1);
-    expect(edgeRows[0].values[0][0]).toBe('relates_to');
+    expect(edgeRows[0].values[0][0]).toBe('extends');
 
     db.close();
   }, 30000);
@@ -283,6 +290,52 @@ describe('ingestAstFacts', () => {
 
     expect(countFacts(db)).toBe(factsAfterFirst);
     expect(countEdges(db)).toBe(edgesAfterFirst);
+
+    db.close();
+  }, 30000);
+
+  // ── AFL-6b: 無効化済みの辺は再取込で復活する（migration 029 の前提） ──────
+  //
+  // 029 は述語の付け替えのため code 由来 relates_to を valid_to で無効化する。
+  // 剥がす経路（ON CONFLICT DO UPDATE SET valid_to = NULL）が無いと、再取込しても
+  // 無効のまま残り、File 間リンクが恒久的に見えなくなる。
+  test('AFL-6b: valid_to で無効化された辺は再 ingest で復活する', async () => {
+    const db = await makeDb();
+    const srcFile = 'src/foo.ts';
+    const targetFile = 'src/bar.ts';
+    const graph = makeGraph(
+      [makeFileNode(srcFile), makeFileNode(targetFile)],
+      [{ source: srcFile, target: targetFile, type: 'import' }]
+    );
+
+    ingestAstFacts({
+      db, repoName: REPO, graph, commitSha: COMMIT_SHA,
+      recordedAt: RECORDED_AT, logger: silentLogger,
+    });
+
+    const edgesAfterFirst = countEdges(db);
+
+    // migration 029 相当の無効化
+    db.run(
+      `UPDATE caravan_edges SET valid_to = '2026-08-09T00:00:00.000Z'
+        WHERE source_type = 'code' AND predicate = 'relates_to' AND source_ref LIKE 'code_fact:%'`
+    );
+    const invalidated = db.exec(
+      `SELECT COUNT(*) FROM caravan_edges WHERE valid_to IS NOT NULL`
+    )[0].values[0][0] as number;
+    expect(invalidated).toBe(1);
+
+    ingestAstFacts({
+      db, repoName: REPO, graph, commitSha: COMMIT_SHA,
+      recordedAt: RECORDED_AT, logger: silentLogger,
+    });
+
+    // 行は増えず（同一 id）、valid_to だけが剥がれる
+    expect(countEdges(db)).toBe(edgesAfterFirst);
+    const stillInvalid = db.exec(
+      `SELECT COUNT(*) FROM caravan_edges WHERE valid_to IS NOT NULL`
+    )[0].values[0][0] as number;
+    expect(stillInvalid).toBe(0);
 
     db.close();
   }, 30000);
