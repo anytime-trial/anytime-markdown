@@ -19,6 +19,7 @@ function serverLaidOutFile(): CooccurrenceFile {
   base.layout = {
     positions: [[0, 0], [50, 0]],
     specHash: computeSpecHash(base.spec),
+    algorithmVersion: 'server-forceatlas2-v1',
     source: 'server',
   };
   return base;

@@ -154,12 +154,21 @@ describe('runKnowledgeGraphLayout', () => {
     const failing: CaravanDbConnection = {
       ...db,
       exec: (sql, params) => db.exec(sql, params),
-      prepare: (sql) => db.prepare(sql),
-      run: (sql, params) => {
-        if (sql.includes('INSERT INTO caravan_entity_layout') && ++inserts === 3) {
-          throw new Error('disk full');
-        }
-        db.run(sql, params);
+      run: (sql, params) => db.run(sql, params),
+      prepare: (sql) => {
+        const stmt = db.prepare(sql);
+        if (!sql.includes('INSERT INTO caravan_entity_layout')) return stmt;
+        return {
+          ...stmt,
+          all: (...p) => stmt.all(...p),
+          get: (...p) => stmt.get(...p),
+          iterate: (...p) => stmt.iterate(...p),
+          free: () => stmt.free?.(),
+          run: (...p) => {
+            if (++inserts === 3) throw new Error('disk full');
+            return stmt.run(...p);
+          },
+        };
       },
     };
 

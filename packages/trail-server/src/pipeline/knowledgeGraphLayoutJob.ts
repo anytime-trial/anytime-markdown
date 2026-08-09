@@ -52,9 +52,12 @@ function toJobStatus(status: 'success' | 'skipped' | 'error'): JobResult['status
  * 他コンシューマの書き込みロックと競合する）。開けなかった場合は例外を投げ、
  * DaemonScheduler の `failed` ログに残す — 座標が無いまま静かに配信され続けるのを避ける。
  *
- * ForceAtlas2 は同期実行で、実測 25,000 ノードで約 15 秒・100,000 ノードで約 73 秒かかる。
- * その間 daemon プロセスは他の要求を処理できないが、これは同プロセスで動く解析パイプラインと
- * 同じ性質であり、拡張ホスト（UI）は別プロセスのため固まらない。
+ * ForceAtlas2 は同期実行で、実測 25,000 ノードで約 15 秒・100,000 ノードで約 73 秒（合成
+ * 200,000 リンクでは 27 分）かかる。**その間 daemon の HTTP API は 1 件も応答しない**。
+ * 拡張ホスト（UI）は別プロセスなので操作自体は固まらないが、trail-viewer の全パネルと
+ * MCP の discovery ツールはデータ待ちで止まる。これは同プロセスで動く解析パイプラインと
+ * 同じ性質だが、「UI は固まらない」だけを読むと影響を小さく見積もるので明記する。
+ * 反復のバッチ分割か worker_threads への退避が本筋の解（plan の 100k 対応フェーズ 3-2）。
  */
 export function createKnowledgeGraphLayoutJob(
   opts: KnowledgeGraphLayoutJobOptions,
@@ -69,7 +72,15 @@ export function createKnowledgeGraphLayoutJob(
       return { status: 'skipped', durationMs: 0, message: 'disposed' };
     }
     if (!handle) {
-      handle = await openDb(opts.caravanDbPath, { nativeBinding: opts.caravanNativeBinding });
+      const opened = await openDb(opts.caravanDbPath, { nativeBinding: opts.caravanNativeBinding });
+      // openCaravanBookDb は migration を流すため待ちが長い。その間に dispose されると
+      // dispose 側は handle === null を見て何もせず、ここでの代入が「閉じられない書き込み
+      // 接続」を残す（破棄後の daemon が座標を書き替えることになる）。
+      if (disposed) {
+        opened.close();
+        return { status: 'skipped', durationMs: 0, message: 'disposed' };
+      }
+      handle = opened;
     }
     const result = runKnowledgeGraphLayout({
       db: handle.db,

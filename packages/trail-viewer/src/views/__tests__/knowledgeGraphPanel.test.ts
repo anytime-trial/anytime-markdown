@@ -301,6 +301,75 @@ describe('mountKnowledgeGraphPanel — viewport-driven delivery', () => {
     handle.destroy();
   });
 
+  it('resumes viewport fetching after an explicit reload (ラッチにしない)', async () => {
+    // レイアウト計算前の窓で 1 回パンすると bboxApplied=false が返る。以後ずっと視野駆動を
+    // 使わないままだと、本機能が丸ごと無効な状態がユーザーから見えない形で固定される
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: false }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // 座標が書かれた後に再読込 → 視野駆動が戻ること
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    container.querySelector<HTMLButtonElement>('[data-am-kg-reload]')?.click();
+    await flush();
+    // 全体取得の直後の 1 通目は基準として記録するだけ（設計どおり）。2 通目で取り直す
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[3][0]).toContain('bbox=');
+    handle.destroy();
+  });
+
+  it('stops viewport fetching when the server omits bboxApplied (旧サーバ)', async () => {
+    const legacy = { ...SAMPLE } as Record<string, unknown>;
+    delete legacy['bboxApplied'];
+    fetchMock.mockResolvedValue(okResponse(legacy as unknown as KnowledgeGraphResponse));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    notify({ minX: 200, minY: 200, maxX: 250, maxY: 250 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    handle.destroy();
+  });
+
+  it('keeps the figure when a viewport fetch fails (パン中の一時失敗で図を消さない)', async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ ...SAMPLE, bboxApplied: true }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    const viewerHost = container.querySelector<HTMLElement>('[data-am-kg-viewer]');
+    const statusEl = container.querySelector<HTMLElement>('[data-am-kg-status]');
+
+    fetchMock.mockRejectedValue(new Error('connection refused'));
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+
+    expect(viewerHost?.hidden).toBe(false);
+    expect(statusEl?.hidden).toBe(true);
+
+    // 失敗しても視野駆動が止まらないこと（loadState が ready のまま）
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    notify({ minX: 200, minY: 200, maxX: 300, maxY: 300 });
+    await flush();
+    expect(viewerHandleMock.update).toHaveBeenCalled();
+    handle.destroy();
+  });
+
   it('drops the viewport when the user changes a filter (操作は全体へ戻す)', async () => {
     fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
     const handle = mountKnowledgeGraphPanel(container, makeProps());

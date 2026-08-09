@@ -1676,6 +1676,9 @@ export class CaravanApiHandler {
     const db = this.openReadOnly();
     if (!db) return null;
     try {
+      // 表・列の有無は接続の寿命で固定されるため、まだ無い間はここで引き直す。座標を返すか
+      // （bbox 指定の有無によらず）もこの判定に乗っている。
+      this.refreshLayoutCapability(db);
       const limit = Math.max(1, clampLimit(params.limit, 150, KNOWLEDGE_GRAPH_MAX_NODES));
       // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
       const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
@@ -1684,8 +1687,13 @@ export class CaravanApiHandler {
       const bbox = params.bbox !== undefined && this.hasStoredLayout(db) ? params.bbox : null;
       // 次数を持つ DB では視野の問い合わせを索引駆動へ切り替える（下記メソッドのコメント参照）。
       // 持たない DB（migration 027 未適用）は従来経路で正しく答えられるので縮退する。
-      if (bbox !== null && this.entityLayoutDegreeAvailable) {
-        return this.getKnowledgeGraphInViewport(db, { limit, types, bbox });
+      //
+      // **種別フィルタ指定時は使わない**。保存済みの `degree` は種別を見ずに数えた値だが、
+      // 画面設計書 §2.2 は「`types` 指定時は両端がその種別に含まれるエッジだけで次数を
+      // 数える」と定めている。索引駆動へ入れると、初回取得（種別で絞った次数）と
+      // パン後（全体次数）で同じノードの円の大きさが変わる。速さより定義の一致を採る。
+      if (bbox !== null && types.length === 0 && this.entityLayoutDegreeAvailable) {
+        return this.getKnowledgeGraphInViewport(db, { limit, bbox });
       }
       const { sql: activeCte, binds: activeBinds } = buildActiveEdgesCte({ types, bbox });
       const degCte = `
@@ -1843,12 +1851,12 @@ export class CaravanApiHandler {
    */
   private getKnowledgeGraphInViewport(
     db: CaravanDbConnection,
-    params: { limit: number; types: readonly string[]; bbox: KnowledgeGraphBbox },
+    params: { limit: number; bbox: KnowledgeGraphBbox },
   ): KnowledgeGraphResponse {
-    const { limit, types, bbox } = params;
-    const typeFilter = types.length > 0
-      ? `AND en.type IN (${types.map(() => '?').join(',')})`
-      : '';
+    const { limit, bbox } = params;
+    // 種別フィルタは受け取らない。保存済みの次数が種別を見ていないため、この経路では
+    // 画面設計書 §2.2 の定義（両端が同種別のエッジだけで数える）を満たせない。
+    // 呼び出し側が types 非空のとき従来経路へ振り分ける前提を、型でも示しておく。
     const boxBinds: SqlValue[] = [bbox.minX, bbox.maxX, bbox.minY, bbox.maxY];
 
     const candidateRows = db.exec(
@@ -1858,10 +1866,9 @@ export class CaravanApiHandler {
         WHERE l.x BETWEEN ? AND ? AND l.y BETWEEN ? AND ?
           AND en.valid_until IS NULL
           AND l.degree > 0
-          ${typeFilter}
         ORDER BY l.degree DESC, l.entity_id
         LIMIT ?`,
-      toBindParams([...boxBinds, ...types, limit * KNOWLEDGE_GRAPH_VIEWPORT_CANDIDATE_MULTIPLIER]),
+      toBindParams([...boxBinds, limit * KNOWLEDGE_GRAPH_VIEWPORT_CANDIDATE_MULTIPLIER]),
     )[0]?.values ?? [];
 
     const candidates = candidateRows.map((row) => ({
@@ -1935,9 +1942,7 @@ export class CaravanApiHandler {
       clustersByType.set(node.type, members);
     });
 
-    // 視野の中で「エッジを持つノード」の総数。種別フィルタ指定時、保存済み次数は種別を
-    // 見ていないため過大に出ることがある（他種別としか繋がっていないノードを数える）。
-    // その場合 truncated は「まだ出せていない」側へ倒れる — 打ち切りを隠す向きには誤らない。
+    // 視野の中で「エッジを持つノード」の総数。打ち切りが起きたかの分母に使う。
     const inViewConnected = Number(
       db.exec(
         `SELECT COUNT(*)
@@ -1945,9 +1950,8 @@ export class CaravanApiHandler {
            JOIN caravan_entities en ON en.id = l.entity_id
           WHERE l.x BETWEEN ? AND ? AND l.y BETWEEN ? AND ?
             AND en.valid_until IS NULL
-            AND l.degree > 0
-            ${typeFilter}`,
-        toBindParams([...boxBinds, ...types]),
+            AND l.degree > 0`,
+        toBindParams([...boxBinds]),
       )[0]?.values[0]?.[0] ?? 0,
     );
 
@@ -1955,7 +1959,7 @@ export class CaravanApiHandler {
       nodes: nodes.map(({ id: _id, ...node }) => node),
       links,
       clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
-      totalEntityCount: this.countEntities(db, types),
+      totalEntityCount: this.countEntities(db, []),
       truncated: nodes.length < inViewConnected,
       availableTypes: this.listEntityTypes(db),
       bboxApplied: true,
@@ -1976,6 +1980,7 @@ export class CaravanApiHandler {
    * パイプライン実行で解消する。
    */
   private hasStoredLayout(db: CaravanDbConnection): boolean {
+    this.refreshLayoutCapability(db);
     if (!this.entityLayoutAvailable) return false;
     try {
       return (db.exec(`SELECT 1 FROM caravan_entity_layout LIMIT 1`)[0]?.values.length ?? 0) > 0;
@@ -1984,6 +1989,38 @@ export class CaravanApiHandler {
         `[CaravanApiHandler.hasStoredLayout] probe failed: ${err instanceof Error ? err.message : String(err)}`,
       );
       return false;
+    }
+  }
+
+  /**
+   * `caravan_entity_layout` と `degree` 列の有無を**まだ無い間だけ**引き直す。
+   *
+   * 接続確立時の probe は 1 回きりで、read-only 接続は daemon 停止まで生きる。migration を
+   * 当てるのは別の書き込み接続（パイプライン・LogService）なので、read-only 側が先に
+   * 確立された既存 DB では、表や列が後から生えても false のまま固まる。症状は
+   * 「座標を返さない・索引駆動に入らない」という静かな縮退で、probe 自体は成功するため
+   * ログにも出ない（Codex 指摘 1 と同じ理由が、行ではなく表・列にも当てはまる）。
+   *
+   * 一度 true になったら引き直さない（表と列は消えない）。false の間だけの片方向再評価
+   * なので、定常状態での追加コストは無い。
+   */
+  private refreshLayoutCapability(db: CaravanDbConnection): void {
+    if (this.entityLayoutDegreeAvailable) return;
+    try {
+      if (!this.entityLayoutAvailable) {
+        this.entityLayoutAvailable = (db.exec(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'caravan_entity_layout'`,
+        )[0]?.values.length ?? 0) > 0;
+      }
+      if (this.entityLayoutAvailable) {
+        this.entityLayoutDegreeAvailable = (db.exec(
+          `SELECT 1 FROM pragma_table_info('caravan_entity_layout') WHERE name = 'degree'`,
+        )[0]?.values.length ?? 0) > 0;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `[CaravanApiHandler.refreshLayoutCapability] re-probe failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

@@ -1240,7 +1240,12 @@ export function mountCooccurrenceViewer(
     viewportChangeTimer = setTimeout(() => {
       viewportChangeTimer = null;
       if (destroyed) return;
-      options.onViewportChange?.(visibleWorldBounds());
+      const bounds = visibleWorldBounds();
+      // 表示領域が 0（未レイアウト・非表示タブ）のときは面積 0 の矩形になる。購読側は
+      // それを視野として受け取れないので通知しない（受け取らせると「何も入らない視野」を
+      // 要求してしまう）。
+      if (!(bounds.maxX > bounds.minX) || !(bounds.maxY > bounds.minY)) return;
+      options.onViewportChange?.(bounds);
     }, options.viewportChangeDelayMs ?? DEFAULT_VIEWPORT_CHANGE_DELAY_MS);
   }
 
@@ -1457,6 +1462,10 @@ export function mountCooccurrenceViewer(
 
   resizeObserver = new ResizeObserver(() => {
     if (!fitted) fitToGraph();
+    // 表示領域が変われば見えている世界範囲も変わる。ここで通知しないと、パネルを畳んで
+    // 図を広げた領域は、ユーザーが少しパンするまで空白のままになる（`setViewport` は
+    // 呼ばれないため既定の経路では発火しない）。デバウンス済みなので連続リサイズでも 1 回。
+    scheduleViewportChangeNotice();
     // 折り返しは表示領域の寸法で決まる。ここを落とすと、パネルを開いて図が狭くなったとき
     // アイコンだけが図の外へ残る。
     syncAddHandle();

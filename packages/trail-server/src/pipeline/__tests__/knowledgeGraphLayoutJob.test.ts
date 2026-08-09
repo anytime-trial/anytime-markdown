@@ -134,6 +134,30 @@ describe('createKnowledgeGraphLayoutJob', () => {
     expect(afterDispose.message).toBe('disposed');
   });
 
+  it('closes the connection when dispose lands while the open is still in flight', async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const handle = createKnowledgeGraphLayoutJob({
+      caravanDbPath: path.join(tmpDir, 'caravan-book.db'),
+      logger: createLogger(),
+      openDb: async () => {
+        await gate;
+        return openDb();
+      },
+      now: () => new Date(TS),
+    });
+
+    const running = handle.job.run();
+    handle.dispose(); // 開いている最中に破棄（dispose 側は handle === null を見る）
+    release?.();
+    const result = await running;
+
+    expect(result.status).toBe('skipped');
+    expect(result.message).toBe('disposed');
+    // 開いた接続を放置すると、破棄後の daemon が座標を書き替えられる状態が残る
+    expect(closed).toBe(1);
+  });
+
   it('rejects when the database cannot be opened so the scheduler logs a failure', async () => {
     const handle = createKnowledgeGraphLayoutJob({
       caravanDbPath: path.join(tmpDir, 'caravan-book.db'),

@@ -170,6 +170,15 @@ export function runKnowledgeGraphLayout(opts: {
     let stored = 0;
     try {
       db.run(`DELETE FROM caravan_entity_layout`);
+      // ループの外で 1 度だけコンパイルする。`CaravanDbConnection.run()` は毎回
+      // `prepare` し直す実装なので、ノード数ぶん（100,000 件）SQL をコンパイルし直すことに
+      // なる。これは書き込みロックを握った内側で起きるため、ロックの保持時間に直結する。
+      // `DELETE` 済みなので `ON CONFLICT` 節は到達しない。置かない。
+      const insert = db.prepare(
+        `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, degree, graph_version, recorded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      );
+      try {
       graph.forEachNode((nodeId, attrs) => {
         const x = attrs['x'];
         const y = attrs['y'];
@@ -179,22 +188,26 @@ export function runKnowledgeGraphLayout(opts: {
           );
           return;
         }
-        db.run(
-          `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, degree, graph_version, recorded_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(entity_id) DO UPDATE SET
-             x = excluded.x, y = excluded.y, community_id = excluded.community_id,
-             degree = excluded.degree,
-             graph_version = excluded.graph_version, recorded_at = excluded.recorded_at`,
-          [nodeId, x, y, communities[nodeId] ?? 0, degrees.get(nodeId) ?? 0, graphVersion, recordedAt],
-        );
+        insert.run(nodeId, x, y, communities[nodeId] ?? 0, degrees.get(nodeId) ?? 0, graphVersion, recordedAt);
         stored += 1;
       });
+      } finally {
+        insert.free?.();
+      }
       db.run(`COMMIT`);
     } catch (error) {
       // 途中で落ちたら前の座標を残す。中途半端な座標を残すより、古くても揃っている方が
       // 図として成立する（次の実行で全件書き替わる）。
-      db.run(`ROLLBACK`);
+      //
+      // ROLLBACK 自体の失敗で元の例外を落とさない。落とすとログに残るのが
+      // 「cannot rollback」だけになり、書き込みが落ちた本当の理由を追えなくなる。
+      // さらにこの接続は job が使い回す長寿命の書き込み接続なので、開いたままの
+      // トランザクションを検知できる形で残す必要がある。
+      try {
+        db.run(`ROLLBACK`);
+      } catch (rollbackError) {
+        opts.logger?.error('[knowledge-graph-layout] rollback failed', rollbackError);
+      }
       throw error;
     }
 

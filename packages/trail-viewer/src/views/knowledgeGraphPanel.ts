@@ -225,12 +225,25 @@ export function mountKnowledgeGraphPanel(
       }
     } catch (err) {
       if (destroyed || seq !== fetchSeq) return;
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      console.warn(`[knowledgeGraph] failed to load: ${err instanceof Error ? err.message : String(err)}`);
-      loadState = 'failed';
-      data = null;
+      applyFetchError(err, viewportDriven);
     }
     render();
+  }
+
+  /**
+   * 取得の失敗を状態へ反映する。
+   *
+   * 視野駆動の失敗では図を落とさない。落とすと canvas ごと消えて、パンで戻ることも
+   * 取り直すこともできなくなる（`handleViewportChange` は `loadState === 'ready'` でしか
+   * 動かない）。パン中の一時的な失敗は、daemon がレイアウト計算でふさがっている間に
+   * 現実に起きる。全体取得の失敗だけ従来どおり failed へ倒す。
+   */
+  function applyFetchError(err: unknown, viewportDriven: boolean): void {
+    if (err instanceof DOMException && err.name === 'AbortError') return;
+    console.warn(`[knowledgeGraph] failed to load: ${err instanceof Error ? err.message : String(err)}`);
+    if (viewportDriven) return;
+    loadState = 'failed';
+    data = null;
   }
 
   /** 取得できた応答を状態と図へ反映する。 */
@@ -240,8 +253,16 @@ export function mountKnowledgeGraphPanel(
     viewportDriven: boolean,
   ): void {
     fetchedBbox = bbox;
-    // サーバが視野を無視した（座標が無い）なら、以後の視野駆動は無意味なので止める
-    if (bbox !== null && json.bboxApplied === false) viewportFetchEnabled = false;
+    if (bbox === null) {
+      // 明示的な取り直し（初回・種別・件数・再読込）。座標はパイプラインが後から書くので、
+      // 前回「絞れなかった」判断をここで捨てる。捨てないと、レイアウト計算前の窓で 1 回
+      // パンしただけで、そのパネルは以後ずっと視野駆動を使わない（再読込でも戻らない）。
+      viewportFetchEnabled = true;
+    } else if (json.bboxApplied !== true) {
+      // サーバが視野を無視した（座標が無い）／`bboxApplied` を返さない旧サーバでは、
+      // 視野を変えても同じ全体グラフが返るだけなので止める。
+      viewportFetchEnabled = false;
+    }
     availableTypes = json.availableTypes;
     if (viewportDriven && json.nodes.length === 0) {
       // 何も無い場所へパンしただけ。図を消すと canvas ごと隠れて、パンで戻ることも

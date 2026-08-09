@@ -532,6 +532,23 @@ describe('CaravanApiHandler.getKnowledgeGraph — viewport fast path', () => {
     expect(result?.availableTypes).toEqual(['Bug', 'Concept', 'File']);
   });
 
+  it('keeps frequency consistent across the viewport and whole-graph paths under a type filter', async () => {
+    // 保存済み次数は種別を見ない。索引駆動へ入れると初回取得（種別で絞った次数）と
+    // パン後（全体次数）で同じノードの円の大きさが変わる（画面設計書 §2.2 違反）
+    const whole = await handler.getKnowledgeGraph({ types: ['Concept'] });
+    const inView = await handler.getKnowledgeGraph({
+      types: ['Concept'],
+      // 両方の Concept（e1 / e2）を含む視野
+      bbox: { minX: -50, minY: -50, maxX: 50, maxY: 50 },
+    });
+
+    expect(whole?.nodes.map((n) => [n.label, n.frequency])).toEqual([
+      ['TrailDataServer', 2], ['trail-caravan-book', 2],
+    ]);
+    // 全体次数は e1=4 だが、種別で絞ると 2。視野つきでも同じでなければならない
+    expect(inView?.nodes.map((n) => [n.label, n.frequency])).toEqual(whole?.nodes.map((n) => [n.label, n.frequency]));
+  });
+
   it('honours the limit while keeping every returned node linked', async () => {
     const result = await handler.getKnowledgeGraph({
       bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
