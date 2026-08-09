@@ -52,6 +52,12 @@ import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './too
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchCaravanBook,SearchCaravanBookInputSchema } from './tools/searchCaravanBook.js';
+import {
+  handleListCaravanCommunities,
+  ListCaravanCommunitiesInputSchema,
+  handleUpsertCaravanCommunitySummaries,
+  UpsertCaravanCommunitySummariesInputSchema,
+} from './tools/caravanCommunities.js';
 import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
 
 export interface McpTrailOptions {
@@ -809,6 +815,33 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleSearchCaravanBook(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'list_caravan_communities',
+    { description: 'List knowledge-graph (caravan-book) Louvain communities of the current layout with stable_key, member count and representative members. Use before assigning names/summaries (T-22 staged assignment; default min_size 10)', inputSchema: {
+      min_size: ListCaravanCommunitiesInputSchema.shape.min_size,
+      unsummarized_only: ListCaravanCommunitiesInputSchema.shape.unsummarized_only,
+      sample_size: ListCaravanCommunitiesInputSchema.shape.sample_size,
+      limit: ListCaravanCommunitiesInputSchema.shape.limit,
+      workspacePath: ListCaravanCommunitiesInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleListCaravanCommunities(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'upsert_caravan_community_summaries',
+    { description: 'Assign names/summaries to caravan-book knowledge-graph communities (idempotent upsert keyed by stable_key from list_caravan_communities). Keys not present in the current layout are skipped and reported', inputSchema: {
+      summaries: UpsertCaravanCommunitySummariesInputSchema.shape.summaries,
+      workspacePath: UpsertCaravanCommunitySummariesInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleUpsertCaravanCommunitySummaries(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

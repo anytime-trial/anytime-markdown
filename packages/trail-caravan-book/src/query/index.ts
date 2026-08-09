@@ -22,6 +22,20 @@ export { hybridSearchCaravanBook } from '../rag/hybridSearchCaravanBook';
 export type { HybridSearchInput, HybridSearchResult } from '../rag/hybridSearchCaravanBook';
 export { isLowInformationEntity } from '../canonical/entityQuality';
 
+// コミュニティ要約（T-22）
+export {
+  listCaravanCommunities,
+  upsertCaravanCommunitySummaries,
+  fetchCommunityNames,
+} from '../retrieve/communitySummaries';
+export type {
+  CaravanCommunity,
+  CommunitySampleMember,
+  CommunitySummaryUpsert,
+  UpsertCommunitySummariesResult,
+  ListCommunitiesOptions,
+} from '../retrieve/communitySummaries';
+
 // バグ履歴
 export { listRecurringBugs } from '../retrieve/listRecurringBugs';
 export type { RecurringBugGroup, BugFixSummary } from '../retrieve/listRecurringBugs';

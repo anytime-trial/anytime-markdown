@@ -8,6 +8,7 @@ import {
   type SearchEntity,
 } from '../retrieve/searchCaravanBook';
 import { isLowInformationEntity } from '../canonical/entityQuality';
+import { fetchCommunityNames } from '../retrieve/communitySummaries';
 import { tokenizeForFts5 } from './tokenizeForFts5';
 import { reciprocalRankFusion, type RankSource } from './reciprocalRankFusion';
 
@@ -162,6 +163,13 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
     // vec アームは vectorTopK 内で除外済みだが、BM25 のみで hit した id はここが唯一の関所
     if (isLowInformationEntity(base.display_name, base.summary)) continue;
     entities.push({ ...base, score: f.score, sources: f.sources });
+  }
+
+  // 要約済みコミュニティの名前を文脈として同梱する（T-22。無ければフィールド省略）
+  const communityNames = fetchCommunityNames(db, entities.map((e) => e.id));
+  for (const entity of entities) {
+    const communityName = communityNames.get(entity.id);
+    if (communityName !== undefined) entity.community = { name: communityName };
   }
 
   // 5. hops=1 のときは fused エンティティの周辺文脈を直接取得する

@@ -20,6 +20,8 @@ export interface SearchEntity {
   display_name: string;
   summary: string;
   score: number;
+  /** 所属コミュニティ（要約が付与済みの場合のみ同梱・T-22） */
+  community?: { name: string };
 }
 
 export interface SearchEdge {

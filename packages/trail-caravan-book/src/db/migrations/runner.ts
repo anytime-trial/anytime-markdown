@@ -41,6 +41,7 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 25, file: '025_defines_predicate.sql' },
   { version: 26, file: '026_entity_layout.sql' },
   { version: 27, file: '027_entity_layout_degree.sql' },
+  { version: 28, file: '028_community_summaries.sql' },
 ]
 
 /**

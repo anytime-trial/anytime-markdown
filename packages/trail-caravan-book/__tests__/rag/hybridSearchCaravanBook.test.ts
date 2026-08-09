@@ -5,6 +5,10 @@ import { openCaravanBookDb } from '../../src/db/connection';
 import type { CaravanDbConnection } from '../../src/db/connection/types';
 import { upsertEntityFts } from '../../src/rag/ftsSync';
 import { hybridSearchCaravanBook } from '../../src/rag/hybridSearchCaravanBook';
+import {
+  listCaravanCommunities,
+  upsertCaravanCommunitySummaries,
+} from '../../src/retrieve/communitySummaries';
 import { encodeEmbedding } from '../../src/embedding/codec';
 import { createMockOllamaClient } from '../helpers/MockOllamaClient';
 
@@ -241,5 +245,30 @@ describe('hybridSearchCaravanBook regression: degrade / edges', () => {
 
     expect(result.entities.some((e) => e.display_name === '不明のバグ')).toBe(false);
     expect(result.entities.map((e) => e.id)).toContain('e1');
+  });
+
+  test('T-22: 要約済みコミュニティ所属のエンティティに community.name が付く', async () => {
+    insertEntity(db, 'e1', 'member_fn', 'memberFn', '要約済み群の関数', Float32Array.from([1, 0, 0]));
+    insertEntity(db, 'e2', 'lonely_fn', 'lonelyFn', '未要約群の関数', Float32Array.from([0, 1, 0]));
+    upsertEntityFts(db, 'e1');
+    upsertEntityFts(db, 'e2');
+    db.run(
+      `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, degree, graph_version, recorded_at)
+       VALUES ('e1', 0, 0, 1, 1, 'v1', '${TS}'), ('e2', 1, 1, 2, 1, 'v1', '${TS}')`,
+    );
+    const [c1] = listCaravanCommunities(db, { minSize: 1 }).filter((c) => c.community_id === 1);
+    upsertCaravanCommunitySummaries(db, [{ stable_key: c1.stable_key, name: '検索基盤', summary: '' }]);
+
+    const ollama = createMockOllamaClient({ fixedEmbedding: Float32Array.from([1, 0, 0]) });
+    const result = await hybridSearchCaravanBook({
+      db,
+      ollama,
+      input: { query: 'memberFn lonelyFn', final_limit: 5, hops: 0 },
+    });
+
+    const e1 = result.entities.find((e) => e.id === 'e1');
+    const e2 = result.entities.find((e) => e.id === 'e2');
+    expect(e1?.community).toEqual({ name: '検索基盤' });
+    expect(e2?.community).toBeUndefined();
   });
 });

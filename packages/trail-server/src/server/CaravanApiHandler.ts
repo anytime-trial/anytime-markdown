@@ -1799,12 +1799,7 @@ export class CaravanApiHandler {
         });
       }
 
-      const clustersByType = new Map<string, number[]>();
-      nodeRows.forEach((row, i) => {
-        const members = clustersByType.get(row.type) ?? [];
-        members.push(i);
-        clustersByType.set(row.type, members);
-      });
+      const clusters = this.buildClusters(db, nodeRows);
 
       const connectedResult = db.exec(
         `WITH ${activeCte}
@@ -1816,7 +1811,7 @@ export class CaravanApiHandler {
       return {
         nodes: nodeRows.map(({ id: _id, ...node }) => node),
         links,
-        clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
+        clusters,
         totalEntityCount: this.countEntities(db, types),
         // 視野指定時は「その視野で繋がっているノード」が分母。truncated は
         // 「この視野にまだ出せていないノードがある」を意味する。
@@ -1935,12 +1930,7 @@ export class CaravanApiHandler {
       return [{ a, b, strength: pair.strength }];
     });
 
-    const clustersByType = new Map<string, number[]>();
-    nodes.forEach((node, i) => {
-      const members = clustersByType.get(node.type) ?? [];
-      members.push(i);
-      clustersByType.set(node.type, members);
-    });
+    const clusters = this.buildClusters(db, nodes);
 
     // 視野の中で「エッジを持つノード」の総数。打ち切りが起きたかの分母に使う。
     const inViewConnected = Number(
@@ -1958,7 +1948,7 @@ export class CaravanApiHandler {
     return {
       nodes: nodes.map(({ id: _id, ...node }) => node),
       links,
-      clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
+      clusters,
       totalEntityCount: this.countEntities(db, []),
       truncated: nodes.length < inViewConnected,
       availableTypes: this.listEntityTypes(db),
@@ -2035,6 +2025,64 @@ export class CaravanApiHandler {
   private listEntityTypes(db: CaravanDbConnection): string[] {
     const result = db.exec(`SELECT DISTINCT type FROM caravan_entities ORDER BY type`);
     return (result[0]?.values ?? []).map((row) => toStr(row[0]));
+  }
+
+  /**
+   * clusters を組み立てる（T-22）。要約済みコミュニティ（caravan_community_summaries）に
+   * 属する表示ノードが 1 件でもあれば名前付きコミュニティで束ね、無ければ従来の
+   * type グルーピングへフォールバックする。名前付きコミュニティに属さないノードは
+   * どのクラスタにも入らない（クラスタは全ノードの分割ではなく重ね掛けの注記）。
+   */
+  private buildClusters(
+    db: CaravanDbConnection,
+    nodes: readonly { id: string; type: string }[],
+  ): { label: string; members: number[] }[] {
+    const communityClusters = this.buildCommunityClusters(db, nodes);
+    if (communityClusters.length > 0) return communityClusters;
+    const clustersByType = new Map<string, number[]>();
+    nodes.forEach((node, i) => {
+      const members = clustersByType.get(node.type) ?? [];
+      members.push(i);
+      clustersByType.set(node.type, members);
+    });
+    return [...clustersByType.entries()].map(([label, members]) => ({ label, members }));
+  }
+
+  private buildCommunityClusters(
+    db: CaravanDbConnection,
+    nodes: readonly { id: string }[],
+  ): { label: string; members: number[] }[] {
+    if (nodes.length === 0) return [];
+    // migration 026/028 未適用の DB ではテーブル自体が無い。行の有無でなくテーブルの
+    // 有無を見るのは、ここでは「無ければ type フォールバック」が正しい縮退のため
+    const tableCount = Number(
+      db.exec(
+        `SELECT COUNT(*) FROM sqlite_master
+          WHERE type = 'table' AND name IN ('caravan_entity_layout', 'caravan_community_summaries')`,
+      )[0]?.values[0]?.[0] ?? 0,
+    );
+    if (tableCount < 2) return [];
+
+    const rows =
+      db.exec(
+        `SELECT l.entity_id, s.name
+           FROM caravan_entity_layout l
+           JOIN caravan_community_summaries s
+             ON s.graph_version = l.graph_version AND s.community_id = l.community_id
+          WHERE l.entity_id IN (SELECT value FROM json_each(?))`,
+        toBindParams([JSON.stringify(nodes.map((node) => node.id))]),
+      )[0]?.values ?? [];
+    const nameByEntityId = new Map(rows.map((row) => [toStr(row[0]), toStr(row[1])]));
+
+    const byName = new Map<string, number[]>();
+    nodes.forEach((node, i) => {
+      const name = nameByEntityId.get(node.id);
+      if (name === undefined) return;
+      const members = byName.get(name) ?? [];
+      members.push(i);
+      byName.set(name, members);
+    });
+    return [...byName.entries()].map(([label, members]) => ({ label, members }));
   }
 
 }
