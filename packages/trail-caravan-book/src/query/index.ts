@@ -18,9 +18,11 @@ export type { CaravanLogger } from '../logger';
 // 検索
 export { searchCaravanBook, vectorTopK, fetchGraphContext } from '../retrieve/searchCaravanBook';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from '../retrieve/searchCaravanBook';
-export { hybridSearchCaravanBook } from '../rag/hybridSearchCaravanBook';
+export { hybridSearchCaravanBook, ABSTAIN_COSINE_THRESHOLD } from '../rag/hybridSearchCaravanBook';
 export type { HybridSearchInput, HybridSearchResult } from '../rag/hybridSearchCaravanBook';
 export { isLowInformationEntity } from '../canonical/entityQuality';
+export { shapeSearchResponse, aggregateEdges, fetchEntityAliases } from '../retrieve/shapeSearchResponse';
+export type { SearchDetail, ShapedSearchResult, ShapedEntity, AggregatedEdge } from '../retrieve/shapeSearchResponse';
 
 // コミュニティ要約（T-22）
 export {

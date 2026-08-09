@@ -162,10 +162,12 @@ export async function vectorTopK(opts: {
 export function fetchGraphContext(
   db: CaravanDbConnection,
   topIds: string[],
+  opts?: { maxEpisodesPerEntity?: number },
 ): { edges: SearchEdge[]; episodes: SearchEpisode[] } {
   if (topIds.length === 0) {
     return { edges: [], episodes: [] };
   }
+  const maxEpisodesPerEntity = opts?.maxEpisodesPerEntity ?? 3;
 
   const ph = topIds.map(() => '?').join(', ');
   const edgeRows = db.exec(
@@ -196,12 +198,16 @@ export function fetchGraphContext(
     confidence_label: row[10] as string,
   }));
 
-  // Episodes (cap at 3 per entity)
+  // Episodes (cap per entity)。task-notification ダンプと短小エピソードは
+  // 文脈として情報を持たないため選択から除外する（spec §7.5。「ok」「マージして」等が
+  // 新着順で先頭を占めていた実測への対処）
   const epRows = db.exec(
     `SELECT ee.entity_id, me.id, me.session_id, me.valid_from, me.raw_excerpt
      FROM caravan_episode_entities ee
      JOIN caravan_episodes me ON me.id = ee.episode_id
      WHERE ee.entity_id IN (${ph})
+       AND me.raw_excerpt NOT LIKE '<task-notification>%'
+       AND length(me.raw_excerpt) >= 20
      ORDER BY me.valid_from DESC`,
     topIds,
   );
@@ -215,7 +221,7 @@ export function fetchGraphContext(
     const episodeId = row[1] as string;
 
     const count = entityEpCount.get(entityId) ?? 0;
-    if (count >= 3) {
+    if (count >= maxEpisodesPerEntity) {
       continue;
     }
 

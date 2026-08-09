@@ -104,6 +104,7 @@ describe('ChatService.streamTurn', () => {
       entities: [{ id: 'e1', type: 'Function', display_name: 'searchCaravanBook', summary: 'BM25+vec', score: 1, sources: [] }],
       edges: [],
       episodes: [],
+      matched: true,
     });
 
     const service = new ChatService({

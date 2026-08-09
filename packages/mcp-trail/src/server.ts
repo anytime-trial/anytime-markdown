@@ -812,6 +812,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       since: SearchCaravanBookInputSchema.shape.since,
       limit: SearchCaravanBookInputSchema.shape.limit,
       hops: SearchCaravanBookInputSchema.shape.hops,
+      detail: SearchCaravanBookInputSchema.shape.detail,
       workspacePath: SearchCaravanBookInputSchema.shape.workspacePath,
     }, },
     async (args) => {
