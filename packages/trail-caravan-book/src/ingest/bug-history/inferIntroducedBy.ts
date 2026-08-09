@@ -70,8 +70,11 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
   for (const filePath of affectedFilePaths) {
     let diffOutput: string;
     try {
+      // オプションは `--` の前に置く。後ろに置くと git は pathspec として解釈する
+      // （blame は usage エラーで全滅、diff は無視されて context 付き出力になっていた。
+      // テストが execFileSync をモックするため引数順の誤りは実 git でしか発現しない）
       diffOutput = execFileSync(resolveGitExecutable(), [
-        'diff', `${fixCommitSha}^`, fixCommitSha, '--', filePath, '--unified=0',
+        'diff', '--unified=0', `${fixCommitSha}^`, fixCommitSha, '--', filePath,
       ], repoRoot);
     } catch (err) {
       logger.error(
@@ -87,7 +90,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
       let blameOutput: string;
       try {
         blameOutput = execFileSync(resolveGitExecutable(), [
-          'blame', '-L', `${lineNum},${lineNum}`, `${fixCommitSha}^`, '--', filePath, '--porcelain',
+          'blame', '--porcelain', '-L', `${lineNum},${lineNum}`, `${fixCommitSha}^`, '--', filePath,
         ], repoRoot);
       } catch (err) {
         logger.error(
