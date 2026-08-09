@@ -1,11 +1,7 @@
-import type { CanvasSize, ScreenPoint, ViewportState, WorldPoint } from '../types';
+import type { CanvasSize, ScreenPoint, ViewportBounds, ViewportState, WorldPoint } from '../types';
 
-export interface Bounds {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
+/** 世界座標の矩形。定義は types.ts の {@link ViewportBounds} が単一の正。 */
+export type Bounds = ViewportBounds;
 
 export function worldToScreen(point: WorldPoint, viewport: ViewportState): ScreenPoint {
   return {

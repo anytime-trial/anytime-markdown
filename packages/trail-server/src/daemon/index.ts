@@ -26,6 +26,7 @@ export type {
   SerializableChatBridgeConfig,
   SerializableLogServiceConfig,
   SerializableRebuildSchedulerConfig,
+  SerializableKnowledgeGraphLayoutConfig,
   SerializableTokenBudgetConfig,
   SerializableSetDocsPathRequest,
   SerializableTokenBudgetExceededPayload,

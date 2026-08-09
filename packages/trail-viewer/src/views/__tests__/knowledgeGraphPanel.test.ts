@@ -150,7 +150,11 @@ describe('mountKnowledgeGraphPanel', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mountViewerMock).toHaveBeenCalledTimes(1);
-    expect(viewerHandleMock.update).toHaveBeenCalledWith({ file: expect.anything() });
+    // 操作起因の再取得は視野を保たない（全体表示へ合わせ直す）
+    expect(viewerHandleMock.update).toHaveBeenCalledWith({
+      file: expect.anything(),
+      preserveViewport: false,
+    });
     handle.destroy();
   });
 
@@ -170,6 +174,216 @@ describe('mountKnowledgeGraphPanel', () => {
     await flush();
 
     expect(fetchMock).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+});
+
+describe('mountKnowledgeGraphPanel — viewport-driven delivery', () => {
+  let container: HTMLElement;
+  let fetchMock: jest.Mock;
+
+  /** 直近の mount で viewer へ渡された視野コールバック。 */
+  function viewportCallback(): (b: { minX: number; minY: number; maxX: number; maxY: number }) => void {
+    const options = mountViewerMock.mock.calls.at(-1)?.[1] as {
+      onViewportChange?: (b: { minX: number; minY: number; maxX: number; maxY: number }) => void;
+    };
+    const cb = options?.onViewportChange;
+    if (!cb) throw new Error('viewer was mounted without onViewportChange');
+    return cb;
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    container.remove();
+  });
+
+  it('records the first viewport without refetching (全体取得の直後は取り直さない)', async () => {
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: false }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    viewportCallback()({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
+  it('refetches with the bbox once the view has moved meaningfully', async () => {
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      `${SERVER_URL}/api/caravan/knowledge-graph?limit=150&bbox=25%2C25%2C75%2C75`,
+    );
+    handle.destroy();
+  });
+
+  it('keeps the current figure and the camera while the viewport fetch lands', async () => {
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    const statusEl = container.querySelector<HTMLElement>('[data-am-kg-status]');
+    const viewerHost = container.querySelector<HTMLElement>('[data-am-kg-viewer]');
+
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+
+    // 取得の最中も図は出たまま（読み込み表示へ切り替えない）
+    expect(viewerHost?.hidden).toBe(false);
+    expect(statusEl?.hidden).toBe(true);
+
+    await flush();
+    expect(viewerHandleMock.update).toHaveBeenCalledWith({
+      file: expect.anything(),
+      preserveViewport: true,
+    });
+    handle.destroy();
+  });
+
+  it('stops viewport fetching when the server reports it could not apply the bbox', async () => {
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: false }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // 座標を持たないサーバに対して視野で取り直しても結果は変わらない。以後は要求しない
+    notify({ minX: 200, minY: 200, maxX: 250, maxY: 250 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    handle.destroy();
+  });
+
+  it('keeps the current figure when the viewport lands on empty space', async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ ...SAMPLE, bboxApplied: true }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    const viewerHost = container.querySelector<HTMLElement>('[data-am-kg-viewer]');
+
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, nodes: [], links: [], clusters: [], bboxApplied: true }));
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 900, minY: 900, maxX: 1000, maxY: 1000 });
+    await flush();
+
+    // 図を消すと canvas ごと隠れ、パンで戻ることも取り直すこともできなくなる
+    expect(viewerHost?.hidden).toBe(false);
+    expect(viewerHandleMock.update).not.toHaveBeenCalled();
+
+    // 戻ってこられること（視野駆動が止まっていない）
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    await flush();
+    expect(viewerHandleMock.update).toHaveBeenCalledWith({
+      file: expect.anything(),
+      preserveViewport: true,
+    });
+    handle.destroy();
+  });
+
+  it('resumes viewport fetching after an explicit reload (ラッチにしない)', async () => {
+    // レイアウト計算前の窓で 1 回パンすると bboxApplied=false が返る。以後ずっと視野駆動を
+    // 使わないままだと、本機能が丸ごと無効な状態がユーザーから見えない形で固定される
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: false }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // 座標が書かれた後に再読込 → 視野駆動が戻ること
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    container.querySelector<HTMLButtonElement>('[data-am-kg-reload]')?.click();
+    await flush();
+    // 全体取得の直後の 1 通目は基準として記録するだけ（設計どおり）。2 通目で取り直す
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[3][0]).toContain('bbox=');
+    handle.destroy();
+  });
+
+  it('stops viewport fetching when the server omits bboxApplied (旧サーバ)', async () => {
+    const legacy = { ...SAMPLE } as Record<string, unknown>;
+    delete legacy['bboxApplied'];
+    fetchMock.mockResolvedValue(okResponse(legacy as unknown as KnowledgeGraphResponse));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    notify({ minX: 200, minY: 200, maxX: 250, maxY: 250 });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    handle.destroy();
+  });
+
+  it('keeps the figure when a viewport fetch fails (パン中の一時失敗で図を消さない)', async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ ...SAMPLE, bboxApplied: true }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    const viewerHost = container.querySelector<HTMLElement>('[data-am-kg-viewer]');
+    const statusEl = container.querySelector<HTMLElement>('[data-am-kg-status]');
+
+    fetchMock.mockRejectedValue(new Error('connection refused'));
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+
+    expect(viewerHost?.hidden).toBe(false);
+    expect(statusEl?.hidden).toBe(true);
+
+    // 失敗しても視野駆動が止まらないこと（loadState が ready のまま）
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    notify({ minX: 200, minY: 200, maxX: 300, maxY: 300 });
+    await flush();
+    expect(viewerHandleMock.update).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it('drops the viewport when the user changes a filter (操作は全体へ戻す)', async () => {
+    fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    const notify = viewportCallback();
+    notify({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    notify({ minX: 25, minY: 25, maxX: 75, maxY: 75 });
+    await flush();
+
+    container.querySelector<HTMLButtonElement>('[data-am-kg-reload]')?.click();
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][0]).toBe(`${SERVER_URL}/api/caravan/knowledge-graph?limit=150`);
     handle.destroy();
   });
 });

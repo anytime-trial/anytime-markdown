@@ -218,7 +218,11 @@ describe('ingestAstFacts', () => {
     const factRows = db.exec(`SELECT fact_type FROM caravan_code_facts`);
     expect(factRows[0].values[0][0]).toBe('extends');
 
-    const edgeRows = db.exec(`SELECT predicate FROM caravan_edges`);
+    // defines 辺も同時に張られるため、継承由来の辺は source_ref で特定する
+    const edgeRows = db.exec(
+      `SELECT predicate FROM caravan_edges WHERE source_ref LIKE 'code_fact:%'`
+    );
+    expect(edgeRows[0].values).toHaveLength(1);
     expect(edgeRows[0].values[0][0]).toBe('relates_to');
 
     db.close();
@@ -500,6 +504,79 @@ describe('ingestAstFacts', () => {
 
     db.close();
   });
+
+  test('Function entity には所属 File からの defines 辺が張られる', async () => {
+    const db = await makeDb();
+    const graph = makeGraph(
+      [
+        makeFileNode('src/foo.ts'),
+        makeFunctionNode('src/foo.ts#bar', 'src/foo.ts', 10),
+        makeFunctionNode('src/foo.ts#baz', 'src/foo.ts', 20),
+      ],
+      [],
+    );
+    ingestAstFacts({
+      db, repoName: REPO, graph, commitSha: COMMIT_SHA,
+      recordedAt: RECORDED_AT, logger: silentLogger,
+    });
+
+    const fileId = entityId('File', canonicalize('src/foo.ts'));
+    const rows = db.exec(
+      `SELECT subject_entity_id, object_entity_id, source_type FROM caravan_edges
+        WHERE predicate = 'defines' ORDER BY object_entity_id`
+    );
+    expect(rows[0]?.values).toHaveLength(2);
+    for (const [subject, , sourceType] of rows[0].values) {
+      expect(subject).toBe(fileId);
+      expect(sourceType).toBe('code');
+    }
+    const objects = rows[0].values.map(r => r[1] as string).sort();
+    expect(objects).toEqual([
+      entityId('Function', canonicalize(`${REPO}:src/foo.ts::src/foo.ts#bar`)),
+      entityId('Function', canonicalize(`${REPO}:src/foo.ts::src/foo.ts#baz`)),
+    ].sort());
+
+    db.close();
+  }, 30000);
+
+  test('defines 辺は再 ingest で重複しない', async () => {
+    const db = await makeDb();
+    const graph = makeGraph(
+      [makeFileNode('src/foo.ts'), makeFunctionNode('src/foo.ts#bar', 'src/foo.ts')],
+      [],
+    );
+    const countDefines = (): number =>
+      db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'defines'`)[0]
+        ?.values[0][0] as number;
+
+    const opts = { db, repoName: REPO, graph, commitSha: COMMIT_SHA, logger: silentLogger };
+    ingestAstFacts({ ...opts, recordedAt: RECORDED_AT });
+    // 総数だけを比較すると「defines 辺の生成が丸ごと消えた」回帰でも 0 === 0 で通る
+    expect(countDefines()).toBe(1);
+    const afterFirst = countEdges(db);
+    ingestAstFacts({ ...opts, recordedAt: '2026-01-02T00:00:00.000Z' });
+
+    expect(countDefines()).toBe(1);
+    expect(countEdges(db)).toBe(afterFirst);
+
+    db.close();
+  }, 30000);
+
+  test('File ノードが無い Function でも defines 元の File が current_entity_ids に入る', async () => {
+    const db = await makeDb();
+    // graph に file ノードが無いケース（internalFilePaths に載らない）
+    const graph = makeGraph([makeFunctionNode('src/only.ts#solo', 'src/only.ts')], []);
+    const result = ingestAstFacts({
+      db, repoName: REPO, graph, commitSha: null,
+      recordedAt: RECORDED_AT, logger: silentLogger,
+    });
+
+    // 追加した File を current_entity_ids へ入れないと reconciliation が soft delete する
+    expect(result.current_entity_ids.has(entityId('File', canonicalize('src/only.ts')))).toBe(true);
+    expect(countEntities(db, 'File')).toBe(1);
+
+    db.close();
+  }, 30000);
 
   test('current_entity_ids に File + Function ID が含まれる', async () => {
     const db = await makeDb();

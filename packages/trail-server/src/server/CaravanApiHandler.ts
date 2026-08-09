@@ -80,7 +80,12 @@ export interface BugCausalInfo {
  * links / clusters の数値は nodes の添字。
  */
 export interface KnowledgeGraphResponse {
-  nodes: { label: string; type: string; frequency: number }[];
+  /**
+   * `x` / `y` はサーバが全体グラフに対して計算した世界座標（`caravan_entity_layout`）。
+   * **全ノードに揃っている時だけ**クライアントはレイアウトを省略できる。1 件でも欠けると
+   * クライアント側計算へ縮退する（座標のある点と無い点が混ざった図は配置が破綻するため）。
+   */
+  nodes: { label: string; type: string; frequency: number; x?: number; y?: number }[];
   links: { a: number; b: number; strength: number }[];
   clusters: { label: string; members: number[] }[];
   /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */
@@ -89,6 +94,11 @@ export interface KnowledgeGraphResponse {
   truncated: boolean;
   /** 種別フィルタ UI の選択肢（DB に実在する全種別。フィルタの影響を受けない）。 */
   availableTypes: string[];
+  /**
+   * 要求された視野（bbox）で実際に絞ったか。座標が 1 件も無い DB では絞れないため false になる。
+   * クライアントはこれを見て「この視野は空」と「視野を無視して全体を返した」を区別する。
+   */
+  bboxApplied: boolean;
 }
 
 export interface UnaddressedReviewFindingRow {
@@ -226,6 +236,141 @@ function clampLimit(limit: number | undefined, def: number, max = 200): number {
   return Math.min(limit ?? def, max);
 }
 
+/**
+ * 知識グラフのノード選定で走査するエッジペア数の、ノード上限に対する倍率。
+ * 貪欲選択は「limit に収まらないペア」を読み飛ばして次を見るため、limit と同数の
+ * ペアだけでは埋まらないことがある。
+ *
+ * SHORTCUT: ペア走査を limit * 20 で打ち切る貪欲選択.
+ * ceiling: 上位ペアが少数のノードへ集中する形状では、走査を使い切っても limit 未満の
+ * ノード数で終わる（応答からは「そもそも繋がっていない」と区別できない）.
+ * upgrade: 下の充填未達 warn ログを観測したら、倍率を上げるかカーソル継続へ切り替える.
+ */
+const KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER = 20;
+
+/**
+ * 視野の高速経路で、`limit` の何倍のノードを候補として読むか。
+ *
+ * エッジ誘導選定は「相手が候補の中に居るペア」からしか採れないため、候補が `limit` ちょうどだと
+ * 枠が埋まらない。倍率を上げるほど埋まりやすくなるが、候補は視野内の全行を次数で整列してから
+ * 切るので読み込み量に直結する。4 は実測（合成 100,000）で枠が埋まる最小の倍率。
+ */
+const KNOWLEDGE_GRAPH_VIEWPORT_CANDIDATE_MULTIPLIER = 4;
+
+/**
+ * 知識グラフが 1 応答で返すノード数の上限。ルート側の clamp（TrailDataServer）と揃える。
+ *
+ * 制約はサーバではなくクライアント。実測（Chromium 1400x900・実データ・`drawGraph` に計測を
+ * 入れた 1 フレームの所要）:
+ *
+ * | ノード | リンク | ラベル選定改善前 | 改善後 |
+ * | ---: | ---: | ---: | ---: |
+ * | 2,000 | 8,370 | 3.9ms | 計測せず |
+ * | 5,000 | 14,378 | 11.2ms | 4.8ms |
+ * | 10,000 | 18,977 | 22.1ms | **8.5ms** |
+ * | 16,000 | 23,353 | 62.8ms | 44.3ms |
+ *
+ * 10,000 は 1 フレーム 8.5ms（120fps 相当の描画予算）で成立する。16,000 は 44.3ms（22fps）で、
+ * 残りはラベルではなくリンク・ノードの描画側（42.2ms）。ここを削るには画面外カリングと LOD が
+ * 要るため、上限は 10,000 に置く。
+ *
+ * 初回描画は別問題で、10,000 で約 3.3 秒かかる。これはレイアウト（Barnes-Hut）の同期実行が
+ * 占めており、描画方式に依存しない（WebGL の oz スキンでも 3.7 秒）。既定を 150 に据え置くのは
+ * このため。詳細は proposal/20260808-knowledge-graph-10k-rendering.ja.md。
+ *
+ * SQL 側は上限要因ではない（本番 DB のコピーで limit=20,000 でも 510ms）。
+ */
+const KNOWLEDGE_GRAPH_MAX_NODES = 10000;
+
+/**
+ * 知識グラフのノード集合を、順位付け済みのエッジペア列から貪欲に組み立てる。
+ * ペアの端点しか採らないので、返る ID はすべて少なくとも 1 本のリンクを持つ。
+ *
+ * @param pairRows `[a, b]` の 2 列。呼び出し側が重要度の降順に並べて渡す
+ * @param limit ノード数の上限
+ */
+function selectEdgeInducedNodeIds(
+  pairRows: readonly (readonly SqlValue[])[],
+  limit: number,
+): Set<string> {
+  const selected = new Set<string>();
+  for (const row of pairRows) {
+    const a = toStr(row[0]);
+    const b = toStr(row[1]);
+    const need = (selected.has(a) ? 0 : 1) + (selected.has(b) ? 0 : 1);
+    // 収まらないペアは読み飛ばす（片端が既出のペアなら後から 1 枠で入る）
+    if (need === 0 || selected.size + need > limit) continue;
+    selected.add(a);
+    selected.add(b);
+    if (selected.size >= limit) break;
+  }
+  return selected;
+}
+
+/**
+ * 知識グラフの「今見えている範囲」（`caravan_entity_layout` と同じ世界座標）。
+ * 4 辺すべてが有限値でなければ視野指定として扱わない（部分指定は片側が無限の帯になる）。
+ */
+export interface KnowledgeGraphBbox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * 有効エッジの CTE を、種別フィルタと視野で絞って組み立てる。
+ *
+ * SQL とバインド値を 1 か所で作るのは、この CTE が 4 つのクエリへ埋め込まれるため。
+ * 条件の並びとバインドの並びが別々の場所にあると、片方だけ足した時に静かに値がずれる
+ * （SQLite は位置バインドなのでエラーにならず、違う条件で絞った結果が返る）。
+ */
+function buildActiveEdgesCte(params: {
+  types: readonly string[];
+  bbox: KnowledgeGraphBbox | null;
+}): { sql: string; binds: SqlValue[] } {
+  const { types, bbox } = params;
+  const binds: SqlValue[] = [];
+  // 視野は両端に課す。片端だけで絞ると画面外へ伸びる線の相手が選定に入り込み、
+  // 「見えている範囲の上位 N」という約束が崩れる。
+  let viewportFilter = '';
+  if (bbox) {
+    viewportFilter = `
+            AND EXISTS (
+              SELECT 1 FROM caravan_entity_layout ls
+               WHERE ls.entity_id = es.id AND ls.x BETWEEN ? AND ? AND ls.y BETWEEN ? AND ?)
+            AND EXISTS (
+              SELECT 1 FROM caravan_entity_layout lo
+               WHERE lo.entity_id = eo.id AND lo.x BETWEEN ? AND ? AND lo.y BETWEEN ? AND ?)`;
+    binds.push(bbox.minX, bbox.maxX, bbox.minY, bbox.maxY);
+    binds.push(bbox.minX, bbox.maxX, bbox.minY, bbox.maxY);
+  }
+  let typeFilter = '';
+  if (types.length > 0) {
+    typeFilter = `
+            AND es.type IN (${types.map(() => '?').join(',')})
+            AND eo.type IN (${types.map(() => '?').join(',')})`;
+    binds.push(...types, ...types);
+  }
+  const sql = `
+        active AS (
+          SELECT e.subject_entity_id AS s, e.object_entity_id AS o
+          FROM caravan_edges e
+          JOIN caravan_entities es ON es.id = e.subject_entity_id
+          JOIN caravan_entities eo ON eo.id = e.object_entity_id
+          WHERE e.object_entity_id IS NOT NULL
+            AND e.subject_entity_id != e.object_entity_id
+            AND e.valid_to IS NULL
+            AND NOT EXISTS (SELECT 1 FROM caravan_edge_invalidations i WHERE i.edge_id = e.id)
+            -- soft delete されたエンティティを端点から外す。runCodeReconciliation は
+            -- valid_until を立てるだけで辺を無効化しないため、ここで見ないと削除済み
+            -- シンボルがゴーストとして図と件数に残り続ける（剥がす経路が無い）。
+            AND es.valid_until IS NULL
+            AND eo.valid_until IS NULL${viewportFilter}${typeFilter}
+        )`;
+  return { sql, binds };
+}
+
 function toBindParams(arr: unknown[]): SqlValue[] {
   return arr as SqlValue[];
 }
@@ -276,6 +421,19 @@ export class CaravanApiHandler {
    * リスナを立てる配線順序が前提（並べ替えると初回リクエストで恒久 false になりうる）。
    */
   private instructionSessionsAvailable = false;
+
+  /**
+   * `caravan_entity_layout`（migration 026）の有無。無い DB（migration 未適用・テストの
+   * 手組みスキーマ）では座標を返さず、クライアント側レイアウトへ縮退する。
+   */
+  private entityLayoutAvailable = false;
+
+  /**
+   * `caravan_entity_layout.degree`（migration 027）の有無。あるとき視野の問い合わせは
+   * `(x, y)` 索引駆動の高速経路に入る。無い DB では従来の全走査経路で答える（結果は同じで、
+   * 遅いだけ）。
+   */
+  private entityLayoutDegreeAvailable = false;
 
   /**
    * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
@@ -337,6 +495,21 @@ export class CaravanApiHandler {
       } catch (err) {
         this.instructionSessionsAvailable = false;
         this.logger.warn(`[CaravanApiHandler.openReadOnly] caravan_instruction_sessions probe failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      try {
+        const probe = this.cachedReadOnlyDb.exec(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'caravan_entity_layout'`,
+        );
+        this.entityLayoutAvailable = (probe[0]?.values.length ?? 0) > 0;
+        this.entityLayoutDegreeAvailable =
+          this.entityLayoutAvailable &&
+          (this.cachedReadOnlyDb
+            .exec(`SELECT 1 FROM pragma_table_info('caravan_entity_layout') WHERE name = 'degree'`)[0]
+            ?.values.length ?? 0) > 0;
+      } catch (err) {
+        this.entityLayoutAvailable = false;
+        this.entityLayoutDegreeAvailable = false;
+        this.logger.warn(`[CaravanApiHandler.openReadOnly] caravan_entity_layout probe failed: ${err instanceof Error ? err.message : String(err)}`);
       }
       const trailDbPath = path.join(path.dirname(this.dbPath), 'activity.db');
       if (fs.existsSync(trailDbPath)) {
@@ -1497,64 +1670,126 @@ export class CaravanApiHandler {
    *
    * DB 未設定・不在は null（「データ 0 件」と区別する。0 件は正常応答の空配列）。
    */
-  async getKnowledgeGraph(params: { limit?: number; types?: string[] }): Promise<KnowledgeGraphResponse | null> {
+  async getKnowledgeGraph(
+    params: { limit?: number; types?: string[]; bbox?: KnowledgeGraphBbox },
+  ): Promise<KnowledgeGraphResponse | null> {
     const db = this.openReadOnly();
     if (!db) return null;
     try {
-      const limit = Math.max(1, clampLimit(params.limit, 150, 500));
+      // 表・列の有無は接続の寿命で固定されるため、まだ無い間はここで引き直す。座標を返すか
+      // （bbox 指定の有無によらず）もこの判定に乗っている。
+      this.refreshLayoutCapability(db);
+      const limit = Math.max(1, clampLimit(params.limit, 150, KNOWLEDGE_GRAPH_MAX_NODES));
       // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
       const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
-      const typeFilter = types.length > 0
-        ? `AND es.type IN (${types.map(() => '?').join(',')}) AND eo.type IN (${types.map(() => '?').join(',')})`
-        : '';
-      const activeCte = `
-        active AS (
-          SELECT e.subject_entity_id AS s, e.object_entity_id AS o
-          FROM caravan_edges e
-          JOIN caravan_entities es ON es.id = e.subject_entity_id
-          JOIN caravan_entities eo ON eo.id = e.object_entity_id
-          WHERE e.object_entity_id IS NOT NULL
-            AND e.subject_entity_id != e.object_entity_id
-            AND e.valid_to IS NULL
-            AND NOT EXISTS (SELECT 1 FROM caravan_edge_invalidations i WHERE i.edge_id = e.id)
-            ${typeFilter}
-        )`;
-      const typeBinds = types.length > 0 ? [...types, ...types] : [];
-
-      const nodeResult = db.exec(
-        `WITH ${activeCte},
+      // 座標が 1 件も無い DB では視野で絞れない。無視した事実は応答の bboxApplied で返す
+      // （黙って全体を返すと、クライアントは「この視野には何も無い」と読んでしまう）。
+      const bbox = params.bbox !== undefined && this.hasStoredLayout(db) ? params.bbox : null;
+      // 次数を持つ DB では視野の問い合わせを索引駆動へ切り替える（下記メソッドのコメント参照）。
+      // 持たない DB（migration 027 未適用）は従来経路で正しく答えられるので縮退する。
+      //
+      // **種別フィルタ指定時は使わない**。保存済みの `degree` は種別を見ずに数えた値だが、
+      // 画面設計書 §2.2 は「`types` 指定時は両端がその種別に含まれるエッジだけで次数を
+      // 数える」と定めている。索引駆動へ入れると、初回取得（種別で絞った次数）と
+      // パン後（全体次数）で同じノードの円の大きさが変わる。速さより定義の一致を採る。
+      if (bbox !== null && types.length === 0 && this.entityLayoutDegreeAvailable) {
+        return this.getKnowledgeGraphInViewport(db, { limit, bbox });
+      }
+      const { sql: activeCte, binds: activeBinds } = buildActiveEdgesCte({ types, bbox });
+      const degCte = `
         deg AS (
           SELECT id, SUM(c) AS d FROM (
             SELECT s AS id, COUNT(*) AS c FROM active GROUP BY s
             UNION ALL
             SELECT o AS id, COUNT(*) AS c FROM active GROUP BY o
           ) GROUP BY id
+        )`;
+
+      // ノード選定はエッジ誘導。両端がともに重要なペア（次数の min が大きい順）から
+      // 貪欲に採り、その端点をノード集合とする。次数上位 N を先に選ぶ方式では、ハブの相手
+      // （低次数のスポーク）が全員カットラインの外へ落ちるため、ハブだけがリンク 1 本も
+      // 持たない点として図に残る。
+      // 次数の「和」ではなく「min」で並べるのは、和だと巨大ハブ 1 個とその低次数スポーク
+      // ばかりが上位を占め、図が星形 1 個（実測 150 ノード / 149 リンク）に潰れるため。
+      // min なら両端とも次数の高いペアが優先され、実測で同じ 150 ノードに 437 リンクが残る。
+      const pairResult = db.exec(
+        `WITH ${activeCte}, ${degCte},
+        pairs AS (
+          SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
+          FROM active
+          GROUP BY MIN(s, o), MAX(s, o)
         )
-        SELECT en.id, en.display_name, en.type, deg.d
+        SELECT p.a, p.b
+        FROM pairs p
+        JOIN deg dg_a ON dg_a.id = p.a
+        JOIN deg dg_b ON dg_b.id = p.b
+        ORDER BY MIN(dg_a.d, dg_b.d) DESC, p.strength DESC, p.a, p.b
+        LIMIT ?`,
+        toBindParams([...activeBinds, limit * KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER]),
+      );
+
+      const pairRows = pairResult[0]?.values ?? [];
+      const selectedIds = selectEdgeInducedNodeIds(pairRows, limit);
+      // 走査を使い切ってなお枠が埋まらなかった＝ペア走査の打ち切りが効いた可能性がある。
+      // 応答からは「繋がっているノードがそれしか無い」と区別できないのでログへ残す。
+      if (selectedIds.size < limit && pairRows.length >= limit * KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER) {
+        this.logger.warn(
+          `[CaravanApiHandler.getKnowledgeGraph] pair scan exhausted: selected=${selectedIds.size} limit=${limit} scanned=${pairRows.length}`,
+        );
+      }
+
+      // ペアが 1 つも収まらない場合（limit = 1・有効エッジ 0 本）だけ次数上位 N へ退避する。
+      // 空集合を IN 句へ渡すと 0 件になり「データが無い」と区別できなくなる。
+      // 選定 ID は件数によらずバインド 1 個（JSON 配列）で渡す。`IN (?,…)` で並べると
+      // バインド数が選定件数そのものになり、SQLITE_MAX_VARIABLE_NUMBER（32,766）を
+      // 上限引き上げ時に踏み抜く。
+      const selectedIdsJson = JSON.stringify([...selectedIds]);
+      const idFilter = selectedIds.size > 0
+        ? `WHERE en.id IN (SELECT value FROM json_each(?))`
+        : '';
+      const idBinds = selectedIds.size > 0 ? [selectedIdsJson] : [];
+      const layoutColumns = this.entityLayoutAvailable ? 'el.x, el.y' : 'NULL AS x, NULL AS y';
+      const layoutJoin = this.entityLayoutAvailable
+        ? 'LEFT JOIN caravan_entity_layout el ON el.entity_id = en.id'
+        : '';
+      const nodeResult = db.exec(
+        `WITH ${activeCte}, ${degCte}
+        SELECT en.id, en.display_name, en.type, deg.d, ${layoutColumns}
         FROM deg JOIN caravan_entities en ON en.id = deg.id
+        ${layoutJoin}
+        ${idFilter}
         ORDER BY deg.d DESC, en.id
         LIMIT ?`,
-        toBindParams([...typeBinds, limit]),
+        toBindParams([...activeBinds, ...idBinds, limit]),
       );
-      const nodeRows = (nodeResult[0]?.values ?? []).map((row) => ({
-        id: toStr(row[0]),
-        label: toStr(row[1]),
-        type: toStr(row[2]),
-        frequency: Number(row[3] ?? 0),
-      }));
+      const nodeRows = (nodeResult[0]?.values ?? []).map((row) => {
+        const x = row[4];
+        const y = row[5];
+        const hasPosition = typeof x === 'number' && typeof y === 'number';
+        return {
+          id: toStr(row[0]),
+          label: toStr(row[1]),
+          type: toStr(row[2]),
+          frequency: Number(row[3] ?? 0),
+          ...(hasPosition ? { x, y } : {}),
+        };
+      });
 
       const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
       let links: { a: number; b: number; strength: number }[] = [];
       if (nodeRows.length > 0) {
-        const idPlaceholders = nodeRows.map(() => '?').join(',');
         const ids = nodeRows.map((row) => row.id);
+        // 選定 ID は件数によらずバインド 1 個（JSON 配列）で渡す。以前は `VALUES (?),…` で
+        // 1 件 1 バインドしており、SQLITE_MAX_VARIABLE_NUMBER（32,766）が実質的な
+        // ノード数上限になっていた。json_each なら上限はバインド数ではなく JSON の長さになる。
         const linkResult = db.exec(
-          `WITH ${activeCte}
+          `WITH ${activeCte},
+          sel(id) AS (SELECT value FROM json_each(?))
           SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
           FROM active
-          WHERE s IN (${idPlaceholders}) AND o IN (${idPlaceholders})
+          WHERE s IN (SELECT id FROM sel) AND o IN (SELECT id FROM sel)
           GROUP BY MIN(s, o), MAX(s, o)`,
-          toBindParams([...typeBinds, ...ids, ...ids]),
+          toBindParams([...activeBinds, JSON.stringify(ids)]),
         );
         links = (linkResult[0]?.values ?? []).flatMap((row) => {
           const a = indexById.get(toStr(row[0]));
@@ -1571,30 +1806,23 @@ export class CaravanApiHandler {
         clustersByType.set(row.type, members);
       });
 
-      const countFilter = types.length > 0 ? `WHERE type IN (${types.map(() => '?').join(',')})` : '';
-      const totalResult = db.exec(
-        `SELECT COUNT(*) FROM caravan_entities ${countFilter}`,
-        toBindParams([...types]),
-      );
-      const totalEntityCount = Number(totalResult[0]?.values[0]?.[0] ?? 0);
-
       const connectedResult = db.exec(
         `WITH ${activeCte}
         SELECT COUNT(*) FROM (SELECT s AS id FROM active UNION SELECT o FROM active)`,
-        toBindParams([...typeBinds]),
+        toBindParams([...activeBinds]),
       );
       const connectedEntityCount = Number(connectedResult[0]?.values[0]?.[0] ?? 0);
 
-      const availableResult = db.exec(`SELECT DISTINCT type FROM caravan_entities ORDER BY type`);
-      const availableTypes = (availableResult[0]?.values ?? []).map((row) => toStr(row[0]));
-
       return {
-        nodes: nodeRows.map(({ label, type, frequency }) => ({ label, type, frequency })),
+        nodes: nodeRows.map(({ id: _id, ...node }) => node),
         links,
         clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
-        totalEntityCount,
+        totalEntityCount: this.countEntities(db, types),
+        // 視野指定時は「その視野で繋がっているノード」が分母。truncated は
+        // 「この視野にまだ出せていないノードがある」を意味する。
         truncated: nodeRows.length < connectedEntityCount,
-        availableTypes,
+        availableTypes: this.listEntityTypes(db),
+        bboxApplied: bbox !== null,
       };
     } catch (err) {
       this.logger.error(`[CaravanApiHandler.getKnowledgeGraph] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
@@ -1603,4 +1831,210 @@ export class CaravanApiHandler {
       this.close(db);
     }
   }
+
+  /**
+   * 視野（bbox）指定時の高速経路。
+   *
+   * 従来経路は「有効エッジ全件からノードの次数を数える」ところから始まるため、視野を
+   * どれだけ狭めても `caravan_edges` の全走査が残る。実測（合成 100,000 ノード /
+   * 200,000 リンク・2026-08-08）で、視野を 2% に絞っても 4.4 秒かかり、全体（2.7 秒）
+   * より遅かった（視野の条件が走査を減らさず、両端の EXISTS を足すだけだったため）。
+   *
+   * ここでは順序を逆にする。まず `caravan_entity_layout` の `(x, y)` 索引で視野内のノードを
+   * 取り、次数（migration 027 で保存済み）の降順に候補を切る。`caravan_edges` を引くのは
+   * 「候補同士のリンク」を取るときだけで、`subject_entity_id` / `object_entity_id` の索引を
+   * 使うため候補数に比例する。
+   *
+   * 選定は従来と同じエッジ誘導（ペアの端点だけを採る）で、**返るノードは必ず 1 本以上の
+   * リンクを持つ**性質を保つ。`frequency` は保存済みの全体次数で、視野を変えても同じノードの
+   * 円の大きさは変わらない（画面設計書 §2.2 の定義）。
+   */
+  private getKnowledgeGraphInViewport(
+    db: CaravanDbConnection,
+    params: { limit: number; bbox: KnowledgeGraphBbox },
+  ): KnowledgeGraphResponse {
+    const { limit, bbox } = params;
+    // 種別フィルタは受け取らない。保存済みの次数が種別を見ていないため、この経路では
+    // 画面設計書 §2.2 の定義（両端が同種別のエッジだけで数える）を満たせない。
+    // 呼び出し側が types 非空のとき従来経路へ振り分ける前提を、型でも示しておく。
+    const boxBinds: SqlValue[] = [bbox.minX, bbox.maxX, bbox.minY, bbox.maxY];
+
+    const candidateRows = db.exec(
+      `SELECT l.entity_id, en.display_name, en.type, l.degree, l.x, l.y
+         FROM caravan_entity_layout l
+         JOIN caravan_entities en ON en.id = l.entity_id
+        WHERE l.x BETWEEN ? AND ? AND l.y BETWEEN ? AND ?
+          AND en.valid_until IS NULL
+          AND l.degree > 0
+        ORDER BY l.degree DESC, l.entity_id
+        LIMIT ?`,
+      toBindParams([...boxBinds, limit * KNOWLEDGE_GRAPH_VIEWPORT_CANDIDATE_MULTIPLIER]),
+    )[0]?.values ?? [];
+
+    const candidates = candidateRows.map((row) => ({
+      id: toStr(row[0]),
+      label: toStr(row[1]),
+      type: toStr(row[2]),
+      frequency: Number(row[3] ?? 0),
+      x: Number(row[4]),
+      y: Number(row[5]),
+    }));
+    const degreeById = new Map(candidates.map((c) => [c.id, c.frequency]));
+
+    // 候補側を外側のループに固定し、`subject_entity_id` の索引で辺を引く。
+    //
+    // **`CROSS JOIN` は結合順の固定が目的**（SQLite は CROSS JOIN のテーブル順を並べ替えない）。
+    // ただの `JOIN` だと SQLite は `valid_to` の部分索引を見て辺側を外側に選び、有効エッジ
+    // 200,000 行を走査してから候補集合を照合する。実測（合成 100,000・視野 50%・候補 8,000）
+    // で **7,438ms → 46ms**。この 1 語が無いと、索引を足しても視野の絞り込みが効かない。
+    //
+    // 反対側の端点を `IN (副問い合わせ)` にするのは、SQLite が候補集合へ一時索引
+    // （bloom filter 付き）を作るため。`json_each` を 2 回結合すると索引が無い側を
+    // 舐め直すことになる。
+    const candidateIdsJson = JSON.stringify(candidates.map((c) => c.id));
+    const pairRows = candidates.length === 0 ? [] : db.exec(
+      `WITH sel(id) AS (SELECT value FROM json_each(?))
+       SELECT MIN(e.subject_entity_id, e.object_entity_id) AS a,
+              MAX(e.subject_entity_id, e.object_entity_id) AS b,
+              COUNT(*) AS strength
+         FROM sel
+         CROSS JOIN caravan_edges e ON e.subject_entity_id = sel.id
+        WHERE e.object_entity_id IN (SELECT value FROM json_each(?))
+          AND e.subject_entity_id != e.object_entity_id
+          AND e.valid_to IS NULL
+          AND NOT EXISTS (SELECT 1 FROM caravan_edge_invalidations i WHERE i.edge_id = e.id)
+        GROUP BY 1, 2`,
+      toBindParams([candidateIdsJson, candidateIdsJson]),
+    )[0]?.values ?? [];
+
+    const pairs = pairRows
+      .map((row) => ({ a: toStr(row[0]), b: toStr(row[1]), strength: Number(row[2] ?? 0) }))
+      // 従来経路と同じ順序（両端次数の min 降順 → 多重度降順 → id 昇順）。和で並べると
+      // 巨大ハブ 1 個と低次数スポークが上位を独占し、図が星形 1 個に潰れる。
+      .sort((l, r) => {
+        const lm = Math.min(degreeById.get(l.a) ?? 0, degreeById.get(l.b) ?? 0);
+        const rm = Math.min(degreeById.get(r.a) ?? 0, degreeById.get(r.b) ?? 0);
+        return rm - lm || r.strength - l.strength || l.a.localeCompare(r.a) || l.b.localeCompare(r.b);
+      });
+
+    const selectedIds = selectEdgeInducedNodeIds(pairs.map((p) => [p.a, p.b]), limit);
+    if (selectedIds.size < limit && candidates.length >= limit * KNOWLEDGE_GRAPH_VIEWPORT_CANDIDATE_MULTIPLIER) {
+      // 候補の打ち切りで枠が埋まらなかった可能性がある。応答からは「視野にそれしか無い」と
+      // 区別できないのでログへ残す（従来経路のペア走査打ち切りと同じ扱い）。
+      this.logger.warn(
+        `[CaravanApiHandler.getKnowledgeGraph] viewport candidates exhausted: selected=${selectedIds.size} limit=${limit} candidates=${candidates.length}`,
+      );
+    }
+
+    const nodes = candidates.filter((c) => selectedIds.has(c.id));
+    const indexById = new Map(nodes.map((node, i) => [node.id, i]));
+    const links = pairs.flatMap((pair) => {
+      const a = indexById.get(pair.a);
+      const b = indexById.get(pair.b);
+      if (a === undefined || b === undefined) return [];
+      return [{ a, b, strength: pair.strength }];
+    });
+
+    const clustersByType = new Map<string, number[]>();
+    nodes.forEach((node, i) => {
+      const members = clustersByType.get(node.type) ?? [];
+      members.push(i);
+      clustersByType.set(node.type, members);
+    });
+
+    // 視野の中で「エッジを持つノード」の総数。打ち切りが起きたかの分母に使う。
+    const inViewConnected = Number(
+      db.exec(
+        `SELECT COUNT(*)
+           FROM caravan_entity_layout l
+           JOIN caravan_entities en ON en.id = l.entity_id
+          WHERE l.x BETWEEN ? AND ? AND l.y BETWEEN ? AND ?
+            AND en.valid_until IS NULL
+            AND l.degree > 0`,
+        toBindParams([...boxBinds]),
+      )[0]?.values[0]?.[0] ?? 0,
+    );
+
+    return {
+      nodes: nodes.map(({ id: _id, ...node }) => node),
+      links,
+      clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
+      totalEntityCount: this.countEntities(db, []),
+      truncated: nodes.length < inViewConnected,
+      availableTypes: this.listEntityTypes(db),
+      bboxApplied: true,
+    };
+  }
+
+  /**
+   * 座標が 1 行でも保存されているか。**テーブルの有無ではなく行の有無**を見る。
+   *
+   * migration 026 を当てた直後（パイプライン初回実行前）はテーブルが在って空になる。
+   * テーブルの有無だけで視野を有効にすると、その窓では在るはずのデータが全部落ちて
+   * 「空グラフ ＋ bboxApplied: true」が返り、クライアントは「この視野には何も無い」と
+   * 読んでしまう（Codex レビュー 2026-08-08 指摘 1）。接続確立時の probe に混ぜないのは、
+   * 同じ接続を使い続けている間にパイプラインが行を書くため。
+   *
+   * 既知の限界: 「1 行でもあるか」しか見ないので、エッジ集合が変わってレイアウトが古い間は
+   * 新しいノードが座標を持たず視野に現れない。これは事前計算方式に内在する遅れで、次の
+   * パイプライン実行で解消する。
+   */
+  private hasStoredLayout(db: CaravanDbConnection): boolean {
+    this.refreshLayoutCapability(db);
+    if (!this.entityLayoutAvailable) return false;
+    try {
+      return (db.exec(`SELECT 1 FROM caravan_entity_layout LIMIT 1`)[0]?.values.length ?? 0) > 0;
+    } catch (err) {
+      this.logger.warn(
+        `[CaravanApiHandler.hasStoredLayout] probe failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * `caravan_entity_layout` と `degree` 列の有無を**まだ無い間だけ**引き直す。
+   *
+   * 接続確立時の probe は 1 回きりで、read-only 接続は daemon 停止まで生きる。migration を
+   * 当てるのは別の書き込み接続（パイプライン・LogService）なので、read-only 側が先に
+   * 確立された既存 DB では、表や列が後から生えても false のまま固まる。症状は
+   * 「座標を返さない・索引駆動に入らない」という静かな縮退で、probe 自体は成功するため
+   * ログにも出ない（Codex 指摘 1 と同じ理由が、行ではなく表・列にも当てはまる）。
+   *
+   * 一度 true になったら引き直さない（表と列は消えない）。false の間だけの片方向再評価
+   * なので、定常状態での追加コストは無い。
+   */
+  private refreshLayoutCapability(db: CaravanDbConnection): void {
+    if (this.entityLayoutDegreeAvailable) return;
+    try {
+      if (!this.entityLayoutAvailable) {
+        this.entityLayoutAvailable = (db.exec(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'caravan_entity_layout'`,
+        )[0]?.values.length ?? 0) > 0;
+      }
+      if (this.entityLayoutAvailable) {
+        this.entityLayoutDegreeAvailable = (db.exec(
+          `SELECT 1 FROM pragma_table_info('caravan_entity_layout') WHERE name = 'degree'`,
+        )[0]?.values.length ?? 0) > 0;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `[CaravanApiHandler.refreshLayoutCapability] re-probe failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */
+  private countEntities(db: CaravanDbConnection, types: readonly string[]): number {
+    const filter = types.length > 0 ? `WHERE type IN (${types.map(() => '?').join(',')})` : '';
+    const result = db.exec(`SELECT COUNT(*) FROM caravan_entities ${filter}`, toBindParams([...types]));
+    return Number(result[0]?.values[0]?.[0] ?? 0);
+  }
+
+  /** DB に実在する全種別（種別フィルタ UI の選択肢。フィルタの影響を受けない）。 */
+  private listEntityTypes(db: CaravanDbConnection): string[] {
+    const result = db.exec(`SELECT DISTINCT type FROM caravan_entities ORDER BY type`);
+    return (result[0]?.values ?? []).map((row) => toStr(row[0]));
+  }
+
 }

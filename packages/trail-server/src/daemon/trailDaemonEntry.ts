@@ -28,6 +28,11 @@ import { CodeGraphService } from '../analyze/CodeGraphService';
 import { ChatBridge } from '../caravan-chat/chatBridge';
 import { RebuildScheduler } from '../caravan-chat/rebuildScheduler';
 import { LogService } from '../services/LogService';
+import { DaemonScheduler } from '../runtime/DaemonScheduler';
+import {
+  createKnowledgeGraphLayoutJob,
+  type KnowledgeGraphLayoutJobHandle,
+} from '../pipeline/knowledgeGraphLayoutJob';
 import { createOllamaClient } from '@anytime-markdown/agent-core';
 import type { Logger } from '../runtime/Logger';
 import {
@@ -190,6 +195,11 @@ function emitAnalyzeReleaseProgress(message: string): void {
 
 /** startHttpServer() で構築した RebuildScheduler disposable。 */
 let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
+/** startHttpServer() で構築した知識グラフレイアウト job（scheduler と DB 接続を持つ）。 */
+let httpKnowledgeGraphLayout: {
+  scheduler: DaemonScheduler;
+  job: KnowledgeGraphLayoutJobHandle;
+} | null = null;
 /** startHttpServer() で構築した ChatBridge。dispose() で SQLite WAL をフラッシュする。 */
 let httpChatBridge: ChatBridge | null = null;
 /** startHttpServer() で構築した LogService 用 caravan-book.db 接続。 */
@@ -218,6 +228,7 @@ export function _resetForTest(): void {
   httpTrailDb = null;
   httpPort = null;
   httpRebuildSchedulerDisposable = null;
+  httpKnowledgeGraphLayout = null;
   httpChatBridge = null;
   httpLogLedgerDb = null;
   httpPipelineRunLedgerFactory = null;
@@ -470,6 +481,23 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     daemonLogger.info('[daemon] RebuildScheduler wired');
   }
 
+  // 知識グラフのレイアウト事前計算。DaemonScheduler は job 単位の起動遅延・間隔・多重実行防止を
+  // 持つため、RebuildScheduler のような専用クラスを増やさずここへ載せる（RebuildScheduler も
+  // 将来この scheduler へ寄せられるが、本変更では触らない）。
+  if (opts.knowledgeGraphLayout) {
+    const kgCfg = opts.knowledgeGraphLayout;
+    const layoutJob = createKnowledgeGraphLayoutJob({
+      caravanDbPath: kgCfg.caravanDbPath,
+      caravanNativeBinding: kgCfg.caravanNativeBinding,
+      intervalMs: kgCfg.intervalMs,
+      logger: daemonLoggerAsLogger.child('knowledgeGraphLayout'),
+    });
+    const scheduler = new DaemonScheduler([layoutJob.job], daemonLoggerAsLogger);
+    scheduler.start();
+    httpKnowledgeGraphLayout = { scheduler, job: layoutJob };
+    daemonLogger.info('[daemon] knowledge graph layout job wired');
+  }
+
   // ---- VS Code API 非依存コールバックの wire ----
   // onOpenDocLink / onOpenFile は VS Code API を使えないため IPC イベントとして返す。
   // extension (host) 側 (M2 で実装) がこのイベントを受けて VS Code API を呼び出す。
@@ -664,6 +692,16 @@ async function disposeAll(): Promise<void> {
   if (httpRebuildSchedulerDisposable) {
     httpRebuildSchedulerDisposable.dispose();
     httpRebuildSchedulerDisposable = null;
+  }
+  if (httpKnowledgeGraphLayout) {
+    // scheduler を先に止めてから接続を閉じる（逆順だと実行中の run が閉じた接続を触る）。
+    try {
+      await httpKnowledgeGraphLayout.scheduler.stop();
+    } catch (err) {
+      daemonLogger.error(`[daemon] knowledge graph layout scheduler stop error: ${formatError(err)}`);
+    }
+    httpKnowledgeGraphLayout.job.dispose();
+    httpKnowledgeGraphLayout = null;
   }
   if (httpChatBridge) {
     try {

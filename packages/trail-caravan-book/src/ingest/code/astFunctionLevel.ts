@@ -235,6 +235,114 @@ function upsertLibraryEntity(
   return eId;
 }
 
+/** 個別にエラーログを出す `defines` 辺の失敗件数の上限（超過分はサマリ 1 行へ畳む）。 */
+const DEFINES_ERROR_LOG_LIMIT = 3;
+
+/**
+ * Insert the File → Function ownership edge. Idempotent via the deterministic
+ * edge ID.
+ *
+ * `quiet` suppresses the per-node error log once the caller has already emitted
+ * enough of them; the caller still receives 'failed' and reports the total.
+ */
+function insertDefinesEdge(
+  db: CaravanDbConnection,
+  fileEntityId: string,
+  functionEntityId: string,
+  nodeId: string,
+  recordedAt: string,
+  opts: { logger: CaravanLogger; quiet: boolean }
+): 'inserted' | 'duplicate' | 'failed' {
+  const eId = astEdgeId(fileEntityId, 'defines', functionEntityId);
+  try {
+    db.run(
+      `INSERT INTO caravan_edges
+         (id, subject_entity_id, predicate, object_entity_id,
+          valid_from, recorded_at, source_type, source_ref,
+          confidence, confidence_label, modality)
+       VALUES (?, ?, 'defines', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+       ON CONFLICT(id) DO NOTHING`,
+      [eId, fileEntityId, functionEntityId, recordedAt, recordedAt, `ast_node:${nodeId}`]
+    );
+    return db.getRowsModified() > 0 ? 'inserted' : 'duplicate';
+  } catch (err) {
+    if (!opts.quiet) {
+      opts.logger.error(
+        `[anytime-memory] astFunctionLevel: failed to insert defines edge node="${nodeId}"`,
+        err
+      );
+    }
+    return 'failed';
+  }
+}
+
+/**
+ * Upsert a Function entity for every function / class / interface node, plus the
+ * File that owns it, and connect them with a `defines` edge.
+ *
+ * Without that edge a Function is never an endpoint of any edge — `call` and
+ * `inheritance` edges are folded up to file granularity — so it would be isolated
+ * in the graph from the moment it is created.
+ *
+ * Mutates `currentEntityIds`. The Function must be in the set or
+ * `runCodeReconciliation` soft-deletes it on the next pass. The owning File is added
+ * defensively: File rows are written without `repo_name` by every ingest path today,
+ * and reconciliation scans `WHERE repo_name = ?`, so Files are currently out of its
+ * reach — but that is an accident of the writers, not a guarantee. Registering the id
+ * here means filling `repo_name` later cannot silently start deleting live Files.
+ */
+function ingestSymbolNodes(input: {
+  db: CaravanDbConnection;
+  repoName: string;
+  graph: TrailGraph;
+  recordedAt: string;
+  logger: CaravanLogger;
+  currentEntityIds: Set<string>;
+}): { function_entities_upserted: number; edges_inserted: number } {
+  const { db, repoName, graph, recordedAt, logger, currentEntityIds } = input;
+  const stats = { function_entities_upserted: 0, edges_inserted: 0 };
+  // 失敗要因はたいてい全ノード共通（migration 025 未適用で predicate の FK が全件 violate 等）
+  // なので、個別ログは先頭数件に絞り、残りは末尾のサマリ 1 行に畳む。
+  let definesFailed = 0;
+
+  for (const node of graph.nodes) {
+    if (node.type !== 'function' && node.type !== 'class' && node.type !== 'interface') {
+      continue;
+    }
+    const fnEntityId = upsertFunctionEntity(
+      db,
+      repoName,
+      node.filePath,
+      node.label,
+      node.parent,
+      recordedAt,
+      logger,
+    );
+    currentEntityIds.add(fnEntityId);
+    stats.function_entities_upserted += 1;
+
+    // file ノードがグラフに無い Function もあるため、ここで File も upsert する。
+    const ownerFileId = upsertFileEntity(db, node.filePath, recordedAt, logger);
+    currentEntityIds.add(ownerFileId);
+    const result = insertDefinesEdge(db, ownerFileId, fnEntityId, node.id, recordedAt, {
+      logger,
+      quiet: definesFailed >= DEFINES_ERROR_LOG_LIMIT,
+    });
+    if (result === 'inserted') stats.edges_inserted += 1;
+    if (result === 'failed') definesFailed += 1;
+  }
+
+  if (definesFailed > 0) {
+    logger.error(
+      `[anytime-memory] astFunctionLevel: defines edge insert failed for ${definesFailed} node(s) ` +
+        `(repo="${repoName}"). caravan_relation_types に 'defines' が無い（migration 025 未適用）可能性`,
+      new Error('defines edge insert failures'),
+    );
+  }
+
+  return stats;
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 type EdgeMeta = { factType: 'imports' | 'calls' | 'extends'; predicate: 'depends_on' | 'relates_to' };
@@ -286,23 +394,12 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
     nodeById.set(node.id, node);
   }
 
-  // ── Upsert Function entities for function / class / interface nodes ──────
-  for (const node of graph.nodes) {
-    if (node.type !== 'function' && node.type !== 'class' && node.type !== 'interface') {
-      continue;
-    }
-    const fnEntityId = upsertFunctionEntity(
-      db,
-      repoName,
-      node.filePath,
-      node.label,
-      node.parent,
-      recordedAt,
-      logger,
-    );
-    currentEntityIds.add(fnEntityId);
-    stats.function_entities_upserted += 1;
-  }
+  // ── Upsert Function entities and their owning File ───────────────────────
+  const symbolStats = ingestSymbolNodes({
+    db, repoName, graph, recordedAt, logger, currentEntityIds,
+  });
+  stats.function_entities_upserted += symbolStats.function_entities_upserted;
+  stats.edges_inserted += symbolStats.edges_inserted;
 
   // ── Process edges ─────────────────────────────────────────────────────────
   for (const edge of graph.edges) {
