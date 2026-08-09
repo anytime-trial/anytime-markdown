@@ -281,8 +281,10 @@ export async function runConversationFailedItemsRetry(opts: {
     items_processed: 0,
     entities_inserted: 0,
     entities_updated: 0,
+    entities_suppressed: 0,
     edges_inserted: 0,
     edges_invalidated: 0,
+    edges_suppressed: 0,
     items_failed: 0,
   };
   let recoveredCount = 0;
@@ -400,8 +402,10 @@ export async function runConversationFailedItemsRetry(opts: {
           });
           totals.entities_inserted += persisted.entities_inserted;
           totals.entities_updated += persisted.entities_updated;
+          totals.entities_suppressed += persisted.entities_suppressed;
           totals.edges_inserted += persisted.edges_inserted;
           totals.edges_invalidated += persisted.edges_invalidated;
+          totals.edges_suppressed += persisted.edges_suppressed;
           deleteFailedItem(db, item.scope, item.item_key);
           recoveredCount += 1;
         } catch (err) {

@@ -7,7 +7,7 @@ import {
   type SearchResult,
   type SearchEntity,
 } from '../retrieve/searchCaravanBook';
-import { isLowInformationEntity } from '../retrieve/entityQuality';
+import { isLowInformationEntity } from '../canonical/entityQuality';
 import { tokenizeForFts5 } from './tokenizeForFts5';
 import { reciprocalRankFusion, type RankSource } from './reciprocalRankFusion';
 

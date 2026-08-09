@@ -37,8 +37,10 @@ export interface BackfillResult {
   items_skipped: number;
   entities_inserted: number;
   entities_updated: number;
+  entities_suppressed: number;
   edges_inserted: number;
   edges_invalidated: number;
+  edges_suppressed: number;
   items_failed: number;
 }
 
@@ -227,8 +229,10 @@ export async function runConversationBackfill(opts: {
     items_skipped: 0,
     entities_inserted: 0,
     entities_updated: 0,
+    entities_suppressed: 0,
     edges_inserted: 0,
     edges_invalidated: 0,
+    edges_suppressed: 0,
     items_failed: 0,
   };
 
@@ -384,8 +388,10 @@ export async function runConversationBackfill(opts: {
           const s = episodeResult.stats;
           totals.entities_inserted += s.entities_inserted;
           totals.entities_updated += s.entities_updated;
+          totals.entities_suppressed += s.entities_suppressed;
           totals.edges_inserted += s.edges_inserted;
           totals.edges_invalidated += s.edges_invalidated;
+          totals.edges_suppressed += s.edges_suppressed;
         }
       }
 

@@ -1,4 +1,4 @@
-import { isLowInformationEntity } from '../../src/retrieve/entityQuality';
+import { isLowInformationEntity } from '../../src/canonical/entityQuality';
 
 describe('isLowInformationEntity', () => {
   test('Q1: 空・空白のみの display_name は低情報', () => {

@@ -3,6 +3,7 @@ import type { CaravanDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { Episode } from '../../canonical/splitEpisodes';
+import { isLowInformationEntity } from '../../canonical/entityQuality';
 import type { ExtractionResult } from './extractFacts';
 import { applySingleActiveRule } from '../../invalidate/ruleBased';
 import type { CaravanLogger } from '../../logger';
@@ -10,8 +11,18 @@ import type { CaravanLogger } from '../../logger';
 export interface PersistStats {
   entities_inserted: number;
   entities_updated: number;
+  entities_suppressed: number;
   edges_inserted: number;
   edges_invalidated: number;
+  edges_suppressed: number;
+}
+
+/**
+ * 取込時点のエンティティは summary を持たない（summary は後付け）ため、
+ * entityQuality の summary レスキューは常に発動させず名前だけで判定する。
+ */
+function isSuppressedName(name: string): boolean {
+  return isLowInformationEntity(name, '');
 }
 
 function edgeId(
@@ -48,8 +59,10 @@ export function persistEpisodeFacts(opts: {
   const stats: PersistStats = {
     entities_inserted: 0,
     entities_updated: 0,
+    entities_suppressed: 0,
     edges_inserted: 0,
     edges_invalidated: 0,
+    edges_suppressed: 0,
   };
 
   const epId = episodeId(episode.session_id, episode.message_uuid_start);
@@ -84,6 +97,10 @@ export function persistEpisodeFacts(opts: {
   const entityIdMap = new Map<string, string>(); // key = "type:canonicalName" → entityId
 
   for (const ent of extracted.entities) {
+    if (isSuppressedName(ent.name)) {
+      stats.entities_suppressed += 1;
+      continue;
+    }
     const canonName = canonicalize(ent.name);
     const eId = entityId(ent.type, canonName);
     const mapKey = `${ent.type}:${canonName}`;
@@ -139,6 +156,12 @@ export function persistEpisodeFacts(opts: {
 
   // ── 3. Insert edges for relations ────────────────────────────────────────
   for (const rel of extracted.relations) {
+    // 端点のどちらかが低情報なら、端点の auto-upsert ごとエッジを捨てる
+    // （片端だけ残すとどの実体とも接続しない孤立ノードを生む）。
+    if (isSuppressedName(rel.subject.name) || isSuppressedName(rel.object.name)) {
+      stats.edges_suppressed += 1;
+      continue;
+    }
     const subjectCanon = canonicalize(rel.subject.name);
     const objectCanon = canonicalize(rel.object.name);
     const subjectMapKey = `${rel.subject.type}:${subjectCanon}`;
@@ -246,6 +269,10 @@ export function persistEpisodeFacts(opts: {
 
   // ── 5. Handle questions ──────────────────────────────────────────────────
   for (const q of extracted.questions ?? []) {
+    if (isSuppressedName(q.text)) {
+      stats.entities_suppressed += 1;
+      continue;
+    }
     const qCanon = canonicalize(q.text);
     const qId = entityId('Question', qCanon);
     const qMapKey = `Question:${qCanon}`;

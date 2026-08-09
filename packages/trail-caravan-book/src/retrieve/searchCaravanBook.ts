@@ -2,7 +2,7 @@ import type { CaravanDbConnection, SqlValue } from '../db/connection/types';
 import { toUint8ArrayOrNull } from '../db/connection/blobUtil';
 import { decodeEmbedding } from '../embedding/codec';
 import { cosineSimilarity } from '../embedding/cosine';
-import { isLowInformationEntity } from './entityQuality';
+import { isLowInformationEntity } from '../canonical/entityQuality';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 export interface SearchInput {
