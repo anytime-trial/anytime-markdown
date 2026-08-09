@@ -11,6 +11,7 @@
 
 // DB / logger
 export { openCaravanBookDb } from '../db/connection';
+export { attachTrailDbReadOnly } from '../db/attach';
 export type { CaravanBookDb, OpenCaravanBookDbOptions } from '../db/connection';
 export { noopLogger } from '../logger';
 export type { CaravanLogger } from '../logger';
@@ -38,6 +39,10 @@ export type {
   UpsertCommunitySummariesResult,
   ListCommunitiesOptions,
 } from '../retrieve/communitySummaries';
+
+// 計画コンテキスト（U2b）
+export { getPlanContext, packPlanContext, collectPlanContext, estimateTokens } from '../retrieve/getPlanContext';
+export type { GetPlanContextInput, PlanContextResult, PlanContextSections } from '../retrieve/getPlanContext';
 
 // バグ履歴
 export { getBugCausality } from '../retrieve/getBugCausality';
