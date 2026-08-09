@@ -17,6 +17,8 @@ export interface GetBugCausalityInput {
 
 export interface BugCausalityCard {
   bug: { id: string; display_name: string; package: string; category: string; committed_at: string };
+  /** 修正が触ったファイル（先頭 3 件。file_path 起点の照合と再発調査の足がかり） */
+  affected_files: string[];
   fix_commit: { sha: string; subject: string; why: string | null };
   introduced_commit: { sha: string; inferred: true } | null;
   root_cause_episode: { id: string; excerpt: string } | null;
@@ -114,9 +116,11 @@ export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityI
     const sameCategoryCount = Number(catRows[0]?.values?.[0]?.[0] ?? 0);
 
     let sameFileBugCount = 0;
+    let affectedFiles: string[] = [];
     try {
       const parsed: unknown = JSON.parse(affectedJson);
       const files = Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
+      affectedFiles = files.slice(0, 3);
       if (files.length > 0) {
         const likeConds = files.map(() => `affected_file_paths_json LIKE ?`).join(' OR ');
         const fileRows = db.exec(
@@ -148,6 +152,7 @@ export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityI
 
     cards.push({
       bug: { id: bugEntityId, display_name: bugDisplayName, package: pkg, category, committed_at: committedAt },
+      affected_files: affectedFiles,
       fix_commit: {
         sha: commitSha,
         subject,

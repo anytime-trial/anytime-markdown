@@ -6,10 +6,10 @@
  *   cp <TRAIL_HOME>/db/caravan-book.db <TRAIL_HOME>/db/caravan-book.db.before-causality
  *
  * 使い方:
- *   node --experimental-strip-types scripts/run-causality-backfill.mts \
+ *   npx tsx scripts/run-causality-backfill.mts \
  *     <TRAIL_HOME> <repoName> <repoRoot> [--skip-introduced] [--introduced-limit=N]
  * 例:
- *   node --experimental-strip-types scripts/run-causality-backfill.mts \
+ *   npx tsx scripts/run-causality-backfill.mts \
  *     /anytime-markdown/.anytime/trail anytime-markdown /anytime-markdown
  */
 import * as path from 'node:path';

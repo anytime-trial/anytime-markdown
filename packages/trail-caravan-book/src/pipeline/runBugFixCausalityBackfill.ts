@@ -2,6 +2,7 @@ import type { CaravanDbConnection } from '../db/connection/types';
 import { extractCommitBody } from '../ingest/bug-history/extractCommitBody';
 import { relinkNullRootCauseEpisodes } from '../ingest/bug-history/linkRootCauseEpisode';
 import { inferIntroducedBy } from '../ingest/bug-history/inferIntroducedBy';
+import { backfillBugFixWorkspace } from './runBugHistoryIncremental';
 import { entityId } from '../canonical/entityId';
 import { noopLogger, type CaravanLogger } from '../logger';
 
@@ -40,6 +41,11 @@ export function runBugFixCausalityBackfill(opts: {
   const logger = opts.logger ?? noopLogger;
   const startMs = Date.now();
   let failures = 0;
+
+  // ── 0. workspace 列の充填 ────────────────────────────────────────────────
+  // 本番実測で 1,362 / 1,369 行が workspace='' のまま残っていた。以降の各段は
+  // workspace = repoName で絞るため、先に埋めないと既存行が全て対象外になる。
+  backfillBugFixWorkspace(db, repoName, logger);
 
   // ── 1. body_excerpt: attach 済み activity.db のコミット本文から充填 ──────
   let bodyFilled = 0;

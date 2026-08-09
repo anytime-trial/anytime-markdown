@@ -87,7 +87,7 @@ interface CommitRow {
  * 実質 1 度きりで、以降は 0 件更新になる。失敗しても取込本体は続ける
  * （選択肢の欠けは表示の劣化であって、取込を止める理由にならない）。
  */
-function backfillBugFixWorkspace(db: CaravanDbConnection, repoName: string, logger: CaravanLogger): void {
+export function backfillBugFixWorkspace(db: CaravanDbConnection, repoName: string, logger: CaravanLogger): void {
   try {
     db.run(
       `UPDATE caravan_bug_fixes
