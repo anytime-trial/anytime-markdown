@@ -4,7 +4,7 @@
  *
  * 由来: cross-review 合意指摘(2026-07-18)。substr によるパッケージ名抽出・
  * pragma_table_info による列存在分岐・HAVING c >= 2 のクラスタ閾値は
- * 壊れても既存テストでは検知できない。列定義は memory-core migration
+ * 壊れても既存テストでは検知できない。列定義は trail-caravan-book migration
  * 015_checklist_ref.sql と同期する。
  */
 const { spawnSync } = require('node:child_process');
@@ -32,12 +32,12 @@ function runGroundingQuality(setup) {
 // grounding が参照する列のみ持つ最小 caravan-book.db を <ws>/.anytime/trail/db に作る。
 // 他の quality クエリはテーブル不在で失敗するが q() が errors に積んで続行する。
 // activity.db は DB_DIR 解決（activity.db の存在で候補ディレクトリを確定する）のために空で置く。
-function writeMemoryDb(ws, { withColumn, rows }) {
+function writeCaravanDb(ws, { withColumn, rows }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
   new DatabaseSync(path.join(dbDir, 'activity.db')).close();
   const db = new DatabaseSync(path.join(dbDir, 'caravan-book.db'));
-  db.exec(`CREATE TABLE memory_review_findings (
+  db.exec(`CREATE TABLE caravan_review_findings (
     id TEXT PRIMARY KEY,
     category TEXT,
     severity TEXT,
@@ -49,11 +49,11 @@ function writeMemoryDb(ws, { withColumn, rows }) {
   for (const row of rows) {
     const recordedAt = row.recorded_at ?? new Date().toISOString();
     if (withColumn) {
-      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL,?,?)').run(
+      db.prepare('INSERT INTO caravan_review_findings VALUES (?,?,?,?,NULL,?,?)').run(
         `f${i++}`, row.category, 'info', row.file ?? null, recordedAt, row.checklist_ref ?? null,
       );
     } else {
-      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL,?)').run(
+      db.prepare('INSERT INTO caravan_review_findings VALUES (?,?,?,?,NULL,?)').run(
         `f${i++}`, row.category, 'info', row.file ?? null, recordedAt,
       );
     }
@@ -64,16 +64,16 @@ function writeMemoryDb(ws, { withColumn, rows }) {
 describe('grounding.cjs 観点キー集計', () => {
   test("checklist_ref='none' の 2 件以上のカテゴリ×パッケージ束だけがクラスタになる", () => {
     const quality = runGroundingQuality((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         rows: [
-          { category: 'logic', file: 'packages/memory-core/src/a.ts', checklist_ref: 'none' },
-          { category: 'logic', file: 'packages/memory-core/src/b.ts', checklist_ref: 'none' },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/a.ts', checklist_ref: 'none' },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/b.ts', checklist_ref: 'none' },
           // 1 件のみの束は HAVING c >= 2 で除外される
           { category: 'perf', file: 'packages/web-app/src/c.ts', checklist_ref: 'none' },
           // 'none' 以外（章あり・未記録）は集計対象外
-          { category: 'logic', file: 'packages/memory-core/src/d.ts', checklist_ref: '§14' },
-          { category: 'logic', file: 'packages/memory-core/src/e.ts', checklist_ref: null },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/d.ts', checklist_ref: '§14' },
+          { category: 'logic', file: 'packages/trail-caravan-book/src/e.ts', checklist_ref: null },
           // P4: 章別 30 日窓 — 窓内の章あり指摘が checklistByRef30d に入り、窓外は除外
           { category: 'perf', file: 'packages/web-app/src/f.ts', checklist_ref: '§14' },
           {
@@ -89,7 +89,7 @@ describe('grounding.cjs 観点キー集計', () => {
     expect(quality.checklistNone).toBe(3);
     expect(quality.checklistRefRecorded).toBe(7);
     expect(quality.checklistNoneClusters).toEqual([
-      { category: 'logic', package: 'memory-core', count: 2 },
+      { category: 'logic', package: 'trail-caravan-book', count: 2 },
     ]);
     // 窓内: §14 は d.ts + f.ts の 2 件（g.ts は 40 日前で窓外）、§12 は 1 件
     expect(quality.checklistByRef30d).toEqual([
@@ -100,7 +100,7 @@ describe('grounding.cjs 観点キー集計', () => {
 
   test("packages/*/* に一致しないパスと NULL パスは '(unknown)' に束ねる", () => {
     const quality = runGroundingQuality((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         rows: [
           { category: 'other', file: 'src/foo.ts', checklist_ref: 'none' },
@@ -115,9 +115,9 @@ describe('grounding.cjs 観点キー集計', () => {
 
   test('checklist_ref 列が無い（未マイグレーション）DB では null に縮退し誤った 0 を出さない', () => {
     const quality = runGroundingQuality((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: false,
-        rows: [{ category: 'logic', file: 'packages/memory-core/src/a.ts' }],
+        rows: [{ category: 'logic', file: 'packages/trail-caravan-book/src/a.ts' }],
       }),
     );
     expect(quality.checklistNone).toBeNull();

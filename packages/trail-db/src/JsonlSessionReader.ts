@@ -2,7 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { TrailMessage, TrailToolCall } from '@anytime-markdown/trail-core';
+import type { TrailMessage, TrailToolCall } from '@anytime-markdown/trail-activity';
 
 import { codexMessageUuid, extractCodexSessionId } from './codexMessageUuid';
 
@@ -53,7 +53,7 @@ export class JsonlSessionReader {
     }
 
     // uuid は取り込み経路（TrailDatabase.normalizeCodexRecords）と一致させる必要がある。
-    // 不一致だと message_commits.message_uuid が実在しない行を指し、FK OFF のため
+    // 不一致だと activity_message_commits.message_uuid が実在しない行を指し、FK OFF のため
     // orphan として静かに蓄積する。fallback の導出も取り込み側と同じ規則に揃える。
     const fallbackSessionId = path.basename(filePath).replace(/\.jsonl$/i, '');
     const normalized = JsonlSessionReader.normalizeRecords(rawRecords, fallbackSessionId);

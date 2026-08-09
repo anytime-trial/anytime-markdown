@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import type {
   DateRange,
   QualityMetrics,
   ReleaseQualityBucket,
-} from '@anytime-markdown/trail-core/domain/metrics';
+} from '@anytime-markdown/trail-activity/domain/metrics';
 
 // ---------------------------------------------------------------------------
 // Types

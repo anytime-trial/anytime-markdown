@@ -53,16 +53,16 @@ describe('AlignmentApiHandler', () => {
       runGit(['config', 'user.name', 'Dev'], root);
     }
 
-    fs.mkdirSync(path.join(codeRoot, 'packages', 'trail-core', 'src'), { recursive: true });
-    fs.writeFileSync(path.join(codeRoot, 'packages', 'trail-core', 'package.json'), '{"name":"trail-core"}');
-    fs.writeFileSync(path.join(codeRoot, 'packages', 'trail-core', 'src', 'api.ts'), 'export const a = 1;\n');
+    fs.mkdirSync(path.join(codeRoot, 'packages', 'trail-activity', 'src'), { recursive: true });
+    fs.writeFileSync(path.join(codeRoot, 'packages', 'trail-activity', 'package.json'), '{"name":"trail-activity"}');
+    fs.writeFileSync(path.join(codeRoot, 'packages', 'trail-activity', 'src', 'api.ts'), 'export const a = 1;\n');
     runGit(['add', '.'], codeRoot);
     runGit(['commit', '-m', 'init'], codeRoot);
 
     fs.mkdirSync(path.join(docsRoot, 'spec'), { recursive: true });
     fs.writeFileSync(
-      path.join(docsRoot, 'spec', 'trail-core.ja.md'),
-      ['---', 'title: "S"', 'c4Scope: ["pkg_trail-core"]', '---', '# S', ''].join('\n'),
+      path.join(docsRoot, 'spec', 'trail-activity.ja.md'),
+      ['---', 'title: "S"', 'c4Scope: ["pkg_trail-activity"]', '---', '# S', ''].join('\n'),
     );
     runGit(['add', '.'], docsRoot);
     runGit(['commit', '-m', 'init docs'], docsRoot);
@@ -91,7 +91,7 @@ describe('AlignmentApiHandler', () => {
 
   it('ignores repository paths supplied by the caller and uses the server-configured roots', async () => {
     fs.appendFileSync(
-      path.join(codeRoot, 'packages', 'trail-core', 'src', 'api.ts'),
+      path.join(codeRoot, 'packages', 'trail-activity', 'src', 'api.ts'),
       Array.from({ length: 30 }, (_, i) => `export const v${i} = ${i};`).join('\n'),
     );
 
@@ -104,7 +104,7 @@ describe('AlignmentApiHandler', () => {
     const report = captured.body as { scope: string; findings: { status: string; specPath: string | null }[] };
     expect(report.scope).toBe('worktree');
     expect(report.findings).toEqual([
-      expect.objectContaining({ status: 'stale', specPath: 'spec/trail-core.ja.md' }),
+      expect.objectContaining({ status: 'stale', specPath: 'spec/trail-activity.ja.md' }),
     ]);
   });
 
@@ -158,7 +158,7 @@ describe('AlignmentApiHandler', () => {
   });
 
   it('honours minAddedLines by skipping changes below the threshold', async () => {
-    fs.appendFileSync(path.join(codeRoot, 'packages', 'trail-core', 'src', 'api.ts'), 'const small = 1;\n');
+    fs.appendFileSync(path.join(codeRoot, 'packages', 'trail-activity', 'src', 'api.ts'), 'const small = 1;\n');
 
     const captured = await call(createHandler(), 'scope=worktree&minAddedLines=100');
 

@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -61,7 +61,7 @@
     "packages/code-analysis-core",
     "packages/code-analysis-typescript",
     "packages/code-analysis-python",
-    "packages/trail-core",
+    "packages/trail-activity",
     "packages/trail-db",
     "packages/tickets-core",
     "packages/tickets-viewer",
@@ -72,8 +72,8 @@
     "packages/trace-core",
     "packages/trace-agent-node",
     "packages/trace-viewer",
-    "packages/memory-core",
-    "packages/doc-core",
+    "packages/trail-caravan-book",
+    "packages/markdown-catalog",
     "packages/llm-core",
     "packages/ollama-core",
     "packages/agent-core",

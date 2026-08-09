@@ -1,4 +1,4 @@
-import type { PrReviewFindingInput } from '@anytime-markdown/memory-core';
+import type { PrReviewFindingInput } from '@anytime-markdown/trail-caravan-book';
 
 /**
  * finding の severity / category を分類する任意のフック (LLM 等)。
@@ -19,7 +19,7 @@ export interface PrReviewFindingSource {
   }[];
 }
 
-/** `ingestPrReview` (memory-core) の CHECK 制約に含まれるカテゴリ集合。 */
+/** `ingestPrReview` (trail-caravan-book) の CHECK 制約に含まれるカテゴリ集合。 */
 const VALID_CATEGORIES = new Set<string>([
   'design', 'a11y', 'security', 'perf', 'naming', 'spec', 'logic', 'other',
 ]);
@@ -33,8 +33,8 @@ function toCategory(raw: string | null | undefined): PrReviewFindingInput['categ
 }
 
 /**
- * PR review の body + 行コメントから `ingestPrReview` (memory-core) 向けの finding 入力を
- * 抽出する純粋関数 (Step 5: memory_reviews / memory_review_findings への付け替え)。
+ * PR review の body + 行コメントから `ingestPrReview` (trail-caravan-book) 向けの finding 入力を
+ * 抽出する純粋関数 (Step 5: caravan_reviews / caravan_review_findings への付け替え)。
  *
  * - 行コメントがあれば各コメントを 1 finding にする (file_path / line_number 付き)
  * - 行コメントが無く、CHANGES_REQUESTED で body があれば body を 1 finding にする

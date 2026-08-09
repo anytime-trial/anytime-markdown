@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 
-import type { AlignmentFinding, AlignmentReport } from '@anytime-markdown/trail-core';
+import type { AlignmentFinding, AlignmentReport } from '@anytime-markdown/trail-activity';
 import * as vscode from 'vscode';
 
 export type AlignmentNodeKind = 'element' | 'group' | 'spec' | 'file' | 'message';

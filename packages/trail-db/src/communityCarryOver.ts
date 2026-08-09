@@ -2,7 +2,7 @@
  * コードグラフコミュニティの引き継ぎ計算。
  *
  * 背景:
- *  current_code_graph_communities.mappings_json は (repo_name, community_id) をキーに保存される。
+ *  activity_current_code_graph_communities.mappings_json は (repo_name, community_id) をキーに保存される。
  *  Louvain クラスタリング結果が変わると community_id が再採番され、旧行は DELETE / 新行は NULL で INSERT
  *  されてしまうため、AI 付与した name / summary / mappings_json が機械的に失われる。
  *
@@ -10,7 +10,7 @@
  *  1. **stable_key 完全一致**（ノード集合コンテンツハッシュ）: コード無変更 / リネームのみのケースで即継承
  *  2. **ジャッカード類似度フォールバック**: コード差分でノード集合が部分的に変わったケースで類似度上位を引き継ぎ
  *
- * stable_key は packages/trail-core/src/codeGraph.ts の `computeStableKey` で算出される。
+ * stable_key は packages/trail-activity/src/codeGraph.ts の `computeStableKey` で算出される。
  */
 
 /** 旧スナップショット（書き込み前に DB から読み出した行）。 */

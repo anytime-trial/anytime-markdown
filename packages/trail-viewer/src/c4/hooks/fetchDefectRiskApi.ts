@@ -1,4 +1,4 @@
-import type { DefectRiskEntry } from '@anytime-markdown/trail-core';
+import type { DefectRiskEntry } from '@anytime-markdown/trail-activity';
 
 export type DefectRiskFetchParams = {
   windowDays?: number;

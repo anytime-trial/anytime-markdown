@@ -7,9 +7,9 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   moduleNameMapper: {
-    '^@anytime-markdown/memory-core$': '<rootDir>/../memory-core/src/index.ts',
-    '^@anytime-markdown/doc-core$': '<rootDir>/../doc-core/src/index.ts',
-    '^@anytime-markdown/trail-core$': '<rootDir>/../trail-core/src/index.ts',
+    '^@anytime-markdown/trail-caravan-book$': '<rootDir>/../trail-caravan-book/src/index.ts',
+    '^@anytime-markdown/markdown-catalog$': '<rootDir>/../markdown-catalog/src/index.ts',
+    '^@anytime-markdown/trail-activity$': '<rootDir>/../trail-activity/src/index.ts',
   },
   globals: {
     'ts-jest': {

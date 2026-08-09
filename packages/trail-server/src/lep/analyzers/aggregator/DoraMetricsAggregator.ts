@@ -2,7 +2,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type {
   DoraCommitInput,
   DoraMetricRow,
@@ -30,8 +30,8 @@ export interface DoraMetricsAggregatorOptions {
 }
 
 /**
- * Layer 4 (Aggregator) Analyzer: 既存 activity.db データ (releases / session_commits) のみから
- * DORA 指標 (deployment frequency / lead time) を月次集計し `dora_metrics` に洗い替えで書き込む。
+ * Layer 4 (Aggregator) Analyzer: 既存 activity.db データ (releases / activity_session_commits) のみから
+ * DORA 指標 (deployment frequency / lead time) を月次集計し `activity_dora_metrics` に洗い替えで書き込む。
  *
  * - tier=4 / inputMode='self-read': 新規 raw データは取り込まず、既存テーブルを読んで横断指標を算出
  * - `wave_start:derived` (Wave 4 開始) を購読し、その時点で算出する
@@ -51,7 +51,7 @@ export class DoraMetricsAggregator implements Analyzer {
 
   constructor(private readonly opts: DoraMetricsAggregatorOptions) {}
 
-  /** 直近 run で書き込んだ dora_metrics の行数 (= repo × period 数)。 */
+  /** 直近 run で書き込んだ activity_dora_metrics の行数 (= repo × period 数)。 */
   getPeriodsComputed(): number {
     return this.periodsComputed;
   }

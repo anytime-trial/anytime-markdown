@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import {
   DEFAULT_LEP_CONFIG,
   LepConfigError,
-  disabledMemoryAnalyzerIds,
+  disabledCaravanAnalyzerIds,
   ensureLepConfigFile,
   legacyFromConfigJson,
   loadLepConfig,
@@ -70,10 +70,10 @@ describe('validateLepConfigInput', () => {
 
   it('extracts known analyzer toggles', () => {
     const { value } = validateLepConfigInput(
-      { analyzers: { CodeMemoryAnalyzer: { enabled: false } } },
+      { analyzers: { CodeCaravanAnalyzer: { enabled: false } } },
       'test',
     );
-    expect(value.analyzers).toEqual({ CodeMemoryAnalyzer: { enabled: false } });
+    expect(value.analyzers).toEqual({ CodeCaravanAnalyzer: { enabled: false } });
   });
 
   it('recognizes Layer 4 aggregator toggles without warning', () => {
@@ -211,20 +211,20 @@ describe('validateLepConfigInput', () => {
   });
 });
 
-describe('disabledMemoryAnalyzerIds', () => {
+describe('disabledCaravanAnalyzerIds', () => {
   it('returns empty when all analyzers enabled (default)', () => {
-    expect(disabledMemoryAnalyzerIds(DEFAULT_LEP_CONFIG)).toEqual([]);
+    expect(disabledCaravanAnalyzerIds(DEFAULT_LEP_CONFIG)).toEqual([]);
   });
 
   it('returns ids with enabled:false', () => {
     const cfg = mergeLepConfig(DEFAULT_LEP_CONFIG, {
       analyzers: {
-        ConversationMemoryAnalyzer: { enabled: false },
+        ConversationCaravanAnalyzer: { enabled: false },
         EmbeddingBackfillAnalyzer: { enabled: false },
       },
     });
-    expect(disabledMemoryAnalyzerIds(cfg).sort()).toEqual([
-      'ConversationMemoryAnalyzer',
+    expect(disabledCaravanAnalyzerIds(cfg).sort()).toEqual([
+      'ConversationCaravanAnalyzer',
       'EmbeddingBackfillAnalyzer',
     ]);
   });
@@ -317,10 +317,10 @@ describe('mergeLepConfig', () => {
 
   it('merges analyzers per-id (unspecified ids preserved)', () => {
     const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, {
-      analyzers: { ConversationMemoryAnalyzer: { enabled: false } },
+      analyzers: { ConversationCaravanAnalyzer: { enabled: false } },
     });
-    expect(merged.analyzers['ConversationMemoryAnalyzer']).toEqual({ enabled: false });
-    expect(merged.analyzers['CodeMemoryAnalyzer']).toEqual({ enabled: true });
+    expect(merged.analyzers['ConversationCaravanAnalyzer']).toEqual({ enabled: false });
+    expect(merged.analyzers['CodeCaravanAnalyzer']).toEqual({ enabled: true });
   });
 
   it('overrides sources.gitRoots and memory leaves, preserving the rest', () => {
@@ -545,7 +545,7 @@ describe('serializeLepConfigWithComments', () => {
       'test',
     );
     const merged = mergeLepConfig(DEFAULT_LEP_CONFIG, value);
-    expect(disabledMemoryAnalyzerIds(merged)).toContain('ReleaseResolver');
+    expect(disabledCaravanAnalyzerIds(merged)).toContain('ReleaseResolver');
     // serializer に注釈が出る
     const json = serializeLepConfigWithComments(merged);
     const parsed = JSON.parse(json) as { analyzers: Record<string, { _comment?: string }> };

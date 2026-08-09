@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { detectDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { DriftEventSummary } from '@anytime-markdown/memory-core/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { detectDrift, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { DriftEventSummary } from '@anytime-markdown/trail-caravan-book/query';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const DetectDriftInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -17,7 +17,7 @@ export const DetectDriftInputSchema = z.object({
 export type DetectDriftInput = z.infer<typeof DetectDriftInputSchema>;
 
 export async function handleDetectDrift(input: DetectDriftInput): Promise<DriftEventSummary[]> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return detectDrift({ db: memHandle.db, ...input, logger });

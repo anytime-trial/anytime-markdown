@@ -1,4 +1,4 @@
-import type { ActivityTrend, TrendPeriod } from '@anytime-markdown/trail-core/c4';
+import type { ActivityTrend, TrendPeriod } from '@anytime-markdown/trail-activity/c4';
 
 export type ActivityTrendGranularity = 'commit' | 'session' | 'subagent' | 'defect';
 

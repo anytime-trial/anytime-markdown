@@ -4,8 +4,8 @@
  * - Node.js（VS Code 拡張 on WSL）: system TZ が UTC のため
  *   process.env.TZ → Intl 解決値（UTC でない場合）→ Asia/Tokyo の順で優先する
  *
- * 同等の実装が trail-core/src/formatDate.ts にもあるが、vscode-common は
- * trail-core に依存しない（拡張のバンドルサイズを増やさない）ため独立に持つ。
+ * 同等の実装が trail-activity/src/formatDate.ts にもあるが、vscode-common は
+ * trail-activity に依存しない（拡張のバンドルサイズを増やさない）ため独立に持つ。
  */
 export function resolveLocalTimeZone(): string {
   // 規約の既定は `typeof window !== 'undefined'` だが、本パッケージの tsconfig は

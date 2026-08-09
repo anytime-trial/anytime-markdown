@@ -1,4 +1,4 @@
-import type { CodeGraphNodeDiffStatus } from '@anytime-markdown/trail-core/codeGraphDiff';
+import type { CodeGraphNodeDiffStatus } from '@anytime-markdown/trail-activity/codeGraphDiff';
 
 /**
  * State Replay（前版との差分）の配色。

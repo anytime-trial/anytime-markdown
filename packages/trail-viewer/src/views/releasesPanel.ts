@@ -5,8 +5,8 @@
  * Mirrors the React `components/ReleasesPanel.tsx` without any React/MUI dependency.
  */
 import { createChip, createSelect, createTooltip, createInputLabel } from '@anytime-markdown/ui-core';
-import { formatLocalDate } from '@anytime-markdown/trail-core/formatDate';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import { formatLocalDate } from '@anytime-markdown/trail-activity/formatDate';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import { getReleaseTableColumns } from '../components/releaseColumns';
 import { formatReleaseStepDisplay } from '../components/releaseStepDisplay';

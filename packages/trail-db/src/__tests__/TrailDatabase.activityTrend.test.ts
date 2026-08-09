@@ -17,11 +17,11 @@ const insertSessionCommit = (
   commitMessage: string | null = null,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
   inner(db).run(
-    `INSERT OR IGNORE INTO session_commits (session_id, commit_hash, committed_at, commit_message)
+    `INSERT OR IGNORE INTO activity_session_commits (session_id, commit_hash, committed_at, commit_message)
      VALUES (?, ?, ?, ?)`,
     [sessionId, hash, committedAt, commitMessage ?? ''],
   );
@@ -29,7 +29,7 @@ const insertSessionCommit = (
 
 const insertCommitFile = (db: TrailDatabase, hash: string, filePath: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO commit_files (commit_hash, file_path) VALUES (?, ?)`,
+    `INSERT OR IGNORE INTO activity_commit_files (commit_hash, file_path) VALUES (?, ?)`,
     [hash, filePath],
   );
 };
@@ -42,11 +42,11 @@ const insertMessage = (
   subagentType: string | null = null,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [sessionId, sessionId],
   );
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, subagent_type)
+    `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, subagent_type)
      VALUES (?, ?, 'assistant', ?, ?)`,
     [uuid, sessionId, timestamp, subagentType],
   );
@@ -62,7 +62,7 @@ const insertToolCall = (
   timestamp: string,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
        session_id, message_uuid, turn_index, call_index, tool_name, file_path, timestamp
      ) VALUES (?, ?, 0, ?, ?, ?, ?)`,
     [sessionId, messageUuid, callIndex, toolName, filePath, timestamp],
@@ -229,18 +229,18 @@ describe('TrailDatabase.fetchActivityTrendRows', () => {
   test('subagent granularity includes codex-linked sessions as "codex"', () => {
     // CC parent session + delegation marker
     inner(db).run(
-      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('cc1', 'cc1', '0', '', '', '2026-04-25T10:00:00.000Z', '2026-04-25T11:00:00.000Z', 0, '', 0, '', 'claude_code')`,
+      `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('cc1', 'cc1', '0', '', '', '2026-04-25T10:00:00.000Z', '2026-04-25T11:00:00.000Z', 0, '', 0, '', 'claude_code')`,
     );
     inner(db).run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp, source_tool_assistant_uuid)
+      `INSERT INTO activity_messages (uuid, session_id, type, timestamp, source_tool_assistant_uuid)
        VALUES ('cc1-child', 'cc1', 'assistant', '2026-04-25T10:01:00.000Z', 'p-uuid')`,
     );
     // codex session in same repo, time-overlapping
     inner(db).run(
-      `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex1', 'codex1', '0', '', '', '2026-04-25T10:02:00.000Z', '2026-04-25T10:05:00.000Z', 0, '', 0, '', 'codex')`,
+      `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex1', 'codex1', '0', '', '', '2026-04-25T10:02:00.000Z', '2026-04-25T10:05:00.000Z', 0, '', 0, '', 'codex')`,
     );
     inner(db).run(
-      `INSERT INTO messages (uuid, session_id, type, timestamp)
+      `INSERT INTO activity_messages (uuid, session_id, type, timestamp)
        VALUES ('cm1', 'codex1', 'assistant', '2026-04-25T10:03:00.000Z')`,
     );
     insertToolCall(db, 'cm1', 'codex1', 'Edit', 'a.ts', 0, '2026-04-25T10:03:00.000Z');

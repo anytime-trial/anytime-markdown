@@ -5,7 +5,7 @@ import type { Node } from 'web-tree-sitter';
 import { createPythonParser } from './PythonParser';
 import { discoverPythonFiles } from './PythonProjectAnalyzer';
 
-/** trail-core の FileCategory と同形（逆依存回避のためローカル定義）。 */
+/** trail-activity の FileCategory と同形（逆依存回避のためローカル定義）。 */
 export type PythonFileCategory = 'ui' | 'logic' | 'excluded';
 
 const TEST_FILE_RE = /^(test_.*|.*_test)\.py$/;
@@ -30,7 +30,7 @@ const UI_FRAMEWORKS = new Set([
  * Python ファイルを ui / logic / excluded に分類する。
  * root（tree-sitter ルート）を渡すと import ベースの UI 判定も行う。
  * 渡さない場合は filename / path のみで判定する（import 由来の ui は logic 扱い）。
- * TS の classifyFile（trail-core・ts.SourceFile 専用）の Python 版。
+ * TS の classifyFile（trail-activity・ts.SourceFile 専用）の Python 版。
  */
 export function classifyPythonFile(relPath: string, root?: Node): PythonFileCategory {
   const normalized = relPath.replaceAll('\\', '/');

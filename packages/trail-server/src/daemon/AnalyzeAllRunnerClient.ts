@@ -2,7 +2,7 @@
 // daemon 内の実 AnalyzeAllRunner を操作する。BaseRunner の public API と互換性を持つ
 // (extension / TrailDataServer 両方の使用方法に追従)。
 
-import type { RunnerStatus } from '@anytime-markdown/memory-core';
+import type { RunnerStatus } from '@anytime-markdown/trail-caravan-book';
 
 import type { TrailDaemonHost } from './TrailDaemonHost';
 import type { RunReason, SerializableAnalyzeAllConfig } from './trailDaemonProtocol';
@@ -13,7 +13,7 @@ export class AnalyzeAllRunnerClient {
     private readonly config: SerializableAnalyzeAllConfig,
   ) {}
 
-  /** daemon 内で MemoryCoreService + AnalyzeAllRunner を組み立てる。最初の一度だけ呼ぶ。 */
+  /** daemon 内で CaravanBookService + AnalyzeAllRunner を組み立てる。最初の一度だけ呼ぶ。 */
   async configure(): Promise<void> {
     await this.host.call('configure', this.config);
   }

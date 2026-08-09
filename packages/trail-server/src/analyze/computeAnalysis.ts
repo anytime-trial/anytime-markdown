@@ -1,7 +1,7 @@
-import { analyzeWithProgram } from '@anytime-markdown/trail-core/analyze';
-import { loadAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
+import { analyzeWithProgram } from '@anytime-markdown/trail-activity/analyze';
+import { loadAnalyzeExclude } from '@anytime-markdown/trail-activity/analyzeExclude';
 import { classifyPythonFiles } from '@anytime-markdown/code-analysis-python';
-import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
+import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
 import { computeImportance } from './computeImportance';
 import type { AnalyzeChildRequest, AnalyzeComputeResult, DecisionComment } from './analyzeChildProtocol';
 
@@ -38,7 +38,7 @@ export async function computeAnalysis(
     warnings.push('importance computation returned null');
   }
 
-  const { classifyAllFiles } = await import('@anytime-markdown/trail-core/classify');
+  const { classifyAllFiles } = await import('@anytime-markdown/trail-activity/classify');
   const categoryByFile = classifyAllFiles(
     program,
     analysisRoot,
@@ -61,7 +61,7 @@ export async function computeAnalysis(
     warnings.push(`python importance failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // decision comment（WHY/RATIONALE/理由）抽出。memory-core は typescript を持たないため、
+  // decision comment（WHY/RATIONALE/理由）抽出。trail-caravan-book は typescript を持たないため、
   // ts.Program を持つ本プロセス（analyze-child）で走査し結果を返す（trail-db 経由で memory が読む）。
   let decisionComments: DecisionComment[] | undefined;
   if (req.includeDecisionComments) {

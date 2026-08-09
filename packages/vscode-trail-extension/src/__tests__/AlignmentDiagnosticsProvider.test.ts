@@ -1,4 +1,4 @@
-import type { AlignmentReport } from '@anytime-markdown/trail-core';
+import type { AlignmentReport } from '@anytime-markdown/trail-activity';
 import { DiagnosticSeverity, languages } from 'vscode';
 
 import type { FakeDiagnosticCollection } from '../__mocks__/vscode';
@@ -26,9 +26,9 @@ describe('AlignmentDiagnosticsProvider', () => {
     const summary = provider.render(buildReport([
       {
         status: 'unknown',
-        elementId: 'pkg_trail-core',
-        specPath: 'spec/31.trail/trail-core.ja.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        elementId: 'pkg_trail-activity',
+        specPath: 'spec/31.trail/trail-activity.ja.md',
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'commits missing from activity.db',
       },
     ]));
@@ -54,9 +54,9 @@ describe('AlignmentDiagnosticsProvider', () => {
     const summary = provider.render(buildReport([
       {
         status: 'stale',
-        elementId: 'pkg_trail-core',
-        specPath: 'spec/31.trail/trail-core.ja.md',
-        changedFiles: ['packages/trail-core/src/a.ts', 'packages/trail-core/src/b.ts'],
+        elementId: 'pkg_trail-activity',
+        specPath: 'spec/31.trail/trail-activity.ja.md',
+        changedFiles: ['packages/trail-activity/src/a.ts', 'packages/trail-activity/src/b.ts'],
         reason: 'not updated',
       },
     ]));
@@ -71,14 +71,14 @@ describe('AlignmentDiagnosticsProvider', () => {
 
     const entries = lastCollection().entries();
     expect(entries.map(([uri]) => uri)).toEqual([
-      '/anytime-markdown/packages/trail-core/src/a.ts',
-      '/anytime-markdown/packages/trail-core/src/b.ts',
+      '/anytime-markdown/packages/trail-activity/src/a.ts',
+      '/anytime-markdown/packages/trail-activity/src/b.ts',
     ]);
 
     const [, diagnostics] = entries[0];
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].severity).toBe(DiagnosticSeverity.Warning);
-    expect(diagnostics[0].message).toContain('spec/31.trail/trail-core.ja.md');
+    expect(diagnostics[0].message).toContain('spec/31.trail/trail-activity.ja.md');
     expect(diagnostics[0].code).toBe('alignment.stale');
   });
 
@@ -88,9 +88,9 @@ describe('AlignmentDiagnosticsProvider', () => {
 
     const summary = provider.render(buildReport(specPaths.map((specPath) => ({
       status: 'stale' as const,
-      elementId: 'pkg_trail-core',
+      elementId: 'pkg_trail-activity',
       specPath,
-      changedFiles: ['packages/trail-core/src/a.ts'],
+      changedFiles: ['packages/trail-activity/src/a.ts'],
       reason: 'not updated',
     }))));
 
@@ -110,16 +110,16 @@ describe('AlignmentDiagnosticsProvider', () => {
     const summary = provider.render(buildReport([
       {
         status: 'stale',
-        elementId: 'pkg_trail-core',
+        elementId: 'pkg_trail-activity',
         specPath: 'spec/a.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'not updated',
       },
       {
         status: 'undocumented',
         elementId: 'pkg_new-package',
         specPath: null,
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'no spec',
       },
     ]));
@@ -169,9 +169,9 @@ describe('AlignmentDiagnosticsProvider', () => {
     provider.render(buildReport([
       {
         status: 'stale',
-        elementId: 'pkg_trail-core',
+        elementId: 'pkg_trail-activity',
         specPath: 'spec/a.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'not updated',
       },
     ]));

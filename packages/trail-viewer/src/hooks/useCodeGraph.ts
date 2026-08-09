@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 export interface UseCodeGraphResult {
   graph: CodeGraph | null;

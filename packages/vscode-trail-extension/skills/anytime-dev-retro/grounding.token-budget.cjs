@@ -7,7 +7,7 @@
  * `claude -p` / cron でも完走する。
  *
  * 着眼(RC2): Opus メインの超長大セッションが /clear・/compact なしで継続し cache_read が
- * 「文脈サイズ×ターン数」で二乗膨張する。session_costs(per session×model・estimated_cost_usd)と
+ * 「文脈サイズ×ターン数」で二乗膨張する。activity_session_costs(per session×model・estimated_cost_usd)と
  * sessions(message_count / peak_context_tokens / compact_count 等)を突合し、
  * 「高コスト × compact 未使用」のセッション衛生を定量化する。
  *
@@ -74,7 +74,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
   const { db, error } = open('activity.db');
   if (error) snapshot.errors.push(error);
 
-  // ── モデル別コスト(session_costs が正準・estimated_cost_usd 算出済み) ──────────
+  // ── モデル別コスト(activity_session_costs が正準・estimated_cost_usd 算出済み) ──────────
   const byModel = rows(
     q(
       db,
@@ -83,7 +83,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
               ROUND(SUM(estimated_cost_usd), 2) cost,
               SUM(cache_read_tokens) cache_read,
               SUM(output_tokens) output
-       FROM session_costs
+       FROM activity_session_costs
        GROUP BY model
        ORDER BY cost DESC`,
     ),
@@ -99,7 +99,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
   const totalCacheRead = byModel.reduce((s, r) => s + r.cacheRead, 0);
 
   // ── 料金表未登録モデルの検知（新モデル追加の主トリガ・proposal/20260719-model-pricing-accuracy）──
-  // 既知 family は trail-core pricing.ts の MODEL_PRICING と同期する（fail-visible: pricing.ts に
+  // 既知 family は trail-activity pricing.ts の MODEL_PRICING と同期する（fail-visible: pricing.ts に
   // family を足してここが古いままなら誤検知として浮上し、沈黙はしない）。
   // 部分一致にするのは、再集計前の旧 DB にフル ID キー（claude-fable-5 等）が残るため。
   // '<synthetic>' 等の番兵値と空は旧 DB の残骸のため対象外。
@@ -120,8 +120,8 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
               SUM(sc.cache_read_tokens) cache_read,
               s.message_count, s.peak_context_tokens, s.compact_count,
               s.sub_agent_count, s.git_branch, s.start_time, s.model
-       FROM session_costs sc
-       LEFT JOIN sessions s ON s.id = sc.session_id
+       FROM activity_session_costs sc
+       LEFT JOIN activity_sessions s ON s.id = sc.session_id
        GROUP BY sc.session_id
        ORDER BY cost DESC
        LIMIT 15`,
@@ -155,7 +155,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
       db,
       `SELECT COUNT(*) c FROM (
          SELECT sc.session_id, SUM(sc.estimated_cost_usd) cost
-         FROM session_costs sc GROUP BY sc.session_id HAVING cost >= ?)`,
+         FROM activity_session_costs sc GROUP BY sc.session_id HAVING cost >= ?)`,
       [EXPENSIVE_COST_USD],
     ),
     'c',
@@ -165,7 +165,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
       db,
       `SELECT COUNT(*) c FROM (
          SELECT sc.session_id, SUM(sc.estimated_cost_usd) cost, s.compact_count
-         FROM session_costs sc LEFT JOIN sessions s ON s.id = sc.session_id
+         FROM activity_session_costs sc LEFT JOIN activity_sessions s ON s.id = sc.session_id
          GROUP BY sc.session_id HAVING cost >= ?)
        WHERE COALESCE(compact_count, 0) = 0`,
       [EXPENSIVE_COST_USD],
@@ -173,13 +173,13 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
     'c',
   );
   const longSessions = num(
-    q(db, 'SELECT COUNT(*) c FROM sessions WHERE message_count >= ?', [LONG_SESSION_MSGS]),
+    q(db, 'SELECT COUNT(*) c FROM activity_sessions WHERE message_count >= ?', [LONG_SESSION_MSGS]),
     'c',
   );
   const longNoCompact = num(
     q(
       db,
-      'SELECT COUNT(*) c FROM sessions WHERE message_count >= ? AND COALESCE(compact_count, 0) = 0',
+      'SELECT COUNT(*) c FROM activity_sessions WHERE message_count >= ? AND COALESCE(compact_count, 0) = 0',
       [LONG_SESSION_MSGS],
     ),
     'c',
@@ -207,8 +207,8 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
                 ROUND(AVG(COALESCE(s.compact_count, 0)), 1) avg_compacts,
                 ROUND(AVG(COALESCE(s.message_count, 0))) avg_messages,
                 ROUND(AVG(COALESCE(s.peak_context_tokens, 0))) avg_peak_context
-         FROM sessions s
-         JOIN (SELECT session_id, SUM(estimated_cost_usd) cost FROM session_costs GROUP BY session_id) t
+         FROM activity_sessions s
+         JOIN (SELECT session_id, SUM(estimated_cost_usd) cost FROM activity_session_costs GROUP BY session_id) t
            ON t.session_id = s.id
          WHERE s.start_time >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?)
            AND s.start_time <  strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?)
@@ -234,7 +234,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
       `SELECT strftime('%G-W%V', datetime(s.start_time, ?)) week,
               ROUND(SUM(sc.estimated_cost_usd), 2) cost,
               COUNT(DISTINCT sc.session_id) sessions
-       FROM session_costs sc JOIN sessions s ON s.id = sc.session_id
+       FROM activity_session_costs sc JOIN activity_sessions s ON s.id = sc.session_id
        WHERE s.start_time IS NOT NULL AND s.start_time != ''
        GROUP BY week ORDER BY week DESC LIMIT 8`,
       [JST_OFFSET],
@@ -244,7 +244,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
     num(
       q(
         db,
-        `SELECT SUM(sc.estimated_cost_usd) c FROM session_costs sc JOIN sessions s ON s.id = sc.session_id
+        `SELECT SUM(sc.estimated_cost_usd) c FROM activity_session_costs sc JOIN activity_sessions s ON s.id = sc.session_id
          WHERE s.start_time >= datetime('now', '-7 days')`,
       ),
       'c',
@@ -254,7 +254,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
     num(
       q(
         db,
-        `SELECT SUM(sc.estimated_cost_usd) c FROM session_costs sc JOIN sessions s ON s.id = sc.session_id
+        `SELECT SUM(sc.estimated_cost_usd) c FROM activity_session_costs sc JOIN activity_sessions s ON s.id = sc.session_id
          WHERE s.start_time >= datetime('now', '-14 days') AND s.start_time < datetime('now', '-7 days')`,
       ),
       'c',

@@ -1,4 +1,4 @@
-import type { C4Element } from '@anytime-markdown/trail-core/c4';
+import type { C4Element } from '@anytime-markdown/trail-activity/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
 import { functionAnalysisEntriesForElement } from '../functionAnalysisEntriesForElement';
 

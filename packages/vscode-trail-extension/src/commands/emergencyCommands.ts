@@ -4,11 +4,11 @@
 //   発動中は Claude Code の Edit/Write/Bash が PreToolUse フックで遮断される。
 // - ロールバックは非破壊（`git switch -c recover-<sha>`）。stash → reset --hard は
 //   要件定義で却下済み（緊急時ほど誤操作被害が大きい）。
-// - 記録（safe_points / emergency_log）は daemon の HTTP API へ POST する。
+// - 記録（activity_safe_points / activity_emergency_log）は daemon の HTTP API へ POST する。
 //   daemon 未起動時は主効果（台帳・ブランチ操作）を優先し、記録失敗は警告のみ。
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 
 import {
   clearEmergencyState,

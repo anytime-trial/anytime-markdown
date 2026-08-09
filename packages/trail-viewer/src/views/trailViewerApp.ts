@@ -12,7 +12,7 @@
  */
 
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
-import type { DocLink } from '@anytime-markdown/trail-core/c4';
+import type { DocLink } from '@anytime-markdown/trail-activity/c4';
 import type { SourceLocation } from '@anytime-markdown/trace-core/types';
 import type { TrailLocale } from '../i18n';
 import { getTokens } from '../theme/designTokens';
@@ -20,9 +20,9 @@ import { createTrailDataStore } from '../hooks/stores/trailDataStore';
 import { createC4DataStore } from '../c4/hooks/stores/c4DataStore';
 import { createTraceFilesStore } from '../hooks/stores/traceFilesStore';
 
-import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '@anytime-markdown/trail-core/commitCategories';
-import { DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_CATEGORY_LABELS, resolveToolCategory } from '@anytime-markdown/trail-core/toolCategories';
-import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS, resolveSkillCategory } from '@anytime-markdown/trail-core/skillCategories';
+import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '@anytime-markdown/trail-activity/commitCategories';
+import { DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_CATEGORY_LABELS, resolveToolCategory } from '@anytime-markdown/trail-activity/toolCategories';
+import { DEFAULT_SKILL_CATEGORIES, DEFAULT_SKILL_CATEGORY_LABELS, resolveSkillCategory } from '@anytime-markdown/trail-activity/skillCategories';
 
 import type { TrailFilter } from '../domain/parser/types';
 import type { ElementFormData, RelationshipFormData } from '../c4/components/dialogs/C4EditDialogs';
@@ -151,7 +151,7 @@ export function mountTrailViewerApp(
   let c4Enabled = false;
   let promptsEnabled = false;
 
-  // ── Chat bridge（Chat タブ初回訪問で遅延生成。旧 MemoryPanel の useChatBridge 相当） ──
+  // ── Chat bridge（Chat タブ初回訪問で遅延生成。旧 CaravanPanel の useChatBridge 相当） ──
   let chatBridgeStore: ChatBridgeStore | null = null;
 
   // ── Category state ──
@@ -351,7 +351,7 @@ export function mountTrailViewerApp(
         }
         if (isChatTab(tab)) {
           // Chat タブ初回訪問で ChatBridge を生成し WS 接続する（これが無いと Chat タブが
-          // 常時「接続不可」になる。旧 MemoryPanel の useChatBridge(serverUrl) 相当）。
+          // 常時「接続不可」になる。旧 CaravanPanel の useChatBridge(serverUrl) 相当）。
           ensureChatBridge();
         }
       },
@@ -422,7 +422,7 @@ export function mountTrailViewerApp(
     });
   }
 
-  /** Memory タブ初回訪問で ChatBridge を生成する（一度だけ。WS 接続 + 再描画）。 */
+  /** Caravan タブ初回訪問で ChatBridge を生成する（一度だけ。WS 接続 + 再描画）。 */
   function ensureChatBridge(): void {
     if (chatBridgeStore || destroyed) return;
     chatBridgeStore = createChatBridge(props.serverUrl, notifyUpdate);

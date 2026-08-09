@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-//  makeMockLogger — P2 以降のテストで TrailDataServer / MemoryApiHandler に渡す
+//  makeMockLogger — P2 以降のテストで TrailDataServer / CaravanApiHandler に渡す
 //  軽量モック Logger。各テストファイルの冒頭で import せずにグローバル関数として使用可能。
 // ---------------------------------------------------------------------------
 export function makeMockLogger() {

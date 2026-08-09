@@ -1,9 +1,10 @@
 /**
- * 検証実施台帳（activity.db の verification_runs）の共有アクセス層（writer 正本）。
+ * 検証実施台帳（activity.db の activity_verification_runs）の共有アクセス層（writer 正本）。
  *
- * 保存先は activity.db — Flight Record の指示（instructions / instruction_sessions）と同じ DB に
+ * 保存先は activity.db — Flight Record の指示（caravan_instructions / caravan_instruction_sessions。
+ * 2026-08-07 に caravan-book.db へ移設済み）と session_id で結合できる位置に
  * 置くことで、session_id 経由で「どの指示で何を検証したか」を結合できる。
- * スキーマの正本は packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS で、
+ * スキーマの正本は packages/trail-activity/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS で、
  * 本ファイルはその **ミラー**（.mjs から TS を import できないため）。片方だけ変えないこと。
  * 読み取り側（packages/mcp-trail/src/tools/verificationStatus.ts）は SELECT のみで作成しない。
  * 提案: /Shared/anytime-markdown-docs/proposal/20260706-verification-run-db.ja.md
@@ -33,7 +34,7 @@ const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claud
  *
  * 基点は `git rev-parse --git-common-dir` の親であって `--show-toplevel` ではない。worktree
  * では toplevel が worktree 自身を指すため、そこを根にすると **worktree ごとに空の activity.db が
- * 新規作成され**、指示（instructions / instruction_sessions）のある本体の台帳には 1 行も
+ * 新規作成され**、指示（instructions / caravan_instruction_sessions）のある本体の台帳には 1 行も
  * 入らない。検証を回したセッションは本体の指示に属するので、書き先も本体へ寄せる。
  * git 管理下でなければ与えられた根（既定 cwd）へ縮退する。
  */
@@ -79,13 +80,13 @@ export function resolveTrailDbPath(workspaceRoot) {
 const TS_GLOB_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z'`;
 const TS_GLOB_NO_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z'`;
 
-// packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS のミラー。
+// packages/trail-activity/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS のミラー。
 // activity.db 側の _migrations（key TEXT PRIMARY KEY）は使わない — verification.db 時代の
 // (version INTEGER, applied_at TEXT) とは形が非互換で、触ると拡張のマイグレーション記録を壊す。
 // 追記のみ・冪等な DDL なのでバージョン管理表を持たずに済む。
 // SHORTCUT: 保持期間 prune 未実装. ceiling: 1 検証=1 行の追記のみで増加は緩やか. upgrade: フェーズ2 の dev-retro 連携導入時に保持方針を決めて prune を実装.
 export const SCHEMA_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS verification_runs (
+  `CREATE TABLE IF NOT EXISTS activity_verification_runs (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL DEFAULT '',
   workspace_path TEXT NOT NULL DEFAULT '',
@@ -101,13 +102,13 @@ export const SCHEMA_STATEMENTS = [
   started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
   finished_at TEXT NOT NULL CHECK (finished_at GLOB ${TS_GLOB_MS} OR finished_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`,
-  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON verification_runs(session_id, started_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON verification_runs(package, code_state_hash)`,
-  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON verification_runs(started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON activity_verification_runs(session_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON activity_verification_runs(package, code_state_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON activity_verification_runs(started_at)`,
 ];
 
 /**
- * activity.db を開いて verification_runs を用意したコネクションを返す。`:memory:` はテスト用。
+ * activity.db を開いて activity_verification_runs を用意したコネクションを返す。`:memory:` はテスト用。
  *
  * journal_mode は設定しない: activity.db は拡張が WAL で開いている共有 DB で、モード変更は
  * 他プロセスの接続を巻き込む。foreign_keys は node:sqlite の既定が ON だが、activity.db は
@@ -119,6 +120,26 @@ export function openVerificationLedger(dbPath) {
   }
   const db = new DatabaseSync(dbPath, { enableForeignKeyConstraints: false });
   db.exec('PRAGMA busy_timeout = 5000');
+  // テーブル名接頭辞移行（2026-08-08）: 本スクリプトは拡張と独立した writer のため、
+  // TrailDatabase が未改名の DB へ先に書くと、旧 verification_runs の履歴を残したまま
+  // 新名の空テーブルを作ってしまう（cross-review 指摘）。旧名実在かつ新名不在なら
+  // SCHEMA_STATEMENTS（IF NOT EXISTS）より先に改名する（存在ガードで冪等）。
+  const prefixNames = new Set(
+    db
+      .prepare(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('verification_runs', 'activity_verification_runs')`,
+      )
+      .all()
+      .map((r) => r.name),
+  );
+  if (prefixNames.has('verification_runs') && !prefixNames.has('activity_verification_runs')) {
+    db.exec('ALTER TABLE verification_runs RENAME TO activity_verification_runs');
+  } else if (prefixNames.has('verification_runs') && prefixNames.has('activity_verification_runs')) {
+    // どちらが正か機械決定できないため自動マージしない（split-brain の可視化のみ）
+    console.warn(
+      `[verification-db] legacy verification_runs coexists with activity_verification_runs at ${dbPath}; manual consolidation required (rows in the legacy table are not read)`,
+    );
+  }
   for (const sql of SCHEMA_STATEMENTS) db.exec(sql);
   return db;
 }
@@ -136,7 +157,7 @@ export function recordRun(db, run) {
   }
   const codeStateHash = run.treeState === 'clean' ? run.commitHash : null;
   db.prepare(
-    `INSERT INTO verification_runs
+    `INSERT INTO activity_verification_runs
      (session_id, workspace_path, kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, environment, started_at, finished_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
@@ -163,7 +184,7 @@ export function recordRun(db, run) {
 export function queryVerifiedKinds(db, { packageName, codeStateHash }) {
   const rows = db
     .prepare(
-      `SELECT kind, command, started_at FROM verification_runs
+      `SELECT kind, command, started_at FROM activity_verification_runs
        WHERE package = ? AND code_state_hash = ? AND status = 'pass' ORDER BY started_at`,
     )
     .all(packageName, codeStateHash);
@@ -189,5 +210,5 @@ export function listRuns(db, { commitHash, sinceIso, untilIso } = {}) {
     args.push(untilIso);
   }
   const where = cond.length > 0 ? `WHERE ${cond.join(' AND ')}` : '';
-  return db.prepare(`SELECT * FROM verification_runs ${where} ORDER BY started_at`).all(...args);
+  return db.prepare(`SELECT * FROM activity_verification_runs ${where} ORDER BY started_at`).all(...args);
 }

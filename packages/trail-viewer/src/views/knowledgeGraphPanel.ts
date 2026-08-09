@@ -1,11 +1,13 @@
 /**
- * knowledgeGraphPanel — 知識グラフタブ（memory-core の知識グラフを共起ネットワークで表示）。
+ * knowledgeGraphPanel — 知識グラフタブ（trail-caravan-book の知識グラフを共起ネットワークで表示）。
  *
  * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md
  *
  * 設計の要点:
- *   - 取得はタブ初回訪問時と操作（種別 / 件数 / 再読込）時のみ。ポーリングしない
- *     （知識グラフの更新は分〜時間単位で、常時ポーリングに見合わない。設計書 §3.2）。
+ *   - 取得はタブ初回訪問時と操作（種別 / 件数 / 再読込）時、および視野が落ち着いた時のみ。
+ *     ポーリングしない（知識グラフの更新は分〜時間単位で、常時ポーリングに見合わない。設計書 §3.2）。
+ *   - 視野駆動配信: サーバが座標を持つとき、パン / ズームが落ち着いたら「今見えている範囲」で
+ *     取り直す。取得中も現在の図を出したままにし、届いた図で視野を動かさない。
  *   - サーバー不達・DB 未設定（応答 null）は 0 件と別の顔で表示する（障害を「0 件」に見せない）。
  *   - 描画は cooccurrence-viewer に委ね、本パネルはツールバーと取得状態だけを持つ。
  *   - 色はテーマトークンから取り、要素側へインラインで置かない（ダーク / ライト両対応）。
@@ -19,6 +21,7 @@ import {
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type { TrailThemeTokens } from '../theme/designTokens';
 import { buildKnowledgeGraphCoocFile, type KnowledgeGraphResponse } from './knowledgeGraphCoocFile';
+import { formatBboxParam, shouldRefetchForViewport, type ViewportBox } from './knowledgeGraphViewport';
 
 export interface KnowledgeGraphPanelProps {
   /** TrailDataServer の基点 URL。空文字は未接続（取得しない）。 */
@@ -29,7 +32,16 @@ export interface KnowledgeGraphPanelProps {
 }
 
 const STYLE_ID = 'am-knowledge-graph-style';
-const LIMIT_CHOICES = ['50', '150', '300', '500'] as const;
+// 上限 10000 はサーバ側 clamp（TrailDataServer / CaravanApiHandler）と揃える。実測の根拠は
+// CaravanApiHandler の KNOWLEDGE_GRAPH_MAX_NODES。既定を 150 に据え置くのは、10000 では
+// レイアウトの同期実行で初回描画が約 3.3 秒かかるため（操作自体は 1 フレーム 8.5ms で軽い）。
+const LIMIT_CHOICES = ['50', '150', '300', '500', '1000', '2000', '5000', '10000'] as const;
+/**
+ * これ以上を選ぶと初回描画に体感できる時間がかかる件数（実測: 5,000 で約 1.5 秒・
+ * 10,000 で約 3.3 秒。レイアウトが同期実行のため、その間 UI は固まる）。
+ * 選択肢に注記を出して、等価に見える選択肢の中でコストが跳ねる点を隠さない。
+ */
+const SLOW_LIMIT_THRESHOLD = 5000;
 const DEFAULT_LIMIT = '150';
 
 type LoadState = 'loading' | 'failed' | 'empty' | 'ready';
@@ -90,6 +102,14 @@ export function mountKnowledgeGraphPanel(
   let controller: AbortController | null = null;
   /** 古い応答が新しい応答を上書きしないための世代番号。 */
   let fetchSeq = 0;
+  /** 直近の取得で使った視野。null は「視野指定なし（全体）」。 */
+  let fetchedBbox: ViewportBox | null = null;
+  /**
+   * 視野駆動の取り直しを行うか。サーバが座標を持たない構成（migration 未適用・
+   * レイアウト未計算）では bboxApplied=false が返るため、以後は視野で取り直さない
+   * （同じ全体グラフを何度も取り直すだけになるため）。
+   */
+  let viewportFetchEnabled = true;
 
   ensureStyle(container.ownerDocument, props.tokens);
 
@@ -137,9 +157,15 @@ export function mountKnowledgeGraphPanel(
   });
   toolbar.querySelector<HTMLElement>('[data-am-kg-type-select]')?.appendChild(typeSelect.el);
 
+  const limitOptions = (t: KnowledgeGraphPanelProps['t']): Array<{ value: string; label: string }> =>
+    LIMIT_CHOICES.map((v) => ({
+      value: v,
+      label: Number(v) >= SLOW_LIMIT_THRESHOLD ? `${v}${t('knowledgeGraph.nodeLimitSlowSuffix')}` : v,
+    }));
+
   const limitSelect = createSelect<string>({
     value: limit,
-    options: LIMIT_CHOICES.map((v) => ({ value: v, label: v })),
+    options: limitOptions(props.t),
     ariaLabel: props.t('knowledgeGraph.nodeLimit'),
     fullWidth: false,
     minWidth: 88,
@@ -155,25 +181,39 @@ export function mountKnowledgeGraphPanel(
     void refresh();
   });
 
-  function buildQuery(): string {
+  function buildQuery(bbox: ViewportBox | null): string {
     const params = new URLSearchParams();
     params.set('limit', limit);
     if (typeFilter !== '') params.set('types', typeFilter);
+    if (bbox) params.set('bbox', formatBboxParam(bbox));
     return `?${params.toString()}`;
   }
 
-  async function refresh(): Promise<void> {
+  /**
+   * データを取得して図へ反映する。
+   *
+   * @param bbox 取得する視野。null は全体（従来経路）。
+   * @param viewportDriven 視野の変化による取り直しか。true のときは取得中も現在の図を出したままにし、
+   *   届いた図でカメラを動かさない。false（操作・初回）のときは従来どおり読み込み表示へ切り替える。
+   */
+  async function refresh(bbox: ViewportBox | null = null, viewportDriven = false): Promise<void> {
     if (destroyed || props.serverUrl === '') return;
     controller?.abort();
     const ctrl = new AbortController();
     controller = ctrl;
     fetchSeq += 1;
     const seq = fetchSeq;
-    loadState = 'loading';
-    render();
+    if (!viewportDriven) {
+      // 視野駆動では読み込み表示に切り替えない。切り替えると図が消えて、パンのたびに
+      // 画面が白くなる（見えている図の上で差し替わるのが視野駆動の要件）。
+      loadState = 'loading';
+      render();
+    }
     try {
-      const res = await fetch(`${props.serverUrl}/api/memory/knowledge-graph${buildQuery()}`, { signal: ctrl.signal });
-      if (destroyed || seq !== fetchSeq) return;
+      const res = await fetch(
+        `${props.serverUrl}/api/caravan/knowledge-graph${buildQuery(bbox)}`,
+        { signal: ctrl.signal },
+      );
       // 200 + null は「DB 未設定」（サーバ実装参照）。0 件の正常応答と区別して障害側へ倒す
       const json = res.ok ? ((await res.json()) as KnowledgeGraphResponse | null) : null;
       if (destroyed || seq !== fetchSeq) return;
@@ -181,31 +221,92 @@ export function mountKnowledgeGraphPanel(
         loadState = 'failed';
         data = null;
       } else {
-        data = json;
-        availableTypes = json.availableTypes;
-        loadState = json.nodes.length === 0 ? 'empty' : 'ready';
-        if (loadState === 'ready') {
-          const file = buildKnowledgeGraphCoocFile(json, new Date().toISOString());
-          if (viewerHandle) {
-            viewerHandle.update({ file });
-          } else {
-            viewerHandle = mountCooccurrenceViewer(viewerHost, {
-              file,
-              themeMode: props.isDark ? 'dark' : 'light',
-              createLayoutWorker: createInlineLayoutWorker,
-              showPanels: true,
-            });
-          }
-        }
+        applyResponse(json, bbox, viewportDriven);
       }
     } catch (err) {
       if (destroyed || seq !== fetchSeq) return;
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      console.warn(`[knowledgeGraph] failed to load: ${err instanceof Error ? err.message : String(err)}`);
-      loadState = 'failed';
-      data = null;
+      applyFetchError(err, viewportDriven);
     }
     render();
+  }
+
+  /**
+   * 取得の失敗を状態へ反映する。
+   *
+   * 視野駆動の失敗では図を落とさない。落とすと canvas ごと消えて、パンで戻ることも
+   * 取り直すこともできなくなる（`handleViewportChange` は `loadState === 'ready'` でしか
+   * 動かない）。パン中の一時的な失敗は、daemon がレイアウト計算でふさがっている間に
+   * 現実に起きる。全体取得の失敗だけ従来どおり failed へ倒す。
+   */
+  function applyFetchError(err: unknown, viewportDriven: boolean): void {
+    if (err instanceof DOMException && err.name === 'AbortError') return;
+    console.warn(`[knowledgeGraph] failed to load: ${err instanceof Error ? err.message : String(err)}`);
+    if (viewportDriven) return;
+    loadState = 'failed';
+    data = null;
+  }
+
+  /** 取得できた応答を状態と図へ反映する。 */
+  function applyResponse(
+    json: KnowledgeGraphResponse,
+    bbox: ViewportBox | null,
+    viewportDriven: boolean,
+  ): void {
+    fetchedBbox = bbox;
+    if (bbox === null) {
+      // 明示的な取り直し（初回・種別・件数・再読込）。座標はパイプラインが後から書くので、
+      // 前回「絞れなかった」判断をここで捨てる。捨てないと、レイアウト計算前の窓で 1 回
+      // パンしただけで、そのパネルは以後ずっと視野駆動を使わない（再読込でも戻らない）。
+      viewportFetchEnabled = true;
+    } else if (json.bboxApplied !== true) {
+      // サーバが視野を無視した（座標が無い）／`bboxApplied` を返さない旧サーバでは、
+      // 視野を変えても同じ全体グラフが返るだけなので止める。
+      viewportFetchEnabled = false;
+    }
+    availableTypes = json.availableTypes;
+    if (viewportDriven && json.nodes.length === 0) {
+      // 何も無い場所へパンしただけ。図を消すと canvas ごと隠れて、パンで戻ることも
+      // 取り直すこともできなくなる（「0 件」表示のまま操作不能になる）。座標は世界座標
+      // なので、今の図を残しておけばその領域は自然に空白として見える。
+      return;
+    }
+    data = json;
+    loadState = json.nodes.length === 0 ? 'empty' : 'ready';
+    if (loadState !== 'ready') return;
+    syncViewer(buildKnowledgeGraphCoocFile(json, new Date().toISOString()), viewportDriven);
+  }
+
+  /** 図を差し替える（初回だけ mount、以後は update）。 */
+  function syncViewer(file: ReturnType<typeof buildKnowledgeGraphCoocFile>, viewportDriven: boolean): void {
+    if (viewerHandle) {
+      viewerHandle.update({ file, preserveViewport: viewportDriven });
+      return;
+    }
+    viewerHandle = mountCooccurrenceViewer(viewerHost, {
+      file,
+      themeMode: props.isDark ? 'dark' : 'light',
+      createLayoutWorker: createInlineLayoutWorker,
+      showPanels: true,
+      onViewportChange: handleViewportChange,
+    });
+  }
+
+  /**
+   * 視野が落ち着いたときの取り直し判定。
+   *
+   * 図が出ていない間（読み込み中・失敗）は取り直さない。取得直後に届く最初の通知は
+   * 全体表示に合わせた視野なので、`shouldRefetchForViewport` が「前回と同じ」と判定できるよう
+   * 記録だけして取得しない。
+   */
+  function handleViewportChange(bounds: ViewportBox): void {
+    if (destroyed || !viewportFetchEnabled || loadState !== 'ready') return;
+    if (fetchedBbox === null) {
+      // 全体取得の直後。今の視野を基準として記録するだけ（同じ内容の取り直しを避ける）
+      fetchedBbox = bounds;
+      return;
+    }
+    if (!shouldRefetchForViewport(fetchedBbox, bounds)) return;
+    void refresh(bounds, true);
   }
 
   function render(): void {
@@ -216,7 +317,7 @@ export function mountKnowledgeGraphPanel(
     const reload = toolbar.querySelector<HTMLButtonElement>('[data-am-kg-reload]');
     if (reload) reload.textContent = t('knowledgeGraph.reload');
     typeSelect.update({ options: typeOptions(), ariaLabel: t('knowledgeGraph.typeFilter'), value: typeFilter });
-    limitSelect.update({ ariaLabel: t('knowledgeGraph.nodeLimit'), value: limit });
+    limitSelect.update({ options: limitOptions(t), ariaLabel: t('knowledgeGraph.nodeLimit'), value: limit });
 
     const count = toolbar.querySelector<HTMLElement>('[data-am-kg-count]');
     if (count) {
@@ -256,6 +357,9 @@ export function mountKnowledgeGraphPanel(
         viewerHandle?.destroy();
         viewerHandle = null;
         viewerHost.textContent = '';
+        // 座標を持つかは接続先ごとに違う。前の接続で無効化した判断を持ち越さない
+        viewportFetchEnabled = true;
+        fetchedBbox = null;
         void refresh();
         return;
       }

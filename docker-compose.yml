@@ -6,7 +6,7 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000" # ホスト:3001 → コンテナ:3000（Next.js dev server）
     environment:
-      # memory-core が LLM 抽出に使う Ollama エンドポイント。
+      # trail-caravan-book が LLM 抽出に使う Ollama エンドポイント。
       # コンテナ内 localhost は自身を指すため、ホスト OS で起動している
       # Ollama に到達するには host.docker.internal を経由する。
       # ホスト側で OLLAMA_BASE_URL を設定していればそちらを採用する。

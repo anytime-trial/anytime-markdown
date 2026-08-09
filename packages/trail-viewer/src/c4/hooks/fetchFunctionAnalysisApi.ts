@@ -1,4 +1,4 @@
-import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/c4';
 
 export interface FunctionAnalysisApiSignals {
   readonly fanInZero: boolean;

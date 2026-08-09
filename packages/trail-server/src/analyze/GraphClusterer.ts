@@ -1,12 +1,12 @@
-import type { C4Element } from '@anytime-markdown/trail-core/c4';
-import { extractComponentName } from '@anytime-markdown/trail-core/transform';
+import type { C4Element } from '@anytime-markdown/trail-activity/c4';
+import { extractComponentName } from '@anytime-markdown/trail-activity/transform';
 import Graph from 'graphology';
 import louvain from 'graphology-communities-louvain';
 import seedrandom from 'seedrandom';
 
 // Louvain の rng を seedrandom で固定して決定論化する。
 // シード未固定だと同一入力でも community_id 採番順が変動し、
-// current_code_graph_communities.mappings_json が再解析のたびに失われる事故が起きる。
+// activity_current_code_graph_communities.mappings_json が再解析のたびに失われる事故が起きる。
 // `v1` サフィックスは将来意図的にクラスタリング結果を変えたい時の踏み台。
 const LOUVAIN_SEED = 'anytime-trail:louvain:v1';
 
@@ -94,7 +94,7 @@ function resolveDisplayName(
 
 /**
  * ノード ID（`${repo}:${relativePath}` 形式）から component セグメントを取り出す。
- * trail-core/transform/toC4.ts の extractComponentName と regex を共有する。
+ * trail-activity/transform/toC4.ts の extractComponentName と regex を共有する。
  *
  * GraphClusterer は top-level "packages" も component とみなさない (community label の品質
  * 維持のため) ため、共通関数の戻り値を post-filter する。

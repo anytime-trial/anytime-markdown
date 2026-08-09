@@ -16,7 +16,7 @@ function safePoint(overrides: Partial<Parameters<TrailDatabase['recordSafePoint'
   };
 }
 
-describe('TrailDatabase emergency (safe_points / emergency_log)', () => {
+describe('TrailDatabase emergency (activity_safe_points / activity_emergency_log)', () => {
   let db: TrailDatabase;
 
   beforeEach(async () => {
@@ -184,9 +184,9 @@ describe('TrailDatabase emergency (safe_points / emergency_log)', () => {
   });
 });
 
-describe('emergency_log event kind migration (Phase 5 S4)', () => {
+describe('activity_emergency_log event kind migration (Phase 5 S4)', () => {
   // S4 以前の CHECK 制約（section_lock 系を含まない）を持つ既存 DB のレガシー fixture。
-  const LEGACY_EMERGENCY_LOG = `CREATE TABLE emergency_log (
+  const LEGACY_EMERGENCY_LOG = `CREATE TABLE activity_emergency_log (
     id INTEGER PRIMARY KEY,
     occurred_at TEXT NOT NULL CHECK (occurred_at GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z' OR occurred_at GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z'),
     event TEXT NOT NULL
@@ -209,7 +209,7 @@ describe('emergency_log event kind migration (Phase 5 S4)', () => {
       legacy.exec(LEGACY_EMERGENCY_LOG);
       legacy
         .prepare(
-          `INSERT INTO emergency_log (occurred_at, event, reason, actor, session_id, detail_json)
+          `INSERT INTO activity_emergency_log (occurred_at, event, reason, actor, session_id, detail_json)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .run(TS, 'kill_switch_on', 'legacy row', 'human', null, '{}');

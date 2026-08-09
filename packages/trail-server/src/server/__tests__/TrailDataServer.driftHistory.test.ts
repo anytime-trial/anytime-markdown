@@ -1,5 +1,5 @@
-// Phase 6 S5-C: GET /api/memory/drift/by-day（FR-26）。
-// memory_drift_events を実 fixture で作り、JST 境界・0 埋め・未解決累計を API 経由で固定する。
+// Phase 6 S5-C: GET /api/caravan/drift/by-day（FR-26）。
+// caravan_drift_events を実 fixture で作り、JST 境界・0 埋め・未解決累計を API 経由で固定する。
 jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
@@ -21,9 +21,9 @@ type DriftHistoryPoint = {
   unresolvedCumulative: number;
 };
 
-function buildMemoryDb(dbPath: string): void {
+function buildCaravanDb(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE memory_drift_events (
+  db.exec(`CREATE TABLE caravan_drift_events (
     id TEXT PRIMARY KEY,
     subject_entity_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
@@ -38,7 +38,7 @@ function buildMemoryDb(dbPath: string): void {
     detail_json TEXT NOT NULL DEFAULT '{}'
   ) STRICT`);
   const ins = db.prepare(
-    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at)
+    `INSERT INTO caravan_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at)
      VALUES (?, 'ent-1', 'p', ?, ?, ?, ?)`,
   );
   // JST 2026-07-01 に 2 件検知（うち 1 件は 07-03 に解決）
@@ -49,7 +49,7 @@ function buildMemoryDb(dbPath: string): void {
   db.close();
 }
 
-describe('GET /api/memory/drift/by-day (Phase 6 S5-C)', () => {
+describe('GET /api/caravan/drift/by-day (Phase 6 S5-C)', () => {
   let tmpDir: string;
   let server: TrailDataServer;
   let trailDb: TrailDatabase;
@@ -57,7 +57,7 @@ describe('GET /api/memory/drift/by-day (Phase 6 S5-C)', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-history-test-'));
-    buildMemoryDb(path.join(tmpDir, 'caravan-book.db'));
+    buildCaravanDb(path.join(tmpDir, 'caravan-book.db'));
     trailDb = await createTestTrailDatabase();
     server = new TrailDataServer(
       '/tmp',
@@ -77,7 +77,7 @@ describe('GET /api/memory/drift/by-day (Phase 6 S5-C)', () => {
   });
 
   async function getPoints(query = ''): Promise<DriftHistoryPoint[]> {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/drift/by-day${query}`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/caravan/drift/by-day${query}`);
     expect(res.status).toBe(200);
     return ((await res.json()) as { points: DriftHistoryPoint[] }).points;
   }
@@ -128,7 +128,7 @@ describe('GET /api/memory/drift/by-day (Phase 6 S5-C)', () => {
     expect(points[0].unresolvedCumulative).toBe(2);
   });
 
-  it('memory.db 不在でも 200 で空配列に縮退する', async () => {
+  it('caravan.db 不在でも 200 で空配列に縮退する', async () => {
     const server2 = new TrailDataServer(
       '/tmp',
       trailDb,
@@ -138,7 +138,7 @@ describe('GET /api/memory/drift/by-day (Phase 6 S5-C)', () => {
     );
     await server2.start(0);
     try {
-      const res = await fetch(`http://127.0.0.1:${server2.port}/api/memory/drift/by-day`);
+      const res = await fetch(`http://127.0.0.1:${server2.port}/api/caravan/drift/by-day`);
       expect(res.status).toBe(200);
       expect(((await res.json()) as { points: unknown[] }).points).toEqual([]);
     } finally {

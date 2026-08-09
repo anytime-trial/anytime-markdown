@@ -40,7 +40,7 @@ function judgment(overrides: Partial<DoctrineJudgmentInput> = {}): DoctrineJudgm
  * DCT-14 導入前の DDL を手書きで再現する。現行の CREATE 定数から列を引いて作ると、
  * 定数が変わったときにテストも一緒に変わってしまい「旧 DB からの移行」を検査しなくなる。
  */
-const LEGACY_CREATE = `CREATE TABLE doctrine_judgments (
+const LEGACY_CREATE = `CREATE TABLE caravan_doctrine_judgments (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL,
   subject TEXT NOT NULL,
@@ -72,7 +72,7 @@ describe('doctrine judgments: underspecified_points (DCT-14)', () => {
   function read(sessionId: string, subject: string): string {
     const row = db
       .prepare(
-        `SELECT underspecified_points_json AS points FROM doctrine_judgments WHERE session_id = ? AND subject = ?`,
+        `SELECT underspecified_points_json AS points FROM caravan_doctrine_judgments WHERE session_id = ? AND subject = ?`,
       )
       .get(sessionId, subject) as { points: string };
     return row.points;
@@ -163,7 +163,7 @@ describe('doctrine judgments: underspecified_points (DCT-14)', () => {
       decided('s1', [], 'approve');
       decided('s2', [], 'modified');
       db.prepare(
-        `UPDATE doctrine_judgments SET underspecified_points_json = '"not-an-array"' WHERE session_id = 's2'`,
+        `UPDATE caravan_doctrine_judgments SET underspecified_points_json = '"not-an-array"' WHERE session_id = 's2'`,
       ).run();
 
       const metrics = getDoctrineAgreementDirect(db);
@@ -185,7 +185,7 @@ describe('doctrine judgments: underspecified_points (DCT-14)', () => {
       legacy.exec(LEGACY_CREATE);
       legacy
         .prepare(
-          `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, citations_json, citation_count, resolved_count, human_decision, judged_at, decided_at, created_at, updated_at)
+          `INSERT INTO caravan_doctrine_judgments (session_id, subject, agent_judgment, coverage, citations_json, citation_count, resolved_count, human_decision, judged_at, decided_at, created_at, updated_at)
            VALUES ('old-1', '旧レコード', 'approve', 'covered', '[]', 1, 1, 'modified', '2026-08-01T00:00:00.000Z', '2026-08-01T01:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
         )
         .run();
@@ -199,12 +199,12 @@ describe('doctrine judgments: underspecified_points (DCT-14)', () => {
       ensureDoctrineJudgmentsTable(legacy);
 
       const columns = (
-        legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+        legacy.prepare(`PRAGMA table_info(caravan_doctrine_judgments)`).all() as Array<{ name: string }>
       ).map((c) => c.name);
       expect(columns).toContain('underspecified_points_json');
 
       const row = legacy
-        .prepare(`SELECT underspecified_points_json AS points FROM doctrine_judgments`)
+        .prepare(`SELECT underspecified_points_json AS points FROM caravan_doctrine_judgments`)
         .get() as { points: string };
       expect(row.points).toBe('[]');
     });

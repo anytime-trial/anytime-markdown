@@ -1,0 +1,802 @@
+import { createHash } from 'crypto';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
+import { runMigrations } from '../../../src/db/migrations/runner';
+import { attachTrailDbFromHandle } from '../../../src/db/attach';
+import { extractCommitRationale } from '../../../src/ingest/code/extractCommitRationale';
+import { entityId } from '../../../src/canonical/entityId';
+import type { CaravanLogger } from '../../../src/logger';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const RECORDED_AT = '2026-01-01T00:00:00.000Z';
+const REPO = 'test-repo';
+
+const silentLogger: CaravanLogger = {
+  info: () => {},
+  error: () => {},
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
+  db.run('PRAGMA foreign_keys = ON');
+  runMigrations(db);
+  return db;
+}
+
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
+  // Phase H-4: trail.activity_session_commits から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
+  // extractCommitRationale は trail.activity_repos を JOIN して repo_name → repo_id を解決する。
+  trailDb.run(`CREATE TABLE activity_repos (
+    repo_id INTEGER PRIMARY KEY,
+    repo_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  ) STRICT`);
+  trailDb.run(
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    [REPO]
+  );
+  trailDb.run(`
+    CREATE TABLE activity_sessions (
+      id TEXT PRIMARY KEY,
+      started_at TEXT NOT NULL DEFAULT ''
+    ) STRICT
+  `);
+  trailDb.run(`
+    CREATE TABLE activity_session_commits (
+      session_id   TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
+      commit_hash  TEXT NOT NULL,
+      commit_message TEXT NOT NULL DEFAULT '',
+      committed_at TEXT,
+      repo_id      INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (session_id, commit_hash)
+    ) STRICT
+  `);
+  return trailDb;
+}
+
+/** Resolve repo_id from repos by name, seeding the row if it does not yet exist. */
+function resolveRepoId(trailDb: BetterSqlite3CaravanDb, repoName: string): number {
+  const existing = trailDb.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
+  const found = existing[0]?.values?.[0]?.[0];
+  if (found !== undefined && found !== null) return Number(found);
+  trailDb.run(
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, '2026-01-01T00:00:00.000Z')`,
+    [repoName]
+  );
+  const row = trailDb.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
+  return Number(row[0]?.values?.[0]?.[0] ?? 0);
+}
+
+function insertSession(trailDb: BetterSqlite3CaravanDb, sessionId: string): void {
+  trailDb.run(
+    `INSERT INTO activity_sessions (id, started_at) VALUES (?, ?)`,
+    [sessionId, RECORDED_AT]
+  );
+}
+
+function insertCommit(
+  trailDb: BetterSqlite3CaravanDb,
+  opts: {
+    sessionId: string;
+    commitHash: string;
+    commitMessage: string;
+    committedAt?: string;
+    repoName?: string;
+  }
+): void {
+  const repoId = resolveRepoId(trailDb, opts.repoName ?? REPO);
+  trailDb.run(
+    `INSERT INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at, repo_id)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      opts.sessionId,
+      opts.commitHash,
+      opts.commitMessage,
+      opts.committedAt ?? RECORDED_AT,
+      repoId,
+    ]
+  );
+}
+
+function countEntities(db: BetterSqlite3CaravanDb, type: string): number {
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
+  try {
+    return ((stmt.get(type)?.['c'] as number) ?? 0);
+  } finally {
+    stmt.free?.();
+  }
+}
+
+function countEdges(db: BetterSqlite3CaravanDb, predicate?: string): number {
+  if (predicate) {
+    const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_edges WHERE predicate = ?`);
+    try {
+      return ((stmt.get(predicate)?.['c'] as number) ?? 0);
+    } finally {
+      stmt.free?.();
+    }
+  }
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
+  return (result[0]?.values[0][0] as number) ?? 0;
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+describe('extractCommitRationale', () => {
+  // ECR-1: Rationale: section in commit body → 1 Decision + 1 edge
+  test('ECR-1: Rationale: section → 1 Decision + 1 Commit + 1 rationale_for edge', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'abc123def456',
+      commitMessage:
+        'feat(foo): add bar\n\nRationale: 既存 baz 関数が肥大化したため分離する。',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.commits_processed).toBe(1);
+    expect(stats.decisions_inserted).toBe(1);
+    expect(stats.edges_inserted).toBe(1);
+
+    expect(countEntities(memDb, 'Decision')).toBe(1);
+    expect(countEntities(memDb, 'Commit')).toBe(1);
+    expect(countEdges(memDb, 'rationale_for')).toBe(1);
+
+    // Verify Decision summary contains the rationale text
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
+    const summary = rows[0]?.values[0][0] as string;
+    expect(summary).toContain('既存 baz 関数が肥大化したため分離する');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-2: Reason: pattern
+  test('ECR-2: Reason: pattern → Decision extracted', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'aaa111bbb222',
+      commitMessage:
+        'refactor(api): cleanup\n\nReason: Legacy adapter was causing circular imports.',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.decisions_inserted).toBe(1);
+    expect(stats.edges_inserted).toBe(1);
+
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
+    const summary = rows[0]?.values[0][0] as string;
+    expect(summary).toContain('Legacy adapter was causing circular imports');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-3: 理由: Japanese pattern
+  test('ECR-3: 理由: pattern → Decision extracted', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'ccc333ddd444',
+      commitMessage: 'fix(ui): button style\n\n理由: デザインシステムに合わせるため統一した。',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.decisions_inserted).toBe(1);
+    expect(stats.edges_inserted).toBe(1);
+
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
+    const summary = rows[0]?.values[0][0] as string;
+    expect(summary).toContain('デザインシステムに合わせるため統一した');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-4: full-width colon 全角コロン
+  test('ECR-4: full-width colon 「Rationale：」 → Decision extracted', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'eee555fff666',
+      commitMessage: 'docs: update\n\nRationale： 全角コロンにも対応する必要がある。',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.decisions_inserted).toBe(1);
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-5: subject-only Rationale: → NOT extracted (body-only rule)
+  test('ECR-5: subject line with Rationale: only → no Decision (body-only rule)', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'ggg777hhh888',
+      commitMessage: 'Rationale: should not be extracted because it is on subject line',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.commits_processed).toBe(1);
+    expect(stats.decisions_inserted).toBe(0);
+    expect(stats.edges_inserted).toBe(0);
+    expect(countEntities(memDb, 'Decision')).toBe(0);
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-6: ラベル無しの散文本文は INFERRED として抽出する（2026-08-05 に仕様変更）。
+  // 変更前はここで skip していたが、コミット規約が `Rationale:` ラベルを要求せず
+  // 「本文に Why を書く」であるため、実測で本文 2,708 件中 0 件しか抽出できず
+  // Rationale Audit の監査対象が恒久的に空になっていた。
+  test('ECR-6: ラベル無しの本文は INFERRED として抽出される', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'iii999jjjaaa',
+      commitMessage:
+        'feat: add feature\n\nThis is a normal commit body without rationale section.',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.commits_processed).toBe(1);
+    expect(stats.decisions_inserted).toBe(1);
+    expect(stats.edges_inserted).toBe(1);
+
+    const labels = memDb.exec(
+      `SELECT confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`,
+    );
+    expect(String(labels[0]?.values[0][0])).toBe('INFERRED');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-7: idempotency — same commit processed twice → no-op on second run
+  test('ECR-7: processing same commit twice → decisions/edges remain at 1 (idempotent)', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'bbb222ccc333',
+      commitMessage:
+        'feat: stable\n\nRationale: deterministic id test for idempotency.',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats1 = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const stats2 = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats1.decisions_inserted).toBe(1);
+    expect(stats1.edges_inserted).toBe(1);
+
+    // Second run: decision already exists → INSERT OR IGNORE → 0 new
+    expect(stats2.decisions_inserted).toBe(0);
+    expect(stats2.edges_inserted).toBe(0);
+
+    // DB totals unchanged
+    expect(countEntities(memDb, 'Decision')).toBe(1);
+    expect(countEntities(memDb, 'Commit')).toBe(1);
+    expect(countEdges(memDb, 'rationale_for')).toBe(1);
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-8: sinceCommittedAt cursor filters older commits
+  test('ECR-8: sinceCommittedAt cursor filters commits on or before the cutoff', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'old111111111',
+      commitMessage: 'chore: old\n\nRationale: old commit before cursor.',
+      committedAt: '2025-01-01T00:00:00.000Z',
+    });
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'new222222222',
+      commitMessage: 'chore: new\n\nRationale: new commit after cursor.',
+      committedAt: '2026-06-01T00:00:00.000Z',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: '2026-01-01T00:00:00.000Z',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    // Only the new commit (2026-06-01) should be processed
+    expect(stats.commits_processed).toBe(1);
+    expect(stats.decisions_inserted).toBe(1);
+
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
+    const summary = rows[0]?.values[0][0] as string;
+    expect(summary).toContain('new commit after cursor');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-9: multiple commits → multiple Decisions
+  test('ECR-9: 3 commits with Rationale sections → 3 Decisions + 3 edges', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+
+    for (let i = 1; i <= 3; i++) {
+      insertCommit(trailDb, {
+        sessionId: 'session-1',
+        commitHash: `commit${i.toString().padStart(10, '0')}`,
+        commitMessage: `feat: change ${i}\n\nRationale: reason ${i} for the change.`,
+      });
+    }
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.commits_processed).toBe(3);
+    expect(stats.decisions_inserted).toBe(3);
+    expect(stats.edges_inserted).toBe(3);
+    expect(countEntities(memDb, 'Decision')).toBe(3);
+    expect(countEntities(memDb, 'Commit')).toBe(3);
+    expect(countEdges(memDb, 'rationale_for')).toBe(3);
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-10: Decision entity ID is deterministic
+  test('ECR-10: Decision entity ID is deterministic from commit_hash', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    const commitHash = 'deterministic0';
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash,
+      commitMessage: 'feat: stable\n\nRationale: testing deterministic id.',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    // Expected canonical_name = sha1("commit:<repo>:<hash>:rationale").slice(0,16)
+    const expectedCanonName = createHash('sha1')
+      .update(`commit:${REPO}:${commitHash}:rationale`)
+      .digest('hex')
+      .slice(0, 16);
+    const expectedDecisionId = entityId('Decision', expectedCanonName);
+
+    const stmt = memDb.prepare(
+      `SELECT id, canonical_name FROM caravan_entities WHERE type = 'Decision'`
+    );
+    const row = stmt.get();
+    stmt.free?.();
+
+    expect(row?.['id']).toBe(expectedDecisionId);
+    expect(row?.['canonical_name']).toBe(expectedCanonName);
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-11: edge metadata is correct
+  test('ECR-11: edge has source_type=code, source_ref=activity_session_commits#<hash>, confidence_label=EXTRACTED', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    const commitHash = 'edge0meta0000';
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash,
+      commitMessage: 'feat: edge test\n\nRationale: testing edge metadata.',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const edgeRows = memDb.exec(
+      `SELECT source_type, source_ref, confidence_label, confidence, predicate
+         FROM caravan_edges WHERE predicate = 'rationale_for'`
+    );
+    expect(edgeRows[0]?.values).toHaveLength(1);
+    const [sourceType, sourceRef, confidenceLabel, confidence, predicate] =
+      edgeRows[0].values[0];
+
+    expect(sourceType).toBe('code');
+    expect(sourceRef).toBe(`activity_session_commits#${commitHash}`);
+    expect(confidenceLabel).toBe('EXTRACTED');
+    expect(confidence).toBe(1.0);
+    expect(predicate).toBe('rationale_for');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-12: edge direction is Decision → rationale_for → Commit
+  test('ECR-12: edge subject is Decision, object is Commit', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'direction00000',
+      commitMessage: 'feat: dir test\n\nRationale: edge direction test.',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const rows = memDb.exec(`
+      SELECT me_subj.type AS subj_type, me_obj.type AS obj_type
+      FROM caravan_edges e
+      JOIN caravan_entities me_subj ON me_subj.id = e.subject_entity_id
+      JOIN caravan_entities me_obj  ON me_obj.id  = e.object_entity_id
+      WHERE e.predicate = 'rationale_for'
+    `);
+    expect(rows[0]?.values).toHaveLength(1);
+    const [subjType, objType] = rows[0].values[0];
+    expect(subjType).toBe('Decision');
+    expect(objType).toBe('Commit');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-13: write to trail.* is blocked by readonly guard
+  test('ECR-13: guard blocks write to trail.activity_session_commits', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    expect(() => {
+      memDb.run(`UPDATE trail.activity_session_commits SET commit_message = 'x' WHERE 1=0`);
+    }).toThrow(/trail.*forbidden|forbidden.*trail/i);
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-14: sinceCommittedAt null processes all commits
+  test('ECR-14: sinceCommittedAt=null processes all commits regardless of date', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'very0old00000',
+      commitMessage: 'chore: ancient\n\nRationale: very old commit.',
+      committedAt: '2020-01-01T00:00:00.000Z',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.commits_processed).toBe(1);
+    expect(stats.decisions_inserted).toBe(1);
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-16: multi-line rationale body is captured in full
+  test('ECR-16: multi-line rationale body captured without truncation', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'session-1');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'multiline00000',
+      commitMessage:
+        'feat: X\n\nRationale: line1\nline2 continued\n\nOther: something else',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const rows = memDb.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
+    const summary = rows[0]?.values[0][0] as string;
+    expect(summary).toContain('line1');
+    expect(summary).toContain('line2 continued');
+
+    trailDb.close();
+    memDb.close();
+  });
+
+  // ECR-15: same commit_hash in multiple sessions → deduplicated by GROUP BY
+  test('ECR-15: same commit_hash across multiple sessions → processed once', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    // Same commit hash appears in two different sessions (common in activity.db)
+    insertSession(trailDb, 'session-1');
+    insertSession(trailDb, 'session-2');
+    insertCommit(trailDb, {
+      sessionId: 'session-1',
+      commitHash: 'shared0hash000',
+      commitMessage: 'feat: shared\n\nRationale: same commit in multiple sessions.',
+    });
+    insertCommit(trailDb, {
+      sessionId: 'session-2',
+      commitHash: 'shared0hash000',
+      commitMessage: 'feat: shared\n\nRationale: same commit in multiple sessions.',
+    });
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = extractCommitRationale({
+      db: memDb,
+      repoName: REPO,
+      sinceCommittedAt: null,
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    // GROUP BY commit_hash → only 1 commit processed, 1 decision
+    expect(stats.commits_processed).toBe(1);
+    expect(stats.decisions_inserted).toBe(1);
+    expect(stats.edges_inserted).toBe(1);
+
+    trailDb.close();
+    memDb.close();
+  });
+});
+
+// ── ラベル無し本文からの INFERRED 抽出 ────────────────────────────────────────
+//
+// プロジェクトのコミット規約は「本文に背景・動機を書く」であり `Rationale:` の
+// ラベルを要求していない。ラベル一致だけを実装していたため、実測で本文を持つ
+// 2,708 件中 0 件しか抽出できず、Rationale Audit の監査対象が恒久的に空だった。
+// confidence_label が EXTRACTED / INFERRED を持つのは、この「ラベルで宣言された
+// 根拠」と「本文から推定した根拠」を人が区別して監査するための設計である。
+
+function edgeConfidenceLabels(db: BetterSqlite3CaravanDb): string[] {
+  const rows = db.exec(
+    `SELECT confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`,
+  );
+  return (rows[0]?.values ?? []).map((r) => String(r[0]));
+}
+
+function decisionSummaries(db: BetterSqlite3CaravanDb): string[] {
+  const rows = db.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
+  return (rows[0]?.values ?? []).map((r) => String(r[0]));
+}
+
+async function runWith(commitMessage: string): Promise<{
+  stats: ReturnType<typeof extractCommitRationale>;
+  labels: string[];
+  summaries: string[];
+}> {
+  const memDb = await makeCaravanDb();
+  const trailDb = makeTrailDb();
+  insertSession(trailDb, 'session-inferred');
+  insertCommit(trailDb, {
+    sessionId: 'session-inferred',
+    commitHash: 'fedcba987654',
+    commitMessage,
+  });
+  attachTrailDbFromHandle(memDb, trailDb);
+  const stats = extractCommitRationale({
+    db: memDb,
+    repoName: REPO,
+    sinceCommittedAt: null,
+    recordedAt: RECORDED_AT,
+    logger: silentLogger,
+  });
+  const result = {
+    stats,
+    labels: edgeConfidenceLabels(memDb),
+    summaries: decisionSummaries(memDb),
+  };
+  trailDb.close();
+  memDb.close();
+  return result;
+}
+
+describe('extractCommitRationale: ラベル無し本文の INFERRED 抽出', () => {
+  test('ECR-I1: ラベル無しの散文本文を INFERRED として抽出する', async () => {
+    const { stats, labels, summaries } = await runWith(
+      [
+        'fix(trail-db/logic): 本文を保存する',
+        '',
+        '件名だけを保存していたため決定根拠の抽出が全件 skip していた。',
+      ].join('\n'),
+    );
+    expect(stats.edges_inserted).toBe(1);
+    expect(labels).toEqual(['INFERRED']);
+    expect(summaries[0]).toContain('件名だけを保存していたため決定根拠の抽出が全件 skip していた。');
+  });
+
+  test('ECR-I2: ラベルがあるときは EXTRACTED のまま（既存挙動を変えない）', async () => {
+    const { stats, labels } = await runWith(
+      'feat(foo): add bar\n\n理由: 既存の baz が肥大化したため分離する。',
+    );
+    expect(stats.edges_inserted).toBe(1);
+    expect(labels).toEqual(['EXTRACTED']);
+  });
+
+  test('ECR-I3: 本文がトレーラだけのときは抽出しない', async () => {
+    const { stats } = await runWith(
+      [
+        'chore: bump',
+        '',
+        'Session-Id: 11111111-1111-4111-8111-111111111111',
+        'Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>',
+      ].join('\n'),
+    );
+    expect(stats.edges_inserted).toBe(0);
+    expect(stats.decisions_inserted).toBe(0);
+  });
+
+  test('ECR-I4: 件名のみのコミットは抽出しない', async () => {
+    const { stats } = await runWith('chore: 件名のみ');
+    expect(stats.edges_inserted).toBe(0);
+  });
+
+  test('ECR-I5: 本文が複数段落なら先頭段落だけを根拠とする', async () => {
+    const { summaries } = await runWith(
+      [
+        'refactor(core): 分離する',
+        '',
+        '循環 import を切るために adapter を分離した。',
+        '',
+        '1. foo を bar へ移す',
+        '2. baz の import を張り替える',
+      ].join('\n'),
+    );
+    expect(summaries[0]).toContain('循環 import を切るために adapter を分離した。');
+    expect(summaries[0]).not.toContain('baz の import を張り替える');
+  });
+
+  test('ECR-I6: トレーラ段落を飛ばして本文段落を拾う', async () => {
+    const { stats, summaries } = await runWith(
+      [
+        'fix: something',
+        '',
+        'Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>',
+        '',
+        'キャッシュの無効化条件が逆だったため常に再取得していた。',
+      ].join('\n'),
+    );
+    expect(stats.edges_inserted).toBe(1);
+    expect(summaries[0]).toContain('キャッシュの無効化条件が逆だったため常に再取得していた。');
+  });
+});

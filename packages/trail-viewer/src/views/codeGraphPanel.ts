@@ -8,14 +8,14 @@
  * wrapper (.tsx); this view receives resolved data and callbacks as props.
  */
 import { createButton, createSelect, createTextField } from '@anytime-markdown/ui-core';
-import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import {
   ARCHITECTURE_LAYER_ORDER,
   LAYER_LABEL_KEYS,
   layerColor,
 } from '../components/communityColors';
-import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-core/authorHeatmap';
+import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-activity/authorHeatmap';
 import {
   buildEditFrequencyColorMap,
   buildLastEditorColorMap,
@@ -33,7 +33,7 @@ import {
   type CodeGraphGhostEdge,
   type CodeGraphGhostEdgeGranularity,
 } from './codeGraphCanvas';
-import type { CodeGraphDiff, CodeGraphNodeDiffStatus } from '@anytime-markdown/trail-core/codeGraphDiff';
+import type { CodeGraphDiff, CodeGraphNodeDiffStatus } from '@anytime-markdown/trail-activity/codeGraphDiff';
 import { DEFAULT_PLAYBACK_SPEED, PLAYBACK_SPEEDS, type CodeGraphPlaybackSpeed } from './codeGraphPlayback';
 import { diffNodeColor } from './stateReplayColors';
 

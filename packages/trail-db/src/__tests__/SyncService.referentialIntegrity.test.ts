@@ -9,7 +9,7 @@ const recentIso = (hoursAgo: number): string =>
 
 function insertSession(inner: InnerDb, id: string, repoId: number): void {
   inner.run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
       id, slug, repo_id, version, entrypoint, model, start_time, end_time,
       message_count, file_path, file_size, imported_at
     ) VALUES (?, ?, ?, '0', '', '', ?, ?, 0, '', 0, ?)`,
@@ -19,7 +19,7 @@ function insertSession(inner: InnerDb, id: string, repoId: number): void {
 
 function insertMessage(inner: InnerDb, uuid: string, sessionId: string): void {
   inner.run(
-    `INSERT OR IGNORE INTO messages (uuid, session_id, type, timestamp, text_content)
+    `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, timestamp, text_content)
      VALUES (?, ?, 'assistant', ?, 'x')`,
     [uuid, sessionId, recentIso(1)],
   );
@@ -27,7 +27,7 @@ function insertMessage(inner: InnerDb, uuid: string, sessionId: string): void {
 
 function insertSessionCost(inner: InnerDb, sessionId: string): void {
   inner.run(
-    `INSERT OR IGNORE INTO session_costs (
+    `INSERT OR IGNORE INTO activity_session_costs (
       session_id, model, input_tokens, output_tokens,
       cache_read_tokens, cache_creation_tokens, estimated_cost_usd
     ) VALUES (?, 'claude-opus-4-8', 10, 20, 30, 40, 0.5)`,
@@ -37,7 +37,7 @@ function insertSessionCost(inner: InnerDb, sessionId: string): void {
 
 function insertToolCall(inner: InnerDb, id: number, sessionId: string, messageUuid: string): void {
   inner.run(
-    `INSERT OR IGNORE INTO message_tool_calls (
+    `INSERT OR IGNORE INTO activity_message_tool_calls (
       id, session_id, message_uuid, turn_index, call_index, tool_name, timestamp
     ) VALUES (?, ?, ?, 0, 0, 'Read', ?)`,
     [id, sessionId, messageUuid, recentIso(1)],
@@ -45,7 +45,7 @@ function insertToolCall(inner: InnerDb, id: number, sessionId: string, messageUu
 }
 
 describe('SyncService 参照整合ゲート', () => {
-  it('セッションの upsert が失敗した分の session_costs をリモートへ送らない', async () => {
+  it('セッションの upsert が失敗した分の activity_session_costs をリモートへ送らない', async () => {
     const localDb = await createTestTrailDatabase();
     const inner = (localDb as unknown as { ensureDb(): InnerDb }).ensureDb();
     const repoId = (localDb as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-a');
@@ -66,7 +66,7 @@ describe('SyncService 参照整合ゲート', () => {
     localDb.close();
   });
 
-  it('リモートへ入らなかったメッセージの message_tool_calls をリモートへ送らない', async () => {
+  it('リモートへ入らなかったメッセージの activity_message_tool_calls をリモートへ送らない', async () => {
     const localDb = await createTestTrailDatabase();
     const inner = (localDb as unknown as { ensureDb(): InnerDb }).ensureDb();
     const repoId = (localDb as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-a');

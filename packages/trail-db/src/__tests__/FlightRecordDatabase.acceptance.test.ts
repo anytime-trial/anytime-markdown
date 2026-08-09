@@ -1,9 +1,9 @@
-// 受入台帳（acceptance_records）は 2026-08-07 に activity.db から caravan-book.db
+// 受入台帳（caravan_acceptance_records）は 2026-08-07 に activity.db から caravan-book.db
 // （FlightRecordDatabase）へ移設した。旧 TrailDatabase.acceptance.test.ts の移行版。
-// コミット・リポジトリ情報（session_commits / commit_files / repos）は activity.db 残留の
+// コミット・リポジトリ情報（activity_session_commits / activity_commit_files / repos）は activity.db 残留の
 // ため ctx.trailRun でシードする。
 
-import type { AcceptanceRecordInput } from '@anytime-markdown/trail-core';
+import type { AcceptanceRecordInput } from '@anytime-markdown/trail-activity';
 
 import {
   createTestFlightRecordDatabase,
@@ -32,16 +32,16 @@ function seedCommit(
   repoId = 0,
 ): void {
   ctx.trailRun(
-    `INSERT INTO session_commits (session_id, commit_hash, commit_message, author, committed_at, repo_id)
+    `INSERT INTO activity_session_commits (session_id, commit_hash, commit_message, author, committed_at, repo_id)
      VALUES ('sess-seed', ?, ?, 'tester', ?, ?)`,
     [hash, message, committedAt, repoId],
   );
   for (const file of files) {
-    ctx.trailRun(`INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`, [hash, file, repoId]);
+    ctx.trailRun(`INSERT INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`, [hash, file, repoId]);
   }
 }
 
-describe('FlightRecordDatabase acceptance records (acceptance_records)', () => {
+describe('FlightRecordDatabase acceptance records (caravan_acceptance_records)', () => {
   let ctx: FlightRecordTestContext;
 
   beforeEach(() => {
@@ -123,7 +123,7 @@ describe('FlightRecordDatabase acceptance records (acceptance_records)', () => {
     });
 
     it('repo_name を解決できる場合は同一リポジトリ内でのみ照合する', () => {
-      ctx.trailRun(`INSERT INTO repos (repo_id, repo_name, created_at) VALUES (1, 'repoA', '${T0}'), (2, 'repoB', '${T0}')`);
+      ctx.trailRun(`INSERT INTO activity_repos (repo_id, repo_name, created_at) VALUES (1, 'repoA', '${T0}'), (2, 'repoB', '${T0}')`);
       ctx.db.upsertAcceptanceRecord(recordInput({ commitSha: 'pass-r', route: 'machine', decidedAt: T0, repoName: 'repoA' }));
       seedCommit(ctx, 'pass-r', 'feat: repoA feature', '2026-07-18T09:00:00.000Z', ['src/shared.ts'], 1);
       // 別リポジトリ（repoB）の regression fix が同名ファイルに触れても missed にしない

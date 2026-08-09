@@ -11,7 +11,7 @@ let cached: typeof BetterSqlite3 | null = null;
  * externals 指定しておくことで、bundle 後の `require('better-sqlite3')` が
  * `dist/node_modules/better-sqlite3/` を解決する。
  *
- * memory-core の同名関数と同じパターン。
+ * trail-caravan-book の同名関数と同じパターン。
  */
 export function loadBetterSqlite3(): typeof BetterSqlite3 {
   if (cached) return cached;

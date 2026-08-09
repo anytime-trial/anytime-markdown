@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import { runAnalyzeReleaseCodePipeline } from '../AnalyzePipeline';
@@ -68,11 +68,11 @@ const TEST_REPO = 'anytime-markdown';
 // fixture 側も repos 行と repo_id を持たせる。
 const insertRelease = (db: TrailDatabase, tag: string): void => {
   const raw = (db as unknown as { db: { run: (sql: string, p?: unknown[]) => void } }).db;
-  raw.run('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+  raw.run('INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
     1, TEST_REPO, '2026-01-01T00:00:00.000Z',
   ]);
   raw.run(
-    'INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)',
+    'INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)',
     [tag, '2026-01-01T00:00:00.000Z', 1],
   );
 };
@@ -137,7 +137,7 @@ describe('runAnalyzeReleaseCodePipeline', () => {
     // 解析対象は gitRoot（現在のチェックアウト）ではなく、そのタグの worktree
     expect(seen[0].repositories[0].path).not.toBe(repoDir);
     expect(seen[0].repositories[0].path).toContain('trail-cg-release-v1.0.0');
-    // release 用の生成なので current_code_graphs へは保存させない
+    // release 用の生成なので activity_current_code_graphs へは保存させない
     expect(seen[0].persist).toBe(false);
     // tsconfig.json が無い worktree なので TS 解析は行われない。それでも
     // trailGraphProvider（現在の TrailGraph を返す）へフォールバックさせない。
@@ -251,7 +251,7 @@ describe('runAnalyzeReleaseCodePipeline', () => {
     });
   });
 
-  it('既存 release_code_graphs を洗い替える', async () => {
+  it('既存 activity_release_code_graphs を洗い替える', async () => {
     insertRelease(db, 'v1.0.0');
     db.saveReleaseCodeGraph('v1.0.0', makeCodeGraph());
     expect(db.getReleaseCodeGraph('v1.0.0', TEST_REPO)).not.toBeNull();

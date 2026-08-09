@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
-    "@anytime-markdown/memory-core": "*"
+    "@anytime-markdown/trail-caravan-book": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

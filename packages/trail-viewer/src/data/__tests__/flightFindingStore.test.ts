@@ -1,7 +1,7 @@
 import { createFlightFindingStore } from '../flightFindingStore';
-import type { MemoryFlightReviewFindingRow } from '../types';
+import type { CaravanFlightReviewFindingRow } from '../types';
 
-function finding(overrides: Partial<MemoryFlightReviewFindingRow> = {}): MemoryFlightReviewFindingRow {
+function finding(overrides: Partial<CaravanFlightReviewFindingRow> = {}): CaravanFlightReviewFindingRow {
   return {
     id: 'rf-1',
     findingEntityId: 'finding:rf-1',
@@ -75,7 +75,7 @@ describe('flightFindingStore', () => {
     const store = createFlightFindingStore('http://x', { limit: 42 });
     await store.refresh();
 
-    expect(calls.some((u) => u.endsWith('/api/memory/reviews/flight-counts'))).toBe(true);
+    expect(calls.some((u) => u.endsWith('/api/caravan/reviews/flight-counts'))).toBe(true);
     expect(calls.some((u) => u.includes('flight-findings?limit=42'))).toBe(true);
     store.dispose();
   });

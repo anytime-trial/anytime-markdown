@@ -20,7 +20,7 @@ const MESSAGE_TS = `${DAY}T10:00:00.000Z`;
 
 const insertSession = (db: TrailDatabase, sessionId: string, source: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, '0', '', '', ?, ?, 0, '', 0, ?, ?)`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, '0', '', '', ?, ?, 0, '', 0, ?, ?)`,
     [sessionId, sessionId, SESSION_START, SESSION_START, SESSION_START, source],
   );
 };
@@ -35,7 +35,7 @@ const insertAssistantMessage = (
   timestamp = MESSAGE_TS,
 ): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (
+    `INSERT OR IGNORE INTO activity_messages (
        uuid, session_id, type, model, input_tokens, output_tokens,
        cache_read_tokens, cache_creation_tokens, timestamp
      ) VALUES (?, ?, 'assistant', ?, ?, ?, 0, 0, ?)`,
@@ -119,7 +119,7 @@ describe('TrailDatabase.getCombinedData - token missing rate compensation', () =
       for (let i = 0; i < 3; i++) {
         insertAssistantMessage(db, `msg-tool-obs-${i}`, 'session-tool-1', 'gpt-5.4-codex', 100, 50);
         inner(db).run(
-          `INSERT OR IGNORE INTO message_tool_calls (
+          `INSERT OR IGNORE INTO activity_message_tool_calls (
              session_id, message_uuid, turn_index, call_index, tool_name, timestamp
            ) VALUES (?, ?, ?, 0, 'Bash', '${MESSAGE_TS}')`,
           ['session-tool-1', `msg-tool-obs-${i}`, i],
@@ -128,14 +128,14 @@ describe('TrailDatabase.getCombinedData - token missing rate compensation', () =
       // 2 missing assistant messages (all tokens=0)
       for (let i = 3; i < 5; i++) {
         inner(db).run(
-          `INSERT OR IGNORE INTO messages (
+          `INSERT OR IGNORE INTO activity_messages (
              uuid, session_id, type, model, input_tokens, output_tokens,
              cache_read_tokens, cache_creation_tokens, timestamp
            ) VALUES (?, ?, 'assistant', 'gpt-5.4-codex', 0, 0, 0, 0, '${MESSAGE_TS}')`,
           [`msg-tool-miss-${i}`, 'session-tool-1'],
         );
         inner(db).run(
-          `INSERT OR IGNORE INTO message_tool_calls (
+          `INSERT OR IGNORE INTO activity_message_tool_calls (
              session_id, message_uuid, turn_index, call_index, tool_name, timestamp
            ) VALUES (?, ?, ?, 0, 'Bash', '${MESSAGE_TS}')`,
           ['session-tool-1', `msg-tool-miss-${i}`, i],
@@ -253,12 +253,12 @@ describe('TrailDatabase integration scenario - mixed Claude + Codex', () => {
     for (let s = 0; s < CC_SESSIONS; s++) {
       const sid = `s7-cc-${s}`;
       db2inner.run(
-        `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, '0', '', '', '${SESSION_START}', '${SESSION_START}', 0, '', 0, '${SESSION_START}', 'claude_code')`,
+        `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, '0', '', '', '${SESSION_START}', '${SESSION_START}', 0, '', 0, '${SESSION_START}', 'claude_code')`,
         [sid, sid],
       );
       for (let t = 0; t < CC_TURNS_PER; t++) {
         db2inner.run(
-          `INSERT OR IGNORE INTO messages (uuid, session_id, type, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, timestamp) VALUES (?, ?, 'assistant', ?, ?, ?, 0, 0, '${MESSAGE_TS}')`,
+          `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, timestamp) VALUES (?, ?, 'assistant', ?, ?, ?, 0, 0, '${MESSAGE_TS}')`,
           [`s7-cc-${s}-t${t}`, sid, CC_MODEL, CC_INPUT, CC_OUTPUT],
         );
       }
@@ -268,18 +268,18 @@ describe('TrailDatabase integration scenario - mixed Claude + Codex', () => {
     for (let s = 0; s < CX_SESSIONS; s++) {
       const sid = `s7-cx-${s}`;
       db2inner.run(
-        `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, '0', '', '', '${SESSION_START}', '${SESSION_START}', 0, '', 0, '${SESSION_START}', 'codex')`,
+        `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES (?, ?, '0', '', '', '${SESSION_START}', '${SESSION_START}', 0, '', 0, '${SESSION_START}', 'codex')`,
         [sid, sid],
       );
       for (let t = 0; t < CX_OBSERVED; t++) {
         db2inner.run(
-          `INSERT OR IGNORE INTO messages (uuid, session_id, type, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, timestamp) VALUES (?, ?, 'assistant', ?, ?, ?, 0, 0, '${MESSAGE_TS}')`,
+          `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, timestamp) VALUES (?, ?, 'assistant', ?, ?, ?, 0, 0, '${MESSAGE_TS}')`,
           [`s7-cx-${s}-obs${t}`, sid, CX_MODEL, CX_INPUT, CX_OUTPUT],
         );
       }
       for (let t = 0; t < CX_MISSING; t++) {
         db2inner.run(
-          `INSERT OR IGNORE INTO messages (uuid, session_id, type, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, timestamp) VALUES (?, ?, 'assistant', ?, 0, 0, 0, 0, '${MESSAGE_TS}')`,
+          `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, timestamp) VALUES (?, ?, 'assistant', ?, 0, 0, 0, 0, '${MESSAGE_TS}')`,
           [`s7-cx-${s}-miss${t}`, sid, CX_MODEL],
         );
       }

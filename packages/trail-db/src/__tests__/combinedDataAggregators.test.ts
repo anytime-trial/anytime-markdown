@@ -273,7 +273,7 @@ describe('aggregateCommitPrefixBaseline', () => {
 
   it('counts fix(*regression*) subjects as regression', () => {
     const result = aggregateCommitPrefixBaseline([
-      { subject: 'fix(memory-core/regression): wrap purge', linesAdded: 4, linesDeleted: 1 },
+      { subject: 'fix(trail-caravan-book/regression): wrap purge', linesAdded: 4, linesDeleted: 1 },
       { subject: 'fix(regression): undo bad logic', linesAdded: 2, linesDeleted: 8 },
       { subject: 'fix: unrelated', linesAdded: 1, linesDeleted: 0 },
       { subject: 'feat: x', linesAdded: 10, linesDeleted: 0 },
@@ -407,7 +407,7 @@ describe('buildCombinedDataSqlFragments', () => {
     );
     expect(f.sessionRepoFilter).toBe(' AND s.repo_id IN (1,2)');
     expect(f.commitBareRepoFilter).toBe(
-      ' AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (1,2))',
+      ' AND session_id IN (SELECT id FROM activity_sessions WHERE repo_id IN (1,2))',
     );
   });
 

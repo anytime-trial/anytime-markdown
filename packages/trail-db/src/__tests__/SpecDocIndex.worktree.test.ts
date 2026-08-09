@@ -30,7 +30,7 @@ describe('SpecDocIndex.wasUpdatedIn (worktree scope)', () => {
     runGit(['init'], docsRoot);
     runGit(['config', 'user.email', 'dev@example.com'], docsRoot);
     runGit(['config', 'user.name', 'Dev'], docsRoot);
-    writeSpec(docsRoot, 'spec/31.trail/trail-core.ja.md', '"pkg_trail-core"');
+    writeSpec(docsRoot, 'spec/31.trail/trail-activity.ja.md', '"pkg_trail-activity"');
     runGit(['add', '.'], docsRoot);
     runGit(['commit', '-m', 'docs: add spec'], docsRoot);
 
@@ -45,15 +45,15 @@ describe('SpecDocIndex.wasUpdatedIn (worktree scope)', () => {
 
   it('reports false when the spec document is unchanged in the docs working tree', async () => {
     await expect(
-      index.wasUpdatedIn('spec/31.trail/trail-core.ja.md', { scope: 'worktree' }),
+      index.wasUpdatedIn('spec/31.trail/trail-activity.ja.md', { scope: 'worktree' }),
     ).resolves.toBe('not-updated');
   });
 
   it('reports true when the spec document has uncommitted modifications', async () => {
-    fs.appendFileSync(path.join(docsRoot, 'spec/31.trail/trail-core.ja.md'), '\n追記\n');
+    fs.appendFileSync(path.join(docsRoot, 'spec/31.trail/trail-activity.ja.md'), '\n追記\n');
 
     await expect(
-      index.wasUpdatedIn('spec/31.trail/trail-core.ja.md', { scope: 'worktree' }),
+      index.wasUpdatedIn('spec/31.trail/trail-activity.ja.md', { scope: 'worktree' }),
     ).resolves.toBe('updated');
   });
 
@@ -67,16 +67,16 @@ describe('SpecDocIndex.wasUpdatedIn (worktree scope)', () => {
 
   it('matches spec documents whose paths git records in quoted form', async () => {
     const japanesePath = 'spec/31.trail/設計書.ja.md';
-    writeSpec(docsRoot, japanesePath, '"pkg_trail-core"');
+    writeSpec(docsRoot, japanesePath, '"pkg_trail-activity"');
 
     await expect(index.wasUpdatedIn(japanesePath, { scope: 'worktree' })).resolves.toBe('updated');
   });
 
   it('does not require the docs repository to exist in the repos table', async () => {
-    fs.appendFileSync(path.join(docsRoot, 'spec/31.trail/trail-core.ja.md'), '\n追記\n');
+    fs.appendFileSync(path.join(docsRoot, 'spec/31.trail/trail-activity.ja.md'), '\n追記\n');
 
     await expect(
-      index.wasUpdatedIn('spec/31.trail/trail-core.ja.md', { scope: 'worktree' }),
+      index.wasUpdatedIn('spec/31.trail/trail-activity.ja.md', { scope: 'worktree' }),
     ).resolves.toBe('updated');
   });
 });

@@ -5,7 +5,7 @@ import {
   type OddResolution,
   parseOddRegistry,
   type RestrictedEntry,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 /**
  * ファイル読取の結果。**「不在」と「読めなかった」を分ける。**

@@ -1,4 +1,4 @@
-import type { AnalyzerContext, AnalyzerEvent, EventBusPublisher } from '@anytime-markdown/memory-core';
+import type { AnalyzerContext, AnalyzerEvent, EventBusPublisher } from '@anytime-markdown/trail-caravan-book';
 
 import { GitIngester, type GitReader, type GitLogEntry } from '../GitIngester';
 

@@ -1,0 +1,926 @@
+// domain/schema/tables.ts — SQL table/view creation statements
+//
+// 設計原則:
+// - STRICT: 型を強制 (SQLite 3.37+)。INSERT 時に型違反でエラー
+// - boolean は INTEGER + CHECK (col IN (0,1))
+// - timestamp は TEXT で NULL-able。常に UTC ISO 8601 + Z (`YYYY-MM-DDTHH:mm:ss.sssZ`、24 文字)
+//   を強制する。GLOB CHECK で書式違反を SQL 層で弾く。NULL / 空文字は移行期の互換性のため
+//   許容しているが、新規書き込みは ISO 8601 を必須とし、欠落は NULL を推奨する
+// - DEFAULT '' は意味論的に曖昧 (空文字とデータ未設定が区別不能) なため、timestamp 列では
+//   廃止し NULL-able とした。テキスト列 (slug / repo_name / commit_message 等) では空文字も
+//   有効値であるため DEFAULT '' を維持する
+// - JSON 列は CHECK (json_valid(col)) で構造妥当性を担保
+// - FK は明示し、親削除時の動作 (CASCADE / RESTRICT) を必ず指定
+// - 複合 PK の参照は複合 FK を使う
+
+// ISO 8601 UTC timestamp patterns. ms 付き (24 chars) と ms なし (20 chars) の両方を許容する。
+// テスト・外部 API 経由で `2026-05-05T00:00:00Z` 形式が混入することがあるため OR で繋ぐ
+const TS_GLOB_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z'`;
+const TS_GLOB_NO_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z'`;
+// Date-only pattern (10 chars: YYYY-MM-DD)
+const DATE_GLOB = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]'`;
+
+// repo 正規化の基盤テーブル (Phase A)。散在する repo_name TEXT を repo_id 代理キーへ
+// 集約する参照テーブル。repo_name='' は sentinel リポ (表示 '(unknown)') として 1 行採番する。
+// 後続 Phase で各テーブルの repo_name 列を repo_id FK へ移行する。
+export const CREATE_REPOS = `CREATE TABLE IF NOT EXISTS activity_repos (
+  repo_id    INTEGER PRIMARY KEY,
+  repo_name  TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+// Phase D flip: sessions に repo_id を additive 追加 (PK は id のまま不変)。
+// repo_id は nullable とする: 既存 DB は ALTER ADD COLUMN で追加し backfill するが、SQLite の
+// ALTER ADD COLUMN は NOT NULL を default 無しで追加できないため additive 経路と整合させる。
+// 新規 DB の CREATE もこれに合わせ nullable + DEFAULT なしとし、書き込み経路 (INSERT_SESSION) で
+// repoIdForName 解決済みの値を必ず供給する。FK は init() で OFF のため宣言のみ (現運用と整合)。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。repo フィルタは repo_id = ? (repoIdForName
+// 解決) で行い、repo_name が必要な read は (LEFT) JOIN activity_repos で復元する (下流契約は不変)。
+export const CREATE_SESSIONS = `CREATE TABLE IF NOT EXISTS activity_sessions (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL DEFAULT '',
+  repo_id INTEGER REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  version TEXT NOT NULL DEFAULT '',
+  entrypoint TEXT NOT NULL DEFAULT '',
+  model TEXT NOT NULL DEFAULT '',
+  start_time TEXT CHECK (start_time IS NULL OR start_time = '' OR start_time GLOB ${TS_GLOB_MS} OR start_time GLOB ${TS_GLOB_NO_MS}),
+  end_time TEXT CHECK (end_time IS NULL OR end_time = '' OR end_time GLOB ${TS_GLOB_MS} OR end_time GLOB ${TS_GLOB_NO_MS}),
+  message_count INTEGER NOT NULL DEFAULT 0,
+  file_path TEXT NOT NULL DEFAULT '',
+  file_size INTEGER NOT NULL DEFAULT 0,
+  imported_at TEXT CHECK (imported_at IS NULL OR imported_at = '' OR imported_at GLOB ${TS_GLOB_MS} OR imported_at GLOB ${TS_GLOB_NO_MS}),
+  commits_resolved_at TEXT CHECK (commits_resolved_at IS NULL OR commits_resolved_at = '' OR commits_resolved_at GLOB ${TS_GLOB_MS} OR commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
+  -- Pre-aggregated stats (populated in rebuildSessionStats after importAll).
+  peak_context_tokens INTEGER,
+  initial_context_tokens INTEGER,
+  git_branch TEXT,
+  interruption_reason TEXT,
+  interruption_context_tokens INTEGER,
+  message_commits_resolved_at TEXT CHECK (message_commits_resolved_at IS NULL OR message_commits_resolved_at = '' OR message_commits_resolved_at GLOB ${TS_GLOB_MS} OR message_commits_resolved_at GLOB ${TS_GLOB_NO_MS}),
+  sub_agent_count         INTEGER NOT NULL DEFAULT 0,
+  error_count             INTEGER NOT NULL DEFAULT 0,
+  assistant_message_count INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'claude_code'
+    CHECK (source IN ('claude_code', 'codex', 'gemini', 'cursor', 'other'))
+) STRICT`;
+
+export const CREATE_SESSION_COSTS = `CREATE TABLE IF NOT EXISTS activity_session_costs (
+  session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated_cost_usd REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, model)
+) STRICT`;
+
+// 統合日次集計テーブル。kind で cost_actual / cost_skill / tool / skill / error / model を識別。
+// 従来の daily_costs も cost_actual / cost_skill として本テーブルに統合している。
+export const CREATE_DAILY_COUNTS = `CREATE TABLE IF NOT EXISTS activity_daily_counts (
+  date TEXT NOT NULL CHECK (date GLOB ${DATE_GLOB}),
+  kind TEXT NOT NULL
+    CHECK (kind IN ('cost_actual', 'cost_skill', 'tool', 'skill', 'error', 'model', 'message', 'subagent_type')),
+  key TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  tokens INTEGER NOT NULL DEFAULT 0,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  estimated_cost_usd REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (date, kind, key)
+) STRICT`;
+
+export const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS activity_messages (
+  uuid TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
+  parent_uuid TEXT REFERENCES activity_messages(uuid) ON DELETE SET NULL,
+  type TEXT NOT NULL,
+  subtype TEXT,
+  text_content TEXT,
+  user_content TEXT,
+  tool_calls TEXT,
+  tool_use_result TEXT,
+  model TEXT,
+  request_id TEXT,
+  stop_reason TEXT,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+  service_tier TEXT,
+  speed TEXT,
+  timestamp TEXT CHECK (timestamp IS NULL OR timestamp = '' OR timestamp GLOB ${TS_GLOB_MS} OR timestamp GLOB ${TS_GLOB_NO_MS}),
+  is_sidechain INTEGER NOT NULL DEFAULT 0 CHECK (is_sidechain IN (0, 1)),
+  is_meta INTEGER NOT NULL DEFAULT 0 CHECK (is_meta IN (0, 1)),
+  cwd TEXT,
+  git_branch TEXT,
+  permission_mode TEXT,
+  skill TEXT,
+  agent_id TEXT,
+  source_tool_assistant_uuid TEXT REFERENCES activity_messages(uuid) ON DELETE SET NULL,
+  source_tool_use_id TEXT,
+  system_command TEXT,
+  duration_ms INTEGER,
+  tool_result_size INTEGER,
+  agent_description TEXT,
+  agent_model TEXT,
+  subagent_type TEXT
+) STRICT`;
+
+// Phase D flip: PK を (session_id, commit_hash) → (session_id, repo_id, commit_hash) へ再設計し、
+// リポ横断で同一 commit_hash を扱えるようにする (widening: 旧 PK は新 PK の部分集合)。
+// repo_id は PK 構成列のため NOT NULL。FK は init() で OFF のため宣言のみ。
+// DEFAULT 0 は repos に未登録の "未解決" sentinel。書き込み経路 (resolveCommits) は repoIdForName で
+// 解決済みの値を供給するが、repo_id を省略する既存テスト fixture との互換のため DEFAULT を持たせる。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read (SyncService の
+// Supabase ミラー含む) は (LEFT) JOIN activity_repos USING(repo_id) で復元する (下流契約は不変)。
+export const CREATE_SESSION_COMMITS = `CREATE TABLE IF NOT EXISTS activity_session_commits (
+  session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
+  commit_hash TEXT NOT NULL,
+  commit_message TEXT NOT NULL DEFAULT '',
+  author TEXT NOT NULL DEFAULT '',
+  committed_at TEXT CHECK (committed_at IS NULL OR committed_at = '' OR committed_at GLOB ${TS_GLOB_MS} OR committed_at GLOB ${TS_GLOB_NO_MS}),
+  is_ai_assisted INTEGER NOT NULL DEFAULT 0 CHECK (is_ai_assisted IN (0, 1)),
+  files_changed INTEGER NOT NULL DEFAULT 0,
+  lines_added INTEGER NOT NULL DEFAULT 0,
+  lines_deleted INTEGER NOT NULL DEFAULT 0,
+  repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  PRIMARY KEY (session_id, repo_id, commit_hash)
+) STRICT`;
+
+// Phase D flip: PK を (commit_hash, file_path) → (repo_id, commit_hash, file_path) へ再設計し、
+// リポ横断で同一 commit_hash を扱えるようにする (widening)。
+// repo_id は PK 構成列のため NOT NULL。DEFAULT 0 sentinel + 書き込み経路で repoIdForName 解決。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は (LEFT) JOIN activity_repos。
+export const CREATE_COMMIT_FILES = `CREATE TABLE IF NOT EXISTS activity_commit_files (
+  commit_hash TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  PRIMARY KEY (repo_id, commit_hash, file_path)
+) STRICT`;
+
+// Phase D flip: PK を (session_id, repo_name) → (session_id, repo_id) へ再設計する。
+// repo_id は PK 構成列のため NOT NULL。DEFAULT 0 sentinel + 書き込み経路
+// (markCommitResolutionDone) で repoIdForName 解決済みの値を供給する。
+// Phase H-4: 非正規化キャッシュの repo_name 列を物理撤去。resolved 判定 filter は repo_id = ? で行う。
+export const CREATE_SESSION_COMMIT_RESOLUTIONS = `CREATE TABLE IF NOT EXISTS activity_session_commit_resolutions (
+  session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
+  repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  resolved_at TEXT NOT NULL CHECK (resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (session_id, repo_id)
+) STRICT`;
+
+export const CREATE_MESSAGE_COMMITS = `CREATE TABLE IF NOT EXISTS activity_message_commits (
+  message_uuid TEXT NOT NULL REFERENCES activity_messages(uuid) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
+  commit_hash TEXT NOT NULL,
+  detected_at TEXT NOT NULL CHECK (detected_at GLOB ${TS_GLOB_MS} OR detected_at GLOB ${TS_GLOB_NO_MS}),
+  match_confidence TEXT NOT NULL CHECK(match_confidence IN ('realtime', 'high', 'medium', 'low')),
+  PRIMARY KEY (message_uuid, commit_hash)
+) STRICT`;
+
+// Phase C-2 flip: PK を repo_name → repo_id 代理キーへ。repo_id は repos(repo_id) を FK 参照する。
+// Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。repo フィルタは repo_id = ? (repoIdForName
+// 解決) で行い、repo_name が必要な read は JOIN activity_repos USING(repo_id) で復元する (下流契約は不変)。
+export const CREATE_CURRENT_GRAPHS = `CREATE TABLE IF NOT EXISTS activity_current_graphs (
+  repo_id       INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  commit_id     TEXT NOT NULL DEFAULT '',
+  graph_json    TEXT NOT NULL CHECK (json_valid(graph_json)),
+  tsconfig_path TEXT NOT NULL,
+  project_root  TEXT NOT NULL,
+  analyzed_at   TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at    TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+// Phase B-2b-iii flip: release_id を FK / PK にする。tag 列は廃止し releases.release_id を直接参照する。
+export const CREATE_RELEASE_GRAPHS = `CREATE TABLE IF NOT EXISTS activity_release_graphs (
+  release_id    INTEGER PRIMARY KEY REFERENCES activity_releases(release_id) ON DELETE CASCADE,
+  graph_json    TEXT NOT NULL CHECK (json_valid(graph_json)),
+  tsconfig_path TEXT NOT NULL,
+  project_root  TEXT NOT NULL,
+  analyzed_at   TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at    TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_SKILL_MODELS = `CREATE TABLE IF NOT EXISTS activity_skill_models (
+  skill TEXT PRIMARY KEY,
+  canonical_skill TEXT,
+  recommended_model TEXT NOT NULL DEFAULT 'sonnet'
+) STRICT`;
+
+export const CREATE_SKILL_MODELS_RESOLVED_VIEW = `CREATE VIEW IF NOT EXISTS activity_skill_models_resolved AS
+SELECT
+  s.skill,
+  COALESCE(
+    (SELECT c.recommended_model FROM activity_skill_models c WHERE c.skill = s.canonical_skill),
+    s.recommended_model
+  ) AS recommended_model
+FROM activity_skill_models s`;
+
+// Phase B-2b-iii flip: PK を tag → release_id 代理キーへ。tag は repo 内で一意な
+// 表示キーとして残し UNIQUE (repo_id, tag) で保証する。prev_tag は prev_release_id へ。
+// repo_name 列は移行互換のため残す (撤去は将来 Phase H)。
+// Phase H-5: 非正規化キャッシュの repo_name 列を物理撤去。repo 帰属は repo_id (repos FK) で表現する。
+// read で repo_name が要る箇所 (SyncService の Supabase trail_releases ミラー含む) は JOIN activity_repos で射影。
+export const CREATE_RELEASES = `CREATE TABLE IF NOT EXISTS activity_releases (
+  release_id INTEGER PRIMARY KEY,
+  tag TEXT NOT NULL,
+  released_at TEXT CHECK (released_at IS NULL OR released_at = '' OR released_at GLOB ${TS_GLOB_MS} OR released_at GLOB ${TS_GLOB_NO_MS}),
+  prev_release_id INTEGER REFERENCES activity_releases(release_id) ON DELETE SET NULL,
+  repo_id INTEGER REFERENCES activity_repos(repo_id) ON DELETE SET NULL,
+  package_tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(package_tags)),
+  commit_count INTEGER NOT NULL DEFAULT 0,
+  files_changed INTEGER NOT NULL DEFAULT 0,
+  lines_added INTEGER NOT NULL DEFAULT 0,
+  lines_deleted INTEGER NOT NULL DEFAULT 0,
+  total_lines INTEGER NOT NULL DEFAULT 0,
+  feat_count INTEGER NOT NULL DEFAULT 0,
+  fix_count INTEGER NOT NULL DEFAULT 0,
+  refactor_count INTEGER NOT NULL DEFAULT 0,
+  test_count INTEGER NOT NULL DEFAULT 0,
+  other_count INTEGER NOT NULL DEFAULT 0,
+  affected_packages TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(affected_packages)),
+  duration_days REAL NOT NULL DEFAULT 0,
+  resolved_at TEXT CHECK (resolved_at IS NULL OR resolved_at = '' OR resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS}),
+  release_time_min REAL,
+  UNIQUE (repo_id, tag)
+) STRICT`;
+
+export const CREATE_RELEASE_FILES = `CREATE TABLE IF NOT EXISTS activity_release_files (
+  release_id INTEGER NOT NULL REFERENCES activity_releases(release_id) ON DELETE CASCADE,
+  file_path TEXT NOT NULL,
+  lines_added INTEGER NOT NULL DEFAULT 0,
+  lines_deleted INTEGER NOT NULL DEFAULT 0,
+  change_type TEXT NOT NULL DEFAULT 'modified'
+    CHECK (change_type IN ('added', 'modified', 'deleted', 'renamed', 'copied')),
+  PRIMARY KEY (release_id, file_path)
+) STRICT`;
+
+export const CREATE_RELEASE_COVERAGE = `CREATE TABLE IF NOT EXISTS activity_release_coverage (
+  release_id         INTEGER NOT NULL REFERENCES activity_releases(release_id) ON DELETE CASCADE,
+  package            TEXT    NOT NULL,
+  file_path          TEXT    NOT NULL,
+  lines_total        INTEGER NOT NULL DEFAULT 0,
+  lines_covered      INTEGER NOT NULL DEFAULT 0,
+  lines_pct          REAL    NOT NULL DEFAULT 0,
+  statements_total   INTEGER NOT NULL DEFAULT 0,
+  statements_covered INTEGER NOT NULL DEFAULT 0,
+  statements_pct     REAL    NOT NULL DEFAULT 0,
+  functions_total    INTEGER NOT NULL DEFAULT 0,
+  functions_covered  INTEGER NOT NULL DEFAULT 0,
+  functions_pct      REAL    NOT NULL DEFAULT 0,
+  branches_total     INTEGER NOT NULL DEFAULT 0,
+  branches_covered   INTEGER NOT NULL DEFAULT 0,
+  branches_pct       REAL    NOT NULL DEFAULT 0,
+  PRIMARY KEY (release_id, package, file_path)
+) STRICT`;
+
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。
+// Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。read で repo_name が要る箇所は JOIN activity_repos。
+export const CREATE_CURRENT_COVERAGE = `CREATE TABLE IF NOT EXISTS activity_current_coverage (
+  repo_id            INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  package            TEXT    NOT NULL,
+  file_path          TEXT    NOT NULL,
+  lines_total        INTEGER NOT NULL DEFAULT 0,
+  lines_covered      INTEGER NOT NULL DEFAULT 0,
+  lines_pct          REAL    NOT NULL DEFAULT 0,
+  statements_total   INTEGER NOT NULL DEFAULT 0,
+  statements_covered INTEGER NOT NULL DEFAULT 0,
+  statements_pct     REAL    NOT NULL DEFAULT 0,
+  functions_total    INTEGER NOT NULL DEFAULT 0,
+  functions_covered  INTEGER NOT NULL DEFAULT 0,
+  functions_pct      REAL    NOT NULL DEFAULT 0,
+  branches_total     INTEGER NOT NULL DEFAULT 0,
+  branches_covered   INTEGER NOT NULL DEFAULT 0,
+  branches_pct       REAL    NOT NULL DEFAULT 0,
+  updated_at         TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, package, file_path)
+) STRICT`;
+
+// AUTOINCREMENT は撤去。INTEGER PRIMARY KEY は ROWID と同義で再利用される可能性があるが、
+// 別カラムで一意性が保たれているため実害はなく、書き込み性能が改善する。
+export const CREATE_MESSAGE_TOOL_CALLS = `CREATE TABLE IF NOT EXISTS activity_message_tool_calls (
+  id           INTEGER PRIMARY KEY,
+  session_id   TEXT NOT NULL REFERENCES activity_sessions(id) ON DELETE CASCADE,
+  message_uuid TEXT NOT NULL REFERENCES activity_messages(uuid) ON DELETE CASCADE,
+  turn_index   INTEGER NOT NULL,
+  call_index   INTEGER NOT NULL,
+  tool_name    TEXT NOT NULL,
+  file_path    TEXT,
+  command      TEXT,
+  skill_name   TEXT,
+  model        TEXT,
+  is_sidechain INTEGER NOT NULL DEFAULT 0 CHECK (is_sidechain IN (0, 1)),
+  turn_exec_ms INTEGER,
+  has_thinking INTEGER NOT NULL DEFAULT 0 CHECK (has_thinking IN (0, 1)),
+  is_error     INTEGER NOT NULL DEFAULT 0 CHECK (is_error IN (0, 1)),
+  error_type   TEXT,
+  timestamp    TEXT NOT NULL CHECK (timestamp GLOB ${TS_GLOB_MS} OR timestamp GLOB ${TS_GLOB_NO_MS}),
+  UNIQUE (message_uuid, call_index)
+) STRICT`;
+
+// Phase E flip: PK の repo_name → repo_id 代理キーへ。複合 FK も repo_id ベースへ張替える。
+// repo_id は PK 構成列のため NOT NULL。
+// 自己参照複合 FK は (repo_id, parent_id) → activity_c4_manual_elements(repo_id, element_id)。
+// Phase H-2: 非正規化キャッシュの repo_name 列を物理撤去。repo フィルタは repo_id = ? (repoIdForName
+// 解決) で行う。read の WHERE は repo_id = ? を使い、PK/複合 FK は repo_id 構成のため不変。
+export const CREATE_C4_MANUAL_ELEMENTS = `CREATE TABLE IF NOT EXISTS activity_c4_manual_elements (
+  repo_id      INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  element_id   TEXT NOT NULL,
+  type         TEXT NOT NULL
+    CHECK (type IN ('person', 'system', 'container', 'component', 'code', 'enterprise')),
+  name         TEXT NOT NULL,
+  description  TEXT,
+  external     INTEGER NOT NULL DEFAULT 0 CHECK (external IN (0, 1)),
+  parent_id    TEXT,
+  service_type TEXT,
+  updated_at   TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, element_id),
+  FOREIGN KEY (repo_id, parent_id) REFERENCES activity_c4_manual_elements(repo_id, element_id)
+) STRICT`;
+
+// Phase E flip: PK / 複合 FK を repo_id ベースへ。
+// Phase H-2: 非正規化キャッシュの repo_name 列を物理撤去。複合 FK は repo_id 構成のため不変。
+export const CREATE_C4_MANUAL_RELATIONSHIPS = `CREATE TABLE IF NOT EXISTS activity_c4_manual_relationships (
+  repo_id     INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  rel_id      TEXT NOT NULL,
+  from_id     TEXT NOT NULL,
+  to_id       TEXT NOT NULL,
+  label       TEXT,
+  technology  TEXT,
+  updated_at  TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, rel_id),
+  FOREIGN KEY (repo_id, from_id) REFERENCES activity_c4_manual_elements(repo_id, element_id),
+  FOREIGN KEY (repo_id, to_id)   REFERENCES activity_c4_manual_elements(repo_id, element_id)
+) STRICT`;
+
+// Phase E flip: PK を repo_id ベースへ。
+// Phase H-2: 非正規化キャッシュの repo_name 列を物理撤去。PK は repo_id 構成のため不変。
+export const CREATE_C4_MANUAL_GROUPS = `CREATE TABLE IF NOT EXISTS activity_c4_manual_groups (
+  repo_id    INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  group_id   TEXT NOT NULL,
+  member_ids TEXT NOT NULL CHECK (json_valid(member_ids)),
+  label      TEXT,
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, group_id)
+) STRICT`;
+
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。
+// Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。read で repo_name が要る箇所は JOIN activity_repos。
+export const CREATE_CURRENT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS activity_current_code_graphs (
+  repo_id      INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS activity_release_code_graphs (
+  release_id   INTEGER PRIMARY KEY REFERENCES activity_releases(release_id) ON DELETE CASCADE,
+  graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+// 任意コミット時点のコードグラフ（Snapshot per Commit）。State Replay をコミット粒度で
+// 動かすためのスナップショット置き場。
+//
+// activity_release_code_graphs と違い release_id を FK にできない。`releases` はタグを持つコミット
+// しか持たず、本テーブルの対象は「タグの付いていない任意のコミット」だからである。
+// repo_id だけを FK に持ち、commit_sha は文字列として保持する。
+//
+// 全量遡及はしない（2026-08-04 実測: repo_id=1 で 5,102 コミット × 約 2 MB ≒ 10 GB）。
+// 生成はオンデマンドのみで、リポジトリあたりの保持本数に上限を設けて generated_at の
+// 古い順に落とす。仕様は spec/31.trail/02.trail-viewer/state-replay/state-replay.ja.md §5.3。
+export const CREATE_COMMIT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS activity_commit_code_graphs (
+  repo_id      INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  commit_sha   TEXT NOT NULL,
+  graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
+  generated_at TEXT NOT NULL CHECK (generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, commit_sha)
+) STRICT`;
+
+// current code から抽出した意思決定コメント（WHY/RATIONALE/理由）。analyze-child が
+// ts.Program 走査で抽出し、trail-caravan-book が trail-db 経由で読んで Decision entity 化する
+// （trail-caravan-book から typescript を排除するための中継テーブル）。repo 単位 wash-away。
+export const CREATE_CODE_DECISION_COMMENTS = `CREATE TABLE IF NOT EXISTS activity_code_decision_comments (
+  repo_id      INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  comment_hash TEXT NOT NULL,
+  file_path    TEXT NOT NULL,
+  line         INTEGER NOT NULL,
+  comment_text TEXT NOT NULL,
+  symbol_name  TEXT,
+  commit_sha   TEXT,
+  recorded_at  TEXT NOT NULL CHECK (recorded_at GLOB ${TS_GLOB_MS} OR recorded_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, comment_hash)
+) STRICT`;
+
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。
+// Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。read で repo_name が要る箇所は JOIN activity_repos。
+// stable_key 列・部分索引 (idx_ccgc_stable_key) は引き継ぎ用途のため維持する。
+export const CREATE_CURRENT_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS activity_current_code_graph_communities (
+  repo_id      INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  community_id INTEGER NOT NULL,
+  label        TEXT    NOT NULL DEFAULT '',
+  name         TEXT    NOT NULL DEFAULT '',
+  summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, community_id)
+) STRICT`;
+
+export const CREATE_RELEASE_CODE_GRAPH_COMMUNITIES = `CREATE TABLE IF NOT EXISTS activity_release_code_graph_communities (
+  release_id   INTEGER NOT NULL REFERENCES activity_releases(release_id) ON DELETE CASCADE,
+  community_id INTEGER NOT NULL,
+  label        TEXT    NOT NULL DEFAULT '',
+  name         TEXT    NOT NULL DEFAULT '',
+  summary      TEXT    NOT NULL DEFAULT '',
+  stable_key   TEXT    NOT NULL DEFAULT '',
+  generated_at TEXT CHECK (generated_at IS NULL OR generated_at = '' OR generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (release_id, community_id)
+) STRICT`;
+
+// ---------------------------------------------------------------------------
+//  File / Function Analysis (Dead Code Detection)
+// ---------------------------------------------------------------------------
+
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。
+// Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。read で repo_name が要る箇所は JOIN activity_repos。
+export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS activity_current_file_analysis (
+  repo_id                    INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  file_path                  TEXT NOT NULL,
+  importance_score           REAL    NOT NULL DEFAULT 0,
+  fan_in_total               INTEGER NOT NULL DEFAULT 0,
+  cognitive_complexity_max   INTEGER NOT NULL DEFAULT 0,
+  line_count                 INTEGER NOT NULL DEFAULT 0,
+  cyclomatic_complexity_max  INTEGER NOT NULL DEFAULT 0,
+  function_count             INTEGER NOT NULL DEFAULT 0,
+  dead_code_score            INTEGER NOT NULL DEFAULT 0,
+  signal_orphan              INTEGER NOT NULL DEFAULT 0 CHECK (signal_orphan IN (0, 1)),
+  signal_fan_in_zero         INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
+  signal_no_recent_churn     INTEGER NOT NULL DEFAULT 0 CHECK (signal_no_recent_churn IN (0, 1)),
+  signal_zero_coverage       INTEGER NOT NULL DEFAULT 0 CHECK (signal_zero_coverage IN (0, 1)),
+  signal_isolated_community  INTEGER NOT NULL DEFAULT 0 CHECK (signal_isolated_community IN (0, 1)),
+  is_ignored                 INTEGER NOT NULL DEFAULT 0 CHECK (is_ignored IN (0, 1)),
+  ignore_reason              TEXT NOT NULL DEFAULT '',
+  cross_pkg_in_count     INTEGER NOT NULL DEFAULT 0,
+  external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
+  total_in_count         INTEGER NOT NULL DEFAULT 0,
+  is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
+  centrality_score       REAL    NOT NULL DEFAULT 0,
+  category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
+  newly_active               INTEGER NOT NULL DEFAULT 0 CHECK (newly_active IN (0, 1)),
+  analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, file_path)
+) STRICT`;
+
+
+// Phase C-2 flip: PK の repo_name → repo_id へ置換。
+// Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。read で repo_name が要る箇所は JOIN activity_repos。
+export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS activity_current_function_analysis (
+  repo_id                INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  file_path              TEXT NOT NULL,
+  function_name          TEXT NOT NULL,
+  start_line             INTEGER NOT NULL,
+  end_line               INTEGER NOT NULL DEFAULT 0,
+  language               TEXT NOT NULL DEFAULT '',
+  fan_in                 INTEGER NOT NULL DEFAULT 0,
+  cognitive_complexity   INTEGER NOT NULL DEFAULT 0,
+  cyclomatic_complexity  INTEGER NOT NULL DEFAULT 0,
+  data_mutation_score    INTEGER NOT NULL DEFAULT 0,
+  side_effect_score      INTEGER NOT NULL DEFAULT 0,
+  line_count             INTEGER NOT NULL DEFAULT 0,
+  importance_score       REAL    NOT NULL DEFAULT 0,
+  signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
+  fan_out          INTEGER NOT NULL DEFAULT 0,
+  distinct_callees INTEGER NOT NULL DEFAULT 0,
+  function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
+  analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, file_path, function_name, start_line)
+) STRICT`;
+
+
+// Phase C-2 flip: current_* の PK が repo_id 化されたため、先頭列を repo_id へ揃える。
+export const CREATE_FILE_ANALYSIS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_dead_code
+    ON activity_current_file_analysis (repo_id, dead_code_score DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_importance
+    ON activity_current_file_analysis (repo_id, importance_score DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_current_function_analysis_fan_in
+    ON activity_current_function_analysis (repo_id, fan_in)`,
+  `CREATE INDEX IF NOT EXISTS idx_current_function_analysis_importance
+    ON activity_current_function_analysis (repo_id, importance_score DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_current_file_analysis_centrality
+    ON activity_current_file_analysis (repo_id, centrality_score DESC)`,
+];
+
+// LEP Layer 4 (Aggregator): DORA 指標の月次集計。`DoraMetricsAggregator` が
+// 既存 activity.db データ (releases / activity_session_commits) のみから算出して書き込む。
+// 本 Step で算出するのは deployment frequency (期間内 release 件数) と
+// lead time for changes (commit → 含有 release の中央値) の 2 指標のみ。
+// change_failure_rate / mttr は bug→release attribution リンクが実データに無いため
+// 列を設けず deferred とする (列追加は将来の additive migration で対応)。
+// Phase F flip: PK を (repo_name, period) → (repo_id, period) 代理キーへ。repo_id は
+// repos(repo_id) を FK 参照する (PK 構成列のため NOT NULL)。DEFAULT 0 は repos に未登録の
+// sentinel だが、書き込み経路 (replaceDoraMetrics) は repoIdForName で解決済みの値を供給する。
+// Phase H-1: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は
+// JOIN activity_repos USING(repo_id) で r.repo_name を射影する (下流契約は不変)。
+export const CREATE_DORA_METRICS = `CREATE TABLE IF NOT EXISTS activity_dora_metrics (
+  repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  period TEXT NOT NULL CHECK (period GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
+  deployment_frequency REAL NOT NULL DEFAULT 0,
+  lead_time_hours REAL,
+  computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, period)
+) STRICT`;
+
+// LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。
+// review_id は GitHub REST の review id (グローバル一意) を文字列で保持し PRIMARY KEY とする。
+// repo_name / pr_number を参照する FK (pr_review_comments) を妥当にするため、合成 PK ではなく
+// review_id 単独 PK とし、repo × PR の検索はインデックスで賄う。
+// Phase F flip: repo_id を additive 追加 (PK は review_id 単独のまま不変)。repo_id は
+// repos(repo_id) を FK 参照する。PK が repo_name 非依存のため PK 変更は不要。DEFAULT 0 は
+// sentinel だが、書き込み経路 (upsertPrReview) は repoIdForName で解決済みの値を供給する。
+// 子 (pr_review_comments / pr_review_findings) は review_id 参照のため不変。
+// Phase H-1: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は
+// JOIN activity_repos USING(repo_id) で r.repo_name を射影する (下流契約は不変)。
+export const CREATE_PR_REVIEWS = `CREATE TABLE IF NOT EXISTS pr_reviews (
+  review_id TEXT PRIMARY KEY,
+  repo_id INTEGER NOT NULL DEFAULT 0 REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  pr_number INTEGER NOT NULL,
+  author TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL CHECK (state IN ('APPROVED', 'CHANGES_REQUESTED', 'COMMENTED')),
+  submitted_at TEXT NOT NULL CHECK (submitted_at GLOB ${TS_GLOB_MS} OR submitted_at GLOB ${TS_GLOB_NO_MS}),
+  body TEXT NOT NULL DEFAULT '',
+  body_hash TEXT NOT NULL DEFAULT ''
+) STRICT`;
+
+// PR review に紐づく行コメント。review_id に対する複合 PK + ON DELETE CASCADE。
+export const CREATE_PR_REVIEW_COMMENTS = `CREATE TABLE IF NOT EXISTS pr_review_comments (
+  review_id TEXT NOT NULL REFERENCES pr_reviews(review_id) ON DELETE CASCADE,
+  comment_index INTEGER NOT NULL,
+  file_path TEXT NOT NULL DEFAULT '',
+  line_number INTEGER,
+  body TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (review_id, comment_index)
+) STRICT`;
+
+export const CREATE_PR_REVIEW_INDEXES = [
+  // Phase F flip: repo × PR の検索インデックスを repo_name 先頭 → repo_id 先頭へ移行する。
+  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_repo_id_pr ON pr_reviews(repo_id, pr_number)`,
+  `CREATE INDEX IF NOT EXISTS idx_pr_reviews_submitted_at ON pr_reviews(submitted_at)`,
+];
+
+// PR review から抽出した finding (Step 4c)。trail-caravan-book の caravan_review_findings とは
+// 完全に分離した独立テーブル。trail-caravan-book の source_type enum (CHECK 制約) を変更せず、
+// drift/compare クエリへ影響を与えないため独立させる (lep-step4 プラン §6.3.2)。
+// severity は LLM 分類時のみ設定し、LLM 不在時は NULL (raw コメントのみ保存)。
+export const CREATE_PR_REVIEW_FINDINGS = `CREATE TABLE IF NOT EXISTS pr_review_findings (
+  finding_id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL REFERENCES pr_reviews(review_id) ON DELETE CASCADE,
+  file_path TEXT NOT NULL DEFAULT '',
+  line_number INTEGER,
+  severity TEXT CHECK (severity IS NULL OR severity IN ('error', 'warn', 'info')),
+  category TEXT,
+  body TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_pr_review_findings_review_id ON pr_review_findings(review_id)`,
+];
+
+// LEP Layer 4 (Aggregator): 複数ソース横断の相関 (Step 4d)。
+// CrossSourceCorrelator が既存 activity.db データ (pr_reviews / pr_review_findings /
+// activity_session_commits / releases / activity_commit_files) のみを突合して書き込む。新規テーブルのみ。
+// Phase F flip: repo_id を additive 追加 (PK は (correlation_type, source_a_id, source_b_id) の
+// まま不変)。repo は確定しないこともある (source_b が release tag 等で別 repo を指す可能性) ため
+// repo_id は NULL-able + ON DELETE SET NULL とする。書き込み経路 (replaceCrossSourceCorrelations) は
+// repoIdForName で解決済みの値を供給し、source_b_id に release tag を保存している箇所でも repo_id 列で
+// リポを区別できるようにする。
+// Phase H-1: 非正規化キャッシュの repo_name 列を物理撤去。repo_name が必要な read は
+// LEFT JOIN activity_repos USING(repo_id) で r.repo_name を射影する (repo_id NULL 行は repo_name='' とする)。
+export const CREATE_CROSS_SOURCE_CORRELATIONS = `CREATE TABLE IF NOT EXISTS activity_cross_source_correlations (
+  correlation_type TEXT NOT NULL
+    CHECK (correlation_type IN ('pr_review_session', 'pr_review_release', 'pr_finding_commit')),
+  repo_id INTEGER REFERENCES activity_repos(repo_id) ON DELETE SET NULL,
+  source_a_kind TEXT NOT NULL CHECK (source_a_kind IN ('pr_review', 'pr_finding')),
+  source_a_id TEXT NOT NULL,
+  source_b_kind TEXT NOT NULL CHECK (source_b_kind IN ('session', 'release', 'commit')),
+  source_b_id TEXT NOT NULL,
+  confidence TEXT NOT NULL DEFAULT 'low' CHECK (confidence IN ('high', 'medium', 'low')),
+  computed_at TEXT NOT NULL CHECK (computed_at GLOB ${TS_GLOB_MS} OR computed_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (correlation_type, source_a_id, source_b_id)
+) STRICT`;
+
+export const CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES = [
+  // Phase F flip: repo フィルタ索引を repo_name → repo_id へ移行する。
+  `CREATE INDEX IF NOT EXISTS idx_cross_source_correlations_repo_id ON activity_cross_source_correlations(repo_id)`,
+];
+
+// Phase 5 S1 (Emergency Protocol): セーフポイント。Stop フック（セッション終了）と
+// 手動コマンドが記録し、Emergency Rollback（recover ブランチ作成）の起点候補になる。
+// session_id へ FK を張らない: Stop フック経由の記録は sessions 行の取込（インポートラグ
+// 数十分〜）より先に届くのが通常で、FK を張ると正当な記録が恒常的に拒否される。
+export const CREATE_SAFE_POINTS = `CREATE TABLE IF NOT EXISTS activity_safe_points (
+  id INTEGER PRIMARY KEY,
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  commit_hash TEXT NOT NULL,
+  branch TEXT NOT NULL DEFAULT '',
+  worktree TEXT NOT NULL DEFAULT '',
+  label TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'stop_hook' CHECK (source IN ('stop_hook', 'manual')),
+  session_id TEXT
+) STRICT`;
+
+// Phase 5 S1: Kill Switch / Rollback / 異常検知の監査ログ。
+// anomaly_detected は S2（自動検知）で書き込みが始まる（値域は先行定義しておく）。
+export const CREATE_EMERGENCY_LOG = `CREATE TABLE IF NOT EXISTS activity_emergency_log (
+  id INTEGER PRIMARY KEY,
+  occurred_at TEXT NOT NULL CHECK (occurred_at GLOB ${TS_GLOB_MS} OR occurred_at GLOB ${TS_GLOB_NO_MS}),
+  event TEXT NOT NULL
+    CHECK (event IN ('kill_switch_on', 'kill_switch_off', 'rollback_executed', 'anomaly_detected',
+                     'section_lock_denied', 'section_lock_tamper')),
+  reason TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL DEFAULT 'human' CHECK (actor IN ('human', 'claude', 'agent')),
+  session_id TEXT,
+  detail_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail_json))
+) STRICT`;
+
+export const CREATE_EMERGENCY_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_safe_points_created_at ON activity_safe_points(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_emergency_log_occurred_at ON activity_emergency_log(occurred_at)`,
+];
+
+// Phase 6 S1 (Flight Review): フライト（セッション）単位の運航後レビュー。
+// Stop フック（機械集計）が 1 セッション 1 行を UPSERT する。
+// session_id へ FK を張らない: activity_safe_points と同じく Stop フック経由の記録は
+// sessions 行の取込（インポートラグ数十分〜）より先に届くため。
+// outcome は S1 では 'unknown' 固定（機械集計で成否を断定しない）。self は S2、manual は S3 で使用開始。
+// rationale_audit_status は S4 で追加（既存 DB へは列ごと独立 columnExists の ALTER。Rationale Audit の記録粒度はセッション単位）。
+export const CREATE_FLIGHT_REVIEWS = `CREATE TABLE IF NOT EXISTS caravan_flight_reviews (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL UNIQUE,
+  workspace_path TEXT NOT NULL DEFAULT '',
+  started_at TEXT CHECK (started_at IS NULL OR started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  ended_at TEXT NOT NULL CHECK (ended_at GLOB ${TS_GLOB_MS} OR ended_at GLOB ${TS_GLOB_NO_MS}),
+  duration_seconds INTEGER,
+  outcome TEXT NOT NULL DEFAULT 'unknown' CHECK (outcome IN ('achieved', 'partial', 'unachieved', 'unknown')),
+  outcome_source TEXT NOT NULL DEFAULT 'machine' CHECK (outcome_source IN ('machine', 'self', 'manual')),
+  tool_call_count INTEGER NOT NULL DEFAULT 0,
+  tool_failure_count INTEGER NOT NULL DEFAULT 0,
+  rework_count INTEGER NOT NULL DEFAULT 0,
+  unresolved_items TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(unresolved_items)),
+  next_concerns TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(next_concerns)),
+  lesson_candidates TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(lesson_candidates)),
+  tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),
+  notes TEXT NOT NULL DEFAULT '',
+  rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited' CHECK (rationale_audit_status IN ('unaudited', 'valid', 'needs_fix', 'rejected')),
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_FLIGHT_REVIEW_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_flight_reviews_ended_at ON caravan_flight_reviews(ended_at)`,
+];
+
+// Phase 6 S2 (User Feedback Logging): ユーザーの事後修正指示の記録。
+// UserPromptSubmit フック（プレフィルタ）→ /api/trail/user-feedback → detectUserFeedback 再判定を
+// 経て記録される。session_id へ FK を張らない: フック記録が sessions 取込より先に届くため。
+// 再送（at-least-once）は内容キー冪等 INSERT で吸収する（activity_emergency_log と同型）。
+export const CREATE_USER_FEEDBACK_ENTRIES = `CREATE TABLE IF NOT EXISTS activity_user_feedback_entries (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  occurred_at TEXT NOT NULL CHECK (occurred_at GLOB ${TS_GLOB_MS} OR occurred_at GLOB ${TS_GLOB_NO_MS}),
+  prompt_excerpt TEXT NOT NULL,
+  matched_pattern TEXT NOT NULL,
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_USER_FEEDBACK_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_user_feedback_entries_session_id ON activity_user_feedback_entries(session_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_user_feedback_entries_occurred_at ON activity_user_feedback_entries(occurred_at)`,
+];
+
+// 自律受入基盤 S5 (受入台帳): develop マージコミット単位の受入記録。
+// FK を張らない: farm（受入ファーム）の書き込みは Trail のコミット取込（activity_session_commits）より
+// 先に届くため（caravan_flight_reviews / activity_safe_points と同方針）。
+// 冪等性: (commit_sha, route) を PK とし UPSERT（farm の再実行・多重記録を吸収）。
+// verdict='not_run' はファーム自体の実行失敗（環境要因）で、合格でも不合格でもない（要件書 §9）。
+export const CREATE_ACCEPTANCE_RECORDS = `CREATE TABLE IF NOT EXISTS caravan_acceptance_records (
+  commit_sha TEXT NOT NULL,
+  route TEXT NOT NULL CHECK (route IN ('auto', 'machine', 'human')),
+  repo_name TEXT NOT NULL DEFAULT '',
+  verdict TEXT NOT NULL DEFAULT 'pending' CHECK (verdict IN ('pass', 'fail', 'pending', 'not_run')),
+  decided_by TEXT NOT NULL DEFAULT 'farm' CHECK (decided_by IN ('farm', 'human')),
+  decided_at TEXT CHECK (decided_at IS NULL OR decided_at GLOB ${TS_GLOB_MS} OR decided_at GLOB ${TS_GLOB_NO_MS}),
+  farm_run_ref TEXT NOT NULL DEFAULT '',
+  failed_tests TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(failed_tests)),
+  vrt_diff INTEGER NOT NULL DEFAULT 0 CHECK (vrt_diff IN (0, 1)),
+  quarantined_count INTEGER NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (commit_sha, route)
+) STRICT`;
+
+export const CREATE_ACCEPTANCE_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_acceptance_records_decided_at ON caravan_acceptance_records(decided_at)`,
+];
+
+// ドクトリン接地判断の並走記録 (D1)。中間承認の直前のエージェント判断と人の判断を
+// 突合し一致率を計測する。session_id は sessions(id) への FK を張らない
+// (セッション取込は import ラグで数十分遅延し、判断記録が先行するため)。
+/**
+ * `delegated_at` の CHECK 式。CREATE と ALTER の**両方**がこの 1 つを参照する。
+ * 式を二重に書くと、片方だけ直したときに新規 DB と移行 DB で受理される値が食い違う。
+ */
+const DELEGATED_AT_CHECK = `CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS})`;
+
+/**
+ * 「指示から一意に定まらない論点」の事前申告列の**列定義まるごと**。CREATE と ALTER の
+ * 両方がこれを参照する（CHECK だけ共有した `delegated_at` と違い、NOT NULL と DEFAULT も
+ * 揃っていないと意味が変わるため定義全体を共有する）。
+ *
+ * 他の後付け列と違い NULL 許容にしない。既存行へ ALTER の DEFAULT で `'[]'` を入れることで、
+ * 「申告が無い記録は空（＝指示から一意に定まると宣言した）」という扱いをスキーマの事実にする。
+ * NULL 許容にすると読み取り側ごとに「NULL は空か未申告か」の解釈が分岐する。
+ */
+const UNDERSPECIFIED_POINTS_COLUMN = `underspecified_points_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(underspecified_points_json))`;
+
+export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS caravan_doctrine_judgments (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  agent_judgment TEXT NOT NULL CHECK (agent_judgment IN ('approve', 'reject', 'escalate')),
+  coverage TEXT NOT NULL CHECK (coverage IN ('covered', 'silent', 'conflict', 'odd_out')),
+  citations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(citations_json)),
+  citation_count INTEGER NOT NULL DEFAULT 0,
+  resolved_count INTEGER NOT NULL DEFAULT 0,
+  human_decision TEXT CHECK (human_decision IS NULL OR human_decision IN ('approve', 'reject', 'modified')),
+  judged_at TEXT NOT NULL CHECK (judged_at GLOB ${TS_GLOB_MS} OR judged_at GLOB ${TS_GLOB_NO_MS}),
+  decided_at TEXT CHECK (decided_at IS NULL OR decided_at GLOB ${TS_GLOB_MS} OR decided_at GLOB ${TS_GLOB_NO_MS}),
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  -- 後から追加した列は末尾に置く。既存 DB へは ALTER TABLE ADD COLUMN で足すため、
+  -- 中間に挿入すると新規 DB と移行 DB で列順が食い違う
+  gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate')),
+  gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json)),
+  -- D2: ゲートが delegable と判定した What 承認をエージェントが代行した時刻。
+  -- human_decision が NULL のまま「人の判断待ち」に見えるのを防ぐために分ける
+  delegated_at TEXT ${DELEGATED_AT_CHECK},
+  -- DCT-14: 判断を記録する時点で申告する「指示から一意に定まらない論点」(JSON 文字列配列)。
+  -- 空 = 「この指示だけで結論は一意に定まる」と言い切った宣言。事後に原因を分類させると
+  -- 測られる側が自分に有利な原因を選べるため、事前申告に倒して後から覆せなくする
+  ${UNDERSPECIFIED_POINTS_COLUMN},
+  UNIQUE (session_id, subject)
+) STRICT`;
+
+/**
+ * 既存 DB へ `delegated_at` を足す ALTER。CHECK 制約を CREATE 側と同一に保つため、
+ * GLOB 定義を共有するここで組み立てる（手書きすると新規 DB と移行 DB で制約が食い違う）。
+ */
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE caravan_doctrine_judgments ADD COLUMN delegated_at TEXT ${DELEGATED_AT_CHECK}`;
+
+/**
+ * 既存 DB へ `underspecified_points_json` を足す ALTER。NOT NULL + DEFAULT `'[]'` なので、
+ * **既存行はこの ALTER の時点で「空の申告」に確定する**（遡って原因を分類し直さない）。
+ */
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS = `ALTER TABLE caravan_doctrine_judgments ADD COLUMN ${UNDERSPECIFIED_POINTS_COLUMN}`;
+
+export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON caravan_doctrine_judgments(judged_at)`,
+];
+
+// Architectural Drift Detection (管制塔要件 §2.3): 宣言境界（パッケージ）と
+// 実装コミュニティのずれ。コードグラフ解析の完了後に 1 リポジトリ分をまとめて記録する。
+// 仕様は spec/31.trail/03.trail-activity/architectural-drift-detection.ja.md。
+//
+// 洗い替えず履歴として積む（境界の劣化・改善の推移を追うため）。コミュニティ id は
+// 再クラスタリングで変わり得るので、同一性の追跡は stable_key で行う
+// (activity_current_code_graph_communities が既に持つ値と揃える。空文字＝未解決)。
+//
+// 指標列を kind ごとに出し分けるのは、判定結果が discriminated union だからである。
+// CHECK で「その kind に無い指標は NULL」を強制し、DB 側でも union を崩さない。
+export const CREATE_BOUNDARY_DRIFT_WARNINGS = `CREATE TABLE IF NOT EXISTS activity_boundary_drift_warnings (
+  id INTEGER PRIMARY KEY,
+  repo_id INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  detected_at TEXT NOT NULL CHECK (detected_at GLOB ${TS_GLOB_MS} OR detected_at GLOB ${TS_GLOB_NO_MS}),
+  kind TEXT NOT NULL CHECK (kind IN ('boundary_spanning', 'package_fragmentation')),
+  target_key TEXT NOT NULL,
+  stable_key TEXT NOT NULL DEFAULT '',
+  span_count INTEGER,
+  dominance REAL,
+  community_count INTEGER,
+  node_count INTEGER NOT NULL,
+  severity REAL NOT NULL,
+  breakdown_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(breakdown_json)),
+  CHECK (
+    (kind = 'boundary_spanning'
+      AND span_count IS NOT NULL AND dominance IS NOT NULL AND community_count IS NULL)
+    OR
+    (kind = 'package_fragmentation'
+      AND community_count IS NOT NULL AND span_count IS NULL AND dominance IS NULL)
+  )
+) STRICT`;
+
+/**
+ * 検出回そのものの記録。警告 0 件でも 1 行積む。
+ *
+ * 警告行だけでは「解析して健全だった」と「まだ解析していない」を区別できず、
+ * 警告が解消された回が記録されないため、最新回の特定を警告行の MAX(detected_at) で
+ * 行うと解消済みの古い警告を最新として返し続ける。検出回を独立に持ってこれを断つ。
+ */
+export const CREATE_BOUNDARY_DRIFT_RUNS = `CREATE TABLE IF NOT EXISTS activity_boundary_drift_runs (
+  id INTEGER PRIMARY KEY,
+  repo_id INTEGER NOT NULL REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+  detected_at TEXT NOT NULL CHECK (detected_at GLOB ${TS_GLOB_MS} OR detected_at GLOB ${TS_GLOB_NO_MS}),
+  warning_count INTEGER NOT NULL CHECK (warning_count >= 0),
+  node_count INTEGER NOT NULL CHECK (node_count >= 0)
+) STRICT`;
+
+export const CREATE_BOUNDARY_DRIFT_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_detected_at ON activity_boundary_drift_warnings(repo_id, detected_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_kind ON activity_boundary_drift_warnings(repo_id, kind, severity)`,
+  // 重複禁止をアプリ層の NOT EXISTS だけに置かず DB 側の不変条件にする
+  // (別経路の書き手・一括投入でも守られるように)。
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_warnings_key ON activity_boundary_drift_warnings(repo_id, detected_at, kind, target_key)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_runs_key ON activity_boundary_drift_runs(repo_id, detected_at)`,
+];
+
+// Flight Record: 「指示（instruction）」の台帳と、指示 : セッションの対応。
+//
+// 指示は人が出した 1 つの作業依頼で、1 指示は複数セッションにまたがりうる。対応付けは
+// エージェントの明示宣言（MCP record_instruction）だけが作る — 先頭プロンプトの継続表現から
+// 自動判定する方式は「進めて」で始まる新規指示と継続を原理的に区別できないため採らない。
+//
+// sessions への FK を張らない: 宣言はセッション取込（import ラグ数十分）より先行して届く
+// （caravan_flight_reviews / activity_user_feedback_entries / caravan_acceptance_records と同方針）。表示側は欠損に耐える。
+export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS caravan_instructions (
+  id TEXT PRIMARY KEY,
+  workspace_path TEXT NOT NULL DEFAULT '',
+  workspace_name TEXT NOT NULL DEFAULT '',
+  summary TEXT NOT NULL DEFAULT '',
+  origin_prompt TEXT NOT NULL DEFAULT '',
+  origin_session_id TEXT NOT NULL,
+  started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  closed_at TEXT CHECK (closed_at IS NULL OR closed_at GLOB ${TS_GLOB_MS} OR closed_at GLOB ${TS_GLOB_NO_MS}),
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+// session_id は PK 単独: 1 セッションは 1 指示にしか属さない。所属替えは UPSERT で上書きする
+// （2 つの指示へ同時に属せると、時間・トークンが二重計上され合計が実測と合わなくなる）。
+// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — activity.db は
+// foreign_keys=OFF で開くため。指示を削除する経路を足す場合、caravan_instruction_sessions の
+// 掃除はアプリ側の責務になる（DDL の ON DELETE CASCADE に頼れない）。
+export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS caravan_instruction_sessions (
+  session_id TEXT PRIMARY KEY,
+  instruction_id TEXT NOT NULL REFERENCES caravan_instructions(id) ON DELETE CASCADE,
+  sequence INTEGER NOT NULL CHECK (sequence >= 1),
+  declared_at TEXT NOT NULL CHECK (declared_at GLOB ${TS_GLOB_MS} OR declared_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_INSTRUCTION_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_instructions_started_at ON caravan_instructions(started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instructions_workspace_open ON caravan_instructions(workspace_path, closed_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instruction_sessions_instruction ON caravan_instruction_sessions(instruction_id, sequence)`,
+];
+
+// 検証実施台帳: 1 行 = 検証コマンド 1 回の実行（scripts/run-verified.mjs が書く）。
+// 本定義がスキーマの正本で、writer 側（scripts/verification-db.mjs）はこれを CREATE TABLE IF
+// NOT EXISTS のミラーとして持つ（.mjs から TS を import できないため。verificationStatus.ts が
+// 定数をミラーしているのと同じ方針）。writer は activity.db 側の _migrations（key TEXT PRIMARY KEY）
+// を使わない — 形が非互換で、触ると拡張側のマイグレーション記録を壊すため。
+//
+// session_id は「どの指示の検証か」を解く唯一のキー。instruction_id は非正規化しない:
+// 宣言が無いセッションは caravan_instruction_sessions に行を持たず、その場合の指示 ID は session_id
+// そのもの（1 セッション = 1 指示の暗黙グループ）なので、読み出し側で COALESCE すれば足りる。
+// 帰属不明（CLAUDE_CODE_SESSION_ID の無い手動実行）は '' で記録し、指示へは畳まれない。
+export const CREATE_VERIFICATION_RUNS = `CREATE TABLE IF NOT EXISTS activity_verification_runs (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL DEFAULT '',
+  workspace_path TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL CHECK (kind IN ('unit','build','next-build','typecheck','lint','e2e','manual')),
+  package TEXT NOT NULL,
+  command TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pass','fail','error')),
+  duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
+  commit_hash TEXT NOT NULL,
+  tree_state TEXT NOT NULL CHECK (tree_state IN ('clean','dirty')),
+  code_state_hash TEXT,
+  environment TEXT CHECK (environment IS NULL OR json_valid(environment)),
+  started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  finished_at TEXT NOT NULL CHECK (finished_at GLOB ${TS_GLOB_MS} OR finished_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_VERIFICATION_RUN_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON activity_verification_runs(session_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON activity_verification_runs(package, code_state_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON activity_verification_runs(started_at)`,
+];

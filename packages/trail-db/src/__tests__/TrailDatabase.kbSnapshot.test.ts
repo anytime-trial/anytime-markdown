@@ -1,5 +1,5 @@
-import type { IKnowledgeBaseSnapshotter, KbShrinkAlert, TrailGraph } from '@anytime-markdown/trail-core';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { IKnowledgeBaseSnapshotter, KbShrinkAlert, TrailGraph } from '@anytime-markdown/trail-activity';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 import type { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
@@ -81,13 +81,13 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
       db.deleteReleaseCodeGraphs();
 
       expect(calls).toEqual([
-        'current_graphs',
-        'current_code_graphs',
-        'current_code_graph_communities',
-        'release_graphs',
-        'release_code_graphs',
-        'current_code_graphs',
-        'release_code_graphs',
+        'activity_current_graphs',
+        'activity_current_code_graphs',
+        'activity_current_code_graph_communities',
+        'activity_release_graphs',
+        'activity_release_code_graphs',
+        'activity_current_code_graphs',
+        'activity_release_code_graphs',
       ]);
     });
 
@@ -113,7 +113,7 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
   });
 
   describe('Shrink Audit', () => {
-    it('current_code_graphs の総数が 50% 以上減少すると emergency_log と onKbShrinkAlert に警告が出る', () => {
+    it('activity_current_code_graphs の総数が 50% 以上減少すると activity_emergency_log と onKbShrinkAlert に警告が出る', () => {
       const alerts: KbShrinkAlert[] = [];
       db.setKbShrinkAlertHandler((a) => alerts.push(a));
 
@@ -123,7 +123,7 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
       const events = kbShrinkEvents(db);
       expect(events).toHaveLength(1);
       const detail = JSON.parse(events[0].detailJson) as KbShrinkAlert & { kind: string };
-      expect(detail.table).toBe('current_code_graphs');
+      expect(detail.table).toBe('activity_current_code_graphs');
       expect(detail.before).toBe(100);
       expect(detail.after).toBe(10);
       expect(events[0].actor).toBe('agent');
@@ -133,7 +133,7 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
       expect(alerts[0].repoName).toBe('repo1');
     });
 
-    it('current_graphs（C4 モデル）の縮小も検知する', () => {
+    it('activity_current_graphs（C4 モデル）の縮小も検知する', () => {
       const alerts: KbShrinkAlert[] = [];
       db.setKbShrinkAlertHandler((a) => alerts.push(a));
 
@@ -141,10 +141,10 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
       db.saveCurrentGraph(makeTrailGraph(5), '/t', 'c'.repeat(40), 'repo1');
 
       expect(alerts).toHaveLength(1);
-      expect(alerts[0].table).toBe('current_graphs');
+      expect(alerts[0].table).toBe('activity_current_graphs');
     });
 
-    it('current_code_graph_communities の行数縮小も検知する', () => {
+    it('activity_current_code_graph_communities の行数縮小も検知する', () => {
       const alerts: KbShrinkAlert[] = [];
       db.setKbShrinkAlertHandler((a) => alerts.push(a));
 
@@ -152,7 +152,7 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
       db.saveCurrentCodeGraph('repo1', makeCodeGraph(100, makeCommunities(5)));
 
       expect(alerts).toHaveLength(1);
-      expect(alerts[0].table).toBe('current_code_graph_communities');
+      expect(alerts[0].table).toBe('activity_current_code_graph_communities');
       expect(alerts[0].before).toBe(25);
       expect(alerts[0].after).toBe(5);
     });

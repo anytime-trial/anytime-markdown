@@ -1,4 +1,4 @@
-import type { AlignmentReport } from '@anytime-markdown/trail-core';
+import type { AlignmentReport } from '@anytime-markdown/trail-activity';
 
 import { AlignmentTreeProvider, type AlignmentNode } from '../providers/AlignmentTreeProvider';
 
@@ -23,16 +23,16 @@ describe('AlignmentTreeProvider', () => {
     provider.update(buildReport([
       {
         status: 'stale',
-        elementId: 'pkg_trail-core',
-        specPath: 'spec/31.trail/03.trail-core/trail-core.ja.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        elementId: 'pkg_trail-activity',
+        specPath: 'spec/31.trail/03.trail-activity/trail-activity.ja.md',
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'not updated',
       },
       {
         status: 'unknown',
-        elementId: 'pkg_trail-core',
+        elementId: 'pkg_trail-activity',
         specPath: 'spec/00.requirements/trail-roadmap.ja.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'commits missing from activity.db',
       },
     ]));
@@ -55,16 +55,16 @@ describe('AlignmentTreeProvider', () => {
     provider.update(buildReport([
       {
         status: 'stale',
-        elementId: 'pkg_trail-core',
-        specPath: 'spec/31.trail/03.trail-core/trail-core.ja.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        elementId: 'pkg_trail-activity',
+        specPath: 'spec/31.trail/03.trail-activity/trail-activity.ja.md',
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'not updated',
       },
       {
         status: 'stale',
-        elementId: 'pkg_trail-core',
+        elementId: 'pkg_trail-activity',
         specPath: 'spec/00.requirements/trail-roadmap.ja.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'not updated',
       },
       {
@@ -78,7 +78,7 @@ describe('AlignmentTreeProvider', () => {
 
     const roots = childrenOf(provider);
     expect(roots.map((node) => [node.label, node.description])).toEqual([
-      ['pkg_trail-core', 'stale 2'],
+      ['pkg_trail-activity', 'stale 2'],
       ['pkg_trail-db', 'stale 1'],
     ]);
 
@@ -86,7 +86,7 @@ describe('AlignmentTreeProvider', () => {
     expect([specGroup.label, specGroup.description]).toEqual(['追随していない設計書', '2']);
     expect(childrenOf(provider, specGroup).map((node) => node.label)).toEqual([
       'trail-roadmap.ja.md',
-      'trail-core.ja.md',
+      'trail-activity.ja.md',
     ]);
     expect([fileGroup.label, fileGroup.description]).toEqual(['変更ファイル', '1']);
     expect(childrenOf(provider, fileGroup)[0].label).toBe('a.ts');
@@ -157,9 +157,9 @@ describe('AlignmentTreeProvider', () => {
     provider.update(buildReport([
       {
         status: 'stale',
-        elementId: 'pkg_trail-core',
+        elementId: 'pkg_trail-activity',
         specPath: 'spec/a.md',
-        changedFiles: ['packages/trail-core/src/a.ts'],
+        changedFiles: ['packages/trail-activity/src/a.ts'],
         reason: 'not updated',
       },
     ]));

@@ -1,5 +1,5 @@
 // 型のみ import（値を import すると codeGraph.ts の node:crypto を webview バンドルに巻き込む）。
-import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
+import type { ArchitectureLayer } from '@anytime-markdown/trail-activity/codeGraph';
 import { getC4Colors } from '../theme/c4Tokens';
 
 /**

@@ -1,5 +1,5 @@
 // gen-spec-index CLI（tsx ラッパー）の冪等性テスト（要件書 AC-1・AC-2 の CLI 経路）。
-// 生成ロジック本体のテストは packages/doc-core/src/folderIndex/__tests__/ にあり、
+// 生成ロジック本体のテストは packages/markdown-catalog/src/folderIndex/__tests__/ にあり、
 // ここでは「npm script が呼ぶ経路」が実際に tsx で動き、冪等であることだけを固定する。
 
 import { test } from 'node:test';

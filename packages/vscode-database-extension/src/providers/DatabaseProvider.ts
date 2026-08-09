@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { SupabaseTrailStore } from '@anytime-markdown/trail-db';
 import { FileBackupManager } from '@anytime-markdown/database-core/FileBackupManager';
-import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
+import { formatLocalDateTime } from '@anytime-markdown/trail-activity/formatDate';
 
 interface DbFile {
   /** ワークスペース絶対パス */

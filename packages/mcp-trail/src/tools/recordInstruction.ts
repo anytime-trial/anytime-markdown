@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveMemoryDbPath, resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
-import { openMemoryDb, openTrailDb } from '../sqlite/openDb';
+import { resolveDbPath, resolveCaravanDbPath, resolveCaravanDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openCaravanDb, openTrailDb } from '../sqlite/openDb';
 import {
   closeInstructionDirect,
   continueInstructionDirect,
@@ -59,10 +59,10 @@ export async function handleRecordInstruction(
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
   // Flight Record の台帳は caravan-book.db（2026-08-07 に activity.db から移設）。
   // 書き込みは ForWrite 解決: 拡張未起動で caravan-book.db が無くても宣言を落とさない
-  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
-  const opened = await openMemoryDb(dbPath, 'readwrite');
+  const dbPath = resolveCaravanDbPathForWrite({ workspacePath });
+  const opened = await openCaravanDb(dbPath, 'readwrite');
   try {
-    // activity.db に旧台帳が残っていれば回収する（doctrine_judgments と同じ遅延移行。
+    // activity.db に旧台帳が残っていれば回収する（caravan_doctrine_judgments と同じ遅延移行。
     // 回収しないと旧指示への continue が「not found」になり、一覧からも消える）
     ensureAndMigrateInstructionTables(opened.db, dbPath);
     if (input.mode === 'close') {
@@ -111,18 +111,18 @@ export async function handleListOpenInstructions(
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
   const limit = input.limit ?? 10;
 
-  let memoryRows: OpenInstructionRow[] = [];
-  let memoryFailed: unknown = null;
+  let caravanRows: OpenInstructionRow[] = [];
+  let caravanFailed: unknown = null;
   try {
-    const dbPath = resolveMemoryDbPath({ workspacePath });
-    const opened = await openMemoryDb(dbPath, 'readonly');
+    const dbPath = resolveCaravanDbPath({ workspacePath });
+    const opened = await openCaravanDb(dbPath, 'readonly');
     try {
-      memoryRows = listOpenInstructionsDirect(opened.db, workspacePath, limit);
+      caravanRows = listOpenInstructionsDirect(opened.db, workspacePath, limit);
     } finally {
       opened.close();
     }
   } catch (err) {
-    memoryFailed = err;
+    caravanFailed = err;
     console.error(
       `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: caravan-book.db read failed (workspace=${workspacePath}); falling back to activity.db`,
       err instanceof Error ? err.stack : err,
@@ -149,16 +149,16 @@ export async function handleListOpenInstructions(
 
   // 「テーブルが無い = 宣言ゼロ」（空配列）と「両 DB とも読めない = 不明」を混同しない。
   // 後者を空配列で返すと、進行中の指示を放置したまま新規宣言が積まれる偽陰性になる
-  if (memoryFailed !== null && trailFailed !== null) {
+  if (caravanFailed !== null && trailFailed !== null) {
     throw new Error(
       `list_open_instructions: both caravan-book.db and activity.db unreadable (workspace=${workspacePath}): ${String(
-        memoryFailed instanceof Error ? memoryFailed.message : memoryFailed,
+        caravanFailed instanceof Error ? caravanFailed.message : caravanFailed,
       )}`,
     );
   }
 
-  const seen = new Set(memoryRows.map((r) => r.id));
-  const merged = [...memoryRows, ...trailRows.filter((r) => !seen.has(r.id))]
+  const seen = new Set(caravanRows.map((r) => r.id));
+  const merged = [...caravanRows, ...trailRows.filter((r) => !seen.has(r.id))]
     .sort((a, b) => (a.startedAt > b.startedAt ? -1 : a.startedAt < b.startedAt ? 1 : 0))
     .slice(0, limit);
   return { instructions: merged };

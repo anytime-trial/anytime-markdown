@@ -60,7 +60,7 @@ async function getAllPipelines(provider: PipelineProvider): Promise<PipelineItem
   return out;
 }
 
-describe('PipelineProvider.getChildren() — memory-core pipelines (Wave 3)', () => {
+describe('PipelineProvider.getChildren() — trail-caravan-book pipelines (Wave 3)', () => {
   let provider: PipelineProvider;
 
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe('PipelineProvider.getChildren() — memory-core pipelines (Wave 3)', ()
     expect(groups).toEqual([]);
   });
 
-  it('memory-core pipeline 表示: status ファイルを Wave 3 グループ配下に 3 行', async () => {
+  it('trail-caravan-book pipeline 表示: status ファイルを Wave 3 グループ配下に 3 行', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath);
     mockReadFileSync.mockReturnValue(JSON.stringify({
@@ -92,7 +92,7 @@ describe('PipelineProvider.getChildren() — memory-core pipelines (Wave 3)', ()
 
     provider = new PipelineProvider({ statusFilePath: statusPath });
 
-    // トップレベルは Wave 3 グループ 1 件のみ (dbFilePath/memoryDbFilePath なし)。
+    // トップレベルは Wave 3 グループ 1 件のみ (dbFilePath/caravanDbFilePath なし)。
     const groups = await provider.getChildren();
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe(WAVE3_GROUP_LABEL);
@@ -145,7 +145,7 @@ describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
       pipelines: [{ scope: 'embedding_backfill', state: 'pending' }],
     }));
 
-    provider = new PipelineProvider({ statusFilePath: statusPath, dbFilePath, memoryDbFilePath: memDbPath });
+    provider = new PipelineProvider({ statusFilePath: statusPath, dbFilePath, caravanDbFilePath: memDbPath });
     const groups = await provider.getChildren();
 
     expect(groups.map((g) => g.label)).toEqual([
@@ -211,7 +211,7 @@ describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
     expect(wave2[1].label).toBe('import_sessions');
   });
 
-  it('memory-core pipeline は Wave 3 グループ配下に並ぶ', async () => {
+  it('trail-caravan-book pipeline は Wave 3 グループ配下に並ぶ', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath);
     mockReadFileSync.mockReturnValue(JSON.stringify({
@@ -294,11 +294,11 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     expect((await getGroupChildren(provider, WAVE4_GROUP_LABEL)).map((c) => c.label)).toEqual([...WAVE4_DERIVED_IDS]);
   });
 
-  it('memoryDbFilePath あり / .bak.1.gz 不在: memory backup を Wave 3 配下に pending 表示', async () => {
+  it('caravanDbFilePath あり / .bak.1.gz 不在: memory backup を Wave 3 配下に pending 表示', async () => {
     const memDbPath = '/fake/.anytime/trail/db/caravan-book.db';
     mockExistsSync.mockReturnValue(false);
 
-    provider = new PipelineProvider({ memoryDbFilePath: memDbPath });
+    provider = new PipelineProvider({ caravanDbFilePath: memDbPath });
     const wave3 = await getGroupChildren(provider, WAVE3_GROUP_LABEL);
 
     const memBackup = wave3.find((c) => c.label === 'memory backup');
@@ -306,14 +306,14 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     expect(memBackup?.description).toBe('未作成');
   });
 
-  it('memoryDbFilePath あり / .bak.1.gz 存在: success state でサイズ + mtime 表示', async () => {
+  it('caravanDbFilePath あり / .bak.1.gz 存在: success state でサイズ + mtime 表示', async () => {
     const memDbPath = '/fake/.anytime/trail/db/caravan-book.db';
     const memBakPath = `${memDbPath}.bak.1.gz`;
     mockExistsSync.mockImplementation((p: string) => p === memBakPath);
     const fakeMtime = new Date('2026-05-17T03:00:00.000Z');
     mockStatSync.mockReturnValue({ size: 524_288, mtime: fakeMtime });
 
-    provider = new PipelineProvider({ memoryDbFilePath: memDbPath });
+    provider = new PipelineProvider({ caravanDbFilePath: memDbPath });
     const wave3 = await getGroupChildren(provider, WAVE3_GROUP_LABEL);
 
     const memBackup = wave3.find((c) => c.label === 'memory backup');
@@ -340,7 +340,7 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     provider = new PipelineProvider({
       statusFilePath: statusPath,
       dbFilePath,
-      memoryDbFilePath: memDbPath,
+      caravanDbFilePath: memDbPath,
     });
 
     const wave3 = await getGroupChildren(provider, WAVE3_GROUP_LABEL);

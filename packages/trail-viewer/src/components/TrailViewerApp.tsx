@@ -4,7 +4,7 @@
  * Delegates all logic to mountTrailViewerApp via VanillaIsland.
  * TrailViewerAppProps is kept identical so all callers remain unchanged.
  */
-import type { DocLink } from '@anytime-markdown/trail-core/c4';
+import type { DocLink } from '@anytime-markdown/trail-activity/c4';
 import type { TrailLocale } from '../i18n/types';
 
 import { VanillaIsland } from '../shared/vanillaIsland';

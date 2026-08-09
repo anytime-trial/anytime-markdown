@@ -3,7 +3,7 @@
 // ループ系機能（anytime-loop-start / cron 自己確保 / 委譲実行系）に触れるマージを対象に、
 // sandbox（一時 worktree + fixture チケットリポジトリ）で N tick のカナリアを実行し、
 // 決定論検査（exit code・ERROR ログ・チケット状態遷移・残留プロセス）で判定する。
-// 結果は farm.mjs が machine 記録（S5 台帳）へ統合する — acceptance_records の PK は
+// 結果は farm.mjs が machine 記録（S5 台帳）へ統合する — caravan_acceptance_records の PK は
 // (commit_sha, route) のため、canary が独立に POST すると farm の記録を UPSERT で相互破壊する。
 //
 // tick 実行体は headless claude CLI（低コストモデル固定・tick 数と時間の上限つき）。

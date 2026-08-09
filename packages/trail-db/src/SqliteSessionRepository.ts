@@ -5,8 +5,8 @@ import type {
   ISessionRepository,
   SessionStats,
   MessageCommitInput,
-} from '@anytime-markdown/trail-core';
-import type { TrailMessageCommit } from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity';
+import type { TrailMessageCommit } from '@anytime-markdown/trail-activity/domain';
 
 export class SqliteSessionRepository implements ISessionRepository {
   constructor(private readonly db: Database) {}
@@ -19,7 +19,7 @@ export class SqliteSessionRepository implements ISessionRepository {
         COALESCE(SUM(input_tokens), 0) as inp,
         COALESCE(SUM(output_tokens), 0) as outp,
         COALESCE(SUM(cache_read_tokens), 0) as cache_read
-      FROM sessions
+      FROM activity_sessions
       WHERE git_branch = '${escaped}'
     `);
 
@@ -31,7 +31,7 @@ export class SqliteSessionRepository implements ISessionRepository {
       SELECT COALESCE(SUM(
         CAST((julianday(end_time) - julianday(start_time)) * 86400000 AS INTEGER)
       ), 0) as dur
-      FROM sessions
+      FROM activity_sessions
       WHERE git_branch = '${escaped}' AND end_time != '' AND start_time != ''
     `);
     const dur = durResult[0]?.values?.[0]?.[0] ?? 0;
@@ -47,7 +47,7 @@ export class SqliteSessionRepository implements ISessionRepository {
 
   insertMessageCommit(input: MessageCommitInput): void {
     this.db.run(
-      `INSERT OR IGNORE INTO message_commits (message_uuid, session_id, commit_hash, detected_at, match_confidence)
+      `INSERT OR IGNORE INTO activity_message_commits (message_uuid, session_id, commit_hash, detected_at, match_confidence)
        VALUES (?, ?, ?, ?, ?)`,
       [input.messageUuid, input.sessionId, input.commitHash, input.detectedAt, input.matchConfidence],
     );
@@ -56,7 +56,7 @@ export class SqliteSessionRepository implements ISessionRepository {
   getMessageCommitsBySession(sessionId: string): readonly TrailMessageCommit[] {
     const result = this.db.exec(
       `SELECT message_uuid, session_id, commit_hash, detected_at, match_confidence
-       FROM message_commits WHERE session_id = ?`,
+       FROM activity_message_commits WHERE session_id = ?`,
       [sessionId],
     );
     if (!result[0]?.values) return [];
@@ -71,14 +71,14 @@ export class SqliteSessionRepository implements ISessionRepository {
 
   markMessageCommitsResolved(sessionId: string, resolvedAt: string): void {
     this.db.run(
-      `UPDATE sessions SET message_commits_resolved_at = ? WHERE id = ?`,
+      `UPDATE activity_sessions SET message_commits_resolved_at = ? WHERE id = ?`,
       [resolvedAt, sessionId],
     );
   }
 
   isMessageCommitsResolved(sessionId: string): boolean {
     const result = this.db.exec(
-      `SELECT message_commits_resolved_at FROM sessions WHERE id = ?`,
+      `SELECT message_commits_resolved_at FROM activity_sessions WHERE id = ?`,
       [sessionId],
     );
     const val = result[0]?.values?.[0]?.[0];

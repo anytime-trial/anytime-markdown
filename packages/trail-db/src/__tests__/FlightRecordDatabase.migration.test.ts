@@ -11,7 +11,7 @@ import {
   CREATE_FLIGHT_REVIEWS,
   CREATE_INSTRUCTION_SESSIONS,
   CREATE_INSTRUCTIONS,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import { FlightRecordDatabase } from '../FlightRecordDatabase';
 import { openBetterSqlite3 } from '../internal/loadBetterSqlite3';
@@ -21,7 +21,7 @@ const TS = '2026-07-17T10:00:00.000Z';
 interface LegacyContext {
   tempDir: string;
   trailDbPath: string;
-  memoryDbPath: string;
+  caravanDbPath: string;
 }
 
 function createLegacyTrailDb(): LegacyContext {
@@ -29,9 +29,14 @@ function createLegacyTrailDb(): LegacyContext {
   const trailDbPath = path.join(tempDir, 'activity.db');
   const trail = openBetterSqlite3(trailDbPath);
   trail.pragma('foreign_keys = OFF');
+  // DDL 定数は接頭辞移行後の新名（caravan_*）を作るため、旧配置の activity.db を再現するには
+  // 生成後にレガシー名へ戻す（歴史時点の DDL をテストへ書き写すと本体修正に追従できない）
   trail.exec(CREATE_INSTRUCTIONS);
   trail.exec(CREATE_INSTRUCTION_SESSIONS);
   trail.exec(CREATE_FLIGHT_REVIEWS);
+  trail.exec(`ALTER TABLE caravan_instructions RENAME TO instructions`);
+  trail.exec(`ALTER TABLE caravan_instruction_sessions RENAME TO instruction_sessions`);
+  trail.exec(`ALTER TABLE caravan_flight_reviews RENAME TO flight_reviews`);
   trail
     .prepare(
       `INSERT INTO instructions (id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at)
@@ -50,7 +55,7 @@ function createLegacyTrailDb(): LegacyContext {
     )
     .run(TS, TS, TS, TS);
   trail.close();
-  return { tempDir, trailDbPath, memoryDbPath: path.join(tempDir, 'caravan-book.db') };
+  return { tempDir, trailDbPath, caravanDbPath: path.join(tempDir, 'caravan-book.db') };
 }
 
 function trailTables(trailDbPath: string, like = ''): string[] {
@@ -74,7 +79,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
 
   beforeEach(() => {
     ctx = createLegacyTrailDb();
-    db = new FlightRecordDatabase(ctx.memoryDbPath, { trailDbPath: ctx.trailDbPath });
+    db = new FlightRecordDatabase(ctx.caravanDbPath, { trailDbPath: ctx.trailDbPath });
     db.init();
   });
 

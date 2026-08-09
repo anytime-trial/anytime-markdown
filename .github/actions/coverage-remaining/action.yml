@@ -35,11 +35,11 @@ runs:
         # pick it up. A workflow that already covers a package individually
         # passes it via the `exclude` input instead of editing this list.
         ALL="cms-core mcp-cms mcp-cms-remote mcp-graph mcp-markdown mcp-trail \
-             spreadsheet-core trace-core trail-core trail-db memory-core \
+             spreadsheet-core trace-core trail-activity trail-db trail-caravan-book \
              trail-server database-core database-viewer agent-core \
              markdown-eval-core review-agent ollama-core \
              chart-core code-analysis-core code-analysis-python \
-             code-analysis-typescript doc-core markdown-react-islands \
+             code-analysis-typescript markdown-catalog markdown-react-islands \
              section-lock-core tickets-core"
         for p in $ALL; do
           case " $EXCLUDE " in

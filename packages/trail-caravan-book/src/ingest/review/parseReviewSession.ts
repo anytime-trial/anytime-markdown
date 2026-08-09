@@ -1,0 +1,400 @@
+import type { CaravanDbConnection } from '../../db/connection/types';
+import type { ParsedFinding } from './findingHelpers';
+import {
+  inferCategory,
+  inferSeverity,
+  inferSeverityFromHeading,
+  parseSeverityMarker,
+  parseChecklistRefMarker,
+  extractBacktickPaths,
+  splitIntoChapters,
+  extractProblemSuggestionPairs,
+  extractNumberedFindings,
+  parseTargetMarker,
+  resolveFindingTarget,
+} from './findingHelpers';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type ParsedReviewSession = {
+  session_id: string;
+  message_uuid_start: string;
+  message_uuid_end: string;
+  subagent_invocation_id: string | null;
+  reviewer: string;
+  target_kind: 'spec' | 'code' | 'package' | 'release' | 'mixed';
+  target_refs: string[];
+  body_excerpt: string;
+  /** 機械生成の要約（指摘の内訳）。LLM は使わない。 */
+  summary: string;
+  /**
+   * 切り詰め前の本文全体。保存はしない（DB へ入るのは body_excerpt）が、
+   * LLM 再抽出（runReviewFindingExtraction）は全文を読む必要があるため公開する。
+   */
+  full_body: string;
+  findings: ParsedFinding[];
+  reviewed_at: string;
+};
+
+// ── Internal row type ─────────────────────────────────────────────────────────
+
+type MsgRow = {
+  uuid: string;
+  session_id: string;
+  type: string;
+  timestamp: string;
+  /** メッセージ本文全体（finding 抽出に使う。保存用の body_excerpt は別途切り詰める）。 */
+  text_content: string;
+  tool_calls: string | null;
+  subagent_type: string | null;
+  skill: string | null;
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Extract target refs from tool_calls JSON array.
+ * Looks for input.prompt (backtick paths), input.file_path, input.path.
+ */
+function extractRefsFromToolCalls(
+  toolCallsJson: string | null,
+  logger: { warn: (msg: string) => void },
+): string[] {
+  if (!toolCallsJson) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(toolCallsJson);
+  } catch (err) {
+    logger.warn(
+      `[parseReviewSession] Failed to parse tool_calls JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  const refs: string[] = [];
+  for (const call of parsed) {
+    if (!call || typeof call !== 'object') continue;
+    const input = (call as Record<string, unknown>)['input'];
+    if (!input || typeof input !== 'object') continue;
+    const inp = input as Record<string, unknown>;
+
+    if (typeof inp['prompt'] === 'string') {
+      refs.push(...extractBacktickPaths(inp['prompt']));
+    }
+    if (typeof inp['file_path'] === 'string') {
+      refs.push(inp['file_path']);
+    }
+    if (typeof inp['path'] === 'string') {
+      refs.push(inp['path']);
+    }
+  }
+  return refs;
+}
+
+/**
+ * Infer target_kind from the list of target refs.
+ */
+function inferTargetKind(refs: string[]): ParsedReviewSession['target_kind'] {
+  if (refs.length === 0) return 'mixed';
+
+  const allSpec = refs.every((r) => r.startsWith('spec/'));
+  if (allSpec) return 'spec';
+
+  const allCode = refs.every((r) => r.startsWith('packages/'));
+  if (allCode) return 'code';
+
+  return 'mixed';
+}
+
+function makeFinding(
+  findingIndex: number,
+  target: string | null,
+  category: ParsedFinding['category'],
+  severity: ParsedFinding['severity'],
+  findingText: string,
+  suggestionText: string,
+  chapterHeading: string,
+  is_category_inferred: boolean,
+  checklistRef: string | null,
+): ParsedFinding {
+  return {
+    finding_index: findingIndex,
+    target_file_path: target,
+    target_symbol: null,
+    target_line_start: null,
+    target_line_end: null,
+    category,
+    severity,
+    finding_text: findingText,
+    suggestion_text: suggestionText,
+    chapter_path: chapterHeading,
+    is_category_inferred,
+    checklist_ref: checklistRef,
+  };
+}
+
+/**
+ * Extract ParsedFinding array from a combined body text.
+ */
+function extractFindings(bodyText: string): ParsedFinding[] {
+  const bodyLines = bodyText.split('\n');
+  const chapters = splitIntoChapters(bodyLines);
+  const findings: ParsedFinding[] = [];
+  let findingIndex = 0;
+
+  for (const chapter of chapters) {
+    if (!chapter.heading) continue;
+
+    const chapterBody = chapter.lines.join('\n');
+    const { category, is_category_inferred } = inferCategory(chapter.heading);
+    // 明示マーカー `重大度:` を最優先。無ければ本文キーワード→見出しの順で推論する。
+    const markerSeverity = parseSeverityMarker(chapterBody);
+    const bodyBasedSeverity = inferSeverity(chapterBody);
+    const headingSeverity = inferSeverityFromHeading(chapter.heading);
+    const severity =
+      markerSeverity ?? (bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity);
+    // 観点キー（severity と同じ chapter 粒度。マーカー無しは null＝未記録）
+    const checklistRef = parseChecklistRefMarker(chapterBody);
+    // 明示された `- **対象**:` を最優先。本文からの推測はコード例に現れる
+    // 実在しないパス（`src/foo.ts` 等）を拾うため、書かれている方を信用する。
+    // チャプターに複数 finding が同居する場合の扱いは resolveFindingTarget を参照。
+    const chapterTarget = parseTargetMarker(chapterBody);
+
+    // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
+    const pairs = extractProblemSuggestionPairs(chapter.lines);
+    if (pairs.length > 0) {
+      for (const [findingText, suggestionText] of pairs) {
+        const target = resolveFindingTarget({
+          ownText: chapter.heading + '\n' + findingText + '\n' + suggestionText,
+          chapterTarget,
+          chapterFindingCount: pairs.length,
+        });
+        findings.push(makeFinding(findingIndex++, target, category, severity, findingText, suggestionText, chapter.heading, is_category_inferred, checklistRef));
+      }
+      continue;
+    }
+
+    // Strategy 2: 番号付き finding（Sample 2/3）
+    const numbered = extractNumberedFindings(chapter.lines);
+    for (const nf of numbered) {
+      const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
+      const target = resolveFindingTarget({
+        ownText: findingText + '\n' + nf.suggestion,
+        chapterTarget,
+        chapterFindingCount: numbered.length,
+      });
+      findings.push(makeFinding(findingIndex++, target, category, severity, findingText, nf.suggestion, chapter.heading, is_category_inferred, checklistRef));
+    }
+  }
+
+  return findings;
+}
+
+// ── Contiguous block grouping ─────────────────────────────────────────────────
+
+/**
+ * A contiguous block of messages within a session that share a review-related
+ * subagent_type or skill label.
+ */
+type ReviewBlock = {
+  session_id: string;
+  rows: MsgRow[];
+};
+
+/**
+ * 同一ラベルでも、これ以上間隔が空いたら別のレビュー実行とみなす。
+ *
+ * ラベル一致だけで連続とみなすと、1 セッション内で午前と午後に行った別々の
+ * レビューが 1 ブロックへ融合する（実測で最大 47 時間・60 分超が 58 ブロック）。
+ * 融合すると review 行が 1 件に潰れ、指摘も出典も混ざる。
+ */
+const REVIEW_BLOCK_GAP_MS = 30 * 60 * 1000;
+
+/**
+ * Group messages into contiguous review blocks.
+ *
+ * Block boundary rules:
+ * - A new block starts when `session_id` changes (different session).
+ * - A new block also starts when the block label (`subagent_type ?? skill`) changes
+ *   within the same session. For example, a session that contains messages with
+ *   `subagent_type='code-reviewer'` followed by messages with
+ *   `skill='superpowers:requesting-code-review'` will produce 2 separate blocks.
+ *   This is intentional: they represent distinct review invocations even though
+ *   they share a session.
+ * - A new block also starts when the gap from the previous message exceeds
+ *   {@link REVIEW_BLOCK_GAP_MS}. 走査対象はレビュー関連行だけに絞り込まれている
+ *   ため、「連続」は時系列上の近接を意味しない。
+ */
+function groupIntoBlocks(
+  rows: MsgRow[],
+  logger: { warn: (msg: string) => void },
+): ReviewBlock[] {
+  const blocks: ReviewBlock[] = [];
+
+  let currentSession: string | null = null;
+  let currentLabel: string | null = null;
+  let previousTimestamp: number | null = null;
+  let currentBlock: MsgRow[] = [];
+
+  function flushBlock(): void {
+    if (currentBlock.length === 0) {
+      // Edge case: a boundary was detected but the accumulated block is empty.
+      // This should not happen in normal operation, but guard against it.
+      if (currentSession !== null) {
+        logger.warn(
+          `[parseReviewSession] Empty block flushed for session_id=${currentSession}, label=${currentLabel ?? 'null'}`,
+        );
+      }
+      return;
+    }
+    if (currentSession !== null) {
+      blocks.push({ session_id: currentSession, rows: currentBlock });
+    }
+    currentBlock = [];
+  }
+
+  for (const row of rows) {
+    const label = row.subagent_type ?? row.skill ?? null;
+    const timestamp = Date.parse(row.timestamp);
+    const gapExceeded =
+      previousTimestamp !== null &&
+      Number.isFinite(timestamp) &&
+      timestamp - previousTimestamp > REVIEW_BLOCK_GAP_MS;
+
+    if (row.session_id !== currentSession || label !== currentLabel || gapExceeded) {
+      flushBlock();
+      currentSession = row.session_id;
+      currentLabel = label;
+    }
+
+    currentBlock.push(row);
+    previousTimestamp = Number.isFinite(timestamp) ? timestamp : previousTimestamp;
+  }
+
+  flushBlock();
+  return blocks;
+}
+
+// ── Main function ─────────────────────────────────────────────────────────────
+
+const BODY_EXCERPT_MAX = 4096;
+
+function buildSessionFromBlock(
+  block: ReviewBlock,
+  logger: { warn: (msg: string) => void },
+): ParsedReviewSession {
+  const firstRow = block.rows[0];
+  const lastRow = block.rows.at(-1)!;
+
+  const parts: string[] = [];
+  const rawRefs: string[] = [];
+  for (const row of block.rows) {
+    if (row.text_content.length > 0) parts.push(row.text_content);
+    rawRefs.push(...extractRefsFromToolCalls(row.tool_calls, logger));
+    if (row.type === 'user') rawRefs.push(...extractBacktickPaths(row.text_content));
+  }
+
+  // finding 抽出は全文(fullBody)に対して行う。body_excerpt は保存・表示用の切り詰め版で、
+  // ここを抽出に使うと長いレビューの後半 finding が脱落する（根本原因B）。
+  const fullBody = parts.join('\n---\n');
+  const body_excerpt =
+    fullBody.length > BODY_EXCERPT_MAX ? fullBody.slice(0, BODY_EXCERPT_MAX) : fullBody;
+  const target_refs = Array.from(new Set(rawRefs));
+
+  // reviewer はブロックのラベル（groupIntoBlocks と同じ subagent_type ?? skill）。
+  // 例: code-reviewer subagent なら 'pr-review-toolkit:code-reviewer'、スキル経由なら
+  // 'superpowers:requesting-code-review'。どちらも無ければ 'unknown'。
+  const reviewer = firstRow.subagent_type ?? firstRow.skill ?? 'unknown';
+
+  const findings = extractFindings(fullBody);
+
+  return {
+    session_id: block.session_id,
+    message_uuid_start: firstRow.uuid,
+    message_uuid_end: lastRow.uuid,
+    subagent_invocation_id: null,
+    reviewer,
+    target_kind: inferTargetKind(target_refs),
+    target_refs,
+    body_excerpt,
+    full_body: fullBody,
+    summary: summarizeFindings(findings, fullBody.length),
+    findings,
+    reviewed_at: firstRow.timestamp,
+  };
+}
+
+/**
+ * 指摘の内訳を決定論的に 1 行へまとめる。LLM を使わないのは、要約の生成失敗が
+ * レビュー取込を止める理由にならないため。
+ *
+ * 指摘 0 件でも本文長を残す。「レビューしたが指摘なし」と「本文を取り込めていない」
+ * を一覧上で区別できるようにするため（空文字だと後者と見分けられない）。
+ */
+function summarizeFindings(findings: ParsedFinding[], bodyLength: number): string {
+  const counts = { error: 0, warn: 0, info: 0 };
+  for (const finding of findings) counts[finding.severity]++;
+  if (findings.length === 0) return `指摘なし（本文 ${bodyLength} 文字）`;
+  return (
+    `指摘 ${findings.length} 件（error ${counts.error} / warn ${counts.warn} / info ${counts.info}）` +
+    `・本文 ${bodyLength} 文字`
+  );
+}
+
+export function parseReviewSessions(input: {
+  db: CaravanDbConnection;
+  sinceISO: string;
+  logger: { warn: (msg: string) => void };
+}): ParsedReviewSession[] {
+  const { db, sinceISO, logger } = input;
+
+  // 1. Query trail.activity_messages for review-related messages
+  const stmt = db.prepare(
+    `SELECT m.uuid, m.session_id, m.type, m.timestamp,
+            COALESCE(m.text_content, '') AS text_content,
+            m.tool_calls, m.subagent_type, m.skill
+     FROM trail.activity_messages m
+     WHERE m.timestamp >= ?
+       AND (m.subagent_type = 'code-reviewer'
+         OR m.subagent_type LIKE '%:code-reviewer'
+         OR m.skill IN ('superpowers:requesting-code-review', 'code-review-checklist', 'security-review'))
+     ORDER BY m.session_id, m.timestamp`,
+  );
+  const allRows: MsgRow[] = [];
+
+  for (const row of stmt.iterate(sinceISO)) {
+    allRows.push({
+      uuid: row['uuid'] as string,
+      session_id: row['session_id'] as string,
+      type: row['type'] as string,
+      timestamp: row['timestamp'] as string,
+      text_content: (row['text_content'] as string | null) ?? '',
+      tool_calls: (row['tool_calls'] as string | null) ?? null,
+      subagent_type: (row['subagent_type'] as string | null) ?? null,
+      skill: (row['skill'] as string | null) ?? null,
+    });
+  }
+  stmt.free?.();
+
+  if (allRows.length === 0) return [];
+
+  // 2. Group into contiguous review blocks
+  const blocks = groupIntoBlocks(allRows, logger);
+
+  // 3. Build ParsedReviewSession for each block
+  //    本文が 1 文字も無いブロックは登録しない。スキル起動のメッセージ列
+  //    （`skill='superpowers:requesting-code-review'` 等）は allowlist に一致する
+  //    ものの、レビュー結果ではなく起動の痕跡でしかなく、本文ゼロのまま
+  //    caravan_reviews へ入って「タイトルだけの殻」を量産していた（実測 293 件）。
+  const results: ParsedReviewSession[] = [];
+  for (const block of blocks) {
+    const session = buildSessionFromBlock(block, logger);
+    if (session.body_excerpt.length === 0) continue;
+    results.push(session);
+  }
+
+  return results;
+}

@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-08-09
+
+### 変更
+
+- ドキュメント DB の改名に追随した。`doc-core.db` は `catalog.db` となり、テーブルへ `catalog_` 接頭辞が付く。パス解決と取込エントリを追随させ、既存 DB は拡張が初めて開いた時点でリネームされる。
+- 同梱スキルを更新した（`anytime-doc-authoring` / `anytime-markdown-output` / `anytime-markdown-usage` / `anytime-spec-lookup`）。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- markdown 系の同期リリースに合わせたバージョン更新のみ。機能変更はない。
+
 ## [1.20.0] - 2026-08-08
 
 ### 変更

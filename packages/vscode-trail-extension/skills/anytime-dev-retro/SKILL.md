@@ -1,7 +1,7 @@
 ---
 name: anytime-dev-retro
 effort: medium
-description: 開発の実績データと事故から改善を還流させるふりかえり（retrospective）。Trail の 3DB(memory-core/doc-core/trail)を横断分析し、セッション粒度の LLM コスト分析（旧 anytime-token-budget を統合）も含めて、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案書＋チケットを生成する。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「健全性レポート」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。PC 環境・Claude Code 設定の診断（「セットアップ監査」「環境監査」「環境診断」）は anytime-dev-audit を使う。
+description: 開発の実績データと事故から改善を還流させるふりかえり（retrospective）。Trail の 3DB(trail-caravan-book/markdown-catalog/trail)を横断分析し、セッション粒度の LLM コスト分析（旧 anytime-token-budget を統合）も含めて、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案書＋チケットを生成する。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「健全性レポート」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。PC 環境・Claude Code 設定の診断（「セットアップ監査」「環境監査」「環境診断」）は anytime-dev-audit を使う。
 ---
 
 # anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化）
@@ -12,7 +12,7 @@ Trail が蓄積する 3 つのローカル DB を横断分析し、**前回か�
 
 コスト面は**セッション粒度の LLM コスト分析**（Opus 占有率・cache_read 二乗膨張・「高コスト×compact 未使用」のセッション衛生・週次トレンド。旧 `anytime-token-budget` を 2026-07-18 に統合）を含む。実装は専用 grounding（`grounding.token-budget.cjs`）で、3DB 横断の grounding（`grounding.cjs`）と 2 本立てで実行する。リアルタイムのトークン予算監視（Stop フック `token-budget.sh` → viewer タブバー）は本スキルとは別機構で、統合対象外。
 
-- 分析対象 DB（read-only）: `<workspace>/.anytime/trail/db/{activity.db, caravan-book.db, catalog.db}`。Flight Record（`flight_reviews` / `instructions` / `instruction_sessions`）は 2026-08-07 に activity.db から caravan-book.db へ移設した。grounding はテーブル実在で読み先を選ぶ（未移行 DB では activity.db 側フォールバック。`flightRecord.source` に読み先を出力する）。コスト詳細は `activity.db` の `session_costs`（session×model 別・`estimated_cost_usd`）/ `sessions`（`message_count` / `peak_context_tokens` / `compact_count` / `sub_agent_count` / `git_branch`）を `grounding.token-budget.cjs` で集計する。
+- 分析対象 DB（read-only）: `<workspace>/.anytime/trail/db/{activity.db, caravan-book.db, catalog.db}`。Flight Record（`caravan_flight_reviews` / `instructions` / `caravan_instruction_sessions`）は 2026-08-07 に activity.db から caravan-book.db へ移設した。grounding はテーブル実在で読み先を選ぶ（未移行 DB では activity.db 側フォールバック。`flightRecord.source` に読み先を出力する）。コスト詳細は `activity.db` の `activity_session_costs`（session×model 別・`estimated_cost_usd`）/ `sessions`（`message_count` / `peak_context_tokens` / `compact_count` / `sub_agent_count` / `git_branch`）を `grounding.token-budget.cjs` で集計する。
 - 分析対象ソース（read-only 走査）: ワークスペース配下の `SHORTCUT:` 意図的簡略化マーカー（台帳化・`no-trigger` 検出。判定はスキル同梱 `shortcutMarkers.cjs` に一本化し、CI ゲート `scripts/check-shortcut-markers.mjs`＝`npm run check-skills` と同一実装）。規約は `~/.claude/rules/code-quality.md` 2.1。
 - 分析対象メモリ（read-only 走査）: プロジェクトメモリ（`~/.claude/projects/<project>/memory/*.md`）の再発シグナル（スキル同梱 `recurrence.cjs`）。「同種の罠 2 回再発で constraint 昇格」「スキル乖離 2 回でスキル本文反映」の昇格候補を機械提示する。**検出のみで自動書き込みはしない**（メモリ領域は保護領域。作成はユーザー承認後）。
 - 出力先: `<docsRoot>/`（`report/_signals/` ＝スナップショット、`report/` ＝健全性レポート、`proposal/` ＝閾値超の改善提案）
@@ -56,8 +56,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 観点の穴 `quality.checklistNone` / クラスタ `quality.checklistNoneClusters`（checklist_ref='none' のカテゴリ×パッケージ束・2 件以上） | memory | 新規クラスタ出現 / 増加（null は列未マイグレーション＝測定不能） |
 | 条文効果 `quality.checklistByRef30d`（章別・30 日窓の観点キー付き指摘件数） | memory | 条文化・改訂した章の件数が減らない（2 回連続はメタ還流対象） |
 | 未解決 drift（`drift.byType` から spec_vs_code を除いて算出。設計書ドリフトは dev-cycle 段5 へ移管） | memory | 上昇 / 新種別出現 |
-| embedding 充足率 `docCore.embeddingCoveragePct` | doc-core | 低下 |
-| 孤立 doc `docCore.orphanDocs` | doc-core | 上昇 |
+| embedding 充足率 `docCore.embeddingCoveragePct` | markdown-catalog | 低下 |
+| 孤立 doc `docCore.orphanDocs` | markdown-catalog | 上昇 |
 | cc>15 関数数 `hotspotOver15` と `hotspots` top | trail | 上昇 / 新規高 cc 関数 |
 | SHORTCUT 技術負債 `techDebt.shortcutMarkers` / `techDebt.noTriggerMarkers` | source | 上昇 / no-trigger 増 |
 | スキル健全性 `skillHealth.brokenRefs` / `staleOver90` / `unused30d` | source+trail | 上昇 |
@@ -88,15 +88,15 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 
 | メトリクス | 源 | 悪化方向 |
 | --- | --- | --- |
-| Opus コスト占有率 `totals.opusCostSharePct` | session_costs | 上昇 |
-| Opus cache_read 占有率 `totals.opusCacheReadSharePct` | session_costs | 上昇 |
-| top15 セッションのコスト集中 `totals.top15SessionsCostSharePct` | session_costs | 上昇 |
-| 直近 7d コスト `trend.last7dCost`（対 `prior7dCost`） | session_costs+sessions | 上昇 |
+| Opus コスト占有率 `totals.opusCostSharePct` | activity_session_costs | 上昇 |
+| Opus cache_read 占有率 `totals.opusCacheReadSharePct` | activity_session_costs | 上昇 |
+| top15 セッションのコスト集中 `totals.top15SessionsCostSharePct` | activity_session_costs | 上昇 |
+| 直近 7d コスト `trend.last7dCost`（対 `prior7dCost`） | activity_session_costs+sessions | 上昇 |
 | 高コスト×compact 未使用 `hygiene.expensiveNoCompact` | join | 上昇 |
 | 衛生行動の減衰 `hygiene.windows`（高コストセッションの `avgSubAgents` / `avgCompacts` を 3 期間 last7d / prior7to30d / prior30to60d で比較） | join | 直近窓が古い窓より低下（`avgMessages` が横ばいのまま低下しているときだけ「畳む行動が消えた」と読む） |
 | 超長大×compact 未使用 `hygiene.longNoCompact` | sessions | 上昇 |
-| 高コストセッション数 `hygiene.expensiveSessions` | session_costs | 上昇 |
-| 料金表未登録モデル `unknownPricingModels`（既定単価で推計中） | session_costs | 1 件以上（trail-core `pricing.ts` の現行化トリガ。レポートで必ず言及する） |
+| 高コストセッション数 `hygiene.expensiveSessions` | activity_session_costs | 上昇 |
+| 料金表未登録モデル `unknownPricingModels`（既定単価で推計中） | activity_session_costs | 1 件以上（trail-activity `pricing.ts` の現行化トリガ。レポートで必ず言及する） |
 
 `topSessions` は前回スナップショットに無い `hygieneFlag='expensive-no-compact'` の新規セッションを特に注視する。`estimated_cost_usd` は推定値（サブスク枠の相対比較用）で、絶対額でなく**占有率・デルタ・集中度**で読む。
 
@@ -118,7 +118,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
 - **再発シグナル**（`recurrence.danglingClusters` / `recurrence.uncoveredBugFiles`）: dangling target は全件を滞留サイクル数（初出 / 2 回目 / 3 回目以降）付きで列挙する。参照元が 3 件以上の target は `priority: high` 相当として扱う。
 - **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
-- **Flight Record**（`flightRecord`・30 日窓）: outcome 分布（achieved/partial/unachieved/unknown）・自己評価カバレッジ・手戻り平均・ツール失敗率・滞留指示（openOver7d）と、指示単位コスト上位 `topInstructionsByCost30d`（instruction_sessions × trail.session_costs の突合。セッション粒度のコスト分析を「1 指示にいくら掛かったか」の作業単位へ引き上げる）。`lessonCandidateReviews`（教訓候補を持つ振り返り）は再発シグナルの突合候補として件数を明記する。`source` が `trail(pre-migration)` の場合は移行未完了と明記する。
+- **Flight Record**（`flightRecord`・30 日窓）: outcome 分布（achieved/partial/unachieved/unknown）・自己評価カバレッジ・手戻り平均・ツール失敗率・滞留指示（openOver7d）と、指示単位コスト上位 `topInstructionsByCost30d`（caravan_instruction_sessions × trail.activity_session_costs の突合。セッション粒度のコスト分析を「1 指示にいくら掛かったか」の作業単位へ引き上げる）。`lessonCandidateReviews`（教訓候補を持つ振り返り）は再発シグナルの突合候補として件数を明記する。`source` が `trail(pre-migration)` の場合は移行未完了と明記する。
 - **具体化観点の候補**（`doctrineGap`）: `missedCount` が 1 件以上なら `missedSamples` を**毎回列挙**する（subject / promptShape / originPrompt）。各件は「着手前に聞けたはずの論点」で、§4 の閾値を満たしたら具体化観点への昇格提案＋チケットへ回す。`available: false`（DCT-14 未マイグレーション）・`missedCount` が 0 のときもその旨を明記する（沈黙させない）。`unreadableDeclarations` が 1 件以上なら申告率の解釈を保留する旨を添える。
 - **grounding errors**（あれば）: 測定不能だったシグナル。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
@@ -192,7 +192,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 
 「インシデント分析」「ポストモーテム」「事故分析」「再発防止策」の指示、または本番リリース後の障害発生時は、定期デルタ分析ではなく単発のインシデント要件化を行う（管制塔要件 L4.3「インシデントからの要件化」の実行手順）。
 
-1. **事実収集（read-only）**: 事故の時系列・影響範囲を Trail の記録（`messages` / `session_commits` / git 活動記録・フォレンジックログ）と実測で裏取りする。推測で埋めず、確認できない箇所は「※要確認」と明記する。
+1. **事実収集（read-only）**: 事故の時系列・影響範囲を Trail の記録（`messages` / `activity_session_commits` / git 活動記録・フォレンジックログ）と実測で裏取りする。推測で埋めず、確認できない箇所は「※要確認」と明記する。
 2. **重大度・復旧方針の決定は人（管制官）**: AI は判断材料（影響範囲・復旧選択肢）の提示まで。復旧作業そのものは本モードの範囲外（該当タスクとして別途実施）。
 3. **why-why-why 分析（3 段以上）と再発防止提案書の起草**: `anytime-analysis`（既定 lightweight）で `proposal/<YYYYMMDD>-<topic>.ja.md` へ出力し、§4.1 の要領でチケットを 1 件起票する（`title` は `再発防止: <テーマ>`、`priority` は事故の重大度に応じて `high` / `urgent`）。global CLAUDE.md「バグ修正時」のリリース後不具合ルールと同一プロセスであり、分析様式を二重定義しない。
 4. **提案の採否は人**。採択された提案は `anytime-dev-cycle` 段2（要件書・設計書の改訂 → What 承認）へ引き継ぎ、必要ならロードマップ（`spec/00.requirements/trail-roadmap.ja.md`）の更新も同時に提案する。

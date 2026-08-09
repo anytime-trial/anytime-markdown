@@ -1,7 +1,7 @@
 
 import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 
 type SqlJsDb = {
@@ -29,11 +29,11 @@ const TEST_REPO = 'anytime-markdown';
 // 従って fixture も repos 行と repo_id を持たせる。
 const insertRelease = (db: TrailDatabase, tag: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`,
+    `INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`,
     [1, TEST_REPO, '2026-01-01T00:00:00.000Z'],
   );
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at, repo_id)
+    `INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id)
      VALUES (?, ?, ?)`,
     [tag, '2026-01-01T00:00:00.000Z', 1],
   );
@@ -131,7 +131,7 @@ describe('TrailDatabase CodeGraph CRUD', () => {
   });
 
   describe('(d) saveReleaseCodeGraph の FK CASCADE', () => {
-    it('releases 行を削除すると release_code_graphs が CASCADE 削除される', () => {
+    it('releases 行を削除すると activity_release_code_graphs が CASCADE 削除される', () => {
       insertRelease(db, 'v1.0.0');
       const graph = makeCodeGraph();
       db.saveReleaseCodeGraph('v1.0.0', graph);
@@ -142,8 +142,8 @@ describe('TrailDatabase CodeGraph CRUD', () => {
 
       // sql.js の db.export() は PRAGMA foreign_keys をリセットするため再設定
       inner(db).run('PRAGMA foreign_keys = ON');
-      // releases から削除 → CASCADE で release_code_graphs も削除
-      inner(db).run('DELETE FROM releases WHERE tag = ?', ['v1.0.0']);
+      // releases から削除 → CASCADE で activity_release_code_graphs も削除
+      inner(db).run('DELETE FROM activity_releases WHERE tag = ?', ['v1.0.0']);
 
       const after = db.getReleaseCodeGraph('v1.0.0', TEST_REPO);
       expect(after).toBeNull();
@@ -374,7 +374,7 @@ describe('TrailDatabase getTrailGraph', () => {
   });
 
   it('returns release graph after saveReleaseGraph', () => {
-    // flip 後 release_graphs は release_id FK のため、親 release を先に作る。
+    // flip 後 activity_release_graphs は release_id FK のため、親 release を先に作る。
     insertRelease(db, 'v1.0.0');
     db.saveReleaseGraph(makeTrailGraph(), '/tsconfig.json', 'v1.0.0');
     const result = db.getTrailGraph('v1.0.0');
@@ -417,7 +417,7 @@ describe('TrailDatabase asC4ModelStore', () => {
   });
 
   it('getReleaseC4Model returns model after saveReleaseGraph', () => {
-    // flip 後 release_graphs は release_id FK のため、親 release を先に作る。
+    // flip 後 activity_release_graphs は release_id FK のため、親 release を先に作る。
     insertRelease(db, 'v1.0.0');
     db.saveReleaseGraph(makeTrailGraph(), '/tsconfig.json', 'v1.0.0');
     const store = db.asC4ModelStore();
@@ -525,12 +525,12 @@ describe('TrailDatabase listReleaseCodeGraphAvailability', () => {
     repoId = 1,
   ): void => {
     inner(db).run(
-      `INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`,
+      `INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`,
       [repoId, repoName, '2026-01-01T00:00:00.000Z'],
     );
     for (const r of rows) {
       inner(db).run(
-        `INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
+        `INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
         [r.tag, r.releasedAt, repoId],
       );
       if (r.withGraph) db.saveReleaseCodeGraph(r.tag, makeCodeGraph());

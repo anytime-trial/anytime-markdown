@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo } from 'react';
-import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '@anytime-markdown/trail-core/commitCategories';
+import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '@anytime-markdown/trail-activity/commitCategories';
 import { useTrailTheme } from './TrailThemeContext';
 
 function generateOverflowColor(index: number, isDark: boolean): string {

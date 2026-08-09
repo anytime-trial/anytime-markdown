@@ -79,7 +79,7 @@ flowchart TD
         MV["markdown-editor<br/>(エディタ基盤)"]
         MR["markdown-rich-editor<br/>(図表描画・基盤の派生)"]
         GC["graph-core<br/>(グラフエンジン)"]
-        TC["trail-core<br/>(TypeScript 解析・C4・DSM)"]
+        TC["trail-activity<br/>(TypeScript 解析・C4・DSM)"]
         CC["cms-core<br/>(S3 クライアント)"]
         AC["agent-core<br/>(AI セッション状態)"]
         SC["spreadsheet-core<br/>trace-core"]

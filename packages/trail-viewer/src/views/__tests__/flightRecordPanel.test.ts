@@ -160,7 +160,7 @@ describe('flightRecordPanel', () => {
       if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions });
       if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
       if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-      if (url.includes('/api/memory/reviews/flight-')) return jsonResponse([]);
+      if (url.includes('/api/caravan/reviews/flight-')) return jsonResponse([]);
       return jsonResponse({});
     });
   }
@@ -206,7 +206,7 @@ describe('flightRecordPanel', () => {
 
   // ── 検証の実施状況（指示 : 検証実行の結合が画面へ出ているか） ──
   //
-  // 台帳（activity.db の verification_runs）は session_id でしか指示へ畳めない。DB 側の結合が
+  // 台帳（activity.db の activity_verification_runs）は session_id でしか指示へ畳めない。DB 側の結合が
   // 落ちると列は静かに空になるため、「バッジが出ること」まで検査する。
   it('指示一覧の検証列と詳細に、実施済みの検証が kind 別に出る', async () => {
     const verifications = [
@@ -422,7 +422,7 @@ describe('flightRecordPanel', () => {
           });
         }
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [review()] });
-        if (url.includes('/api/memory/rationale')) return jsonResponse({ rationale: [] });
+        if (url.includes('/api/caravan/rationale')) return jsonResponse({ rationale: [] });
         if (url.includes('/api/trail/user-feedback')) return jsonResponse({ userFeedback: [] });
         return jsonResponse({});
       });
@@ -449,7 +449,7 @@ describe('flightRecordPanel', () => {
     it('成果物をコミット済み / 未コミットの別つきで一覧する', async () => {
       const handle = await openFirstRow({
         deliverables: [
-          { kind: 'code', filePath: 'packages/trail-core/src/a.ts', committed: true, commitHash: 'abc12345' },
+          { kind: 'code', filePath: 'packages/trail-activity/src/a.ts', committed: true, commitHash: 'abc12345' },
           { kind: 'doc', filePath: 'spec/b.md', committed: false, commitHash: '' },
         ],
       });
@@ -640,7 +640,7 @@ describe('flightRecordPanel', () => {
     handle.destroy();
   });
 
-  // ── レビュー指摘（Flight Record へ畳んだ memory_reviews の session 経路） ──
+  // ── レビュー指摘（Flight Record へ畳んだ caravan_reviews の session 経路） ──
   describe('レビュー指摘', () => {
     const FINDING = {
       id: 'rf-1',
@@ -713,7 +713,7 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/reviews/flight-')) return jsonResponse(null, 500);
+        if (url.includes('/api/caravan/reviews/flight-')) return jsonResponse(null, 500);
         return jsonResponse({});
       });
       store = createInstructionStore('http://x');
@@ -880,8 +880,8 @@ describe('flightRecordPanel', () => {
           if (url.includes('flight-findings')) {
             return jsonResponse(FINDINGS.map((f, i) => ({ ...f, findingEntityId: `finding:${f.id}`, id: f.id ?? `rf-${i}` })));
           }
-          if (url.includes('/api/memory/bugs/recurring')) return jsonResponse([]);
-          if (url.includes('/api/memory/bugs/causal')) {
+          if (url.includes('/api/caravan/bugs/recurring')) return jsonResponse([]);
+          if (url.includes('/api/caravan/bugs/causal')) {
             return jsonResponse({
               bugEntityId: 'bug:89754a1',
               subject: 'テーマ変数の解決順を直す',
@@ -895,7 +895,7 @@ describe('flightRecordPanel', () => {
               introducedByCommitSha: null,
             });
           }
-          if (url.includes('/api/memory/bugs/history')) {
+          if (url.includes('/api/caravan/bugs/history')) {
             return jsonResponse([
               {
                 id: 'bugfix-1',
@@ -991,16 +991,16 @@ describe('flightRecordPanel', () => {
       };
     }
 
-    /** memory-core 側も応答する stub。バグ履歴は sessionIds の有無で出し分ける。 */
+    /** trail-caravan-book 側も応答する stub。バグ履歴は sessionIds の有無で出し分ける。 */
     function stubWithBugs(options: { bugs?: unknown[]; historyFails?: boolean } = {}) {
       const bugs = options.bugs ?? [bugRow()];
       return stubFetch((url) => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/reviews/flight-')) return jsonResponse([]);
-        if (url.includes('/api/memory/bugs/recurring')) return jsonResponse([]);
-        if (url.includes('/api/memory/bugs/history')) {
+        if (url.includes('/api/caravan/reviews/flight-')) return jsonResponse([]);
+        if (url.includes('/api/caravan/bugs/recurring')) return jsonResponse([]);
+        if (url.includes('/api/caravan/bugs/history')) {
           return options.historyFails ? jsonResponse(null, 500) : jsonResponse(bugs);
         }
         return jsonResponse({});
@@ -1060,7 +1060,7 @@ describe('flightRecordPanel', () => {
       expect(rows[0]?.textContent).toContain('89754a1');
 
       // 一覧の上限で欠けさせないため、絞り込みはクライアントでなくサーバで行う
-      const historyCall = stub.calls.find((c) => c.url.includes('/api/memory/bugs/history'));
+      const historyCall = stub.calls.find((c) => c.url.includes('/api/caravan/bugs/history'));
       expect(historyCall?.url).toContain('sessionIds=inst-0001-abcd');
       handle.destroy();
     });
@@ -1093,7 +1093,7 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
-    it('serverUrl が無ければ memory-core を叩かず空のまま出す', async () => {
+    it('serverUrl が無ければ trail-caravan-book を叩かず空のまま出す', async () => {
       const stub = stubWithBugs();
       store = createInstructionStore('http://x');
       reviewStore = createFlightReviewStore('http://x');
@@ -1103,7 +1103,7 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
       await settle();
 
-      expect(stub.calls.some((c) => c.url.includes('/api/memory/bugs/'))).toBe(false);
+      expect(stub.calls.some((c) => c.url.includes('/api/caravan/bugs/'))).toBe(false);
       expect(container.querySelectorAll('[data-am-bugfix-row]')).toHaveLength(0);
       handle.destroy();
     });
@@ -1133,8 +1133,8 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/drift/by-day')) return jsonResponse({ points: [] });
-        if (url.includes('/api/memory/drift/events')) return jsonResponse([DRIFT_ROW]);
+        if (url.includes('/api/caravan/drift/by-day')) return jsonResponse({ points: [] });
+        if (url.includes('/api/caravan/drift/events')) return jsonResponse([DRIFT_ROW]);
         return jsonResponse([]);
       });
     }
@@ -1154,7 +1154,7 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
-    it('開くまで drift をマウントせず memory-core の drift API も叩かない', async () => {
+    it('開くまで drift をマウントせず trail-caravan-book の drift API も叩かない', async () => {
       const { calls } = stubWithDrift();
       store = createInstructionStore('http://x');
       reviewStore = createFlightReviewStore('http://x');
@@ -1162,7 +1162,7 @@ describe('flightRecordPanel', () => {
       await settle();
 
       expect(container.querySelector('[data-am-flight-drift]')?.hasAttribute('hidden')).toBe(true);
-      expect(calls.some((c) => c.url.includes('/api/memory/drift/'))).toBe(false);
+      expect(calls.some((c) => c.url.includes('/api/caravan/drift/'))).toBe(false);
       handle.destroy();
     });
 
@@ -1207,7 +1207,7 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/')) return jsonResponse([]);
+        if (url.includes('/api/caravan/')) return jsonResponse([]);
         return jsonResponse({});
       });
     }
@@ -1268,7 +1268,7 @@ describe('flightRecordPanel', () => {
       chooseOption(container.querySelector('[data-am-flight-scope]'), 'anytime-trade');
       await settle();
 
-      const findingCalls = stub.calls.filter((c) => c.url.includes('/api/memory/reviews/flight-findings'));
+      const findingCalls = stub.calls.filter((c) => c.url.includes('/api/caravan/reviews/flight-findings'));
       expect(findingCalls.at(-1)?.url).toContain('workspace=anytime-trade');
       handle.destroy();
     });
@@ -1281,7 +1281,7 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
       await settle();
 
-      const bugCalls = stub.calls.filter((c) => c.url.includes('/api/memory/bugs/history'));
+      const bugCalls = stub.calls.filter((c) => c.url.includes('/api/caravan/bugs/history'));
       expect(bugCalls.length).toBeGreaterThan(0);
       expect(bugCalls.at(-1)?.url).toContain('workspace=anytime-trade');
       handle.destroy();
@@ -1295,7 +1295,7 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="drift"]')?.click();
       await settle();
 
-      const driftCalls = stub.calls.filter((c) => c.url.includes('/api/memory/drift/events'));
+      const driftCalls = stub.calls.filter((c) => c.url.includes('/api/caravan/drift/events'));
       expect(driftCalls.length).toBeGreaterThan(0);
       expect(driftCalls.at(-1)?.url).toContain('workspace=anytime-trade');
       handle.destroy();

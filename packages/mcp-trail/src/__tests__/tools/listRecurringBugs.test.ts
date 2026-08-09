@@ -1,15 +1,15 @@
 import { handleListRecurringBugs } from '../../tools/listRecurringBugs';
 
-// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
-// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+// resolveCaravanDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openCaravanBookDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
+  resolveCaravanDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openMemoryCoreDb: jest.fn().mockResolvedValue({
+  openCaravanBookDb: jest.fn().mockResolvedValue({
     db: {},
     close: jest.fn(),
   }),
@@ -32,7 +32,7 @@ describe('handleListRecurringBugs', () => {
   });
 
   test('calls listRecurringBugs with correct input', async () => {
-    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleListRecurringBugs({ file_path: 'src/foo.ts', windowDays: 90, minCount: 2 });
 
@@ -46,7 +46,7 @@ describe('handleListRecurringBugs', () => {
   });
 
   test('passes package filter through', async () => {
-    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listRecurringBugs: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListRecurringBugs({ package: 'web-app' });
 
@@ -54,11 +54,11 @@ describe('handleListRecurringBugs', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openCaravanBookDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListRecurringBugs({});
 
-    const handle = await openMemoryCoreDb.mock.results[0].value;
+    const handle = await openCaravanBookDb.mock.results[0].value;
     expect(handle.close).toHaveBeenCalledTimes(1);
   });
 });

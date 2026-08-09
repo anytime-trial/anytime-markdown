@@ -20,7 +20,7 @@ export type FlightReviewOutcomeSource = 'machine' | 'self' | 'manual';
 /** Rationale Audit の監査ステータス（Phase 6 S4）。 */
 export type RationaleAuditStatusDto = 'unaudited' | 'valid' | 'needs_fix' | 'rejected';
 
-/** GET /api/memory/rationale の 1 行（コミット紐付き決定根拠ノード・読み取り専用）。 */
+/** GET /api/caravan/rationale の 1 行（コミット紐付き決定根拠ノード・読み取り専用）。 */
 export interface RationaleNodeDto {
   readonly commitHash: string;
   readonly summary: string;
@@ -28,7 +28,7 @@ export interface RationaleNodeDto {
   readonly createdAt: string;
 }
 
-/** GET /api/trail/flight-reviews の 1 行（trail-core FlightReview のワイヤ形）。 */
+/** GET /api/trail/flight-reviews の 1 行（trail-activity FlightReview のワイヤ形）。 */
 export interface FlightReviewDto {
   readonly id: number;
   readonly sessionId: string;
@@ -98,7 +98,7 @@ export interface FlightReviewViewState {
    * 現在の一覧ページに載っているとは限らないため。
    */
   readonly selectedReview: FlightReviewDto | null;
-  /** 選択セッションの user_feedback_entries（S2 データ。未取得・0 件は空配列）。 */
+  /** 選択セッションの activity_user_feedback_entries（S2 データ。未取得・0 件は空配列）。 */
   readonly selectedFeedback: readonly UserFeedbackDto[];
   /** 選択セッションのコミットに紐付く Rationale ノード（S4。未取得・0 件は空配列）。 */
   readonly selectedRationale: readonly RationaleNodeDto[];
@@ -243,7 +243,7 @@ export function createFlightReviewStore(
 
   async function fetchRationale(sessionId: string): Promise<readonly RationaleNodeDto[]> {
     try {
-      const res = await request(`/api/memory/rationale?sessionId=${encodeURIComponent(sessionId)}`);
+      const res = await request(`/api/caravan/rationale?sessionId=${encodeURIComponent(sessionId)}`);
       if (!res.ok) return [];
       const json = (await res.json()) as { rationale?: RationaleNodeDto[] };
       return json.rationale ?? [];

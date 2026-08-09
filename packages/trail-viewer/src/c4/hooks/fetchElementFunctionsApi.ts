@@ -1,4 +1,4 @@
-import type { ExportedSymbol } from '@anytime-markdown/trail-core/analyzer';
+import type { ExportedSymbol } from '@anytime-markdown/trail-activity/analyzer';
 
 export interface ElementFunctionsResponse {
   readonly symbols: ExportedSymbol[];

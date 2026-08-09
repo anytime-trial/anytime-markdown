@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  BetterSqlite3MemoryDb,
+  BetterSqlite3CaravanDb,
   runMigrations,
   type AnalyzerContext,
   type AnalyzerEvent,
   type EventBusPublisher,
-  type MemoryDbConnection,
-} from '@anytime-markdown/memory-core';
+  type CaravanDbConnection,
+} from '@anytime-markdown/trail-caravan-book';
 
 import { PrReviewFindingAnalyzer } from '../PrReviewFindingAnalyzer';
 
@@ -48,9 +48,9 @@ const IMPORTED = (over: Record<string, unknown> = {}): AnalyzerEvent => ({
   ...over,
 } as AnalyzerEvent);
 
-function selectReview(db: MemoryDbConnection, sourceRef: string) {
+function selectReview(db: CaravanDbConnection, sourceRef: string) {
   const rows = db.exec(
-    `SELECT id, reviewer, severity_overall, source_hash FROM memory_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
+    `SELECT id, reviewer, severity_overall, source_hash FROM caravan_reviews WHERE source_kind='pr_comment' AND source_ref=?`,
     [sourceRef],
   );
   const v = rows[0]?.values?.[0];
@@ -58,107 +58,107 @@ function selectReview(db: MemoryDbConnection, sourceRef: string) {
   return { id: String(v[0]), reviewer: String(v[1]), severityOverall: String(v[2]), sourceHash: String(v[3]) };
 }
 
-function countFindings(db: MemoryDbConnection, reviewId: string): number {
-  const rows = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE review_id=?`, [reviewId]);
+function countFindings(db: CaravanDbConnection, reviewId: string): number {
+  const rows = db.exec(`SELECT COUNT(*) FROM caravan_review_findings WHERE review_id=?`, [reviewId]);
   return Number(rows[0]?.values?.[0]?.[0] ?? 0);
 }
 
 describe('PrReviewFindingAnalyzer', () => {
   let dir: string;
-  let memoryDb: MemoryDbConnection;
+  let caravanDb: CaravanDbConnection;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'pr-review-finding-analyzer-'));
-    memoryDb = new BetterSqlite3MemoryDb({ filePath: join(dir, 'caravan-book.db') });
-    runMigrations(memoryDb);
+    caravanDb = new BetterSqlite3CaravanDb({ filePath: join(dir, 'caravan-book.db') });
+    runMigrations(caravanDb);
   });
 
   afterEach(() => {
-    memoryDb.close();
+    caravanDb.close();
     rmSync(dir, { recursive: true, force: true });
   });
 
   it('exposes a tier=2 analyzer subscribing pr_review_imported', () => {
-    const a = new PrReviewFindingAnalyzer({ memoryDb });
+    const a = new PrReviewFindingAnalyzer({ caravanDb });
     expect(a.tier).toBe(2);
     expect(a.subscribes).toEqual(['pr_review_imported']);
     expect(a.emits).toEqual([]);
   });
 
   it('extracts findings from comments and persists review + findings via ingestPrReview', async () => {
-    const a = new PrReviewFindingAnalyzer({ memoryDb });
+    const a = new PrReviewFindingAnalyzer({ caravanDb });
     const { ctx } = makeCtx();
 
     await a.onEvent(IMPORTED(), ctx);
 
-    const review = selectReview(memoryDb, 'widget#pr7#rev1');
+    const review = selectReview(caravanDb, 'widget#pr7#rev1');
     expect(review).not.toBeNull();
     expect(review?.reviewer).toBe('alice');
     expect(review?.sourceHash).toBe('hash-a');
-    expect(countFindings(memoryDb, review!.id)).toBe(1);
+    expect(countFindings(caravanDb, review!.id)).toBe(1);
     expect(a.getCounters()).toEqual({ reviewsProcessed: 1, findingsWritten: 1 });
   });
 
   it('still persists a review with 0 findings for an approval with no comments', async () => {
-    const a = new PrReviewFindingAnalyzer({ memoryDb });
+    const a = new PrReviewFindingAnalyzer({ caravanDb });
     const { ctx } = makeCtx();
     await a.onEvent(IMPORTED({ reviewId: 'rev2', state: 'APPROVED', body: 'lgtm', comments: [], bodyHash: 'hash-b' }), ctx);
 
-    const review = selectReview(memoryDb, 'widget#pr7#rev2');
+    const review = selectReview(caravanDb, 'widget#pr7#rev2');
     expect(review).not.toBeNull();
     expect(review?.severityOverall).toBe('info');
-    expect(countFindings(memoryDb, review!.id)).toBe(0);
+    expect(countFindings(caravanDb, review!.id)).toBe(0);
     expect(a.getCounters()).toEqual({ reviewsProcessed: 1, findingsWritten: 0 });
   });
 
   it('uses the optional classifier and stores severity/category on the persisted finding', async () => {
     const a = new PrReviewFindingAnalyzer({
-      memoryDb,
+      caravanDb,
       classify: () => ({ severity: 'error', category: 'security' }),
     });
     const { ctx } = makeCtx();
     await a.onEvent(IMPORTED({ reviewId: 'rev3', bodyHash: 'hash-c', comments: [{ path: 'x.ts', line: 1, body: 'sql injection' }] }), ctx);
 
-    const review = selectReview(memoryDb, 'widget#pr7#rev3');
+    const review = selectReview(caravanDb, 'widget#pr7#rev3');
     expect(review?.severityOverall).toBe('error');
-    const rows = memoryDb.exec(
-      `SELECT severity, category FROM memory_review_findings WHERE review_id=?`,
+    const rows = caravanDb.exec(
+      `SELECT severity, category FROM caravan_review_findings WHERE review_id=?`,
       [review!.id],
     );
     expect(rows[0]?.values).toEqual([['error', 'security']]);
   });
 
   it('is idempotent: re-processing the same bodyHash does not duplicate findings', async () => {
-    const a = new PrReviewFindingAnalyzer({ memoryDb });
+    const a = new PrReviewFindingAnalyzer({ caravanDb });
     const { ctx } = makeCtx();
     await a.onEvent(IMPORTED(), ctx);
     await a.onEvent(IMPORTED(), ctx);
 
-    const review = selectReview(memoryDb, 'widget#pr7#rev1');
-    expect(countFindings(memoryDb, review!.id)).toBe(1);
+    const review = selectReview(caravanDb, 'widget#pr7#rev1');
+    expect(countFindings(caravanDb, review!.id)).toBe(1);
   });
 
   it('ignores unrelated events', async () => {
-    const a = new PrReviewFindingAnalyzer({ memoryDb });
+    const a = new PrReviewFindingAnalyzer({ caravanDb });
     const { ctx } = makeCtx();
     await a.onEvent({ kind: 'session_imported', sessionId: 's', messageCount: 1, repoName: 'r' }, ctx);
-    expect(selectReview(memoryDb, 'widget#pr7#rev1')).toBeNull();
+    expect(selectReview(caravanDb, 'widget#pr7#rev1')).toBeNull();
   });
 
   it('logs error and does not throw when the classifier throws', async () => {
     const a = new PrReviewFindingAnalyzer({
-      memoryDb,
+      caravanDb,
       classify: () => { throw new Error('classifier boom'); },
     });
     const { ctx, errors } = makeCtx();
     await expect(a.onEvent(IMPORTED(), ctx)).resolves.toBeUndefined();
     expect(errors.join('\n')).toContain('[PrReviewFindingAnalyzer] failed for review rev1: classifier boom');
-    expect(selectReview(memoryDb, 'widget#pr7#rev1')).toBeNull();
+    expect(selectReview(caravanDb, 'widget#pr7#rev1')).toBeNull();
   });
 
   it('handles non-Error thrown value (string) in catch', async () => {
     const a = new PrReviewFindingAnalyzer({
-      memoryDb,
+      caravanDb,
       classify: () => { throw 'quota-exceeded'; },
     });
     const { ctx, errors } = makeCtx();
@@ -167,7 +167,7 @@ describe('PrReviewFindingAnalyzer', () => {
   });
 
   it('onRunEnd logs summary and resets counters', async () => {
-    const a = new PrReviewFindingAnalyzer({ memoryDb });
+    const a = new PrReviewFindingAnalyzer({ caravanDb });
     const { ctx, logs } = makeCtx();
     await a.onEvent(IMPORTED(), ctx);
     expect(a.getCounters()).toEqual({ reviewsProcessed: 1, findingsWritten: 1 });

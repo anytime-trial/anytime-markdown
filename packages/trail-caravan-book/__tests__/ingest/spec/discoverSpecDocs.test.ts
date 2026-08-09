@@ -1,0 +1,216 @@
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { discoverChangedSpecs } from '../../../src/ingest/spec/discoverSpecDocs';
+import type { CaravanLogger } from '../../../src/logger';
+
+// ── Mock helpers ──────────────────────────────────────────────────────────────
+
+function sha1(content: string | Buffer): string {
+  return createHash('sha1').update(content).digest('hex');
+}
+
+function makeLogger(): CaravanLogger & { warns: string[]; infos: string[] } {
+  const warns: string[] = [];
+  const infos: string[] = [];
+  return {
+    info: jest.fn((msg: string) => { infos.push(msg); }),
+    error: jest.fn(),
+    warn: jest.fn((msg: string) => { warns.push(msg); }),
+    warns,
+    infos,
+  };
+}
+
+/**
+ * Make a minimal CaravanDbConnection mock.
+ * rowResult: null means no row found; string means existing source_hash.
+ */
+function makeDb(rowResult: string | null): {
+  prepare: jest.Mock;
+  _stmt: {
+    get: jest.Mock;
+    all: jest.Mock;
+    run: jest.Mock;
+    iterate: jest.Mock;
+    free: jest.Mock;
+  };
+} {
+  const stmt = {
+    get: jest.fn(() => (rowResult !== null ? { source_hash: rowResult } : undefined)),
+    all: jest.fn(() => (rowResult !== null ? [{ source_hash: rowResult }] : [])),
+    run: jest.fn(() => ({ changes: 0, lastInsertRowid: 0 })),
+    iterate: jest.fn(function* () {
+      if (rowResult !== null) yield { source_hash: rowResult };
+    }),
+    free: jest.fn(),
+  };
+  return {
+    prepare: jest.fn(() => stmt),
+    _stmt: stmt,
+  };
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe('discoverChangedSpecs', () => {
+  let specRoot: string;
+
+  beforeEach(() => {
+    specRoot = mkdtempSync(join(tmpdir(), 'discover-spec-'));
+  });
+
+  afterEach(() => {
+    rmSync(specRoot, { recursive: true, force: true });
+  });
+
+  test('new file (no DB row) → is_new=true', async () => {
+    const content = '# New spec\n\nContent here.\n';
+    writeFileSync(join(specRoot, 'new.md'), content);
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].rel_path).toBe('new.md');
+    expect(results[0].is_new).toBe(true);
+    expect(results[0].source_hash).toBe(sha1(content));
+  });
+
+  test('same source_hash in DB → result is empty (skipped)', async () => {
+    const content = '# Unchanged spec\n\nSame content.\n';
+    writeFileSync(join(specRoot, 'unchanged.md'), content);
+    const existingHash = sha1(content);
+
+    const db = makeDb(existingHash) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results).toHaveLength(0);
+  });
+
+  test('different source_hash in DB → is_new=false', async () => {
+    const content = '# Updated spec\n\nNew content.\n';
+    writeFileSync(join(specRoot, 'updated.md'), content);
+    const differentHash = 'aabbccdd1122334455667788990011223344556677'; // old hash
+
+    const db = makeDb(differentHash) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].rel_path).toBe('updated.md');
+    expect(results[0].is_new).toBe(false);
+    expect(results[0].source_hash).toBe(sha1(content));
+  });
+
+  test('file > 10MB → skipped, logger.warn called', async () => {
+    // Create a file larger than 10MB by using a large write
+    const largePath = join(specRoot, 'large.md');
+    // Write ~11MB file
+    const chunk = Buffer.alloc(1024 * 1024, 'A'); // 1MB chunk
+    const fd = require('node:fs').openSync(largePath, 'w');
+    for (let i = 0; i < 11; i++) {
+      require('node:fs').writeSync(fd, chunk);
+    }
+    require('node:fs').closeSync(fd);
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const warnCall = (logger.warn as jest.Mock).mock.calls[0][0] as string;
+    expect(warnCall).toContain('large.md');
+  });
+
+  test('ignores non-.md files', async () => {
+    writeFileSync(join(specRoot, 'readme.txt'), 'not markdown');
+    writeFileSync(join(specRoot, 'config.json'), '{}');
+    writeFileSync(join(specRoot, 'doc.md'), '# Doc\n');
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].rel_path).toBe('doc.md');
+  });
+
+  test('skips files under 90.skill/', async () => {
+    mkdirSync(join(specRoot, '90.skill'), { recursive: true });
+    writeFileSync(join(specRoot, '90.skill', 'resolve-issues.ja.md'), '# skill doc\n');
+    writeFileSync(join(specRoot, 'kept.md'), '# kept doc\n');
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results.map((r) => r.rel_path)).toEqual(['kept.md']);
+  });
+
+  test('handles nested .md files in subdirectories', async () => {
+    mkdirSync(join(specRoot, 'sub'), { recursive: true });
+    writeFileSync(join(specRoot, 'sub', 'nested.md'), '# Nested\n');
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].rel_path).toBe('sub/nested.md');
+    expect(results[0].is_new).toBe(true);
+  });
+
+  test('non-existent specRoot → throws and calls logger.error', async () => {
+    const nonexistent = join(specRoot, 'does-not-exist');
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+    const logger = makeLogger();
+
+    await expect(discoverChangedSpecs({ specRoot: nonexistent, db, logger })).rejects.toThrow();
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    const errorCall = (logger.error as jest.Mock).mock.calls[0][0] as string;
+    expect(errorCall).toContain('does-not-exist');
+  });
+
+  test('logger without warn function → uses logger.info as fallback for large file', async () => {
+    // 11MB ファイル作成
+    const largePath = join(specRoot, 'large2.md');
+    const chunk = Buffer.alloc(1024 * 1024, 'B');
+    const fd = require('node:fs').openSync(largePath, 'w');
+    for (let i = 0; i < 11; i++) {
+      require('node:fs').writeSync(fd, chunk);
+    }
+    require('node:fs').closeSync(fd);
+
+    const db = makeDb(null) as unknown as Parameters<typeof discoverChangedSpecs>[0]['db'];
+
+    // logger without warn
+    const infos: string[] = [];
+    const loggerNoWarn = {
+      info: jest.fn((msg: string) => { infos.push(msg); }),
+      error: jest.fn(),
+      // warn is absent
+    } as unknown as Parameters<typeof discoverChangedSpecs>[0]['logger'];
+
+    const results = await discoverChangedSpecs({ specRoot, db, logger: loggerNoWarn });
+
+    expect(results).toHaveLength(0);
+    // fallback: info は呼ばれていること
+    expect(loggerNoWarn.info).toHaveBeenCalled();
+    const infoCall = (loggerNoWarn.info as jest.Mock).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('large2.md')
+    );
+    expect(infoCall).toBeTruthy();
+  });
+});

@@ -261,7 +261,7 @@ export function mergeVerdicts(a, b) {
 
 /**
  * S4: canary / vsix スモークの結果を machine 記録へ統合する（applicable=false は無変更）。
- * acceptance_records の PK は (commit_sha, route) のため、ゲートが独立に POST すると
+ * caravan_acceptance_records の PK は (commit_sha, route) のため、ゲートが独立に POST すると
  * farm の記録と UPSERT で相互破壊する — 統合された単一 payload だけが記録経路。
  */
 export function applyGateReport(payload, report) {

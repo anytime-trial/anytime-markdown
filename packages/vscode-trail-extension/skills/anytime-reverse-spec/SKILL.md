@@ -22,7 +22,7 @@ trigger: /anytime-reverse-spec
 
 | ルール | 本スキルでの適用箇所 |
 | --- | --- |
-| **ソースコードの構造的探索は Trail DB の** `current_code_graphs.graph_json`（パッケージ単位・コミュニティ単位・依存関係・fanIn 上位の集計） | Phase 0-2 / 0-2-bis でコミュニティメンバーと fanIn を `graph_json` から取得 |
+| **ソースコードの構造的探索は Trail DB の** `activity_current_code_graphs.graph_json`（パッケージ単位・コミュニティ単位・依存関係・fanIn 上位の集計） | Phase 0-2 / 0-2-bis でコミュニティメンバーと fanIn を `graph_json` から取得 |
 
 
 ## テンプレ準拠生成（重要）
@@ -157,7 +157,7 @@ fi
 
 `mcp__mcp-trail__get_c4_model` を呼び、以下のいずれかなら中断:
 
-- 例外（`Cannot read properties of undefined (reading 'projectRoot')` 等）→ 「mcp-trail サーバの C4 派生計算で例外が発生しました。Anytime Trail 拡張のバージョン互換性、または `current_code_graphs` テーブルの存在を確認してください」と表示
+- 例外（`Cannot read properties of undefined (reading 'projectRoot')` 等）→ 「mcp-trail サーバの C4 派生計算で例外が発生しました。Anytime Trail 拡張のバージョン互換性、または `activity_current_code_graphs` テーブルの存在を確認してください」と表示
 - `model.elements` が空配列 → 「コード解析を実行してください（VS Code: Anytime Trail のコード解析コマンド）」と表示
 
 正常時は `model.elements` をインデックス化して Phase 0-3 で利用する。
@@ -189,7 +189,7 @@ fi
 ### 0-2: コードグラフ読み取り（sqlite3 CLI 読み取り専用）
 
 > [!IMPORTANT]
-> `current_code_graphs.graph_json`（ノード・エッジ情報）は mcp-trail の公開ツールでは取得できない。\
+> `activity_current_code_graphs.graph_json`（ノード・エッジ情報）は mcp-trail の公開ツールでは取得できない。\
 > このセクションのみ直接 DB アクセスが必要。TrailDataServer が起動していない環境では `sqlite3` CLI を優先する。\
 > TrailDataServer が起動中の場合でも**読み取り専用**クエリに限り sqlite3 CLI は安全（in-memory 状態への書き込みが発生しないため）。
 >
@@ -256,7 +256,7 @@ console.log(JSON.stringify({ trailDbPath, repoName, exists: fs.existsSync(trailD
 得られたパスを sqlite3 CLI で**読み取り専用**でクエリし、以下を取得する（`sql.js`/`better-sqlite3` が利用できない環境では sqlite3 CLI を使う）。
 
 ```bash
-sqlite3 "<trailDbPath>" "SELECT graph_json FROM current_code_graphs WHERE repo_name = '<repoName>';"
+sqlite3 "<trailDbPath>" "SELECT graph_json FROM activity_current_code_graphs WHERE repo_name = '<repoName>';"
 ```
 
 `JSON.parse(graph_json).nodes` をコミュニティ ID で集約する。
@@ -399,7 +399,7 @@ slugify() {
 ```
 
 > [!NOTE]
-> name に英字が含まれない場合（CJK のみ）、現行 sed フィルタ後に空文字となるため必ず fallback が発火する。例: name="スクリプトトレース" + label="trail-core" + id=5 → `feature-trail-core-5`。
+> name に英字が含まれない場合（CJK のみ）、現行 sed フィルタ後に空文字となるため必ず fallback が発火する。例: name="スクリプトトレース" + label="trail-activity" + id=5 → `feature-trail-activity-5`。
 
 
 #### スラグ衝突対策
@@ -487,7 +487,7 @@ slugifyAll() {
 - 該当 0 件ならセクションごと削除
 
 ## 整合性チェック（出力前必須）
-- mappings に指定された C4 要素 ID の package と、allMembers の package が乖離している場合は §8 制約セクションに格上げして注記する（例: 「DB のメタは trace-* だが実メンバーは trail-core/* に存在する。要メタ再生成」）
+- mappings に指定された C4 要素 ID の package と、allMembers の package が乖離している場合は §8 制約セクションに格上げして注記する（例: 「DB のメタは trace-* だが実メンバーは trail-activity/* に存在する。要メタ再生成」）
 - 乖離検出条件: mappings 全要素のパッケージ集合と、allMembers のパッケージ集合の和集合に対するジャッカード係数が 0.3 未満
 ```
 
@@ -660,7 +660,7 @@ Container 責務の導出優先順:
 
 | ID | 名称 | 概要 | 主要 C4 要素 | 詳細 |
 | --- | --- | --- | --- | --- |
-| 5 | カバレッジ計算 | カバレッジ集計と差分... | pkg_trail-core/coverage | [→](03.feature-detail/feature-coverage.ja.md) |
+| 5 | カバレッジ計算 | カバレッジ集計と差分... | pkg_trail-activity/coverage | [→](03.feature-detail/feature-coverage.ja.md) |
 
 ## 未命名コミュニティ
 
@@ -670,7 +670,7 @@ Container 責務の導出優先順:
 ```
 
 - **命名済み**: `name` が非空のコミュニティ。章 3 で詳細ファイルが生成されているため `[→](...)` リンクを張る
-- **未命名**: `name` が空のコミュニティ。`label` と `mcp-trail` の `current_code_graphs.graph_json` から逆引きした主要パッケージのみ列挙。章 3 のリンクは張らない
+- **未命名**: `name` が空のコミュニティ。`label` と `mcp-trail` の `activity_current_code_graphs.graph_json` から逆引きした主要パッケージのみ列挙。章 3 のリンクは張らない
 - 同一 `label` の重複コミュニティ（例: `extension-audio` が ID 26/117/118）は別行として全件列挙する。集約はしない（後続の `/anytime-reverse-codegraph` で個別に命名する必要があるため）
 
 ### 4-3: 章 6 画面仕様

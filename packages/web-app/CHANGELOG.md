@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-08-09
+
+### Changed
+
+- Followed the Trail database rename across the analysis APIs: C4 (model / DSM / releases / coverage / complexity / call-hierarchy / file-analysis), code-graph (query / explain), hotspot, defect-risk, temporal-coupling, docs-index and the Trail quality metrics routes now read the `activity_`-prefixed tables in `activity.db`.
+- The Trail viewer page follows the same rename.
+
 ## [0.46.1] - 2026-08-08
 
 ### Changed

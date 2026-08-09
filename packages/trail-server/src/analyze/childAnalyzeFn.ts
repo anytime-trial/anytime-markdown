@@ -1,6 +1,6 @@
 import * as path from 'node:path';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
-import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
+import type { AnalyzeOptions } from '@anytime-markdown/trail-activity/analyze';
 import { AnalyzeChildRunner, type AnalyzeChildRunnerDeps } from './AnalyzeChildRunner';
 
 /**
@@ -20,7 +20,7 @@ export interface ChildAnalyzeFnDeps {
 
 /**
  * `analyze-child` プロセスへ fork して TS 解析を実行する `AnalyzeFunction` 互換の
- * 非同期関数を生成する。daemon は trail-core の同期 `analyze`（typescript を静的に
+ * 非同期関数を生成する。daemon は trail-activity の同期 `analyze`（typescript を静的に
  * 引き込む）の代わりに本関数を注入することで、`trail-daemon.js` から typescript を
  * 排除しつつ TS 解析を analyze-child へ一本化する。
  *

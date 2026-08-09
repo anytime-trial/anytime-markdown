@@ -1,0 +1,226 @@
+import {
+  ChatService,
+  openCaravanBookDb,
+  type ChatChunk,
+  type ChatTurnInput,
+  type CaravanBookDb,
+} from '@anytime-markdown/trail-caravan-book';
+import type { ChatProvider, HealthCheckResult } from '@anytime-markdown/llm-core';
+import {
+  OllamaChatProvider,
+  createOllamaClient,
+  type OllamaClient,
+} from '@anytime-markdown/agent-core';
+import type { WebSocket } from 'ws';
+import type {
+  ChatChunkMessage,
+  ProviderStatusMessage,
+} from '../server/types';
+import type { CaravanChatLogger } from './types';
+
+/**
+ * @deprecated Use CaravanChatLogger directly. Retained for backwards compat with external callers.
+ */
+export type ChatBridgeLogger = CaravanChatLogger;
+
+export interface ChatBridgeConfig {
+  readonly baseUrl: string;
+  readonly chatModel: string;
+  readonly embedModel: string;
+  readonly bm25Limit?: number;
+  readonly vecLimit?: number;
+  readonly finalLimit?: number;
+  readonly rrfK?: number;
+}
+
+export interface ChatBridgeDeps {
+  readonly caravanDbPath: string;
+  readonly caravanNativeBinding?: string;
+  readonly getConfig: () => ChatBridgeConfig;
+  readonly logger: CaravanChatLogger;
+}
+
+const TS = () => new Date().toISOString();
+
+function logPrefix(level: string, msg: string): string {
+  return `[${TS()}] [${level}] chatBridge ${msg}`;
+}
+
+/**
+ * Memory chat の extension ホスト側エントリポイント。
+ * TrailDataServer の WebSocket メッセージ (chat.send / chat.abort /
+ * provider.recheck) を受けて trail-caravan-book の ChatService をストリーミング呼び出し、
+ * 結果を `chat.chunk` / `provider.status` で送り返す。
+ */
+export class ChatBridge {
+  private caravanDb: CaravanBookDb | undefined;
+  private ollama: OllamaClient | undefined;
+  private chatProvider: ChatProvider | undefined;
+  private chatService: ChatService | undefined;
+  private initPromise: Promise<ChatService | undefined> | undefined;
+  private currentAbort: AbortController | undefined;
+  private lastStatus: HealthCheckResult | undefined;
+
+  constructor(private readonly deps: ChatBridgeDeps) {}
+
+  async dispose(): Promise<void> {
+    this.currentAbort?.abort();
+    try {
+      this.caravanDb?.close();
+    } catch (error) {
+      this.deps.logger.error(
+        logPrefix('ERROR', 'caravanDb close failed'),
+        error,
+      );
+    }
+    this.caravanDb = undefined;
+    this.chatService = undefined;
+    this.initPromise = undefined;
+  }
+
+  /** 接続したクライアントに最新のステータスを送る (キャッシュがあれば即時、無ければ healthCheck 起動)。 */
+  async sendStatus(ws: WebSocket | ReadonlyArray<WebSocket>): Promise<void> {
+    this.lastStatus ??= await this.runHealthCheck();
+    this.broadcast(this.statusMessage(this.lastStatus), ws);
+  }
+
+  /** 設定変更や手動 recheck で呼ぶ。最新ステータスを再評価して全クライアントへ送る。 */
+  async recheck(clients: ReadonlyArray<WebSocket>): Promise<void> {
+    this.lastStatus = await this.runHealthCheck();
+    this.broadcast(this.statusMessage(this.lastStatus), clients);
+  }
+
+  async handleSend(query: string, ws: WebSocket): Promise<void> {
+    const service = await this.ensureService();
+    if (!service) {
+      // service が組めない (Ollama 未接続等) → status を再送して終わる
+      await this.sendStatus(ws);
+      return;
+    }
+
+    // 前リクエストの abort
+    this.currentAbort?.abort();
+    const abort = new AbortController();
+    this.currentAbort = abort;
+
+    const turn: ChatTurnInput = { query, history: [], signal: abort.signal };
+    try {
+      for await (const chunk of service.streamTurn(turn)) {
+        this.sendChunk(chunk, ws);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.deps.logger.error(logPrefix('ERROR', 'streamTurn crashed'), error);
+      this.sendChunk(
+        { type: 'error', payload: { message: msg } } satisfies ChatChunk,
+        ws,
+      );
+      this.sendChunk(
+        { type: 'done', payload: { interrupted: false, totalMs: 0 } } satisfies ChatChunk,
+        ws,
+      );
+    } finally {
+      if (this.currentAbort === abort) this.currentAbort = undefined;
+    }
+  }
+
+  handleAbort(): void {
+    this.currentAbort?.abort();
+  }
+
+  // ---- internals ----------------------------------------------------------
+
+  private ensureService(): Promise<ChatService | undefined> {
+    if (this.chatService) return Promise.resolve(this.chatService);
+    // in-flight 初期化を直列化する。複数の WebSocket クライアントが同時に
+    // chat.send を送っても openCaravanBookDb が二重に呼ばれて DB ハンドルが
+    // リークするのを防ぐ。成功時は this.chatService に保持されるので次回は
+    // 上の早期 return で短絡し、失敗時は finally で initPromise をクリアして
+    // 再試行 (Ollama 復旧後など) を許す。
+    this.initPromise ??= this.initServiceOnce().finally(() => {
+      this.initPromise = undefined;
+    });
+    return this.initPromise;
+  }
+
+  private async initServiceOnce(): Promise<ChatService | undefined> {
+    const cfg = this.deps.getConfig();
+    try {
+      this.caravanDb ??= await openCaravanBookDb(this.deps.caravanDbPath, {
+        nativeBinding: this.deps.caravanNativeBinding,
+      });
+      this.ollama ??= createOllamaClient({ baseUrl: cfg.baseUrl });
+      this.chatProvider ??= new OllamaChatProvider({
+        baseUrl: cfg.baseUrl,
+        model: cfg.chatModel,
+      });
+      // チャット開始前に health 確認 (失敗時は status を返して service を組まない)
+      const status = await this.chatProvider.healthCheck();
+      this.lastStatus = status;
+      if (!status.ok) return undefined;
+
+      this.chatService = new ChatService({
+        db: this.caravanDb.db,
+        ollama: this.ollama,
+        chatProvider: this.chatProvider,
+        embedModel: cfg.embedModel,
+        bm25Limit: cfg.bm25Limit,
+        vecLimit: cfg.vecLimit,
+        // ChatBridgeConfig.finalLimit aligns with VS Code/config.json naming; ChatService keeps existing retrieveLimit name to limit Task 5 scope
+        retrieveLimit: cfg.finalLimit,
+        rrfK: cfg.rrfK,
+      });
+      return this.chatService;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.lastStatus = { ok: false, detail };
+      this.deps.logger.error(logPrefix('ERROR', 'ensureService failed'), error);
+      return undefined;
+    }
+  }
+
+  private async runHealthCheck(): Promise<HealthCheckResult> {
+    const cfg = this.deps.getConfig();
+    this.chatProvider ??= new OllamaChatProvider({
+      baseUrl: cfg.baseUrl,
+      model: cfg.chatModel,
+    });
+    try {
+      return await this.chatProvider.healthCheck();
+    } catch (error) {
+      return {
+        ok: false,
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private statusMessage(r: HealthCheckResult): ProviderStatusMessage {
+    return {
+      type: 'provider.status',
+      status: r.ok ? 'ready' : 'unavailable',
+      detail: r.detail,
+    };
+  }
+
+  private sendChunk(chunk: ChatChunk, ws: WebSocket): void {
+    const msg: ChatChunkMessage = { type: 'chat.chunk', chunk };
+    this.send(msg, ws);
+  }
+
+  private send(payload: ProviderStatusMessage | ChatChunkMessage, ws: WebSocket): void {
+    try {
+      ws.send(JSON.stringify(payload));
+    } catch (error) {
+      this.deps.logger.error(logPrefix('ERROR', 'WebSocket send failed'), error);
+    }
+  }
+
+  private broadcast(
+    payload: ProviderStatusMessage | ChatChunkMessage,
+    target: WebSocket | ReadonlyArray<WebSocket>,
+  ): void {
+    const list = Array.isArray(target) ? target : [target as WebSocket];
+    for (const ws of list) this.send(payload, ws);
+  }
+}

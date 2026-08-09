@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 
-import type { AlignmentReport, AlignmentStatus } from '@anytime-markdown/trail-core';
+import type { AlignmentReport, AlignmentStatus } from '@anytime-markdown/trail-activity';
 import * as vscode from 'vscode';
 
 export interface AlignmentDiagnosticsSummary {
@@ -30,7 +30,7 @@ const MAX_LISTED_SPECS = 3;
  * 診断は「変更されたコードファイル」に付ける。設計書側に付けると、開発者が開いていない
  * ファイルに警告が溜まって気づけないため。
  *
- * 1 つの C4 要素を `c4Scope` に持つ設計書は多数ある（実測で `pkg_trail-core` は 13 本）。
+ * 1 つの C4 要素を `c4Scope` に持つ設計書は多数ある（実測で `pkg_trail-activity` は 13 本）。
  * finding をそのまま診断にすると 1 ファイルに十数件並んでパネルが埋まるので、
  * ファイル × 要素で束ね、設計書は先頭数本＋残数で示す。
  */

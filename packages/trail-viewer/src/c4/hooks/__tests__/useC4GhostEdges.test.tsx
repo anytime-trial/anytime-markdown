@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import type { C4Model } from '@anytime-markdown/trail-core';
+import type { C4Model } from '@anytime-markdown/trail-activity';
 import { useC4GhostEdges } from '../useC4GhostEdges';
 
 const c4Model: C4Model = {

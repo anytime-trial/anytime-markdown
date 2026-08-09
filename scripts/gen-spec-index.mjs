@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 // ドキュメント索引（index.<lang>.md）をフォルダ単位で生成する CLI。
 //
-// 実装の正本は packages/doc-core/src/folderIndex/（冪等生成・jest テスト付き）。
+// 実装の正本は packages/markdown-catalog/src/folderIndex/（冪等生成・jest テスト付き）。
 // 本ファイルは CLI 引数の解釈だけを行う薄いラッパーで、npm scripts
 // （spec:index / tech:index / proposal:index / review:index / report:index）から
-// tsx 経由で実行される（素の node は doc-core の TypeScript を読めない）。
+// tsx 経由で実行される（素の node は markdown-catalog の TypeScript を読めない）。
 //
 // import はワークスペース名でなくリポジトリ相対にする: worktree では node_modules の
-// ワークスペース symlink が main チェックアウト側の doc-core へ解決され、編集中の
+// ワークスペース symlink が main チェックアウト側の markdown-catalog へ解決され、編集中の
 // 実装と食い違うため（@anytime-markdown/* は使わない）。
 //
 // 使い方: tsx scripts/gen-spec-index.mjs [docDir] [scopeLabel] [lang]
@@ -15,7 +15,7 @@
 //   scopeLabel 既定: 設計書（タイトル先頭に使う表示名） / lang 既定: ja
 
 import path from 'node:path';
-import { generateDocIndexes } from '../packages/doc-core/src/folderIndex/generateDocIndexes.ts';
+import { generateDocIndexes } from '../packages/markdown-catalog/src/folderIndex/generateDocIndexes.ts';
 
 function main() {
   const docDir = path.resolve(process.argv[2] ?? '/Shared/anytime-markdown-docs/spec');

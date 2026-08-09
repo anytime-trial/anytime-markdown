@@ -1,4 +1,4 @@
-// Phase 6 S4: GET /api/memory/rationale のルーティング + MemoryApiHandler.listRationaleNodes。
+// Phase 6 S4: GET /api/caravan/rationale のルーティング + CaravanApiHandler.listRationaleNodes。
 // fixture は extractCommitRationale.ts と同じ書込形（Commit の canonical_name = full hash、
 // Decision.summary = rationale テキスト、edge predicate='rationale_for'）で作る。
 jest.mock('ws', () => ({
@@ -17,9 +17,9 @@ import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 const TS = '2026-07-17T10:00:00.000Z';
 
-function buildMemoryDb(dbPath: string): void {
+function buildCaravanDb(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE memory_entities (
+  db.exec(`CREATE TABLE caravan_entities (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
     canonical_name TEXT NOT NULL,
@@ -33,7 +33,7 @@ function buildMemoryDb(dbPath: string): void {
     recorded_at TEXT NOT NULL,
     UNIQUE (type, canonical_name)
   ) STRICT`);
-  db.exec(`CREATE TABLE memory_edges (
+  db.exec(`CREATE TABLE caravan_edges (
     id TEXT PRIMARY KEY,
     subject_entity_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
@@ -50,7 +50,7 @@ function buildMemoryDb(dbPath: string): void {
     attributes_json TEXT NOT NULL DEFAULT '{}'
   ) STRICT`);
   const insEntity = db.prepare(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, summary, first_seen_at, last_updated_at, recorded_at)
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, summary, first_seen_at, last_updated_at, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   insEntity.run('commit-abc', 'Commit', 'abc123def4567890', 'abc123def456', '', TS, TS, TS);
@@ -58,30 +58,30 @@ function buildMemoryDb(dbPath: string): void {
   insEntity.run('commit-other', 'Commit', 'ffff00001111', 'ffff0000', '', TS, TS, TS);
   insEntity.run('decision-2', 'Decision', 'dec-2', '別セッションの決定', '別セッションの決定', TS, TS, TS);
   const insEdge = db.prepare(
-    `INSERT INTO memory_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, confidence, confidence_label, modality)
+    `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at, source_type, source_ref, confidence, confidence_label, modality)
      VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, ?, 'asserted')`,
   );
-  insEdge.run('edge-1', 'decision-1', 'commit-abc', TS, TS, 'session_commits#abc123def4567890', 'EXTRACTED');
-  insEdge.run('edge-2', 'decision-2', 'commit-other', TS, TS, 'session_commits#ffff00001111', 'INFERRED');
+  insEdge.run('edge-1', 'decision-1', 'commit-abc', TS, TS, 'activity_session_commits#abc123def4567890', 'EXTRACTED');
+  insEdge.run('edge-2', 'decision-2', 'commit-other', TS, TS, 'activity_session_commits#ffff00001111', 'INFERRED');
   db.close();
 }
 
 function buildTrailDbFile(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
-  db.exec(`CREATE TABLE session_commits (
+  db.exec(`CREATE TABLE activity_session_commits (
     session_id TEXT NOT NULL,
     commit_hash TEXT NOT NULL,
     repo_id INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (session_id, repo_id, commit_hash)
   )`);
-  db.prepare(`INSERT INTO session_commits (session_id, commit_hash) VALUES (?, ?)`).run(
+  db.prepare(`INSERT INTO activity_session_commits (session_id, commit_hash) VALUES (?, ?)`).run(
     'sess-with-rationale',
     'abc123def4567890',
   );
   db.close();
 }
 
-describe('GET /api/memory/rationale (Phase 6 S4)', () => {
+describe('GET /api/caravan/rationale (Phase 6 S4)', () => {
   let tmpDir: string;
   let server: TrailDataServer;
   let trailDb: TrailDatabase;
@@ -89,7 +89,7 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rationale-api-test-'));
-    buildMemoryDb(path.join(tmpDir, 'caravan-book.db'));
+    buildCaravanDb(path.join(tmpDir, 'caravan-book.db'));
     buildTrailDbFile(path.join(tmpDir, 'activity.db'));
     trailDb = await createTestTrailDatabase();
     server = new TrailDataServer('/tmp', trailDb, makeMockLogger(), undefined, path.join(tmpDir, 'caravan-book.db'));
@@ -104,7 +104,7 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
   });
 
   it('セッションのコミットに紐付く Decision ノードを confidence_label 付きで返す（FR-23）', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/rationale?sessionId=sess-with-rationale`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/caravan/rationale?sessionId=sess-with-rationale`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { rationale: Array<Record<string, unknown>> };
     expect(body.rationale).toHaveLength(1);
@@ -114,17 +114,17 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
   });
 
   it('コミットの無いセッション・未知セッションは空配列（FR-23）', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/rationale?sessionId=sess-none`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/caravan/rationale?sessionId=sess-none`);
     expect(res.status).toBe(200);
     expect(((await res.json()) as { rationale: unknown[] }).rationale).toHaveLength(0);
   });
 
   it('sessionId 欠落は 400', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/rationale`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/caravan/rationale`);
     expect(res.status).toBe(400);
   });
 
-  it('memory.db 不在は空配列で縮退する（FR-23）', async () => {
+  it('caravan.db 不在は空配列で縮退する（FR-23）', async () => {
     const server2 = new TrailDataServer(
       '/tmp',
       trailDb,
@@ -134,7 +134,7 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
     );
     await server2.start(0);
     try {
-      const res = await fetch(`http://127.0.0.1:${server2.port}/api/memory/rationale?sessionId=x`);
+      const res = await fetch(`http://127.0.0.1:${server2.port}/api/caravan/rationale?sessionId=x`);
       expect(res.status).toBe(200);
       expect(((await res.json()) as { rationale: unknown[] }).rationale).toHaveLength(0);
     } finally {

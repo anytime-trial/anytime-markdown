@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-09
+
+### Changed
+
+- Followed the `trail-core` to `trail-activity` package rename in the spec-docs git operations and the git exec helper. The bundle changes, but there is no behavioral difference.
+
 ## [0.3.1] - 2026-08-04
 
 ### Fixed

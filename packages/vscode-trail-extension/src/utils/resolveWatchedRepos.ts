@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 

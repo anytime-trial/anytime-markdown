@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { getReviewRunStatus, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { ReviewRunStatus } from '@anytime-markdown/memory-core/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { getReviewRunStatus, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { ReviewRunStatus } from '@anytime-markdown/trail-caravan-book/query';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const GetReviewRunStatusInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -12,7 +12,7 @@ export const GetReviewRunStatusInputSchema = z.object({
 export type GetReviewRunStatusInput = z.infer<typeof GetReviewRunStatusInputSchema>;
 
 export async function handleGetReviewRunStatus(input: GetReviewRunStatusInput): Promise<ReviewRunStatus | null> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return getReviewRunStatus({ db: memHandle.db, ...input, logger });

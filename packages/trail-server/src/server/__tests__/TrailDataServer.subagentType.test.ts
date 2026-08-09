@@ -1,7 +1,7 @@
 // /api/temporal-coupling integration test for granularity=subagentType
 
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
-jest.mock('@anytime-markdown/trail-core/c4', () => ({ fetchC4Model: jest.fn() }));
+jest.mock('@anytime-markdown/trail-activity/c4', () => ({ fetchC4Model: jest.fn() }));
 
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -18,19 +18,19 @@ const isoDaysAgo = (days: number): string =>
 const seedSubagentTypeData = (db: TrailDatabase): void => {
   const inner = (db as unknown as { db: SqlJsDb }).db;
   inner.run(
-    `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     ['s1', 's1', isoDaysAgo(1)],
   );
   inner.run(
-    `INSERT INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
+    `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', ?, '', 0, '', 0, '')`,
     ['s2', 's2', isoDaysAgo(2)],
   );
   inner.run(
-    `INSERT INTO messages (uuid, session_id, parent_uuid, type, timestamp, subagent_type)
+    `INSERT INTO activity_messages (uuid, session_id, parent_uuid, type, timestamp, subagent_type)
      VALUES ('m1', 's1', NULL, 'assistant', '2026-04-29T00:00:00.000Z', 'Explore')`,
   );
   inner.run(
-    `INSERT INTO messages (uuid, session_id, parent_uuid, type, timestamp, subagent_type)
+    `INSERT INTO activity_messages (uuid, session_id, parent_uuid, type, timestamp, subagent_type)
      VALUES ('m2', 's2', NULL, 'assistant', '2026-04-29T00:00:00.000Z', 'code-reviewer')`,
   );
   for (const [sid, mid, idx, tool, file] of [
@@ -40,7 +40,7 @@ const seedSubagentTypeData = (db: TrailDatabase): void => {
     ['s2', 'm2', 1, 'Edit', 'src/login.ts'],
   ] as const) {
     inner.run(
-      `INSERT INTO message_tool_calls (
+      `INSERT INTO activity_message_tool_calls (
          session_id, message_uuid, turn_index, call_index, tool_name, file_path,
          command, skill_name, model, is_sidechain, turn_exec_ms, has_thinking, is_error, error_type, timestamp
        ) VALUES (?, ?, 0, ?, ?, ?, NULL, NULL, NULL, 0, NULL, 0, 0, NULL, '2026-04-29T00:00:00.000Z')`,

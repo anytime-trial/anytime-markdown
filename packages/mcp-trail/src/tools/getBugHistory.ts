@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { getBugHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { BugHistoryEntry } from '@anytime-markdown/memory-core/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { getBugHistory, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { BugHistoryEntry } from '@anytime-markdown/trail-caravan-book/query';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const GetBugHistoryInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -15,7 +15,7 @@ export const GetBugHistoryInputSchema = z.object({
 export type GetBugHistoryInput = z.infer<typeof GetBugHistoryInputSchema>;
 
 export async function handleGetBugHistory(input: GetBugHistoryInput): Promise<BugHistoryEntry[]> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return getBugHistory({ db: memHandle.db, ...input, logger });

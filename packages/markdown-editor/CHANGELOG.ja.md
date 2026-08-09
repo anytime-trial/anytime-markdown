@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-08-09
+
+### 変更
+
+- markdown 系の同期セット（root / mcp-markdown / markdown-editor / markdown-rich-editor / VS Code 拡張）を揃えるためのバージョン更新のみ。機能変更はない。
+
 ## [1.19.2] - 2026-08-04
 
 ### 追加

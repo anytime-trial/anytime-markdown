@@ -5,7 +5,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import { ExecFileGitService, toUTC } from '@anytime-markdown/trail-db';
 
 /**

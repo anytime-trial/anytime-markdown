@@ -1,5 +1,5 @@
 /**
- * instructionStore — Flight Record（指示単位の運航記録）の一覧・詳細の状態管理。
+ * instructionStore — Flight Record（指示単位の実行記録）の一覧・詳細の状態管理。
  *
  * API surface:
  *   createInstructionStore(serverUrl, options?) → InstructionStore
@@ -27,7 +27,7 @@ export interface InstructionDeliverableDto {
 
 export type VerificationKindDto = 'unit' | 'build' | 'next-build' | 'typecheck' | 'lint' | 'e2e' | 'manual';
 
-/** trail-core の InstructionVerificationRun の DTO（kind ごとに最新 1 件）。 */
+/** trail-activity の InstructionVerificationRun の DTO（kind ごとに最新 1 件）。 */
 export interface InstructionVerificationRunDto {
   readonly kind: VerificationKindDto;
   readonly package: string;
@@ -50,7 +50,7 @@ export interface InstructionTokenUsageByModelDto {
   readonly estimatedCostUsd: number;
 }
 
-/** `imported=false` は session_costs 未取込。0 件と区別する。 */
+/** `imported=false` は activity_session_costs 未取込。0 件と区別する。 */
 export interface InstructionTokenUsageDto {
   readonly imported: boolean;
   readonly inputTokens: number;

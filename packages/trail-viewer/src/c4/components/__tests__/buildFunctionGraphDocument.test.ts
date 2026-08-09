@@ -1,5 +1,5 @@
 import { buildFunctionGraphDocument } from '../buildFunctionGraphDocument';
-import type { FunctionGraphResponse } from '@anytime-markdown/trail-core/c4';
+import type { FunctionGraphResponse } from '@anytime-markdown/trail-activity/c4';
 
 const sample: FunctionGraphResponse = {
   elementId: 'src/foo.ts',

@@ -1,5 +1,5 @@
-import type { StoredCodeGraph, StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
-import { composeCodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { StoredCodeGraph, StoredCommunity } from '@anytime-markdown/trail-activity/codeGraph';
+import { composeCodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -83,7 +83,7 @@ async function fetchRelease(
   const releaseId = await resolveReleaseId(supabase, release, repoId);
   if (releaseId == null) return null;
 
-  // 2. release_code_graphs / communities を取得 (release_id キー)
+  // 2. activity_release_code_graphs / communities を取得 (release_id キー)
   const [{ data: graphRow, error: graphErr }, { data: communityRows }] = await Promise.all([
     supabase.from('trail_release_code_graphs').select('graph_json').eq('release_id', releaseId).limit(1).single(),
     supabase.from('trail_release_code_graph_communities').select('community_id,label,name,summary').eq('release_id', releaseId).limit(1000),

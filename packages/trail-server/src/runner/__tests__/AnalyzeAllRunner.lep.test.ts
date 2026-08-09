@@ -3,16 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  BetterSqlite3MemoryDb,
+  BetterSqlite3CaravanDb,
   ingestPrReview,
   runMigrations,
-  type MemoryDbConnection,
+  type CaravanDbConnection,
   type PipelineStatusFile,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
-import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
+import { makeFakeScopeSession, makeCaravanBookWithSession } from './fakeCaravanScopeSession';
 
 /**
  * Step 5 (caravan-book.db 付け替え) の PR review analyzer 群 (`PrReviewImporter` /
@@ -20,8 +20,8 @@ import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemorySco
  * `runMigrations` で組み立てる (`~/.claude/rules/bugfix-workflow.md` 系の方針: fake DB でなく
  * 実 SQLite の in-memory/一時ファイルを使う)。
  */
-function buildTestMemoryDb(dir: string): MemoryDbConnection {
-  const db = new BetterSqlite3MemoryDb({ filePath: join(dir, 'caravan-book.db') });
+function buildTestCaravanDb(dir: string): CaravanDbConnection {
+  const db = new BetterSqlite3CaravanDb({ filePath: join(dir, 'caravan-book.db') });
   runMigrations(db);
   return db;
 }
@@ -30,7 +30,7 @@ function buildTestMemoryDb(dir: string): MemoryDbConnection {
  * LEP 経由で AnalyzeAllRunner.runImpl() が委譲動作することを確認する統合テスト。
  *
  * Step 3d 以降: Layer 3 は 7 個の memory analyzer が `wave_start:memory` に応答して
- * `MemoryCoreService.openScopeSession()` の scope メソッドを呼ぶ。本 test は LEP wave モデルの
+ * `CaravanBookService.openScopeSession()` の scope メソッドを呼ぶ。本 test は LEP wave モデルの
  * 不変条件 (save → memory 順序、Wave 2→3 barrier 等) を fake scope session で直接確認する。
  */
 
@@ -100,16 +100,16 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
 
     const allLines = logSink.lines.join('\n');
     expect(allLines).toContain('[Persist] activity.db saved');
-    expect(allLines).toContain('[ConversationMemoryAnalyzer] start');
+    expect(allLines).toContain('[ConversationCaravanAnalyzer] start');
     expect(allLines).toContain('[EmbeddingBackfillAnalyzer] done');
-    expect(allLines).not.toContain('[MemoryCoreLegacy]');
+    expect(allLines).not.toContain('[CaravanBookLegacy]');
   });
 
   it('memory fires only after activity.db save completes (Wave 2 → Wave 3 barrier)', async () => {
@@ -120,7 +120,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
@@ -135,12 +135,12 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
     expect(status.lastError).toContain('importAll: save boom');
-    expect(status.lastError).toContain('memory-core: mem boom');
+    expect(status.lastError).toContain('trail-caravan-book: mem boom');
     expect(status.ticksRun).toBe(0);
   });
 
@@ -151,7 +151,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
@@ -164,7 +164,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       gitRoots: [],
     });
 
@@ -187,7 +187,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     await runner.runOnce('manual');
@@ -199,7 +199,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: makeMemoryCoreWithSession(dir, null),
+      caravanBookService: makeCaravanBookWithSession(dir, null),
     });
     const status = await runner.runOnce('manual');
     expect(status.lastError).toBeNull();
@@ -213,7 +213,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       gitRoots: [],
     });
 
@@ -247,7 +247,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       enableIngesters: false,
     });
 
@@ -269,7 +269,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'primary',
     });
     await runner.runOnce('manual');
@@ -283,7 +283,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'primary',
       pipelineStatusFilePath: statusPath,
     });
@@ -305,7 +305,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'primary+memory',
       pipelineStatusFilePath: statusPath,
     });
@@ -325,7 +325,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'disabled',
       pipelineStatusFilePath: statusPath,
     });
@@ -343,7 +343,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'memory',
     });
     await runner.runOnce('manual');
@@ -351,7 +351,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(save).not.toHaveBeenCalled(); // Wave 2 (PersistAnalyzer) は走らない
   });
 
-  it('stage=all runs Wave 4: DoraMetricsAggregator computes dora_metrics', async () => {
+  it('stage=all runs Wave 4: DoraMetricsAggregator computes activity_dora_metrics', async () => {
     const written: unknown[][] = [];
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
@@ -367,7 +367,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
         ],
         replaceDoraMetrics: (rows: unknown[]) => { written.push([...rows]); },
       }),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'all',
     });
 
@@ -382,9 +382,9 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     const correlationWrites: unknown[][] = [];
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
-    const memoryDb = buildTestMemoryDb(dir);
-    // memory_reviews (source_kind='pr_comment') を実 ingestPrReview で 1 件シード。
-    ingestPrReview(memoryDb, {
+    const caravanDb = buildTestCaravanDb(dir);
+    // caravan_reviews (source_kind='pr_comment') を実 ingestPrReview で 1 件シード。
+    ingestPrReview(caravanDb, {
       repoName: 'widget',
       prNumber: 7,
       reviewId: 'r1',
@@ -405,21 +405,21 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
         getCorrelationCommitFiles: () => [],
         replaceCrossSourceCorrelations: (rows: unknown[]) => { correlationWrites.push([...rows]); },
       }),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
-      memoryDbPath: join(dir, 'caravan-book.db'),
-      memoryDb,
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
+      caravanDbPath: join(dir, 'caravan-book.db'),
+      caravanDb,
       stage: 'all',
     });
 
     await runner.runOnce('manual');
-    memoryDb.close();
+    caravanDb.close();
 
     expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] done');
     expect(correlationWrites).toHaveLength(1);
     expect(correlationWrites[0]).toHaveLength(1); // r1 ↔ s1 (pr_review_session)
   });
 
-  it('stage=all: CrossSourceCorrelator skips with info log when memoryDb is not configured', async () => {
+  it('stage=all: CrossSourceCorrelator skips with info log when caravanDb is not configured', async () => {
     const correlationWrites: unknown[][] = [];
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
@@ -429,9 +429,9 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       trailDb: makeFakeTrailDb(jest.fn(), {
         replaceCrossSourceCorrelations: (rows: unknown[]) => { correlationWrites.push([...rows]); },
       }),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'all',
-      // memoryDbPath / memoryDb 未指定
+      // caravanDbPath / caravanDb 未指定
     });
 
     await runner.runOnce('manual');
@@ -452,7 +452,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
         getDoraReleases: () => [{ tag: 'v1', releasedAt: '2026-01-10T00:00:00.000Z', repoName: 'repoA' }],
         replaceDoraMetrics: (rows: unknown[]) => { written.push([...rows]); },
       }),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'primary+memory',
     });
 
@@ -473,7 +473,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
         getDoraReleases: () => [{ tag: 'v1', releasedAt: '2026-01-10T00:00:00.000Z', repoName: 'repoA' }],
         replaceDoraMetrics: (rows: unknown[]) => { written.push([...rows]); },
       }),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'all',
       disabledAggregators: ['DoraMetricsAggregator'],
     });
@@ -484,18 +484,18 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(written).toEqual([]);
   });
 
-  it('Step 5: github_pr_review → PrReviewImporter → PrReviewFindingAnalyzer → memory_reviews/memory_review_findings', async () => {
+  it('Step 5: github_pr_review → PrReviewImporter → PrReviewFindingAnalyzer → caravan_reviews/caravan_review_findings', async () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
-    const memoryDb = buildTestMemoryDb(dir);
+    const caravanDb = buildTestCaravanDb(dir);
 
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
-      memoryDbPath: join(dir, 'caravan-book.db'),
-      memoryDb,
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
+      caravanDbPath: join(dir, 'caravan-book.db'),
+      caravanDb,
       gitRoots: ['/repo'],
       githubPrReview: {
         client: makeFakeGitHubClient() as never,
@@ -510,64 +510,64 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).toContain('[PrReviewImporter] done (imported=1');
     expect(allLines).toContain('[PrReviewFindingAnalyzer] done (reviews=1, findings=1)');
 
-    // memory_reviews / memory_review_findings に実際に書き込まれたことを実測で確認する。
-    const reviewRows = memoryDb.exec(
-      `SELECT source_ref, reviewer, severity_overall FROM memory_reviews WHERE source_kind='pr_comment'`,
+    // caravan_reviews / caravan_review_findings に実際に書き込まれたことを実測で確認する。
+    const reviewRows = caravanDb.exec(
+      `SELECT source_ref, reviewer, severity_overall FROM caravan_reviews WHERE source_kind='pr_comment'`,
     );
     expect(reviewRows[0]?.values).toEqual([['widget#pr7#100', 'alice', 'info']]);
-    const findingRows = memoryDb.exec(
+    const findingRows = caravanDb.exec(
       `SELECT target_file_path, target_line_start, finding_text
-         FROM memory_review_findings f JOIN memory_reviews r ON r.id = f.review_id
+         FROM caravan_review_findings f JOIN caravan_reviews r ON r.id = f.review_id
         WHERE r.source_kind='pr_comment'`,
     );
     expect(findingRows[0]?.values).toEqual([['a.ts', 12, 'null check']]);
 
-    memoryDb.close();
+    caravanDb.close();
   });
 
   it('Step 5: PR review pipeline is a no-op when GitHub source is unconfigured', async () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
-    const memoryDb = buildTestMemoryDb(dir);
+    const caravanDb = buildTestCaravanDb(dir);
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
-      memoryDbPath: join(dir, 'caravan-book.db'),
-      memoryDb,
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
+      caravanDbPath: join(dir, 'caravan-book.db'),
+      caravanDb,
       gitRoots: ['/repo'],
       // githubPrReview 未指定 → ingester 登録なし
     });
 
     await runner.runOnce('manual');
-    const reviewRows = memoryDb.exec(`SELECT COUNT(*) FROM memory_reviews WHERE source_kind='pr_comment'`);
-    memoryDb.close();
+    const reviewRows = caravanDb.exec(`SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='pr_comment'`);
+    caravanDb.close();
 
     expect(logSink.lines.join('\n')).not.toContain('[GitHubPrReviewIngester]');
     expect(reviewRows[0]?.values?.[0]?.[0]).toBe(0);
   });
 
-  it('Step 5: memoryDbPath not configured → PrReviewImporter / PrReviewFindingAnalyzer are not built (info log, no silent skip)', async () => {
+  it('Step 5: caravanDbPath not configured → PrReviewImporter / PrReviewFindingAnalyzer are not built (info log, no silent skip)', async () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       gitRoots: ['/repo'],
       githubPrReview: {
         client: makeFakeGitHubClient() as never,
         gitRemoteReader: { getRemoteUrl: () => 'https://github.com/acme/widget.git' },
       },
-      // memoryDbPath / memoryDb 未指定
+      // caravanDbPath / caravanDb 未指定
     });
 
     await runner.runOnce('manual');
 
     const allLines = logSink.lines.join('\n');
-    expect(allLines).toContain('[PrReview] memoryDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
+    expect(allLines).toContain('[PrReview] caravanDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
     expect(allLines).not.toContain('[PrReviewImporter] done');
     expect(allLines).not.toContain('[PrReviewFindingAnalyzer] done');
   });
@@ -579,7 +579,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'disabled',
     });
     await runner.runOnce('manual');

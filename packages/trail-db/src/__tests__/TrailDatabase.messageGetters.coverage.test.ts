@@ -11,7 +11,7 @@ function inner(db: TrailDatabase): SqlJsDb {
 
 function insertSession(db: TrailDatabase, id: string): void {
   inner(db).run(
-    `INSERT OR IGNORE INTO sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
+    `INSERT OR IGNORE INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES (?, ?, '0', '', '', '', '', 0, '', 0, '')`,
     [id, id],
   );
 }
@@ -21,7 +21,7 @@ function insertAssistantMessage(
 ): void {
   insertSession(db, sessionId);
   inner(db).run(
-    `INSERT OR IGNORE INTO messages (uuid, session_id, type, tool_calls, output_tokens, timestamp)
+    `INSERT OR IGNORE INTO activity_messages (uuid, session_id, type, tool_calls, output_tokens, timestamp)
      VALUES (?, ?, 'assistant', ?, ?, '2026-05-20T10:00:00.000Z')`,
     [uuid, sessionId, toolCalls, outputTokens],
   );
@@ -33,7 +33,7 @@ function insertSessionCost(
 ): void {
   insertSession(db, sessionId);
   inner(db).run(
-    `INSERT OR REPLACE INTO session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
+    `INSERT OR REPLACE INTO activity_session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [sessionId, model, input, output, cacheRead, cacheCreation, cost],
   );

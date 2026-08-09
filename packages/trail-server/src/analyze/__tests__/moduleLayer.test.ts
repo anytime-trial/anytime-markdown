@@ -29,12 +29,12 @@ describe('buildManifest', () => {
   });
 
   it('reads name and dependencies from packages/<pkg>/package.json', () => {
-    writePkg(repoRoot, 'trail-core', {
-      name: '@anytime-markdown/trail-core',
+    writePkg(repoRoot, 'trail-activity', {
+      name: '@anytime-markdown/trail-activity',
       dependencies: { ignore: '7.0.5' },
     });
-    const m = buildManifest(repoRoot, 'trail-core');
-    expect(m.name).toBe('@anytime-markdown/trail-core');
+    const m = buildManifest(repoRoot, 'trail-activity');
+    expect(m.name).toBe('@anytime-markdown/trail-activity');
     expect(m.dependencies).toEqual({ ignore: '7.0.5' });
   });
 
@@ -114,11 +114,11 @@ describe('resolveLayers', () => {
   });
 
   it('resolves each unique package exactly once into the map', () => {
-    // trail-core は code-analysis-core の DATA_CORE_NAMES に含まれるため data 層に分類される。
-    writePkg(repoRoot, 'trail-core', { name: '@anytime-markdown/trail-core' });
-    const layers = resolveLayers(repoRoot, ['trail-core', 'trail-core']);
+    // trail-activity は code-analysis-core の DATA_CORE_NAMES に含まれるため data 層に分類される。
+    writePkg(repoRoot, 'trail-activity', { name: '@anytime-markdown/trail-activity' });
+    const layers = resolveLayers(repoRoot, ['trail-activity', 'trail-activity']);
     expect(layers.size).toBe(1);
-    expect(layers.get('trail-core')).toBe('data');
+    expect(layers.get('trail-activity')).toBe('data');
   });
 
   it('classifies a generic shared *-core package as the foundation layer', () => {

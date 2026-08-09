@@ -30,7 +30,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](database-core|spreadsheet-core|spreadsheet-viewer|trail-db|trail-core|graph-core))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](database-core|spreadsheet-core|spreadsheet-viewer|trail-db|trail-activity|graph-core))/,
         use: [
           {
             loader: 'ts-loader',

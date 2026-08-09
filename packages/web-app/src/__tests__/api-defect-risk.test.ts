@@ -16,7 +16,7 @@ jest.mock('../lib/api-helpers', () => ({
   NO_STORE_HEADERS: { 'Cache-Control': 'no-store' },
   resolveRepoId: mockResolveRepoId,
 }));
-jest.mock('@anytime-markdown/trail-core', () => ({ computeDefectRisk: mockComputeDefectRisk }));
+jest.mock('@anytime-markdown/trail-activity', () => ({ computeDefectRisk: mockComputeDefectRisk }));
 
 type MockResp = { _body: Record<string, unknown>; _headers: Record<string, string> };
 
@@ -103,7 +103,7 @@ describe('GET /api/defect-risk — データ取得', () => {
     expect(mockComputeDefectRisk).not.toHaveBeenCalled();
   });
 
-  it('commit_files を突き合わせて CommitRiskRow を組み立てる', async () => {
+  it('activity_commit_files を突き合わせて CommitRiskRow を組み立てる', async () => {
     const { client } = makeSupabase({
       trail_session_commits: [
         { data: [{ commit_hash: 'h1', session_id: 's1', commit_message: 'fix: bug', committed_at: '2026-01-01T00:00:00Z' }] },

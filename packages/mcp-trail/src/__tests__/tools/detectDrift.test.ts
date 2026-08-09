@@ -1,15 +1,15 @@
 import { handleDetectDrift } from '../../tools/detectDrift';
 
-// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
-// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+// resolveCaravanDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openCaravanBookDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
+  resolveCaravanDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openMemoryCoreDb: jest.fn().mockResolvedValue({
+  openCaravanBookDb: jest.fn().mockResolvedValue({
     db: {},
     close: jest.fn(),
   }),
@@ -45,7 +45,7 @@ describe('handleDetectDrift', () => {
   });
 
   test('calls detectDrift with unresolved_only=true by default', async () => {
-    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleDetectDrift({});
 
@@ -54,7 +54,7 @@ describe('handleDetectDrift', () => {
   });
 
   test('filters by severity', async () => {
-    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleDetectDrift({ severity: 'error' });
 
@@ -62,7 +62,7 @@ describe('handleDetectDrift', () => {
   });
 
   test('filters by drift_type and subject_id', async () => {
-    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleDetectDrift({ drift_type: 'spec_vs_code', subject_id: 'ent-1' });
 
@@ -73,11 +73,11 @@ describe('handleDetectDrift', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openCaravanBookDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleDetectDrift({});
 
-    const handle = await openMemoryCoreDb.mock.results[0].value;
+    const handle = await openCaravanBookDb.mock.results[0].value;
     expect(handle.close).toHaveBeenCalledTimes(1);
   });
 });

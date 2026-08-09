@@ -68,12 +68,12 @@ export function resolveDbPath(opts: { workspacePath?: string }): string {
 /**
  * caravan-book.db の解決。**不在なら throw し、ディレクトリも DB も作らない**。
  *
- * `openMemoryCoreDb` は渡されたパスに対して `mkdirSync` + マイグレーションを実行する。
+ * `openCaravanBookDb` は渡されたパスに対して `mkdirSync` + マイグレーションを実行する。
  * 解決をそちらへ委ねると、cwd がずれた場所（worktree 等）から呼んだときにスキーマ完備の
  * 空 DB が生まれ、以降のクエリが一律 0 件を返す。呼び出し側からは「該当なし」と区別が
  * 付かない偽陰性になるため、ここは意図的に fail-closed とする。
  */
-export function resolveMemoryDbPath(opts: { workspacePath?: string }): string {
+export function resolveCaravanDbPath(opts: { workspacePath?: string }): string {
   const dbDir = path.join(resolveTrailHome(opts.workspacePath), 'db');
   const dbPath = preferExistingDbFile(dbDir, 'caravan-book.db', 'memory-core.db');
 
@@ -86,14 +86,14 @@ export function resolveMemoryDbPath(opts: { workspacePath?: string }): string {
 /**
  * Flight Record 直書き（record_instruction）用の caravan-book.db 解決。
  *
- * 読み取り系の resolveMemoryDbPath と異なり、**同ディレクトリに activity.db が実在する
+ * 読み取り系の resolveCaravanDbPath と異なり、**同ディレクトリに activity.db が実在する
  * 既存ワークスペースに限り、caravan-book.db 未作成でもパスを返す**（作成は
- * openMemoryDb の readwrite が行う）。拡張が caravan-book.db を作るより先に
+ * openCaravanDb の readwrite が行う）。拡張が caravan-book.db を作るより先に
  * セッション開始の宣言が届くと記録が落ちる、という移設起因の隙間を塞ぐ。
  * activity.db も無いディレクトリは未初期化ワークスペースなので従来どおり throw する
  * （場所違いに空 DB を作る偽陰性を防ぐ fail-closed は維持）。
  */
-export function resolveMemoryDbPathForWrite(opts: { workspacePath?: string }): string {
+export function resolveCaravanDbPathForWrite(opts: { workspacePath?: string }): string {
   const dbDir = path.join(resolveTrailHome(opts.workspacePath), 'db');
   // 旧名の実 DB が残る移行前ワークスペースでは旧名へ直書きする（新名で空 DB を作って
   // 台帳が二分される split-brain を防ぐ）。

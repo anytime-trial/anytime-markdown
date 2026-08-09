@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-08-09
+
+### Changed
+
+- Version bump only, to keep the database release set (database-core / database-viewer / the VS Code extension) in sync. No functional changes.
+
 ## [0.3.7] - 2026-08-03
 
 ### Changed

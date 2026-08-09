@@ -2,7 +2,7 @@ import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
 import { VanillaIsland } from '../shared/vanillaIsland';
 import { mountReleasesPanel, type ReleasesPanelProps as VanillaProps } from '../views/releasesPanel';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 
 export interface ReleasesPanelProps {
   readonly releases: readonly TrailRelease[];

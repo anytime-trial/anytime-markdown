@@ -1,0 +1,707 @@
+# 変更履歴
+
+"trail-core" パッケージの主な変更をこのファイルに記録します。
+
+形式は [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) に基づいています。
+
+## [Unreleased]
+
+## [1.0.0] - 2026-08-09
+
+### 追加
+
+- 知識グラフのレイアウトをサーバ側で事前計算し、視野単位で配信する経路を追加した（100,000 ノード規模へ対応）。
+
+### 変更
+
+- パッケージ名を `trail-core` から `trail-activity` へ改名し、`activity.db` の全テーブルへ `activity_` 接頭辞を付けた。
+- 知識グラフのクエリを索引駆動へ切り替えた（リンク取得は `CROSS JOIN` で結合順を固定する）。
+
+### 修正
+
+- ノード選定をエッジ誘導化し `File` → `Function` の `defines` 辺を出力することで、ハブノードの孤立を解消した。
+- 配信視野の外を指すゴースト端点を除外した。
+
+## [0.44.0] - 2026-08-08
+
+### 追加
+
+- ADR (uber/ADR) の脅威分類・検知プロンプト・スキーマを移植した。
+
+### 変更
+
+- 活動データベースを `trail.db` から `activity.db` へ、記憶データベースを `memory-core.db` から `caravan-book.db` へ改名した。旧名の DB はオーナー（拡張・デーモン）が初めて開いた時点で自動的にリネームされる。
+
+### 削除
+
+- リリース単位の解析（`release_file` / `function_analysis`）を廃止し、そこに残っていた重複インデックスと生 NUL バイトを回収した。
+
+### 修正
+
+- `running` のまま固まった `daemon_session` を watchdog が回収するようにした。DB 差し替え後にパイプラインが恒久的に skip し続ける状態が解消される。
+
+## [0.43.0] - 2026-08-08
+
+### 追加
+
+- ODD（運行設計領域）ポリシーレジストリを追加しました。`odd.json` の読み書き、制限領域の境界判定、承認ルールの評価（`evaluateApprovalPolicy`）を提供します。
+- 指示単位の Flight Record を組み立てるユースケース（`AssembleInstructionRecord`）と、指示モデルを追加しました。1 つの指示に複数セッションがぶら下がる構造を表現します。
+- ドクトリン判断に未確定論点（`underspecified_points`）を持たせるスキーマを追加しました。指示から一意に定まらない論点を事前申告させ、較正の失敗（一致率）と指示不足を分離して数えられるようにします。
+
+### 修正
+
+- 承認ルールの抜け穴 4 件を塞ぎました。重大度・対象パス・操作種別のいずれかが未申告のときに、ゲートが通過側へ倒れる経路がありました。
+- ODD レジストリ自身への書き込みを制限領域として扱い、レジストリの読取に失敗した場合も通過させず人へ委ねるようにしました。
+
+### 削除
+
+- `extension_logs` テーブルの定義を撤去しました（ログの保存先を実行台帳へ移したため、読み手のいない残骸になっていました）。
+
+## [0.42.0] - 2026-08-04
+
+### 追加
+
+- コードグラフの 2 時点差分（追加 / 削除 / 変更されたノード・エッジ）を計算する純粋関数を追加しました。
+- ノード単位の編集集計と、ファイルパスから共有ノード ID を生成するユーティリティを追加しました。
+- git 実行ファイルを絶対パスへ解決するユーティリティを追加しました（PATH 探索に依存せず git を起動します）。
+
+### 修正
+
+- 設計書リポジトリのコミットが未取込の場合を、整合性の stale と区別して判定不能（unknown）として返すようにしました。
+
+## [0.41.0] - 2026-08-03
+
+### 追加
+
+- ドクトリン接地判断の並走記録（D1）を保持する `doctrine_judgments` テーブルを追加した。
+- 宣言された境界とコードグラフ由来の実装コミュニティを対照する判定（境界ドリフト）を追加した。
+
+### 修正
+
+- 境界ドリフトの検出回を記録し、最新回をリポジトリごとに解決するようにした（従来は別リポジトリの検出回が混ざり得た）。
+
+## [0.40.1] - 2026-08-01
+
+### 変更
+
+- テスト基盤のみ: jest の兄弟ソースマップを手書きのワイルドカードではなく `exports` から導出するようにした。
+
+## [0.40.0] - 2026-07-30
+
+### 変更
+
+- `anytime-trail` 拡張のリリースに合わせたバージョン同期のみ。本パッケージの機能変更はない。
+
+## [0.39.0] - 2026-07-22
+
+### 追加
+
+- `normalizeWorkspaceName` を追加しました。`repos.repo_name` の worktree サフィックス（`--worktrees-` / `--claude-worktrees-`）を親ワークスペース名へ畳み、trail-db と trail-viewer が共有する分析パネルのワークスペース切替の基盤とします。
+
+### 修正
+
+- `MODEL_PRICING` を現行価格へ世代別解決化しました。fable エントリの欠落（sonnet 単価への silent フォールバックで実料金の約 3.3 分の 1 に過小評価）、opus の旧価格固定（実データは全行 Opus 4.6 以降のため約 3 倍過大評価）、haiku の旧世代価格固定を是正しました。`isKnownPricingModel` を新設し未知モデルを WARN ログで可視化するようにし、`isCountableModel` で `'<synthetic>'` 等の番兵値を `session_costs` / `daily_counts` の集計から除外するようにしました。
+- `isKnownPricingModel` の判定基準を、フォールバック後の解決結果ではなく正規化直後のモデル名に変更しました。これにより未知の Codex モデルが既定モデルへのフォールバックで「既知」と誤判定されなくなりました。
+
+## [0.38.0] - 2026-07-19
+
+### 追加
+
+- 受入台帳: `acceptance_records` に自律受入の結果を記録し、見逃し率の集計と参照 API を追加しました。
+- Phase 6 S5-A: C4 Component Rollup を共有化し、defect-risk へ祖先伝播を適用しました。
+- Phase 6 S5-B: Bus Factor Score（属人度）を追加しました。
+- Phase 6 S5-C: Drift History Graph（ドリフト件数の日次推移）を追加しました。
+- Phase 6 S5-D: Newly Active Code Detection を追加しました。
+
+### 修正
+
+- 相互レビュー合意 2 件を是正しました（属人度が切り詰めた行で集計されていた・ドリフト累計の繰り越しが誤っていた）。
+
+## [0.37.0] - 2026-07-17
+
+### 追加
+
+- Phase 6 Flight Review: `flight_reviews` の DDL・ドメイン型と、セッション終了デブリーフのための `computeFlightOutcome`（transcript の機械集計）、および User Feedback Logging（`detectUserFeedback` が「直前の出力をやり直す」系プロンプトを分類）を追加しました。
+- Rationale Audit: 監査ステータス・rationale 参照 API と関連ドメイン型を追加しました。
+- チケット: `workspace`・`actual`（分単位の工数）フィールドを追加し、`labels` / `progress` / `QUESTION_LABEL` を廃止、`assignee` を enum として厳密検証するようにしました。
+
+### 修正
+
+- 不正な `timestamp` が CHECK 制約違反で `flight_reviews` の最小行記録を壊すのを修正しました（fail-open でも最小行を記録します）。
+- cross-review 指摘を修正しました（`createdAt` 契約・監査メッセージ・属性エスケープ・editing ラッチ分離）。
+
+### 追加
+
+- Phase 5 緊急プロトコル（Kill Switch・セーフポイント・非破壊ロールバック）向けの `safe_points` / `emergency_log` の DDL とドメイン型を追加しました（保持上限つき CRUD を含む）。
+- ナレッジベース永続性の型と `IKnowledgeBaseSnapshotter` ポートを追加しました（グラフ系破壊的書込の Pre-write Snapshot と Shrink Audit）。
+- 品質メトリクス: MTTR（コミットベース近似）と TCR（チケットベース）を計測し `computeQualityMetrics` へ配線、`UNMEASURED` から除去しました。
+- `emergency_log` に `section_lock` 系イベントを追加しました（12-step テーブル移行）。
+
+## [0.34.0] - 2026-07-14
+
+### 追加
+
+- `CheckArchitecturalAlignment` ユースケースを追加しました。ファイルを変更したコミット群を入力に、それを記述している設計書に触れないまま動いたコードを報告します。`IFileChangeResolver` / `ISpecDocIndex` ポート経由で現在の作業ツリーにスコープし、検査対象の要素はワークスペース C4 要素プロバイダが供給します。
+
+### 修正
+
+- `formatDate` がタイムゾーンを明示解決するようにしました。`TZ=UTC` で動くホスト（WSL の Extension Host）では `Date` のローカル getter が UTC 値を返すためです。
+
+## [0.33.2] - 2026-07-13
+
+### 修正
+
+- Supabase 同期（`trail-db`）で子行 upsert の前に参照整合ゲートを通し、一過性の HTTP 失敗をリトライし、失敗をチャンク単位で隔離するようにしました。1 チャンクの失敗でテーブル全体が空になる（`session_costs` が 0 行になる等）事象を解消します。
+- 逐次同期ループでもアイテム単位でエラーを隔離するようにし、チャンク経路と挙動を揃えました。
+
+## [0.33.1] - 2026-07-12
+
+### 変更
+
+- Anytime Trail 拡張のリリースに合わせたバージョン同期（機能変更なし）。
+
+## [0.32.2] - 2026-07-11
+
+### 変更
+
+- Anytime Trail 拡張のリリースに合わせたバージョン同期（機能変更なし）。
+
+## [0.32.1] - 2026-07-11
+
+### 変更
+
+- Anytime Trail 拡張のリリースに合わせたバージョン同期（機能変更なし）。
+
+## [0.32.0] - 2026-07-09
+
+### 変更
+
+- `anytime-trail` 拡張のリリースに同期するためのバージョン更新のみ。
+
+## [0.31.1] - 2026-06-30
+
+### 変更
+
+- Anytime Trail 拡張 0.31.1 リリース（セキュリティ依存更新・同梱スキル変更）に合わせたバージョン整合。`trail-core` 自体の機能変更はありません。
+
+## [0.31.0] - 2026-06-27
+
+### 変更
+
+- Anytime Trail 拡張 0.31.0 リリース（同梱の `trail-viewer` C4 変更を配布）に合わせたバージョン整合。`trail-core` 自体の機能変更はありません。
+
+## [0.30.1] - 2026-06-24
+
+### 変更
+
+- Anytime Trail 拡張 0.30.1 リリース（同梱の `trail-viewer` / `memory-core` 修正を配布）に合わせたバージョン整合。`trail-core` 自体の機能変更はありません。
+
+## [0.29.0] - 2026-06-22
+
+### 変更
+
+- `anytime-trail` 拡張リリース v0.29.0 に合わせてバージョンを更新（`trail-core` 自体の機能変更なし。同梱の trail-viewer / mcp-trail / trail-server / chart-core の変更は anytime-trail 拡張の CHANGELOG を参照）。
+
+## [0.28.0] - 2026-06-20
+
+### 変更
+
+- `anytime-trail` 拡張リリース v0.28.0 に合わせてバージョンを更新（`trail-core` 自体の機能変更なし。同梱の doc-core / trail-server / mcp-trail / memory-core の変更は anytime-trail 拡張の CHANGELOG を参照）。
+
+## [0.27.2] - 2026-06-13
+
+### 変更
+
+- trail リリースセットとのバージョン整合（機能変更なし）。
+
+## [0.27.1] - 2026-06-13
+
+### 変更
+
+- TypeScript 6.0.3 へアップグレード。
+- 認知的複雑度の削減と SonarCloud 指摘を解消（memory-core: `streamTurn` / `runOnce` の複雑度低減、S3776 / S1874 / S1854 / S7735）。
+
+### 修正
+
+- `globalThis.window` を `undefined` と直接比較するよう修正（SonarCloud S7741）。
+- CFG の if ノードの `then` プロパティを `thenBlock` へリネーム（予約語回避、S7739）。
+- `aggregateGhostEdgesToC4` の no-op 式文を削除（S905）。
+
+## [0.27.0] - 2026-06-08
+
+### 変更
+
+- trail 系統のバージョン整合のための bump。コアの機能変更なし。
+
+## [0.26.0] - 2026-06-03
+
+### 修正
+
+- コールグラフの循環・null エントリ・ゼロ除算・O(n^2) 集計を修正。
+
+## [0.25.0] - 2026-05-31
+
+### 変更
+
+- `anytime-trail` 拡張のリリースに合わせてバージョンを整合（`trail-core` 自体の機能変更なし。本リリースは `trail-server` / `trail-db` の lep.json 設定とデーモン分離を同梱する）。
+
+## [0.24.0] - 2026-05-29
+
+### 追加
+
+- L5 関数レベルグラフ: `filterTrailGraphByElement` と `FunctionGraphResponse` 型が新しい関数コールグラフビューアを支え、c4 ルートの `functionGraph` バレルから公開。
+- サービスカタログを追加し、`simple-icons` の SVG パスデータを生成 (`serviceIcons.generated.ts`)。これによりアイコン依存を実行時バンドルから除外。
+
+### 変更
+
+- `filterTrailGraphByElement` が container / system に加えてコンポーネントレベル (C5) スコープに対応。`resolveTargetFilePaths` をヘルパーとして抽出。
+
+## [0.23.2] - 2026-05-27
+
+### 変更
+
+- SonarCloud コード品質改善: `computeColorMap` / `c4ToGraphDocument` の認知的複雑度削減 (S3776)、S3358（ネスト三項演算子）・S6582（オプショナルチェーン）の修正。機能変更なし。
+
+## [0.23.1] - 2026-05-26
+
+### 追加
+
+- flow / sequence 解析器が共有する言語非依存の CFG-IR（`flowGraphFromCfg`、`sequenceStepsFromCfg`、`TsCfgExtractor`）。
+- 解析パイプラインに統合した Python ファイル分類器（ui / logic / excluded）。
+
+### 変更
+
+- 純粋な解析計算（`computeAnalysis`、`computeImportance`）を抽出し、隔離した子プロセスで実行可能にした。永続化はホスト側に残し DB ライタを単一化。
+- 解析パイプラインを `tsconfig` 任意化し、Python-only ブランチを追加。
+
+### 修正
+
+- in-repo の built `.d.ts` 解決 import をソースノードへ救済（コードグラフのエッジ）。
+
+## [0.23.0] - 2026-05-24
+
+### 追加
+
+- Python の多言語コードグラフ解析対応: tree-sitter-python による `PythonLanguageAnalyzer`（import / 継承 / 呼び出しエッジ抽出）、`PythonExportExtractor`、関数一覧 / ツリー、importance 算出
+- 言語非依存の `LanguageAnalyzer` SPI と `LanguageRegistry` を導入し、TypeScript と Python を動的ディスパッチ
+- Ollama サーマルスロットル（`OllamaThrottleGovernor`）: 埋め込みレイテンシの EWMA・エラー・連続稼働上限で COOLING を検知し、解析バックグラウンドパスを直列化・抑制。`lep.json` に `throttle` セクションを追加
+- リポジトリ正規化（`repo_id` / `release_id`）: 各 reader が `repo_id` / `release_id` 経由で `repo_name` / tag を解決。Supabase ミラーへ `repo_id` / `release_id` を同期
+
+### 変更
+
+- TypeScript アナライザのパイプラインを `code-analysis-typescript` / `code-analysis-core` パッケージへ分離
+- tree-sitter の wasm アセットを拡張バンドルに同梱
+
+## [0.22.1] - 2026-05-21
+
+### 変更
+
+- `trail-core` 全体の SonarCloud 指摘を解消（S3358 ネスト三項演算子・S2871・S4325・S7748・S6397・S3735 ほか）
+
+## [0.22.0] - 2026-05-20
+
+### 変更
+
+- `trail-core` 内 30+ 関数の認知的複雑度を 15 以下に削減: `aggregateDsmByC4Ancestors` / `buildCommunityTree` / `leadTimePerLoc` / `parseMermaidC4` / `toC4` / `customTrail` / `aggregatePairs` / `BackfillMessageCommits` / `tokensPerLoc` / `thresholds` / `releaseQuality` / `classifyFile` / `buildLevelView` / `buildElementTree` / `buildArchitectureMatrix` / `cluster` / `computeCommunityOverlay` / `codeGraphToC4` / `aggregateGhostEdgesToC4` / `SymbolExtractor` / `SequenceAnalyzer` / `ProjectAnalyzer` / `FlowAnalyzer` / `ExportExtractor` / `EdgeExtractor` / `buildSizeMatrix` / `aggregateEdges` / `aggregateHeatmapColumnsToC4`（SonarCloud S3776）
+
+### セキュリティ
+
+- `trail-core` の境界正規表現の範囲を厳密化し、多項式バックトラッキング（ReDoS）を回避
+
+## [0.21.0] - 2026-05-17
+
+### 変更
+
+- `anytime-trail` 0.21.0 と同期するためのバージョンアップ (`trail-core` 自体のソース変更なし)
+
+## [0.20.0] - 2026-05-16
+
+### 追加
+
+- `seedAnalyzeExclude` の `DEFAULT_ANALYZE_EXCLUDE_CONTENT` を拡充（`.claude/` / `.changeset/` / `.github/` / `.config/` / `.playwright-mcp/` / `.serena/` / `.vscode/` / `__mocks__/` / `demos/` / `dist/` / `**/CHANGELOG.{ja,}.md` / `**/README.{ja,}.md` を初期除外に追加）
+
+### 変更
+
+- **Breaking:** agent マッピングを `trail-core` から新パッケージ `agent-core` に移動。利用側は `@anytime-markdown/agent-core` から import する必要あり
+
+### セキュリティ
+
+- 多項式バックトラッキング（ReDoS）対策として正規表現リテラルを強化
+
+## [0.19.0] - 2026-05-15
+
+### 変更
+
+- **Breaking:** ワークスペース設定フォルダを `.trail/` から `.anytime/` にリネーム。対象ファイルは `analyze-exclude` / `dead-code-ignore` / `commit-categories.json` / `tool-categories.json` / `skill-categories.json`。既存ワークスペースは手動で `.trail/` → `.anytime/` にリネームが必要
+- **Breaking:** `TRAIL_HOME` 集約 — trail 関連ストレージは共有 `getTrailHome` ヘルパー経由で解決。既定パスは `<workspaceRoot>/.anytime/trail/`（DB は `<workspaceRoot>/.anytime/db/trail.db`）
+- `*_DB_PATH` 環境変数と未使用の `opts.dbPath` オーバーライドを撤去（`TRAIL_HOME` に統一）
+- `trail-db` の `DEFAULT_DB_DIR` を `<cwd>/.anytime/trail` に既定変更、`SNAPSHOT_SKIP_DIRS` に `.anytime` を追加
+- トレース出力先を `<TRAIL_HOME>/trace` に移動、trail-server / vscode-trail-extension が `getTrailHome` を共有
+
+### 修正
+
+- `trail-db` の `SqlJsCompatStatement` no-bind 経路と古い 3 件のテストを修復
+- `mcp-trail` の `dbPath` 検索が `.anytime/db/trail.db` 既定と一致するように修正
+- VS Code 拡張の `trailConfigPath` を `TRAIL_HOME` 既定に揃える
+- `trail-server` の `MemoryApiHandler` で memory-core パス解決を遅延化
+- `memory-core` が vscode-server bin パスへのフォールバックを拒否するように修正
+- `vscode-trail-extension`: `pipeline-status.json` の reader / writer 不整合を解消
+- `saveCurrentGraph` の OOM 回避のため sql.js を asm.js → WASM に切替
+
+## [0.18.0] - 2026-05-08
+
+### 追加
+
+- SQLite スキーマに ISO 8601 + Z 形式の CHECK 制約と `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')` デフォルトを追加; インデックス命名を `idx_<テーブル>_<カラム>` 形式に統一
+
+### 変更
+
+- `.trail/analyze-exclude` の文法を `.gitignore` 互換に変更（`ignore` パッケージ採用）。`!` 否定・`/` 先頭固定・`*.spec.ts` ファイル glob・`dir/` ディレクトリ専用・`**` 再帰が利用可能に。**Breaking:** `AnalyzeOptions.exclude` の型を `readonly string[]` から `Ignore` に変更
+- `loadAnalyzeExclude` の戻り値を `string[]` から `Ignore` に変更
+- `FilterConfig.exclude` の型を `Ignore` に変更し、`matchGlob` / `parseAnalyzeExclude` を削除
+- `analyze()` が TypeScript `ts.Program` を `ImportanceAnalyzer` と共有するよう変更
+
+### 修正
+
+- `mapFileToC4Elements` が絶対パスにマッチせず entries が常に空になっていた問題を修正
+- `ProjectAnalyzer.getSourceFiles` が `.d.ts` 宣言ファイルを除外するよう修正
+
+## [0.17.0] - 2026-05-06
+
+### 追加
+
+- デッドコード検出機構: `DeadCodeSignals`・`computeDeadCodeScore`・否定構文対応の `parseDeadCodeIgnore`
+- 関数単位 importance のファイル集約、ファイル単位 dead-code score の C4 要素集約
+- `dead-code-score` MetricOverlay とカラーマッピング
+- `TypeScriptAdapter` への cyclomatic complexity 計算追加
+- `file_analysis` / `function_analysis` SQLite テーブルと `line_count` / `cyclomatic_complexity` カラム
+- `FileAnalysisRow` / `FunctionAnalysisRow` に `cyclomatic` / `lineCount` を追加
+- `.trail/analyze-exclude` でコードグラフ解析フィルタを外部化
+- `StoredCodeGraph` 向け `codeGraphToC4` 派生処理
+- `TrailSession.workspace` フィールド、`TrailFilter.repository` を `workspace` に置換
+- C4 ビューア向けサイズメトリクス（LOC / Files / Functions）オーバーレイ
+
+### 修正
+
+- WSL 上で UTC 表示になっていた時刻フォーマットをローカル TZ に修正
+- `dead-code-score` の親フレームへの色伝播を抑止
+- `dead-code-score` を表示レベルの要素タイプに絞って着色
+
+### 変更
+
+- `MetricOverlay` をリネーム: `complexity-most` / `complexity-highest` → `edit-complexity-most` / `edit-complexity-highest`
+- `buildSizeMatrix` の入力を `CoverageMatrix` から `SizeFileEntry[]` に切替
+
+### パフォーマンス
+
+- `SERVICE_CATALOG` を専用 subpath に隔離（mcp-trail bundle 86% 削減）
+- `zod` のバージョンを 4.3.6 に揃えて重複を解消
+
+### 削除
+
+- 未使用の `release_features` / `imported_files` / `c4_models` テーブルと関連コード
+
+## [0.16.0] - 2026-05-04
+
+### 追加
+
+- Claude セッションを git worktree にマッピングする `agentMapping` 純粋関数（TDD）
+- C4 要素間のコール連鎖を抽出する `SequenceAnalyzer`
+- Bash の作業ディレクトリ（`cwd`）をワークスペースパスとして記録し worktree 検出を改善
+
+### 修正
+
+- ドキュメントのみの変更後も worktree マッピングを維持するよう修正
+- 別リポジトリのセッションが main worktree に誤マッピングされる問題を修正
+
+### 削除
+
+- CLI エントリポイントと CLI 専用トランスフォームを削除
+
+## [0.15.0] - 2026-05-03
+
+### 追加
+
+- C4 グラフノードオーバーレイ用の F-cMap カラーマップ計算
+
+### 修正
+
+- DSM L4 をファイル直参照から C4 code 要素の集約に変更
+
+### 変更
+
+- c4Mapper の重複ロジック整理と不要フェッチ削減
+
+## [0.14.0] - 2026-05-02
+
+### 追加
+
+- リリース非依存のカバレッジスナップショット用 `current_coverage` テーブルを追加
+- カバレッジデータから総行数を示す `LOC` メトリクスを追加
+- CodeGraph の DB 永続化テーブルと永続化レイヤーを追加
+- カバレッジ集計・解析のユニットテストを追加
+
+### 変更
+
+- `importCurrentCoverage` を `importAll` から `c4Analyze` に移動
+- `graph.json` フォールバックを削除し、DB ベースの Code Graph 移行を完了
+
+### 修正
+
+- 未初期化 DB に対する `CodeGraphService.loadFromDb` のガードを追加
+- `codeGraph.repositories` 設定の JSON オブジェクト文字列をパース可能に修正
+- カバレッジ同期時の NaN パーセント値（Istanbul "Unknown"）をガード
+- Code Graph 再生成時に AI コミュニティサマリーを保持するよう修正
+- `aggregateCoverageFromDb` に L4 ファイルレベルのカバレッジエントリを追加
+- `C4Model` 型をパッケージルートからエクスポート
+- `TrailFilter` に `project` フィールドを追加
+
+## [0.13.0] - 2026-04-28
+
+### 追加
+
+- Code Graph パイプライン（detector / extractor / builder / clusterer / layout / query engine / orchestrator）を追加
+- Trail 拡張クライアント向けに Code Graph の HTTP/WS メッセージ型と API 連携を追加
+- Code Graph 解析のリポジトリ範囲・除外パターン設定を追加
+
+### 変更
+
+- Code Graph の既定リポジトリ解決をワークスペース基準に変更
+- Code Graph 設定参照を section スコープの accessor に限定
+
+## [0.12.0] - 2026-04-26
+
+### 追加
+
+- `sessions` テーブルに `source` カラムを追加し、ログの出所を識別可能に
+
+## [0.11.0] - 2026-04-26
+
+- trail-viewer・vscode-trail-extension とのバージョン同期のためのバンプ（コア変更なし）
+
+## [0.10.0] - 2026-04-25
+
+### 追加
+
+- スタック形式のリリース品質チャート用 `computeReleaseQualityTimeSeries` を追加
+- `leadTimeForChanges` に代わる `leadTimePerLoc` 指標（min/LOC）を追加
+- `tokensPerLoc` 指標（tokens/LOC）と `computeTokensAndCostPerLocTimeSeries` を追加
+- `QualityMetrics` に `costPerLocTimeSeries` を公開
+- `CombinedCommitPrefix` に `linesAdded` フィールドを追加
+- 生産性指標クエリ用の DB インデックスを追加
+
+### 変更
+
+- Change Failure Rate を 168h タイムウィンドウ + ファイルオーバーラップ方式に刷新
+- プロンプト→コミット成功率を AI ファーストトライ成功率に置き換え
+- AI ファーストトライ失敗検知にファイルオーバーラップを必須化、非コードファイルを除外
+- キャッシュリードとコミット単位の実態に合わせて閾値を再調整
+- 日次バケット閾値を 31 日に拡大
+- `VALID_MESSAGE_COMMIT_CONFIDENCES` を `ReadonlySet<string>` に拡張
+
+### 修正
+
+- `message_commits` をユーザー祖先 UUID に解決するよう修正
+- timeSeries を sum-ratio 集計に合わせて整合
+- 生産性指標の日時に `mc.detected_at` ではなく `committed_at` を使用
+- 生産性指標をセッションスコープのコミットウィンドウに再定義
+
+## [0.9.1] - 2026-04-24
+
+### 変更
+
+- `vscode-trail-extension` のリリースにバージョンを揃える（`trail-core` 自体にコード変更なし）
+
+## [0.9.0] - 2026-04-23
+
+### 追加
+
+- `ManualGroup` 型と `c4ToGraphDocument` における `GraphGroup` への変換
+- 動的インポート・再エクスポート・型インポートのエッジ抽出（メタデータ付き）
+- サービスカタログにフレームワーク・ランタイム・言語アイコンを追加
+- サービスカタログに GitHub・VS Code・AI サービスアイコンを追加
+
+## [0.8.0] - 2026-04-19
+
+### 追加
+
+- DORA 4 メトリクスのドメイン型・閾値・分類（`types.ts`、`thresholds.ts`）
+- デプロイ頻度メトリクス実装
+- 変更のリードタイムメトリクス実装
+- プロンプト→コミット成功率メトリクス実装
+- 変更失敗率メトリクス実装
+- 全 DORA メトリクスを集約する `computeQualityMetrics` オーケストレーター
+- `ITrailReader` に `getQualityMetrics` ポートを追加
+- セッション単位の永続化のための `ISessionRepository` ポート
+- `budget` および `session` ドメインモデルの拡張
+- メッセージとコミットを事後的に紐付ける `BackfillMessageCommits` ユースケース
+- メトリクス集計ウィンドウ用の時系列ユーティリティ関数
+
+## [0.7.0] - 2026-04-18
+
+### 追加
+
+- `trail_daily_costs` を廃止し `trail_daily_counts` テーブルを導入
+- TrailDB に `getAllDailyCounts()` を追加・`getAllDailyCosts()` を削除
+- `IRemoteTrailStore.upsertDailyCosts` を `upsertDailyCounts` に置き換え
+
+### 変更
+
+- `SyncService` を `getAllDailyCounts` / `upsertDailyCounts` に対応
+- `PostgresTrailStore` と `SupabaseTrailStore` を `trail_daily_counts` に対応
+- リリース同期を `anytime-markdown` リポジトリのみにフィルタ
+- `trail_current_graphs` 同期を `anytime-markdown` のみにフィルタ
+
+### 修正
+
+- `getAllMessageToolCalls` にパラメータ化クエリを使用（SQL インジェクション防止）
+- FK 違反防止のため `message_tool_calls` を `messageCutoff` でフィルタ
+
+### 削除
+
+- `daily_costs` デッドコードを削除
+
+## [0.6.0] - 2026-04-13
+
+### 追加
+
+- マルチリポジトリC4モデルサポートのための `IC4ModelStore` ポートと `fetchC4Model` サービスを追加
+
+### 変更
+
+- リモート同期を完全洗い替え方式（7日間メッセージウィンドウ）に変更
+- `trail_graphs` を `current_graphs` と `release_graphs` テーブルに分割
+- `current_graphs` の主キーを `repo_name` に変更
+- `TrailLogger` 出力に ISO 8601 UTC タイムスタンプを追加
+
+### 修正
+
+- 同期時にメッセージがサイレントに欠落していたセッションを再インポートするよう修正
+- `INSERT_MESSAGE` SQL プレースホルダー数を修正し、サイレントキャッチエラーを表面化
+- `daily_costs` の集計境界をプロセスTZではなくJSTで区切るよう修正
+
+## [0.5.3] - 2026-04-12
+
+### 修正
+
+- `src/c4/coverage/` ソースファイルをバージョン管理から除外し CI ビルド失敗を引き起こしていた `.gitignore` パターンを修正
+
+## [0.5.2] - 2026-04-12
+
+### 追加
+
+- trail-core のドメイン層（model, schema, engine, port, reader, usecase）を追加
+- `releases` テーブルスキーマと `TrailRelease` ドメインモデル・リリースリゾルバーエンジンを追加
+- `release_files`・`release_features` テーブルを追加（タスクドメインを廃止）
+- `trail_graphs` スキーマを追加
+- `release_coverage` テーブルと `ReleaseCoverageRow` 型を追加
+- `session_costs`・`daily_costs` テーブルを追加
+- `trail_sessions`・`trail_releases` に `repo_name` 列を追加
+- コスト計算に `cacheCreation` 対応を追加
+- `IGitService` に `getFileStatsByRange` を追加
+- `ITrailReader` に `getReleases` を追加
+- スキルベースのコスト分類用 `skill_models` テーブルを追加
+- ドメインエンジン・ユースケース・リリースリゾルバーのユニットテストを追加
+- `c4-kernel` パッケージを `trail-core` にマージ
+
+### 変更
+
+- sessions/messages テーブル構造を刷新し、`importAll` で `session_costs`/`daily_costs` を生成
+- インポート性能改善（メッセージ数バッチ処理 20,000 件、インメモリセッションマップ、I/O削減）
+- `daily_costs`・`session_costs` の再構築を `importAll` のポスト処理に移動
+- DB コミット境界での進捗ログ（処理数/合計/スキップ数）
+- コスト分類を Current/Optimized に簡略化（Rule/Feature を廃止）
+
+### 修正
+
+- Extension Host タイムアウト防止のためイベントループへの yield 処理
+- セッション境界でのトランザクションコミット
+- 既存レコードへの `repo_name`・`release_files` バックフィル
+- メインセッションとサブエージェントのスキップロジックを分離
+- サブエージェントの grandparent ディレクトリからの `sessionId` 抽出
+
+## [0.5.1] - 2026-04-11
+
+### 追加
+
+- ロケール対応の日時フォーマット用 `formatDate` ユーティリティ
+- `formatDate` のユニットテスト
+
+### 変更
+
+- 日時表示を `formatDate` を使用してローカルタイムゾーンに統一
+- 日付グラフの集計をローカルタイムゾーン基準に変更
+
+## [0.5.0] - 2026-04-09
+
+### 追加
+
+- リモート DB 同期レイヤー（SQLite → Supabase/PostgreSQL）
+- `IRemoteTrailStore` インターフェース（リモート DB 抽象化）
+- `SupabaseTrailStore`・`PostgresTrailStore` 実装
+- リモートトレイルテーブル用 PostgreSQL マイグレーション
+- `SyncService`（SQLite → リモート同期）
+- `resolveCommits`・`isCommitsResolved` メソッド
+- `session_commits` テーブルと `commits_resolved_at` カラム
+- `getSessionCommitStats`・`getSessionCommits` クエリ
+- Analytics に `totalFilesChanged`・`totalAiAssistedCommits`・`totalSessionDurationMs` フィールド追加
+
+## [0.4.0] - 2026-04-08
+
+- vscode-trail-extension とのバージョン同期
+
+## [0.3.0] - 2026-04-07
+
+### 追加
+
+- CLI 出力の `--format c4` オプション
+
+## [0.2.0] - 2026-04-05
+
+### 追加
+
+- CLI `--help` オプション、フォーマットバリデーション、`parseArgs` エクスポート
+
+### 変更
+
+- TrailNode を Map でインデックス化し EdgeExtractor を O(1) ルックアップに改善
+
+### セキュリティ
+
+- `matchGlob` パターン処理の ReDoS 脆弱性を防止
+
+## [0.1.0] - 2026-04-04
+
+### 追加
+
+- trailToC4 L2-L4 変換と MDA CLI コマンド
+- --format mermaid CLI オプション（粒度・方向指定対応）
+- モジュール・シンボル粒度の toMermaid トランスフォーム
+
+### 変更
+
+- toMermaid を trailToC4 + c4ToMermaid パイプラインに簡素化
+- sourceFiles のキャッシュと EdgeExtractor の診断情報追加
+- 未使用コードの削除
+
+### 修正
+
+- Mermaid ノードラベルに内部 ID ではなく filePath を使用
+
+## [0.0.1] - 2026-04-04
+
+初回リリース。TypeScript プロジェクトのアーキテクチャ可視化のための静的解析エンジン。
+
+### 追加
+
+- 設定可能なフィルタ付き TypeScript プロジェクトスキャン（ProjectAnalyzer）
+- クラス、関数、インターフェース、型エイリアスの抽出（SymbolExtractor）
+- シンボル間のインポート依存関係検出（EdgeExtractor）
+- パスパターンとシンボル種別のフィルタリング（FilterConfig）
+- Mermaid 図出力（toMermaid トランスフォーム）
+- C4 モデル出力（toC4 トランスフォーム）
+- Cytoscape.js グラフ出力（toCytoscape トランスフォーム）
+- グラフスタイリング用 Trail スタイルシート
+- ユーザー定義の解析スコープ（カスタムトレイル）
+- C4 モデル型（Person、System、Container、Component、Relationship）
+- コマンドライン解析ツール（`trail` CLI）

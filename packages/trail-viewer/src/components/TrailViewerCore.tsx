@@ -30,7 +30,7 @@ import { useCommitCategory } from './CommitCategoryContext';
 import { getTokens } from '../theme/designTokens';
 import { TrailLocaleProvider, useTrailI18n } from '../i18n';
 import type { TrailLocale, TrailI18n } from '../i18n';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 
 import type { C4ViewerCoreProps } from '../c4/components/C4ViewerCore';
 
@@ -84,7 +84,7 @@ export interface TrailViewerCoreProps {
   readonly sendCommand?: (cmd: string, payload?: unknown) => void;
   /** WebSocket が接続済みか。usePerfReporter の queue flush 判定に使う。 */
   readonly wsConnected?: boolean;
-  /** TrailDataServer のベース URL（Memory パネルの /api/memory/* に使用）。 */
+  /** TrailDataServer のベース URL（Caravan パネルの /api/caravan/* に使用）。 */
   readonly serverUrl?: string;
   /** `.anytime/commit-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly commitCategories?: ReadonlyMap<string, number>;

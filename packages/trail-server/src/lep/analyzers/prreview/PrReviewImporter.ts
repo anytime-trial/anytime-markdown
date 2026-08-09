@@ -2,33 +2,33 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
-import { buildPrReviewSourceRef } from './prReviewMemorySource';
+import { buildPrReviewSourceRef } from './prReviewCaravanSource';
 
 /** PrReviewImporter が caravan-book.db に必要とする最小データソース (テストで fake 注入)。 */
 export interface PrReviewImporterDataSource {
   /**
-   * `memory_reviews.source_hash` を読む (`source_kind='pr_comment'` AND
+   * `caravan_reviews.source_hash` を読む (`source_kind='pr_comment'` AND
    * `source_ref=sourceRef`)。行が無ければ null。
    */
   getReviewSourceHash(sourceRef: string): string | null;
 }
 
 export interface PrReviewImporterOptions {
-  readonly memoryDb: PrReviewImporterDataSource;
+  readonly caravanDb: PrReviewImporterDataSource;
 }
 
 /**
  * Layer 2 Primary Analyzer: `github_pr_review` を購読し caravan-book.db への冪等判定のみ行う。
  *
  * - tier=2 / subscribes=['github_pr_review'] / emits=['pr_review_imported']
- * - 冪等: `memory_reviews.source_hash`（source_kind='pr_comment'）が一致したら
+ * - 冪等: `caravan_reviews.source_hash`（source_kind='pr_comment'）が一致したら
  *   emit を skip（Ingester の再 emit 対策）
- * - 本 analyzer は**永続化しない**。ingestPrReview（memory-core）は bodyHash 一致で即座に
+ * - 本 analyzer は**永続化しない**。ingestPrReview（trail-caravan-book）は bodyHash 一致で即座に
  *   skip する冪等 API のため、ここで先に `findings: []` で ingestPrReview を呼んでしまうと
  *   同じ bodyHash を積んだ 2 度目の呼び出し（PrReviewFindingAnalyzer 側）が必ず skip 経路に
- *   入り、findings を一切書き込めなくなる（実測: memory-core の
+ *   入り、findings を一切書き込めなくなる（実測: trail-caravan-book の
  *   `__tests__/ingest/pr-review/prReview.test.ts` が単発呼び出しのみを契約として固定して
  *   いる）。そのため review 本文・コメント一式を `pr_review_imported` のペイロードへ積んで
  *   emit し、実際の永続化（review + findings 同時書込）は PrReviewFindingAnalyzer に一本化
@@ -62,7 +62,7 @@ export class PrReviewImporter implements Analyzer {
     try {
       const repoName = e.repo.includes('/') ? (e.repo.split('/').pop() ?? e.repo) : e.repo;
       const sourceRef = buildPrReviewSourceRef(repoName, e.prNumber, e.reviewId);
-      const existing = this.opts.memoryDb.getReviewSourceHash(sourceRef);
+      const existing = this.opts.caravanDb.getReviewSourceHash(sourceRef);
       if (existing !== null && existing === e.bodyHash) {
         this.skipped += 1;
         return; // 未変更 → 冪等 skip (finding 再抽出も走らない)

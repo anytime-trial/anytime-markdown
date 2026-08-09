@@ -4,7 +4,7 @@
  * 検査するのは「取りこぼしの数え方」そのもの。escalate の除外・破損申告の切り分け・
  * 列未マイグレーション時の測定不能表明は、どれも壊れても件数が減るだけで
  * 「シグナルが出ていない＝健全」に見えてしまい、既存テストでは検知できない。
- * 列定義は trail-core の CREATE_DOCTRINE_JUDGMENTS と同期する。
+ * 列定義は trail-activity の CREATE_DOCTRINE_JUDGMENTS と同期する。
  */
 const { spawnSync } = require('node:child_process');
 const { DatabaseSync } = require('node:sqlite');
@@ -32,12 +32,12 @@ function runGroundingDoctrineGap(setup) {
  * grounding が参照する列のみ持つ最小 caravan-book.db を <ws>/.anytime/trail/db に作る。
  * activity.db は DB_DIR 解決（activity.db の存在で候補ディレクトリを確定する）のために空で置く。
  */
-function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
+function writeCaravanDb(ws, { withColumn, judgments = [], instructions = [] }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
   new DatabaseSync(path.join(dbDir, 'activity.db')).close();
   const db = new DatabaseSync(path.join(dbDir, 'caravan-book.db'));
-  db.exec(`CREATE TABLE doctrine_judgments (
+  db.exec(`CREATE TABLE caravan_doctrine_judgments (
     id INTEGER PRIMARY KEY,
     session_id TEXT NOT NULL,
     subject TEXT NOT NULL,
@@ -47,8 +47,8 @@ function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
     judged_at TEXT NOT NULL
     ${withColumn ? `, underspecified_points_json TEXT NOT NULL DEFAULT '[]'` : ''}
   )`);
-  db.exec(`CREATE TABLE instructions (id TEXT PRIMARY KEY, summary TEXT, origin_prompt TEXT, started_at TEXT, closed_at TEXT)`);
-  db.exec(`CREATE TABLE instruction_sessions (session_id TEXT PRIMARY KEY, instruction_id TEXT)`);
+  db.exec(`CREATE TABLE caravan_instructions (id TEXT PRIMARY KEY, summary TEXT, origin_prompt TEXT, started_at TEXT, closed_at TEXT)`);
+  db.exec(`CREATE TABLE caravan_instruction_sessions (session_id TEXT PRIMARY KEY, instruction_id TEXT)`);
   judgments.forEach((j, i) => {
     const cols = ['id', 'session_id', 'subject', 'agent_judgment', 'coverage', 'human_decision', 'judged_at'];
     const vals = [i + 1, j.sessionId, j.subject ?? 'S', j.agentJudgment ?? 'approve', 'covered', j.humanDecision ?? null, j.judgedAt ?? '2026-08-08T00:00:00.000Z'];
@@ -56,11 +56,11 @@ function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
       cols.push('underspecified_points_json');
       vals.push(j.points ?? '[]');
     }
-    db.prepare(`INSERT INTO doctrine_judgments (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...vals);
+    db.prepare(`INSERT INTO caravan_doctrine_judgments (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...vals);
   });
   for (const ins of instructions) {
-    db.prepare(`INSERT INTO instructions VALUES (?,?,?,?,NULL)`).run(ins.id, ins.summary ?? '', ins.prompt, '2026-08-08T00:00:00.000Z');
-    db.prepare(`INSERT INTO instruction_sessions VALUES (?,?)`).run(ins.sessionId, ins.id);
+    db.prepare(`INSERT INTO caravan_instructions VALUES (?,?,?,?,NULL)`).run(ins.id, ins.summary ?? '', ins.prompt, '2026-08-08T00:00:00.000Z');
+    db.prepare(`INSERT INTO caravan_instruction_sessions VALUES (?,?)`).run(ins.sessionId, ins.id);
   }
   db.close();
 }
@@ -68,7 +68,7 @@ function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
 describe('grounding doctrineGap (DCT-14)', () => {
   it('列が無い DB は 0 件でなく測定不能として出す', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, { withColumn: false, judgments: [{ sessionId: 's1', humanDecision: 'modified' }] }),
+      writeCaravanDb(ws, { withColumn: false, judgments: [{ sessionId: 's1', humanDecision: 'modified' }] }),
     );
     expect(gap.available).toBe(false);
     expect(gap.reason).toContain('DCT-14');
@@ -78,7 +78,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('申告が空 + modified + 非 escalate だけを取りこぼしに数える', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 'miss', humanDecision: 'modified', points: '[]' },
@@ -99,7 +99,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('破損した申告は空にも非空にも倒さず別カウントする', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 'broken', humanDecision: 'modified', points: '"not-an-array"' },
@@ -115,7 +115,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('指示の型を origin_prompt から決定論で分類する（昇格判定の突合キー）', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 's1', humanDecision: 'modified', points: '[]' },
@@ -136,7 +136,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('DCT-14 導入日より前の判断は分母に入れない（バックフィルの空申告で率が薄まらない）', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 'old', humanDecision: 'modified', points: '[]', judgedAt: '2026-08-01T00:00:00.000Z' },

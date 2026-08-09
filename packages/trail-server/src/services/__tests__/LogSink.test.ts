@@ -8,7 +8,7 @@ function makeService(): LogService {
 }
 
 describe('LogSink', () => {
-  it('persists info/warn/error logs to pipeline_run_logs', () => {
+  it('persists info/warn/error logs to caravan_pipeline_run_logs', () => {
     const svc = makeService();
     const insertSpy = jest.spyOn(svc, 'insertBatch');
     const sink = new LogSink({ service: svc, scope: 'TestScope' });

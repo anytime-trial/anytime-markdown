@@ -15,7 +15,7 @@
 
 import { SyncService } from '../SyncService';
 import type { IRemoteTrailStore } from '../IRemoteTrailStore';
-import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 import type { DbLogger } from '../DbLogger';
 import { createTestTrailDatabase } from './support/createTestDb';
 
@@ -123,7 +123,7 @@ function insertSession(
   const recent = makeRecentIso(60);
   const start = makeRecentIso(120);
   inner.run(
-    `INSERT OR IGNORE INTO sessions (
+    `INSERT OR IGNORE INTO activity_sessions (
       id, slug, repo_id, version, entrypoint, model, start_time, end_time,
       message_count, file_path, file_size, imported_at
     ) VALUES (?, ?, ?, '0', '', '', ?, ?, 0, '', 0, ?)`,

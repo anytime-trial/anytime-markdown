@@ -2,7 +2,7 @@
  * vanilla 版 SessionCommitPrefixChart
  * (`components/analytics/charts/SessionCommitPrefixChart.tsx` の素 DOM 等価)。
  */
-import { extractCommitPrefix } from '@anytime-markdown/trail-core/domain';
+import { extractCommitPrefix } from '@anytime-markdown/trail-activity/domain';
 import type { TrailSessionCommit } from '../../../domain/parser/types';
 import type { ThemeColors } from '../../../theme/designTokens';
 import { buildPieSpec } from '../../../components/analytics/charts/specs/buildPieSpec';

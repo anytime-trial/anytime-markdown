@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
 
 import type { CodeGraphEdge, CodeGraphNode } from './CodeGraph.types';
 
@@ -12,7 +12,7 @@ export interface TrailGraphConversionInput {
   readonly repoId: string;
   /** 絶対パス。docFiles の相対化に利用 */
   readonly repoRootPath: string;
-  /** trail-core の analyze() 結果。tsconfig 無しリポでは undefined を許容 */
+  /** trail-activity の analyze() 結果。tsconfig 無しリポでは undefined を許容 */
   readonly trailGraph?: TrailGraph;
   /** GraphDetector.detectDocFiles() の結果（絶対パス） */
   readonly docFiles?: readonly string[];
@@ -24,7 +24,7 @@ export interface CodeGraphInputs {
 }
 
 /**
- * trail-core の TrailGraph と documentファイル一覧を Code Graph 入力に変換する。
+ * trail-activity の TrailGraph と documentファイル一覧を Code Graph 入力に変換する。
  * - file ノードのみ Code Graph ノード化（symbol ノードはファイル単位に集約する役割のみ）
  * - symbol→symbol edge は file→file に集約。同一ファイル内 edge は除去
  * - 同じ source/target ペアの edge は重複除去

@@ -18,16 +18,16 @@
  */
 
 import type {
-  MemoryFlightReviewFindingCountRow,
-  MemoryFlightReviewFindingRow,
+  CaravanFlightReviewFindingCountRow,
+  CaravanFlightReviewFindingRow,
 } from './types';
 
 export interface FlightFindingViewState {
   readonly loading: boolean;
   /** サーバー不達・取得失敗。0 件（空配列）と区別する。 */
   readonly loadFailed: boolean;
-  readonly counts: readonly MemoryFlightReviewFindingCountRow[];
-  readonly findings: readonly MemoryFlightReviewFindingRow[];
+  readonly counts: readonly CaravanFlightReviewFindingCountRow[];
+  readonly findings: readonly CaravanFlightReviewFindingRow[];
 }
 
 export interface FlightFindingStore {
@@ -41,9 +41,9 @@ export interface FlightFindingStore {
    */
   setWorkspace(workspace: string): Promise<void>;
   /** 指定した指示の指摘だけを返す（取得済み配列の絞り込み。追加取得はしない）。 */
-  findingsFor(instructionId: string): readonly MemoryFlightReviewFindingRow[];
+  findingsFor(instructionId: string): readonly CaravanFlightReviewFindingRow[];
   /** 指定した指示の件数。未取得・0 件はいずれも null ではなく 0 件行を返さないため呼び出し側が区別する。 */
-  countsFor(instructionId: string): MemoryFlightReviewFindingCountRow | null;
+  countsFor(instructionId: string): CaravanFlightReviewFindingCountRow | null;
   dispose(): void;
 }
 
@@ -110,8 +110,8 @@ export function createFlightFindingStore(
       const [countsRes, findingsRes] = await Promise.all([
         // 件数は指示 ID で突き合わせるため絞り込まない（一覧側が既にワークスペースで
         // 絞られており、余分な行は突合で落ちる）。
-        request('/api/memory/reviews/flight-counts'),
-        request(`/api/memory/reviews/flight-findings?limit=${limit}${workspaceQuery}`),
+        request('/api/caravan/reviews/flight-counts'),
+        request(`/api/caravan/reviews/flight-findings?limit=${limit}${workspaceQuery}`),
       ]);
       if (isStale()) return;
       if (!countsRes.ok || !findingsRes.ok) {
@@ -124,15 +124,15 @@ export function createFlightFindingStore(
       // 形が違う応答（旧サーバー・プロキシのエラーページ）を空配列へ丸めない。
       // 丸めると「指摘なし」と区別が付かなくなる。
       if (!Array.isArray(counts) || !Array.isArray(findings)) {
-        console.warn('[flightFinding] unexpected response shape from /api/memory/reviews/*');
+        console.warn('[flightFinding] unexpected response shape from /api/caravan/reviews/*');
         setState({ loading: false, loadFailed: true });
         return;
       }
       setState({
         loading: false,
         loadFailed: false,
-        counts: counts as MemoryFlightReviewFindingCountRow[],
-        findings: findings as MemoryFlightReviewFindingRow[],
+        counts: counts as CaravanFlightReviewFindingCountRow[],
+        findings: findings as CaravanFlightReviewFindingRow[],
       });
     } catch (err) {
       if (isStale()) return;

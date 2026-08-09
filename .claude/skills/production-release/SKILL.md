@@ -42,7 +42,7 @@ git pull origin develop     # 最新化
 | --- | --- | --- | --- |
 | **markdown 系** | `publish-markdown` / `v<x>` | `package.json` (root), `packages/mcp-markdown`, `packages/markdown-editor`, `packages/markdown-rich-editor`, `packages/vscode-markdown-extension` | `markdown-core` は vendored tiptap で **0.0.0 固定**・bump 対象外。`version.ts` の `APP_VERSION` は root を動的参照 |
 | **graph 系** | `publish-graph` / `graph-v<x>` | `packages/graph-core`, `packages/mcp-graph`, `packages/vscode-graph-extension` | `graph-viewer` は独立バージョン |
-| **trail 系** | `publish-trail` / `trail-v<x>` | `packages/trail-core`, `packages/vscode-trail-extension` | `trail-server` / `trail-viewer` / `trail-db` / `mcp-trail` / `memory-core` / `agent-core` は独立・bump 対象外（webpack 同梱）。VSIX は **per-platform 4 種**（`build-trail` matrix: linux/win32 × x64/arm64） |
+| **trail 系** | `publish-trail` / `trail-v<x>` | `packages/trail-activity`, `packages/vscode-trail-extension` | `trail-server` / `trail-viewer` / `trail-db` / `mcp-trail` / `trail-caravan-book` / `agent-core` は独立・bump 対象外（webpack 同梱）。VSIX は **per-platform 4 種**（`build-trail` matrix: linux/win32 × x64/arm64） |
 | **database 系** | `publish-database` / `database-v<x>` | `packages/database-core`, `packages/database-viewer`, `packages/vscode-database-extension` | VSIX は **per-platform 4 種**（`build-database` matrix: linux/win32 × x64/arm64。**darwin なし**） |
 | **sheet 系** | `publish-sheet` / `sheet-v<x>` | `packages/spreadsheet-core`, `packages/spreadsheet-viewer`, `packages/vscode-sheet-extension` | — |
 | **agent 系** | `publish-agent` / `agent-v<x>` | `packages/vscode-agent-extension` | `agent-core` は独立バージョン |
@@ -130,11 +130,11 @@ git diff --name-only origin/master...HEAD -- packages/ | cut -d/ -f2 | sort | un
 **trail 系の更新:**
 ```bash
 # 各 package.json の version を手動で更新
-# trail-core, vscode-trail-extension の2つを同一バージョンに統一
+# trail-activity, vscode-trail-extension の2つを同一バージョンに統一
 ```
 
 更新後、以下のファイルでバージョンが統一されていることを確認:
-- `packages/trail-core/package.json`
+- `packages/trail-activity/package.json`
 - `packages/vscode-trail-extension/package.json`
 
 **database 系の更新:**
@@ -206,8 +206,8 @@ develop ブランチの最新コミットログを参照してエントリ内容
 | `packages/graph-core/CHANGELOG.md` | グラフエンジンコア（ノード、エッジ、キャンバス、レイアウト、エクスポート、アクセシビリティ） | VS Code 固有 |
 | `packages/vscode-graph-extension/CHANGELOG.md` | VS Code Graph 拡張固有（Custom Editor、テーマ、設定パネル）+ `### Graph Core (graph-core)` セクションに graph-core 更新の要約 | graph-core 詳細 |
 | `packages/trail-viewer/CHANGELOG.md` | Trail / C4 ビューア UI コンポーネント（ツリー、グラフ、DSM、ツールバー、C4/C5 レベル） | VS Code 固有、サーバー固有 |
-| `packages/trail-core/CHANGELOG.md` | Trail コア機能（タイムライン、アクティビティ追跡、C4 グラフフィルタ） | VS Code 固有 |
-| `packages/vscode-trail-extension/CHANGELOG.md` | VS Code Trail 拡張固有 + `### Trail Core (trail-core / trail-server / trail-viewer)` セクションにコア・サーバー・ビューア更新の要約 | 各コア詳細 |
+| `packages/trail-activity/CHANGELOG.md` | Trail コア機能（タイムライン、アクティビティ追跡、C4 グラフフィルタ） | VS Code 固有 |
+| `packages/vscode-trail-extension/CHANGELOG.md` | VS Code Trail 拡張固有 + `### Trail Core (trail-activity / trail-server / trail-viewer)` セクションにコア・サーバー・ビューア更新の要約 | 各コア詳細 |
 | `packages/database-core/CHANGELOG.md` | データベースアダプタ層（`DatabaseAdapter`, `SqlJsAdapter`, `BetterSqlite3Adapter`, `PaginatedSqlSheetAdapter`, FK 推定、識別子バリデーション） | VS Code 固有、UI 固有 |
 | `packages/database-viewer/CHANGELOG.md` | データベース UI コンポーネント（`DatabaseEditor`, `ErdView`, `TableTree`, `ResultGrid`, `SqlEditorPanel`） | VS Code 固有、コア詳細 |
 | `packages/vscode-database-extension/CHANGELOG.md` | VS Code Database 拡張固有（Custom Editor、Activity Bar パネル、l10n、per-platform VSIX）+ `### Database Core (database-core / database-viewer)` セクションに更新の要約 | コア詳細、UI 詳細 |
@@ -222,7 +222,7 @@ VS Code 拡張の CHANGELOG には、各バージョンにコアパッケージ�
 
 - `vscode-markdown-extension` → `### Editor Core (markdown-core)` セクション
 - `vscode-graph-extension` → `### Graph Core (graph-core)` セクション
-- `vscode-trail-extension` → `### Trail Core (trail-core)` セクション
+- `vscode-trail-extension` → `### Trail Core (trail-activity)` セクション
 - `vscode-database-extension` → `### Database Core (database-core / database-viewer)` セクション
 
 ```markdown
@@ -270,7 +270,7 @@ bash scripts/check-test-safety.sh --all  # 保護領域書込・new TrailDatabas
 # 対象を固定列挙しない。jest 設定を持つワークスペースを実測列挙してから、各パッケージ自身の
 # test スクリプト（--passWithNoTests や NODE_OPTIONS の要否がパッケージごとに違う）で個別実行する。
 # 固定リストは変更パッケージを取りこぼす（agent-core / vscode-common / trail-db / trail-server /
-# memory-core / mcp-trail / 各 vscode-*-extension が漏れていた実績あり）。
+# trail-caravan-book / mcp-trail / 各 vscode-*-extension が漏れていた実績あり）。
 for d in packages/*/; do
   [ -f "$d/jest.config.js" ] || [ -f "$d/jest.config.ts" ] || [ -f "$d/jest.config.cjs" ] || continue
   node -p "require('./$d/package.json').scripts?.test || ''" | grep -q . || continue

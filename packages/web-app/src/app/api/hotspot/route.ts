@@ -1,5 +1,5 @@
-import type { FileHotspotRow, HotspotGranularity, TrendPeriod } from '@anytime-markdown/trail-core/c4';
-import { computeFileHotspot } from '@anytime-markdown/trail-core/c4';
+import type { FileHotspotRow, HotspotGranularity, TrendPeriod } from '@anytime-markdown/trail-activity/c4';
+import { computeFileHotspot } from '@anytime-markdown/trail-activity/c4';
 import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

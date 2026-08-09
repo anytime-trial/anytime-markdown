@@ -5,8 +5,8 @@
 // FlightRecordDatabase は caravan-book.db を主接続にし activity.db を ATTACH するため、
 // InMemoryTrailStorage 方式（:memory:）ではなくファイルベースの隔離にする。
 //
-// セッション由来テーブル（sessions / repos / session_costs / session_commits /
-// commit_files / messages / verification_runs）は activity.db 側に残るため、シードは
+// セッション由来テーブル（sessions / repos / activity_session_costs / activity_session_commits /
+// activity_commit_files / messages / activity_verification_runs）は activity.db 側に残るため、シードは
 // trailRun() で activity.db へ直接流す。
 
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ import {
   CREATE_SESSION_COSTS,
   CREATE_SESSIONS,
   CREATE_VERIFICATION_RUNS,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import { FlightRecordDatabase } from '../../FlightRecordDatabase';
 import type { DbLogger } from '../../DbLogger';
@@ -33,11 +33,11 @@ export interface FlightRecordTestContext {
   readonly db: FlightRecordDatabase;
   readonly tempDir: string;
   readonly trailDbPath: string;
-  readonly memoryDbPath: string;
-  /** activity.db 側へ生 SQL を流す（sessions / repos / session_costs 等のシード用）。 */
+  readonly caravanDbPath: string;
+  /** activity.db 側へ生 SQL を流す（sessions / repos / activity_session_costs 等のシード用）。 */
   trailRun(sql: string, params?: readonly unknown[]): void;
-  /** caravan-book.db 側へ生 SQL を流す（flight_reviews / instructions の直接検証用）。 */
-  memoryRun(sql: string, params?: readonly unknown[]): void;
+  /** caravan-book.db 側へ生 SQL を流す（caravan_flight_reviews / instructions の直接検証用）。 */
+  caravanRun(sql: string, params?: readonly unknown[]): void;
   cleanup(): void;
 }
 
@@ -63,9 +63,9 @@ function createSeedableTrailDb(trailDbPath: string): BetterSqlite3Database {
 export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordTestContext {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-db-'));
   const trailDbPath = path.join(tempDir, 'activity.db');
-  const memoryDbPath = path.join(tempDir, 'caravan-book.db');
+  const caravanDbPath = path.join(tempDir, 'caravan-book.db');
   const trail = createSeedableTrailDb(trailDbPath);
-  const db = new FlightRecordDatabase(memoryDbPath, { trailDbPath, logger });
+  const db = new FlightRecordDatabase(caravanDbPath, { trailDbPath, logger });
   db.init();
   const run = (handle: BetterSqlite3Database) =>
     (sql: string, params: readonly unknown[] = []): void => {
@@ -75,14 +75,14 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
       }
       handle.prepare(sql).run(...params);
     };
-  const memory = openBetterSqlite3(memoryDbPath);
+  const memory = openBetterSqlite3(caravanDbPath);
   return {
     db,
     tempDir,
     trailDbPath,
-    memoryDbPath,
+    caravanDbPath,
     trailRun: run(trail),
-    memoryRun: run(memory),
+    caravanRun: run(memory),
     cleanup(): void {
       db.close();
       trail.close();

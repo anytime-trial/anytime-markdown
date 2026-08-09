@@ -2,7 +2,7 @@
  * Additional coverage for AnalyzeAllRunner.ts — targeting uncovered lines:
  *   line 380: memory session close() throws → [WARN] logged, run continues
  *   line 390: onAfterRun() throws → [WARN] logged, does not propagate
- *   line 413: markMemoryScopesSkippedIfExcluded throws → [WARN] logged, does not propagate
+ *   line 413: markCaravanScopesSkippedIfExcluded throws → [WARN] logged, does not propagate
  *   line 453: defaultAnalyzeAllStatePath called without argument (no gitRoot)
  */
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -10,8 +10,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnalyzeAllRunner, defaultAnalyzeAllStatePath } from '../AnalyzeAllRunner';
-import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
-import type { MemoryDbSession } from '@anytime-markdown/memory-core';
+import { makeFakeScopeSession, makeCaravanBookWithSession } from './fakeCaravanScopeSession';
+import type { CaravanDbSession } from '@anytime-markdown/trail-caravan-book';
 
 function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
   const lines: string[] = [];
@@ -28,17 +28,17 @@ describe('AnalyzeAllRunner — edge coverage', () => {
 
   it('memory session close() throws → [WARN] logged, run reports success', async () => {
     const fake = makeFakeScopeSession();
-    const closeThrows = Object.assign(Object.create(Object.getPrototypeOf(fake.session)) as MemoryDbSession, {
+    const closeThrows = Object.assign(Object.create(Object.getPrototypeOf(fake.session)) as CaravanDbSession, {
       ...fake.session,
       close: () => { throw new Error('close failed'); },
     });
-    const mc = makeMemoryCoreWithSession(dir, closeThrows);
+    const mc = makeCaravanBookWithSession(dir, closeThrows);
     const logSink = makeLogSink();
 
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'state.json'),
-      memoryCoreService: mc,
+      caravanBookService: mc,
     });
 
     const status = await runner.runOnce('manual');
@@ -55,7 +55,7 @@ describe('AnalyzeAllRunner — edge coverage', () => {
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'state.json'),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       onAfterRun: () => { throw new Error('afterRun boom'); },
     });
 
@@ -66,12 +66,12 @@ describe('AnalyzeAllRunner — edge coverage', () => {
     expect(status.lastError).toBeNull();
   });
 
-  it('markMemoryScopesSkipped throws when PipelineStatusWriter fails → [WARN] logged', async () => {
+  it('markCaravanScopesSkipped throws when PipelineStatusWriter fails → [WARN] logged', async () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
 
     // Create a file at the parent directory location so mkdir fails inside PipelineStatusWriter,
-    // which triggers the catch in markMemoryScopesSkippedIfExcluded.
+    // which triggers the catch in markCaravanScopesSkippedIfExcluded.
     const statusDir = join(dir, 'status-dir-is-actually-a-file');
     // Make a file where the status directory would be needed
     const { writeFileSync } = await import('node:fs');
@@ -82,7 +82,7 @@ describe('AnalyzeAllRunner — edge coverage', () => {
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'state.json'),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       stage: 'primary',
       pipelineStatusFilePath,
     });

@@ -1,0 +1,583 @@
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
+import { runMigrations } from '../../../src/db/migrations/runner';
+import { attachTrailDbFromHandle } from '../../../src/db/attach';
+import { fromTrailGraph } from '../../../src/ingest/code/fromTrailGraph';
+import { entityId } from '../../../src/canonical/entityId';
+import { canonicalize } from '../../../src/canonical/canonicalize';
+import type { CaravanLogger } from '../../../src/logger';
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+const RECORDED_AT = '2026-01-01T00:00:00.000Z';
+
+const silentLogger: CaravanLogger = {
+  info: () => {},
+  error: () => {},
+};
+
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
+  db.run('PRAGMA foreign_keys = ON');
+  runMigrations(db);
+  return db;
+}
+
+// Phase H-3: trail.activity_current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、
+// fixture も repos + repo_id PK スキーマで作る。repo_name は repos 経由で JOIN 解決される。
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
+  trailDb.run(`
+    CREATE TABLE activity_repos (
+      repo_id    INTEGER PRIMARY KEY,
+      repo_name  TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    ) STRICT
+  `);
+  trailDb.run(`
+    CREATE TABLE activity_current_code_graphs (
+      repo_id      INTEGER PRIMARY KEY REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
+      graph_json   TEXT NOT NULL,
+      generated_at TEXT NOT NULL,
+      updated_at   TEXT NOT NULL
+    ) STRICT
+  `);
+  return trailDb;
+}
+
+/** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
+function trailRepoId(trailDb: BetterSqlite3CaravanDb, repoName: string): number {
+  trailDb.run(
+    `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
+    [repoName, RECORDED_AT]
+  );
+  const stmt = trailDb.prepare('SELECT repo_id FROM activity_repos WHERE repo_name = ?');
+  try {
+    const row = stmt.get(repoName);
+    return Number(row?.['repo_id'] ?? 0);
+  } finally {
+    stmt.free?.();
+  }
+}
+
+interface MockNode {
+  id: string;
+  label?: string;
+  repo?: string;
+  package: string;
+  fileType: 'code' | 'document';
+  community?: number;
+  communityLabel?: string;
+  x?: number;
+  y?: number;
+  size?: number;
+}
+
+function insertGraph(
+  trailDb: BetterSqlite3CaravanDb,
+  repoName: string,
+  nodes: MockNode[]
+): void {
+  const fullNodes = nodes.map((n) => ({
+    id: n.id,
+    label: n.label ?? n.id,
+    repo: n.repo ?? repoName,
+    package: n.package,
+    fileType: n.fileType,
+    community: n.community ?? 0,
+    communityLabel: n.communityLabel ?? '',
+    x: n.x ?? 0,
+    y: n.y ?? 0,
+    size: n.size ?? 1,
+  }));
+
+  const graphJson = JSON.stringify({
+    generatedAt: RECORDED_AT,
+    repositories: [{ id: repoName, label: repoName, path: `/repos/${repoName}` }],
+    nodes: fullNodes,
+    edges: [],
+    communities: {},
+    godNodes: [],
+  });
+
+  const repoId = trailRepoId(trailDb, repoName);
+  trailDb.run(
+    `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(repo_id) DO UPDATE SET graph_json = excluded.graph_json`,
+    [repoId, graphJson, RECORDED_AT, RECORDED_AT]
+  );
+}
+
+function countEntities(db: BetterSqlite3CaravanDb, type: string): number {
+  // Use prepare/get because exec() with params is broken after
+  // installTrailReadonlyGuard wraps db.exec (guard drops the params arg).
+  const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
+  try {
+    const row = stmt.get(type);
+    return ((row?.['c'] as number) ?? 0);
+  } finally {
+    stmt.free?.();
+  }
+}
+
+function countEdges(db: BetterSqlite3CaravanDb): number {
+  const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
+  return result[0]?.values[0][0] as number;
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+describe('fromTrailGraph', () => {
+  // ── FTG-1: basic happy path ──────────────────────────────────────────────
+  test('FTG-1: 3 code nodes across 2 packages → 2 Package + 3 File + 3 edges', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'my-repo', [
+      { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
+      { id: 'packages/web-app/src/App.tsx', package: 'web-app', fileType: 'code' },
+      { id: 'packages/api/src/server.ts', package: 'api', fileType: 'code' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.packages_upserted).toBe(2);
+    expect(stats.files_upserted).toBe(3);
+    expect(stats.edges_inserted).toBe(3);
+    expect(stats.repo_name).toBe('my-repo');
+
+    expect(countEntities(memDb, 'Package')).toBe(2);
+    expect(countEntities(memDb, 'File')).toBe(3);
+    expect(countEdges(memDb)).toBe(3);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-2: document nodes are excluded ───────────────────────────────────
+  test('FTG-2: document nodes are excluded from Package/File entities', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'my-repo', [
+      { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
+      { id: 'README.md', package: 'web-app', fileType: 'document' },
+      { id: 'docs/guide.md', package: 'docs', fileType: 'document' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.packages_upserted).toBe(1); // only 'web-app' (docs has no code nodes)
+    expect(stats.files_upserted).toBe(1); // only the .ts file
+    expect(stats.edges_inserted).toBe(1);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-3: idempotency — same graph inserted twice ────────────────────────
+  test('FTG-3: running twice with same graph_json → entity/edge counts unchanged', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'my-repo', [
+      { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
+      { id: 'packages/web-app/src/App.tsx', package: 'web-app', fileType: 'code' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats1 = fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const pkgsBefore = countEntities(memDb, 'Package');
+    const filesBefore = countEntities(memDb, 'File');
+    const edgesBefore = countEdges(memDb);
+
+    // Run again with identical data
+    const stats2 = fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(countEntities(memDb, 'Package')).toBe(pkgsBefore);
+    expect(countEntities(memDb, 'File')).toBe(filesBefore);
+    expect(countEdges(memDb)).toBe(edgesBefore);
+
+    // Both runs should report the same counts (upsert does not distinguish new vs existing)
+    expect(stats1.packages_upserted).toBe(stats2.packages_upserted);
+    expect(stats1.files_upserted).toBe(stats2.files_upserted);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-4: missing repo returns empty stats ───────────────────────────────
+  test('FTG-4: repo_name not found → returns zero stats, no DB writes', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    // Insert graph for a different repo
+    insertGraph(trailDb, 'other-repo', [
+      { id: 'src/index.ts', package: 'my-pkg', fileType: 'code' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = fromTrailGraph({
+      db: memDb,
+      repoName: 'nonexistent-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.packages_upserted).toBe(0);
+    expect(stats.files_upserted).toBe(0);
+    expect(stats.edges_inserted).toBe(0);
+
+    expect(countEntities(memDb, 'Package')).toBe(0);
+    expect(countEntities(memDb, 'File')).toBe(0);
+    expect(countEdges(memDb)).toBe(0);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-5: entity IDs are deterministic ──────────────────────────────────
+  test('FTG-5: Package entity ID matches entityId("Package", canonicalize(name))', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'my-repo', [
+      { id: 'packages/web-app/src/index.ts', package: 'web-app', fileType: 'code' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const expectedPkgId = entityId('Package', canonicalize('web-app'));
+    const pkgStmt = memDb.prepare(
+      `SELECT id FROM caravan_entities WHERE type = 'Package' AND canonical_name = ?`
+    );
+    const pkgRow = pkgStmt.get(canonicalize('web-app'));
+    pkgStmt.free?.();
+    expect(pkgRow?.['id']).toBe(expectedPkgId);
+
+    const expectedFileId = entityId('File', canonicalize('packages/web-app/src/index.ts'));
+    const fileStmt = memDb.prepare(
+      `SELECT id FROM caravan_entities WHERE type = 'File' AND canonical_name = ?`
+    );
+    const fileRow = fileStmt.get(canonicalize('packages/web-app/src/index.ts'));
+    fileStmt.free?.();
+    expect(fileRow?.['id']).toBe(expectedFileId);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-6: edge source_type = 'code' ─────────────────────────────────────
+  test('FTG-6: edges have source_type = "code" and source_ref = "activity_current_code_graphs#<repo>"', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'my-repo', [
+      { id: 'src/index.ts', package: 'my-pkg', fileType: 'code' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const edgeRows = memDb.exec(
+      `SELECT source_type, source_ref, predicate FROM caravan_edges`
+    );
+    expect(edgeRows[0]?.values).toHaveLength(1);
+    const [sourceType, sourceRef, predicate] = edgeRows[0].values[0];
+    expect(sourceType).toBe('code');
+    expect(sourceRef).toBe('activity_current_code_graphs#my-repo');
+    expect(predicate).toBe('relates_to');
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-9: attributes_json populated correctly ────────────────────────────
+  test('FTG-9: Package attributes_json has repo; File attributes_json has repo/package/label', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'my-repo', [
+      {
+        id: 'src/index.ts',
+        label: 'index.ts',
+        repo: 'my-repo',
+        package: 'my-pkg',
+        fileType: 'code',
+      },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    // Package attributes_json
+    const pkgStmt = memDb.prepare(
+      `SELECT attributes_json FROM caravan_entities WHERE type = 'Package'`
+    );
+    const pkgRow = pkgStmt.get();
+    pkgStmt.free?.();
+    expect(JSON.parse((pkgRow?.['attributes_json'] as string) ?? '{}')).toEqual({ repo: 'my-repo' });
+
+    // File attributes_json
+    const fileStmt = memDb.prepare(
+      `SELECT attributes_json FROM caravan_entities WHERE type = 'File'`
+    );
+    const fileRow = fileStmt.get();
+    fileStmt.free?.();
+    expect(JSON.parse((fileRow?.['attributes_json'] as string) ?? '{}')).toEqual({
+      repo: 'my-repo',
+      package: 'my-pkg',
+      label: 'index.ts',
+    });
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-10: valid_from uses graph.generatedAt ─────────────────────────────
+  test('FTG-10: edges valid_from = graph.generatedAt when present and valid', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+    const GENERATED_AT = '2025-12-01T08:00:00.000Z';
+
+    // Insert a graph where generatedAt differs from RECORDED_AT
+    const graphJson = JSON.stringify({
+      generatedAt: GENERATED_AT,
+      nodes: [
+        {
+          id: 'src/index.ts',
+          label: 'index.ts',
+          repo: 'my-repo',
+          package: 'my-pkg',
+          fileType: 'code',
+          community: 0,
+          communityLabel: '',
+          x: 0,
+          y: 0,
+          size: 1,
+        },
+      ],
+      edges: [],
+      communities: {},
+      godNodes: [],
+    });
+    trailDb.run(
+      `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [trailRepoId(trailDb, 'my-repo'), graphJson, GENERATED_AT, RECORDED_AT]
+    );
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'my-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const edgeRows = memDb.exec(`SELECT valid_from FROM caravan_edges`);
+    expect(edgeRows[0]?.values).toHaveLength(1);
+    expect(edgeRows[0].values[0][0]).toBe(GENERATED_AT);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-7: all-document graph → zero entities ────────────────────────────
+  test('FTG-7: graph with only document nodes → zero entities and edges', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'docs-repo', [
+      { id: 'docs/guide.md', package: 'docs', fileType: 'document' },
+      { id: 'README.md', package: 'root', fileType: 'document' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = fromTrailGraph({
+      db: memDb,
+      repoName: 'docs-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.packages_upserted).toBe(0);
+    expect(stats.files_upserted).toBe(0);
+    expect(stats.edges_inserted).toBe(0);
+
+    expect(countEntities(memDb, 'Package')).toBe(0);
+    expect(countEntities(memDb, 'File')).toBe(0);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-8: multiple repos stored, only target repo is processed ───────────
+  test('FTG-8: multiple repos in trail — only the requested repo is processed', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    insertGraph(trailDb, 'repo-a', [
+      { id: 'src/a.ts', package: 'pkg-a', fileType: 'code' },
+    ]);
+    insertGraph(trailDb, 'repo-b', [
+      { id: 'src/b.ts', package: 'pkg-b', fileType: 'code' },
+      { id: 'src/c.ts', package: 'pkg-b', fileType: 'code' },
+    ]);
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const stats = fromTrailGraph({
+      db: memDb,
+      repoName: 'repo-a',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    expect(stats.packages_upserted).toBe(1);
+    expect(stats.files_upserted).toBe(1);
+    expect(stats.edges_inserted).toBe(1);
+
+    // Only pkg-a entities should exist
+    expect(countEntities(memDb, 'Package')).toBe(1);
+    expect(countEntities(memDb, 'File')).toBe(1);
+
+    const pkgRows = memDb.exec(`SELECT canonical_name FROM caravan_entities WHERE type = 'Package'`);
+    expect(pkgRows[0]?.values[0][0]).toBe(canonicalize('pkg-a'));
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-11: invalid graph_json → logger.error, returns zero stats ────────
+  test('FTG-11: invalid JSON in graph_json → logger.error called, returns zero stats', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    trailDb.run(
+      `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [trailRepoId(trailDb, 'bad-json-repo'), 'NOT VALID JSON {{{{', RECORDED_AT, RECORDED_AT]
+    );
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const errors: unknown[] = [];
+    const errLogger: CaravanLogger = {
+      info: () => {},
+      error: (_msg: string, err?: unknown) => { errors.push(err); },
+    };
+
+    const stats = fromTrailGraph({
+      db: memDb,
+      repoName: 'bad-json-repo',
+      recordedAt: RECORDED_AT,
+      logger: errLogger,
+    });
+
+    expect(stats.packages_upserted).toBe(0);
+    expect(stats.files_upserted).toBe(0);
+    expect(stats.edges_inserted).toBe(0);
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── FTG-12: invalid generatedAt → fallback to recordedAt ─────────────────
+  test('FTG-12: invalid generatedAt string → valid_from falls back to recordedAt', async () => {
+    const memDb = await makeCaravanDb();
+    const trailDb = makeTrailDb();
+
+    const graphJson = JSON.stringify({
+      generatedAt: 'not-a-date',
+      nodes: [
+        {
+          id: 'src/index.ts',
+          label: 'index.ts',
+          repo: 'my-repo',
+          package: 'my-pkg',
+          fileType: 'code',
+          community: 0,
+          communityLabel: '',
+          x: 0,
+          y: 0,
+          size: 1,
+        },
+      ],
+      edges: [],
+      communities: {},
+      godNodes: [],
+    });
+    trailDb.run(
+      `INSERT INTO activity_current_code_graphs (repo_id, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [trailRepoId(trailDb, 'fallback-repo'), graphJson, RECORDED_AT, RECORDED_AT]
+    );
+
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    fromTrailGraph({
+      db: memDb,
+      repoName: 'fallback-repo',
+      recordedAt: RECORDED_AT,
+      logger: silentLogger,
+    });
+
+    const edgeRows = memDb.exec(`SELECT valid_from FROM caravan_edges`);
+    expect(edgeRows[0]?.values).toHaveLength(1);
+    // Should use recordedAt as fallback when generatedAt is invalid
+    expect(edgeRows[0].values[0][0]).toBe(RECORDED_AT);
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+});

@@ -4,7 +4,7 @@
  * - `extractNoteDoc`  : `.md` 本文 + ルート相対パスから NoteDocInput を抽出
  * - `addRelatedEntry` : フロントマターの `related` に型付き 1 件を追記（本文を保存）
  *
- * 解析は gray-matter（memory-core と同一の 4.0.3）へ統一し、CRLF・quoting・
+ * 解析は gray-matter（trail-caravan-book と同一の 4.0.3）へ統一し、CRLF・quoting・
  * インライン配列・ネストマッピングの取りこぼしを避ける。書込は full reserialize を
  * せず、related エントリを既存テキストへサージカルに追記して diff 汚染とキー順喪失を防ぐ。
  */

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { explainDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { ExplainDriftResult } from '@anytime-markdown/memory-core/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { explainDrift, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { ExplainDriftResult } from '@anytime-markdown/trail-caravan-book/query';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const ExplainDriftInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -12,7 +12,7 @@ export const ExplainDriftInputSchema = z.object({
 export type ExplainDriftInput = z.infer<typeof ExplainDriftInputSchema>;
 
 export async function handleExplainDrift(input: ExplainDriftInput): Promise<ExplainDriftResult | null> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return explainDrift({ db: memHandle.db, ...input, logger });

@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 
-import { loadAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
+import { loadAnalyzeExclude } from '@anytime-markdown/trail-activity/analyzeExclude';
 import { discoverPythonFiles } from '@anytime-markdown/code-analysis-python';
 
 import { GraphDetector } from './GraphDetector';

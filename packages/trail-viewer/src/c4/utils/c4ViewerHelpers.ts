@@ -1,6 +1,6 @@
 import type { GraphNode } from '@anytime-markdown/graph-core';
 import { engine } from '@anytime-markdown/graph-core';
-import type { C4Model } from '@anytime-markdown/trail-core/c4';
+import type { C4Model } from '@anytime-markdown/trail-activity/c4';
 
 import {
   SELECTED_ELEMENT_DETAILS_RIGHT_OFFSET,

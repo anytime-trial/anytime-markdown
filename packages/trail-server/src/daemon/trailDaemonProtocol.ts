@@ -7,13 +7,13 @@
 // すべて JSON シリアライズ可能であること (関数 / class instance / DB handle は含めない)。
 
 import type { ImportAllPhaseEvent } from '@anytime-markdown/trail-db';
-import type { RunnerStatus } from '@anytime-markdown/memory-core';
+import type { RunnerStatus } from '@anytime-markdown/trail-caravan-book';
 
-/** BaseRunner.runOnce の reason 引数 (memory-core の RunReason と一致)。 */
+/** BaseRunner.runOnce の reason 引数 (trail-caravan-book の RunReason と一致)。 */
 export type RunReason = 'startup' | 'periodic' | 'import' | 'manual';
 
-/** daemon が内部で MemoryCoreService を構築するのに必要なシリアライズ設定。 */
-export interface SerializableMemoryCoreConfig {
+/** daemon が内部で CaravanBookService を構築するのに必要なシリアライズ設定。 */
+export interface SerializableCaravanBookConfig {
   readonly trailDbPath: string;
   readonly dbPath: string;
   readonly nativeBinding?: string;
@@ -39,7 +39,7 @@ export interface SerializableGitHubPrReviewConfig {
 }
 
 /** daemon が AnalyzeAllRunner を構築するのに必要なシリアライズ設定全部。
- * 非シリアライズ要素 (logSink / trailDb handle / memoryCoreService instance /
+ * 非シリアライズ要素 (logSink / trailDb handle / caravanBookService instance /
  * callbacks / analyzeReleaseFn / githubPrReview.{client, gitRemoteReader})
  * は daemon 側で構築 or イベントで bridge する。 */
 export interface SerializableAnalyzeAllConfig {
@@ -56,13 +56,13 @@ export interface SerializableAnalyzeAllConfig {
   readonly codexSessionsDir?: string;
   readonly stage: 'disabled' | 'sources' | 'primary' | 'memory' | 'primary+memory' | 'all';
   readonly ollamaBaseUrl: string;
-  readonly disabledMemoryAnalyzers?: readonly string[];
+  readonly disabledCaravanAnalyzers?: readonly string[];
   readonly disabledAggregators?: readonly string[];
   readonly importAllStatusFilePath: string;
   readonly pipelineStatusFilePath: string;
   readonly githubPrReview?: SerializableGitHubPrReviewConfig;
   /** null なら memory pipeline をスキップ (Wave 1/2 のみ実行)。 */
-  readonly memoryCore: SerializableMemoryCoreConfig | null;
+  readonly caravanBook: SerializableCaravanBookConfig | null;
 }
 
 /**
@@ -126,8 +126,8 @@ export interface SerializableHttpServerOptions {
    * basename からの導出をやめ主 repo 名を明示注入する。未指定時は `basename(gitRoot)` へフォールバック。
    */
   readonly defaultRepoName?: string;
-  /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は MemoryApiHandler が無効化される。 */
-  readonly memoryDbPath?: string;
+  /** memory (better-sqlite3) DB ファイルの絶対パス。省略時は CaravanApiHandler が無効化される。 */
+  readonly caravanDbPath?: string;
   /**
    * lep.json `workspace.configPaths` から extension が解決した絶対ファイルパス群。
    * daemon は fork 時 cwd 未指定でワークスペースルートを確実に知らないため、categories /
@@ -165,7 +165,7 @@ export interface SerializableHttpServerOptions {
    */
   readonly chatBridge?: SerializableChatBridgeConfig;
   /**
-   * LogService 構築設定。指定時に daemon 内で BetterSqlite3MemoryDb + LogService を構築し
+   * LogService 構築設定。指定時に daemon 内で BetterSqlite3CaravanDb + LogService を構築し
    * setLogService で wire する。
    * 非シリアライズ要素 (db handle) は daemon 側で wire する。
    */
@@ -176,6 +176,11 @@ export interface SerializableHttpServerOptions {
    * 非シリアライズ要素 (logger instance) は daemon 側で生成する。
    */
   readonly rebuildScheduler?: SerializableRebuildSchedulerConfig;
+  /**
+   * 知識グラフのレイアウト事前計算の構築設定。指定時に daemon 内で DaemonScheduler へ job を
+   * 登録し定期実行を開始する。非シリアライズ要素 (logger instance) は daemon 側で生成する。
+   */
+  readonly knowledgeGraphLayout?: SerializableKnowledgeGraphLayoutConfig;
   /** トークン予算の初期設定。startHttpServer 完了後に setTokenBudgetConfig を呼ぶ。 */
   readonly tokenBudgetConfig?: SerializableTokenBudgetConfig;
   /** ドキュメントパスの初期設定。startHttpServer 完了後に setDocsPath を呼ぶ。 */
@@ -188,8 +193,8 @@ export interface SerializableHttpServerOptions {
  * logger は daemon 内で daemonLoggerAsLogger から生成する (非シリアライズ)。
  */
 export interface SerializableChatBridgeConfig {
-  readonly memoryDbPath: string;
-  readonly memoryNativeBinding?: string;
+  readonly caravanDbPath: string;
+  readonly caravanNativeBinding?: string;
   /** ChatBridgeConfig の静的スナップショット。daemon は getConfig: () => staticConfig で wire する。 */
   readonly staticConfig: {
     readonly baseUrl: string;
@@ -216,9 +221,20 @@ export interface SerializableLogServiceConfig {
  * logger は daemon 内で生成する (非シリアライズ)。
  */
 export interface SerializableRebuildSchedulerConfig {
-  readonly memoryDbPath: string;
-  readonly memoryNativeBinding?: string;
+  readonly caravanDbPath: string;
+  readonly caravanNativeBinding?: string;
   /** FTS 再構築の実行間隔 (ミリ秒)。省略時は 60 分。 */
+  readonly intervalMs?: number;
+}
+
+/**
+ * daemon が知識グラフのレイアウト事前計算 job を構築するのに必要なシリアライズ可能な設定。
+ * logger は daemon 内で生成する (非シリアライズ)。
+ */
+export interface SerializableKnowledgeGraphLayoutConfig {
+  readonly caravanDbPath: string;
+  readonly caravanNativeBinding?: string;
+  /** レイアウト再計算の実行間隔 (ミリ秒)。省略時は 60 分。0 を渡すと job を起動しない。 */
   readonly intervalMs?: number;
 }
 

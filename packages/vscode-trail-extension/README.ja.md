@@ -79,7 +79,7 @@ Marketplace から導入すれば従来通り利用できます。\
 | `anytime-reverse-codegraph` | コードグラフのコミュニティに AI で名前・要約を付与し、C4 要素の role を判定する |
 | `anytime-reverse-spec` | コードグラフ・DB スキーマ・外部 I/F・画面定義から基本設計書一式を生成する |
 | `anytime-dev-retro` | Trail の 3 DB を横断分析し、開発健全性レポートと改善提案を生成する |
-| `anytime-trail-review` | レビュー指摘を memory-core が取り込める書式で出力する |
+| `anytime-trail-review` | レビュー指摘を trail-caravan-book が取り込める書式で出力する |
 
 > 配置し直す場合はコマンドパレットで `Anytime Trail: スキル再インストール` を実行します。
 
@@ -130,7 +130,7 @@ Marketplace から導入すれば従来通り利用できます。\
 | `Anytime Trail: セーフポイントを記録` / `セーフポイントへロールバック` | HEAD をセーフポイントとして記録し、recover ブランチで復旧 |
 | `Anytime Trail: Kill Switch（Claude ツール実行を遮断）` / `Kill Switch 解除` | 暴走時に Claude のツール実行を緊急遮断・解除 |
 | `Anytime Trail: 知識ベーススナップショットを復元` | `activity.db` 全体をスナップショットから復元 |
-| `Anytime Trail: メモリインデックスを再構築` | memory-core の索引を作り直す |
+| `Anytime Trail: CaravanBook インデックスを再構築` | trail-caravan-book の索引を作り直す |
 | `Anytime Trail: MCP サーバーを登録` | `.mcp.json` に `mcp-trail` を書き出す |
 
 
@@ -141,7 +141,7 @@ Marketplace から導入すれば従来通り利用できます。\
 | `anytimeTrail.workspace.path` | `""` | 解析対象ワークスペースの絶対パス。Code Graph と C4 Model 両方の解析で使用される。空欄の場合は現在 VS Code で開いているワークスペースを使用する |
 | `anytimeTrail.viewer.port` | `19841` | Trail Viewer サーバーのポート番号 |
 | `anytimeTrail.daemon.useExternalDaemon` | `false` | 外部で起動済みの trail-server デーモンを利用する。先に `npx anytime-trail-server start` を起動しておく必要がある |
-| `anytimeTrail.analyzeAll.enabled` | `false` | AnalyzeAll パイプライン（importAll + memory-core runOnce）を有効化する。OFF のときパイプラインツリービューは非表示になり、自動実行・手動実行ともに行われない |
+| `anytimeTrail.analyzeAll.enabled` | `false` | AnalyzeAll パイプライン（importAll + trail-caravan-book runOnce）を有効化する。OFF のときパイプラインツリービューは非表示になり、自動実行・手動実行ともに行われない |
 | `anytimeTrail.lep.configPath` | `""` | `lep.json` の代替パス。指定時はこのファイルのみを読み込む（標準の `.anytime/trail/lep.json` 探索はスキップ）。反映には Reload Window が必要 |
 
 > **DB の保存先について**: `activity.db` ほか各 DB の保存先は VS Code 設定ではなく `lep.json` の

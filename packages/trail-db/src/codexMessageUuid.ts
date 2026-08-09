@@ -8,7 +8,7 @@
  *
  * 取り込み経路（TrailDatabase.normalizeCodexRecords）と commit 突合経路
  * （JsonlSessionReader）の双方が同じ uuid を導出する必要があるため、ここに集約する。
- * 片方だけ変えると message_commits.message_uuid が実在しない uuid を指し、
+ * 片方だけ変えると activity_message_commits.message_uuid が実在しない uuid を指し、
  * FK が OFF のため orphan 行として静かに蓄積する。
  */
 export function codexMessageUuid(sessionId: string, seq: number): string {

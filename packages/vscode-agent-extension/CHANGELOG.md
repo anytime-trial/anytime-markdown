@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-08-09
+
+### Changed
+
+- Refreshed the bundled skills: `anytime-cross-review` now documents how worktree-based review is actually launched and which verification commands exist, and `anytime-analysis` / `anytime-impl-test-design` / `anytime-session-exit` were updated alongside it.
+- Followed the `trail-core` to `trail-activity` package rename in the airspace bundle installer, the worktree ownership provider and the bundled-skill wiring.
+
 ## [1.14.1] - 2026-08-08
 
 ### Changed

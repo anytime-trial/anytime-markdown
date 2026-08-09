@@ -4,7 +4,7 @@
 // （メモリ worktree-node-modules-workspace-resolution）、jest には兄弟ソースへの明示マップが要る。
 // これを `^@scope/pkg/(.*)$` → `src/$1` のワイルドカードで手書きすると、package.json の
 // exports が「subpath ＝ src 以下のパス」という規約から外れた瞬間に解決できなくなる。
-// 実際 trail-core の `./c4/services` は simple-icons を barrel から隔離する目的で
+// 実際 trail-activity の `./c4/services` は simple-icons を barrel から隔離する目的で
 // `./src/c4/services/catalog.ts`（index.ts を作らない）を指しており、ワイルドカードは
 // ディレクトリに着地して trail-viewer の 3 スイートが起動できなくなっていた。
 //
@@ -15,9 +15,9 @@
 //   const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports-mapper.cjs');
 //   moduleNameMapper: {
 //     ...buildModuleNameMapperFromExports({
-//       packageName: '@anytime-markdown/trail-core',
-//       exports: require('../trail-core/package.json').exports,
-//       rootToken: '<rootDir>/../trail-core',
+//       packageName: '@anytime-markdown/trail-activity',
+//       exports: require('../trail-activity/package.json').exports,
+//       rootToken: '<rootDir>/../trail-activity',
 //       conditions: ['browser', 'default'], // testEnvironment に合わせる（下記）
 //     }),
 //   }
@@ -75,9 +75,9 @@ function splitWildcard(text, label) {
  * 誤った green や原因不明の赤を生むため。
  *
  * @param {object} options
- * @param {string} options.packageName 例 '@anytime-markdown/trail-core'
+ * @param {string} options.packageName 例 '@anytime-markdown/trail-activity'
  * @param {unknown} options.exports 対象パッケージの exports フィールド
- * @param {string} options.rootToken 置換先の起点。例 '<rootDir>/../trail-core'
+ * @param {string} options.rootToken 置換先の起点。例 '<rootDir>/../trail-activity'
  * @param {readonly string[]} [options.conditions] 条件付きエクスポートの優先順。既定 ['default']
  * @returns {Record<string, string>} moduleNameMapper（宣言順に意味がある）
  */

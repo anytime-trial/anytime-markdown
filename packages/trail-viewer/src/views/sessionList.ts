@@ -12,7 +12,7 @@ import {
   ContentCopy,
 } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
-import { formatLocalDateTime } from '@anytime-markdown/trail-core/formatDate';
+import { formatLocalDateTime } from '@anytime-markdown/trail-activity/formatDate';
 import type { TrailSession } from '../domain/parser/types';
 
 export interface SessionListProps {

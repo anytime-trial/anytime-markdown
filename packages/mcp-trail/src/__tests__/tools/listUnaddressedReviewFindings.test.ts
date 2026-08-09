@@ -1,15 +1,15 @@
 import { handleListUnaddressedReviewFindings } from '../../tools/listUnaddressedReviewFindings';
 
-// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
-// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+// resolveCaravanDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openCaravanBookDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
+  resolveCaravanDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openMemoryCoreDb: jest.fn().mockResolvedValue({
+  openCaravanBookDb: jest.fn().mockResolvedValue({
     db: {},
     close: jest.fn(),
   }),
@@ -34,7 +34,7 @@ describe('handleListUnaddressedReviewFindings', () => {
   });
 
   test('calls listUnaddressedReviewFindings with correct filters (I21)', async () => {
-    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleListUnaddressedReviewFindings({ severity: 'warn', daysSinceMin: 30 });
 
@@ -47,7 +47,7 @@ describe('handleListUnaddressedReviewFindings', () => {
   });
 
   test('passes file_path and category filters', async () => {
-    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListUnaddressedReviewFindings({ target_file_path: 'src/foo.ts', category: 'logic' });
 
@@ -57,9 +57,9 @@ describe('handleListUnaddressedReviewFindings', () => {
     }));
   });
 
-  // P1 (観点キー): checklist_ref フィルタも memory-core へ素通しされる
+  // P1 (観点キー): checklist_ref フィルタも trail-caravan-book へ素通しされる
   test('passes checklist_ref filter', async () => {
-    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListUnaddressedReviewFindings({ checklist_ref: 'none' });
 
@@ -69,11 +69,11 @@ describe('handleListUnaddressedReviewFindings', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openCaravanBookDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListUnaddressedReviewFindings({});
 
-    const handle = await openMemoryCoreDb.mock.results[0].value;
+    const handle = await openCaravanBookDb.mock.results[0].value;
     expect(handle.close).toHaveBeenCalledTimes(1);
   });
 });

@@ -26,7 +26,7 @@ function inner(db: TrailDatabase): RawDb {
   return (db as unknown as { db: RawDb }).db;
 }
 
-/** Phase H: sessions/session_commit_resolutions は repo_name を撤去済。repo_id を repos 経由で解決する。 */
+/** Phase H: sessions/activity_session_commit_resolutions は repo_name を撤去済。repo_id を repos 経由で解決する。 */
 function repoId(db: TrailDatabase, repoName: string): number {
   return (db as unknown as { repoIdForName(n: string): number }).repoIdForName(repoName);
 }
@@ -173,7 +173,7 @@ describe('TrailDatabase.isImported', () => {
 
   it('returns true after session is inserted', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions
+      `INSERT OR IGNORE INTO activity_sessions
          (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
           message_count, file_path, file_size, imported_at, source)
        VALUES ('s-exist', 's-exist', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z',
@@ -194,7 +194,7 @@ describe('TrailDatabase.getImportedFileSize', () => {
 
   it('returns file_size for existing session', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions
+      `INSERT OR IGNORE INTO activity_sessions
          (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
           message_count, file_path, file_size, imported_at, source)
        VALUES ('s-size', 's-size', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z',
@@ -215,7 +215,7 @@ describe('TrailDatabase.isCommitsResolved', () => {
 
   it('returns false for session without commits_resolved_at', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions
+      `INSERT OR IGNORE INTO activity_sessions
          (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
           message_count, file_path, file_size, imported_at, source)
        VALUES ('s-unresolved', 's-unresolved', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z',
@@ -226,7 +226,7 @@ describe('TrailDatabase.isCommitsResolved', () => {
 
   it('returns true after commits_resolved_at is set', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions
+      `INSERT OR IGNORE INTO activity_sessions
          (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
           message_count, file_path, file_size, imported_at, source, commits_resolved_at)
        VALUES ('s-resolved', 's-resolved', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z',
@@ -252,7 +252,7 @@ describe('TrailDatabase.getImportedFileMap', () => {
 
   it('returns map with file_path as key', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions
+      `INSERT OR IGNORE INTO activity_sessions
          (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
           message_count, file_path, file_size, imported_at, source)
        VALUES ('s1', 's1', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z',
@@ -283,7 +283,7 @@ describe('TrailDatabase.isCommitResolutionDone', () => {
 
   it('returns true after inserting a resolution record', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO session_commit_resolutions (session_id, repo_id, resolved_at)
+      `INSERT OR IGNORE INTO activity_session_commit_resolutions (session_id, repo_id, resolved_at)
        VALUES ('s-done', ${repoId(db, 'my-repo')}, '2026-01-01T00:00:00.000Z')`,
     );
     expect(db.isCommitResolutionDone('s-done', 'my-repo')).toBe(true);
@@ -291,7 +291,7 @@ describe('TrailDatabase.isCommitResolutionDone', () => {
 
   it('returns false for a different repo_name', () => {
     inner(db).run(
-      `INSERT OR IGNORE INTO session_commit_resolutions (session_id, repo_id, resolved_at)
+      `INSERT OR IGNORE INTO activity_session_commit_resolutions (session_id, repo_id, resolved_at)
        VALUES ('s-done2', ${repoId(db, 'repo-a')}, '2026-01-01T00:00:00.000Z')`,
     );
     expect(db.isCommitResolutionDone('s-done2', 'repo-b')).toBe(false);
@@ -310,7 +310,7 @@ describe('TrailDatabase external transaction control', () => {
   it('commit persists data', () => {
     db.beginExternalTransaction();
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions
+      `INSERT OR IGNORE INTO activity_sessions
          (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
           message_count, file_path, file_size, imported_at, source)
        VALUES ('tx-commit', 'tx-commit', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z',
@@ -323,7 +323,7 @@ describe('TrailDatabase external transaction control', () => {
   it('rollback discards data', () => {
     db.beginExternalTransaction();
     inner(db).run(
-      `INSERT OR IGNORE INTO sessions
+      `INSERT OR IGNORE INTO activity_sessions
          (id, slug, repo_id, version, entrypoint, model, start_time, end_time,
           message_count, file_path, file_size, imported_at, source)
        VALUES ('tx-rollback', 'tx-rollback', ${repoId(db, 'repo')}, '', '', '', '2026-01-01T00:00:00.000Z',

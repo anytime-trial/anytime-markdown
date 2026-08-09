@@ -11,7 +11,7 @@ describe('LogService', () => {
     ];
     svc.insertBatch(logs, 'extension');
 
-    const result = db.exec('SELECT * FROM pipeline_run_logs ORDER BY id');
+    const result = db.exec('SELECT * FROM caravan_pipeline_run_logs ORDER BY id');
     expect(result[0]?.values).toHaveLength(2);
     const sourceIdx = result[0]?.columns.indexOf('source') ?? -1;
     const levelIdx = result[0]?.columns.indexOf('level') ?? -1;
@@ -28,7 +28,7 @@ describe('LogService', () => {
       [{ timestamp: '2026-05-13T12:00:00.000Z', level: 'info', component: 'X', message: 'm', metadata: { a: 1, b: ['x'] } }],
       'daemon',
     );
-    const result = db.exec('SELECT metadata FROM pipeline_run_logs');
+    const result = db.exec('SELECT metadata FROM caravan_pipeline_run_logs');
     const metadata = result[0]?.values[0]?.[0];
     expect(JSON.parse(String(metadata))).toEqual({ a: 1, b: ['x'] });
   });
@@ -45,7 +45,7 @@ describe('LogService', () => {
   });
 
   it('cleanup() は system run の live ログだけを刈り、analyzer run のログは残す', () => {
-    // リグレッション: 保持期限を廃止すると pipeline_run_logs が無制限に増える
+    // リグレッション: 保持期限を廃止すると caravan_pipeline_run_logs が無制限に増える
     // （daemon が全ログを system run へ集約し続けるため）。一方 analyzer の run に
     // 紐づく調査用ログは「あとから失敗理由を追う」本機能の目的そのものなので
     // 消してはいけない。刈り込みは run_id = systemRunId に限定する。
@@ -55,26 +55,26 @@ describe('LogService', () => {
     const old = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
     // analyzer 側の run と、そこに紐づく同じだけ古い info ログ
     db.run(
-      `INSERT INTO pipeline_runs
+      `INSERT INTO caravan_pipeline_runs
          (id, scope, wave, tier, started_at, status)
        VALUES ('analyzer-run', 'conversation_incremental', 'memory', 3, ?, 'success')`,
       [old],
     );
     db.run(
-      `INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message)
+      `INSERT INTO caravan_pipeline_run_logs (run_id, timestamp, level, source, component, message)
        VALUES ('analyzer-run', ?, 'info', 'daemon', 'ingest', 'analyzer log')`,
       [old],
     );
     // system run 側の同じだけ古い info ログ
     db.run(
-      `INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message)
+      `INSERT INTO caravan_pipeline_run_logs (run_id, timestamp, level, source, component, message)
        VALUES (?, ?, 'info', 'daemon', 'TrailDataServer', 'live log')`,
       [SYSTEM_RUN_ID, old],
     );
 
     svc.cleanup();
 
-    const survivors = db.exec('SELECT run_id, message FROM pipeline_run_logs ORDER BY id');
+    const survivors = db.exec('SELECT run_id, message FROM caravan_pipeline_run_logs ORDER BY id');
     const rows = survivors[0]?.values ?? [];
     expect(rows).toHaveLength(1);
     expect(rows[0]?.[0]).toBe('analyzer-run');

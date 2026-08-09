@@ -1,6 +1,6 @@
 import { resolveOddConfig } from '../../doctrine/oddRoots';
 import { evaluateCoverageGate } from '../../doctrine/coverageGate';
-import type { OddRegistry, OddResolution } from '@anytime-markdown/trail-core';
+import type { OddRegistry, OddResolution } from '@anytime-markdown/trail-activity';
 import type { FileRead } from '../../doctrine/oddRoots';
 
 const CLAUDE_MD = [

@@ -122,7 +122,7 @@ description: anytime-markdown で実装・変更が一段落し「実装後に�
 - セッション内: 完了通知に**実出力行**を貼る（bare pass/fail にしない）。
 - コミット: golden master スナップショットはファイルとしてコミット（回帰の自動証拠）。検証要約はコミット本文に1行。
 - 計画ファイル進捗（dev-cycle 段3 plan）: 各タスク完了時に検証出力行を追記。
-- review/ ドキュメント（dev-cycle 段6）: `code-reviewer` subagent の findings は Trail `memory_reviews` に取込まれ記録に残る。
+- review/ ドキュメント（dev-cycle 段6）: `code-reviewer` subagent の findings は Trail `caravan_reviews` に取込まれ記録に残る。
 - 実機エビデンス: スクショは `anytime-note` 経由 or review/ ドキュメントへ添付し「実機未確認」を構造的に潰す。
 
 ## References

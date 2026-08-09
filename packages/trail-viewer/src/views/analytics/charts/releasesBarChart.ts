@@ -2,7 +2,7 @@
  * vanilla 版 ReleasesBarChart
  * (`components/analytics/charts/ReleasesBarChart.tsx` の素 DOM 等価)。
  */
-import type { ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
+import type { ReleaseQualityBucket } from '@anytime-markdown/trail-activity/domain/metrics';
 import type { ThemeColors } from '../../../theme/designTokens';
 import { releaseColors } from '../../../theme/designTokens';
 import { buildStackedBarSpec } from '../../../components/analytics/charts/specs/buildStackedBarSpec';

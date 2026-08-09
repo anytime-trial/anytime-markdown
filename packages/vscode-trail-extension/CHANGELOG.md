@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-09
+
+### Added
+
+- The knowledge graph now scales to 100,000 nodes. Layout coordinates are precomputed server-side, delivered by viewport instead of all at once, and the precomputation is scheduled by the analysis daemon.
+
+### Changed
+
+- Tab labels were renamed: Flight Record to CaravanBook / Execution Records, Trail Pipeline to Pipeline, C4 Model to C4 Model (localized).
+- The `memory` vocabulary was renamed to `caravan` / `caravan-book` throughout, and the three databases now prefix their tables with `activity_` / `caravan_` / `catalog_`. Existing databases are migrated in place the first time their owner opens them.
+
+### Fixed
+
+- The knowledge graph no longer renders hub nodes as isolated points: node selection is now edge-driven and `File` to `Function` `defines` edges are emitted.
+- Ghost endpoints (edges pointing at nodes outside the delivered viewport) are excluded.
+- The viewer keeps the current graph when the viewport moves to a region with no data, instead of clearing the drawing.
+
+### Trail Core (trail-activity / trail-server / trail-viewer / mcp-trail)
+
+- Viewport-scoped knowledge graph delivery API, backed by index-driven queries with a fixed join order (CROSS JOIN) for the link lookup.
+- Server-side layout precomputation with the resulting coordinates marked as `source: 'server'`.
+- Hardened the delivery path against windows where coordinates are not yet computed or are being rewritten.
+
 ## [0.44.0] - 2026-08-08
 
 ### Added

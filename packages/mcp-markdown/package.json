@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/mcp-markdown",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -15,7 +15,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@anytime-markdown/doc-core": "*",
+    "@anytime-markdown/markdown-catalog": "*",
     "@anytime-markdown/markdown-editor": "*",
     "@anytime-markdown/section-lock-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",

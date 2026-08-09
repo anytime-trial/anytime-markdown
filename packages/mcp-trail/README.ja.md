@@ -40,7 +40,7 @@ C4 モデル要素・関係・グループの CRUD と、コード解析パイ�
 | `TRAIL_HOME` | Trail 関連ファイル一式の格納ルート（既定: `<workspace>/.anytime/trail`） |
 | `TRAIL_WORKSPACE_PATH` | ワークスペースの絶対パス。`TRAIL_HOME` 未設定時の解決基点（`workspacePath` 引数の次に優先）と `repoName` 既定値（basename）に使用 |
 | `MCP_TRAIL_FORCE_DIRECT` | `1` で `TrailDataServer` 生存チェックを skip し、書き込みも常に SQLite 直書きにする（CI / バッチ向け） |
-| `OLLAMA_BASE_URL` | Ollama API のベース URL（`search_memory` のベクトル検索で使用。例: `http://localhost:11434`） |
+| `OLLAMA_BASE_URL` | Ollama API のベース URL（`search_caravan_book` のベクトル検索で使用。例: `http://localhost:11434`） |
 
 > [!NOTE]
 > `activity.db` / `caravan-book.db` の格納先は `${TRAIL_HOME}/db/` に統一されており、個別の `*_DB_PATH` 環境変数は廃止されています。
@@ -114,7 +114,7 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
 | `analyze_current_code` | `workspacePath?` / `tsconfigPath?` / `includeProgress?`（既定 `true`） | C4 / コードグラフ解析を起動する。`Anytime Trail: コード解析` 相当。`includeProgress = true` のとき WebSocket 進捗ログを応答に同梱する |
-| `analyze_release_code` | （共通のみ） | リリース別 C4 / コードグラフ解析。`release_code_graphs` を全削除して再生成する。`Anytime Trail: リリース別コード解析` 相当 |
+| `analyze_release_code` | （共通のみ） | リリース別 C4 / コードグラフ解析。`activity_release_code_graphs` を全削除して再生成する。`Anytime Trail: リリース別コード解析` 相当 |
 | `analyze_all` | （共通のみ） | `~/.claude/projects` から JSONL を取り込み、コミット・リリース・カバレッジを Trail DB に書き込む。`Anytime Trail: 全データ解析` 相当 |
 | `get_analyze_status` | （共通のみ） | 現在進行中の解析タスク種別と開始時刻を取得する |
 
@@ -130,7 +130,7 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
-| `list_communities` | `includeMappings?`（既定 false） | `current_code_graph_communities` の `label` / `name` / `summary` / `stableKey` を取得する。大きい `mappings_json` は既定で除外し、`includeMappings=true` で同梱。スキルの cache 判定・命名済み判定に使用 |
+| `list_communities` | `includeMappings?`（既定 false） | `activity_current_code_graph_communities` の `label` / `name` / `summary` / `stableKey` を取得する。大きい `mappings_json` は既定で除外し、`includeMappings=true` で同梱。スキルの cache 判定・命名済み判定に使用 |
 | `list_community_nodes` | `communityId?` / `nodeLimit?` | コミュニティ別ノード（`{ id, label, package }`）を返す。全グラフは約 1,900 ノードあるため `communityId` で 1 コミュニティに絞る。`nodeLimit` 指定時はノードを切り詰め `nodeTotal` を付与 |
 | `upsert_community_summaries` | `summaries: [{ communityId, name, summary }]` | 各コミュニティに AI 生成した name/summary を upsert する。`mappings_json` は保持される |
 | `upsert_community_mappings` | `mappings: [{ communityId, mappings: [{ elementId, elementType, role }] }]` | 各コミュニティの `mappings_json`（C4 要素 role）を upsert する。`mappings_json` カラム未存在時は自動 ALTER で追加。`name` / `summary` は保持される |
@@ -139,10 +139,10 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 > 書き込み完了後、TrailDataServer は `model-updated` を WebSocket 通知するため、Trail Viewer 側のキャッシュも自動再取得される（Reload Window 不要）。
 
 
-### 4.7 ドリフト検出（memory-core）
+### 4.7 ドリフト検出（trail-caravan-book）
 
 設計仕様とコード実装の乖離（ドリフト）を管理する。\
-memory-core DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きする。TrailDataServer は不要。
+trail-caravan-book DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きする。TrailDataServer は不要。
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
@@ -151,7 +151,7 @@ memory-core DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きす�
 | `resolve_drift` | `event_id` / `resolution_note` / `resolved_at?` | ドリフトイベントを解決済みとしてマークし、解決メモを記録する |
 
 
-### 4.8 レビューエージェント（memory-core）
+### 4.8 レビューエージェント（trail-caravan-book）
 
 AI レビューエージェントの実行管理とレビュー対象の優先順位付け。
 
@@ -163,7 +163,7 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `list_review_target_hints` | `limit?` | ドリフトイベント・バグ修正・未レビューファイルに基づく優先レビュー対象候補を返す |
 
 
-### 4.9 バグ履歴（memory-core）
+### 4.9 バグ履歴（trail-caravan-book）
 
 コミット単位のバグ修正履歴と繰り返しバグのパターン分析。
 
@@ -173,7 +173,7 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `list_recurring_bugs` | `package?` / `file_path?` / `caused_by_entity_id?` / `windowDays?` / `minCount?` | 一定期間内に繰り返し発生しているバググループを一覧する |
 
 
-### 4.10 レビュー所見（memory-core）
+### 4.10 レビュー所見（trail-caravan-book）
 
 レビュー結果の追跡と対応済みコミットのリンク管理。
 
@@ -184,14 +184,14 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `link_review_to_commit` | `finding_id` / `commit_sha` / `addressed_at?` / `override_auto?` | レビュー所見を特定コミットで対応済みとしてマークし、`addresses` エッジを挿入する |
 
 
-### 4.11 メモリグラフ検索（memory-core）
+### 4.11 メモリグラフ検索（trail-caravan-book）
 
-memory-core に蓄積されたエンティティ・関係・会話エピソードをクエリで検索する。\
+trail-caravan-book に蓄積されたエンティティ・関係・会話エピソードをクエリで検索する。\
 `OLLAMA_BASE_URL` 未設定時はキーワードマッチのみ（ベクトル検索なし）。
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
-| `search_memory` | `query` / `entity_types?` / `source_type?` / `since?` / `limit?` / `hops?` | メモリグラフでクエリに関連するエンティティ・関係・会話エピソードを検索する。`hops=1` でグラフ隣接ノードまで展開 |
+| `search_caravan_book` | `query` / `entity_types?` / `source_type?` / `since?` / `limit?` / `hops?` | メモリグラフでクエリに関連するエンティティ・関係・会話エピソードを検索する。`hops=1` でグラフ隣接ノードまで展開 |
 
 
 ### 4.12 コード構造 discovery（読み取り）

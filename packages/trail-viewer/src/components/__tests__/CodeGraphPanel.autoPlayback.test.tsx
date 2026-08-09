@@ -31,7 +31,7 @@ jest.mock('../../shared/vanillaIsland', () => ({
 }));
 
 import { act, render } from '@testing-library/react';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 import { CodeGraphPanel } from '../CodeGraphPanel';
 import { TrailLocaleProvider } from '../../i18n';
 import type { CodeGraphPlaybackViewState } from '../../views/codeGraphPanel';

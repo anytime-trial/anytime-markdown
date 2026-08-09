@@ -1,7 +1,7 @@
 
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
@@ -40,7 +40,7 @@ const insertRelease = (db: TrailDatabase, overrides: Partial<Record<string, unkn
     ...overrides,
   };
   inner(db).run(
-    `INSERT INTO releases (
+    `INSERT INTO activity_releases (
        tag, released_at, prev_release_id, package_tags,
        commit_count, files_changed, lines_added, lines_deleted,
        total_lines,

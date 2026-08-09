@@ -1,7 +1,7 @@
 /**
  * computeAndPersistFileAnalysis
  *
- * dead code シグナルを集計し、current_file_analysis / current_function_analysis に
+ * dead code シグナルを集計し、activity_current_file_analysis / activity_current_function_analysis に
  * 洗い替え方式（clear → upsert）で永続化するメインヘルパー。
  *
  * ## パス変換一覧
@@ -11,7 +11,7 @@
  * |-------------------------|------------------------------------------|----------------------------------------------------|
  * | ScoredFunction.filePath  | 絶対パス                                 | path.relative(analysisRoot, filePath)              |
  * | coverage file_path       | 絶対パス（istanbul coverage-summary.json）| path.relative(analysisRoot, file_path)             |
- * | commit_files.file_path   | git 相対パス（リポジトリルート基準）     | そのまま（analysisRoot = リポジトリルートの前提）  |
+ * | activity_commit_files.file_path   | git 相対パス（リポジトリルート基準）     | そのまま（analysisRoot = リポジトリルートの前提）  |
  * | CodeGraphNode.id         | "${repoName}:${relPathNoExt}"           | slice(repoName+1) → 拡張子なし相対パスとして照合  |
  *
  * ## CodeGraphNode.id フォーマット調査結果
@@ -36,18 +36,18 @@ import {
   computeDeadCodeScore,
   computeNewlyActive,
   aggregateImportanceToFile,
-} from '@anytime-markdown/trail-core/deadCode';
+} from '@anytime-markdown/trail-activity/deadCode';
 import type {
   FileAnalysisRow,
   FunctionAnalysisRow,
   DeadCodeSignals,
   IgnoreRules,
-} from '@anytime-markdown/trail-core/deadCode';
-import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import { computeCentrality, classifyFunctionRoles } from '@anytime-markdown/trail-core/centrality';
-import type { FunctionRole } from '@anytime-markdown/trail-core/centrality';
-import type { FileCategory } from '@anytime-markdown/trail-core/classify';
+} from '@anytime-markdown/trail-activity/deadCode';
+import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import { computeCentrality, classifyFunctionRoles } from '@anytime-markdown/trail-activity/centrality';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/centrality';
+import type { FileCategory } from '@anytime-markdown/trail-activity/classify';
 
 export interface ComputeAndPersistFileAnalysisOpts {
   /** ワークスペースの絶対パス。git リポジトリルートと一致することを想定。 */
@@ -112,7 +112,7 @@ export async function computeAndPersistFileAnalysis(
   //    値: node.id（例 "anytime-markdown:packages/core/src/foo"）
   const relPathNoExtToNodeId = buildRelPathNoExtToNodeIdIndex(codeGraph, repoName);
 
-  // 5. recent 窓 (RECENT_CHURN_WINDOW_DAYS 日) 以内のチャーン（commit_files.file_path = git 相対パス）
+  // 5. recent 窓 (RECENT_CHURN_WINDOW_DAYS 日) 以内のチャーン（activity_commit_files.file_path = git 相対パス）
   const churnMap = trailDb.getCommitFilesChurnSince(repoName, sinceIso);
   // 5b. 全期間の commit 履歴（noRecentChurn 判定用）
   // churnMap は recent 窓のみ返すため、それを hasHistory として使うと
@@ -449,7 +449,7 @@ function buildRelPathNoExtToNodeIdIndex(
  *
  * 復元できない node (実在する `.ts` / `.tsx` ソースに対応しない stale な node や
  * code 以外の fileType) はテーブルに登録しない。これにより
- * `current_file_analysis.file_path` 列は常に `.ts` / `.tsx` で終わる。
+ * `activity_current_file_analysis.file_path` 列は常に `.ts` / `.tsx` で終わる。
  */
 function collectAllRelFilePaths(
   fileAggregates: ReadonlyMap<string, unknown>,

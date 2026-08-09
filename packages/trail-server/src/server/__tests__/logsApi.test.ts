@@ -1,9 +1,9 @@
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
+import { BetterSqlite3CaravanDb } from '@anytime-markdown/trail-caravan-book';
 import { LogService } from '../../services/LogService';
 import { makeLogDb, SYSTEM_RUN_ID } from '../../services/__tests__/logServiceTestUtils';
 import { handlePostLogs } from '../logsApi';
 
-function makeService(): { svc: LogService; db: BetterSqlite3MemoryDb } {
+function makeService(): { svc: LogService; db: BetterSqlite3CaravanDb } {
   const db = makeLogDb();
   return { svc: new LogService(db, SYSTEM_RUN_ID), db };
 }
@@ -16,7 +16,7 @@ describe('handlePostLogs', () => {
     };
     const res = handlePostLogs(JSON.stringify(body), svc);
     expect(res.status).toBe(204);
-    const result = db.exec('SELECT COUNT(*) AS n FROM pipeline_run_logs');
+    const result = db.exec('SELECT COUNT(*) AS n FROM caravan_pipeline_run_logs');
     expect(result[0]?.values[0]?.[0]).toBe(1);
   });
 

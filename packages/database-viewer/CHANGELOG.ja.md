@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-08-09
+
+### 変更
+
+- database 系の同期セット（database-core / database-viewer / VS Code 拡張）を揃えるためのバージョン更新のみ。機能変更はない。
+
 ## [0.3.7] - 2026-08-03
 
 ### 変更

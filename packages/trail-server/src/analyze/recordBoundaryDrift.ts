@@ -1,10 +1,10 @@
 import type {
   BoundaryDriftThresholds,
   BoundaryDriftWarning,
-} from '@anytime-markdown/trail-core/domain/model';
-import { DEFAULT_BOUNDARY_DRIFT_THRESHOLDS } from '@anytime-markdown/trail-core/domain/model';
-import { detectBoundaryDrift } from '@anytime-markdown/trail-core/domain/usecase';
-import { computeStableKey } from '@anytime-markdown/trail-core/codeGraph';
+} from '@anytime-markdown/trail-activity/domain/model';
+import { DEFAULT_BOUNDARY_DRIFT_THRESHOLDS } from '@anytime-markdown/trail-activity/domain/model';
+import { detectBoundaryDrift } from '@anytime-markdown/trail-activity/domain/usecase';
+import { computeStableKey } from '@anytime-markdown/trail-activity/codeGraph';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import type { Logger } from '../runtime/Logger';
@@ -31,7 +31,7 @@ export interface RecordBoundaryDriftArgs {
 }
 
 /**
- * 宣言境界と実装コミュニティのずれを判定し boundary_drift_warnings へ記録する。
+ * 宣言境界と実装コミュニティのずれを判定し activity_boundary_drift_warnings へ記録する。
  *
  * fail-open。判定・保存の失敗は解析パイプラインを止めない（コードグラフ本体と
  * C4 モデルは既に保存済みで、本ステップは付随指標のため）。ただし握りつぶさず、

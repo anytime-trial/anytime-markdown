@@ -16,7 +16,7 @@ const mockComputeSessionConfidenceCoupling = jest.fn();
 jest.mock('@supabase/supabase-js', () => ({ createClient: mockCreateClient }));
 jest.mock('../lib/supabase-env', () => ({ resolveSupabaseEnv: mockResolveSupabaseEnv }));
 jest.mock('../lib/api-helpers', () => ({ NO_STORE_HEADERS: { 'Cache-Control': 'no-store' } }));
-jest.mock('@anytime-markdown/trail-core', () => ({
+jest.mock('@anytime-markdown/trail-activity', () => ({
   computeTemporalCoupling: mockComputeTemporalCoupling,
   computeConfidenceCoupling: mockComputeConfidenceCoupling,
   computeSessionCoupling: mockComputeSessionCoupling,
@@ -243,7 +243,7 @@ describe('GET /api/temporal-coupling — 異常系', () => {
     expect(res._body).toMatchObject({ edges: [], totalPairs: 0 });
   });
 
-  it('未知のコミットに属する commit_files は捨てる', async () => {
+  it('未知のコミットに属する activity_commit_files は捨てる', async () => {
     mockCreateClient.mockReturnValue(
       supabaseWith(
         [

@@ -1,15 +1,15 @@
 import { handleExplainDrift } from '../../tools/explainDrift';
 
-// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
-// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+// resolveCaravanDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openCaravanBookDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
+  resolveCaravanDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openMemoryCoreDb: jest.fn().mockResolvedValue({
+  openCaravanBookDb: jest.fn().mockResolvedValue({
     db: {},
     close: jest.fn(),
   }),
@@ -33,7 +33,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('returns 5-source explanation for an event', async () => {
-    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleExplainDrift({ event_id: 'ev-1' });
 
@@ -44,7 +44,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('returns null for unknown event', async () => {
-    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
     mockFn.mockReturnValueOnce(null);
 
     const result = await handleExplainDrift({ event_id: 'nonexistent' });
@@ -53,11 +53,11 @@ describe('handleExplainDrift', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openCaravanBookDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleExplainDrift({ event_id: 'ev-1' });
 
-    const handle = await openMemoryCoreDb.mock.results[0].value;
+    const handle = await openCaravanBookDb.mock.results[0].value;
     expect(handle.close).toHaveBeenCalledTimes(1);
   });
 });

@@ -10,7 +10,7 @@ import {
 } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import type { HotspotControlsValue } from '../../../c4/components/overlays/HotspotControls';
-import type { HotspotGranularity, TrendPeriod } from '@anytime-markdown/trail-core/c4';
+import type { HotspotGranularity, TrendPeriod } from '@anytime-markdown/trail-activity/c4';
 
 export type { HotspotControlsValue };
 

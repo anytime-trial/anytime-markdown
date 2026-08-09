@@ -51,7 +51,7 @@ import { handleGetThreatFramework, GetThreatFrameworkInputSchema } from './tools
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
-import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
+import { handleSearchCaravanBook,SearchCaravanBookInputSchema } from './tools/searchCaravanBook.js';
 import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
 
 export interface McpTrailOptions {
@@ -286,7 +286,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'analyze_release_code',
     {
       description:
-        'Run release-grouped C4 / code graph analysis. Without "tags" this deletes ALL existing release_code_graphs and regenerates every release. With "tags" only those releases are deleted and regenerated, leaving other cached graphs intact. Equivalent to "Anytime Trail: リリース別コード解析" command.',
+        'Run release-grouped C4 / code graph analysis. Without "tags" this deletes ALL existing activity_release_code_graphs and regenerates every release. With "tags" only those releases are deleted and regenerated, leaving other cached graphs intact. Equivalent to "Anytime Trail: リリース別コード解析" command.',
       inputSchema: {
         ...commonParams,
         tags: z
@@ -372,11 +372,11 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'upsert_community_summaries',
-    { description: 'Upsert community name + summary pairs to current_code_graph_communities. Used by anytime-reverse-engineer skill after AI generation. mappings_json is preserved.', inputSchema: {
+    { description: 'Upsert community name + summary pairs to activity_current_code_graph_communities. Used by anytime-reverse-engineer skill after AI generation. mappings_json is preserved.', inputSchema: {
       summaries: z
         .array(
           z.object({
-            communityId: z.number().int().describe('community_id from current_code_graphs.graph_json'),
+            communityId: z.number().int().describe('community_id from activity_current_code_graphs.graph_json'),
             name: z.string().describe('Short name (3 words)'),
             summary: z.string().describe('One-sentence summary (max 60 chars)'),
           }),
@@ -401,7 +401,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
             mappings: z
               .array(
                 z.object({
-                  elementId: z.string().describe('C4 element id (e.g. pkg_trail-core/coverage)'),
+                  elementId: z.string().describe('C4 element id (e.g. pkg_trail-activity/coverage)'),
                   elementType: z.string().describe('C4 element type (component, container, etc.)'),
                   role: roleEnum.describe('primary / secondary / dependency'),
                 }),
@@ -420,7 +420,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Drift detection tools (memory-core)
+  //  Drift detection tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -549,7 +549,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_threat_framework',
-    { description: "Return the agentic threat framework (5 tactics, 17 techniques ADR.T0001-T0017) ported from Uber's ADR (Apache-2.0). Read-only static data compiled into trail-core — no DB or network access. Use it to ground threat analysis of agent sessions: pass `tactic` to narrow to one tactic's techniques, omit it for the full framework. Each technique carries id / name / jaName / description.", inputSchema: {
+    { description: "Return the agentic threat framework (5 tactics, 17 techniques ADR.T0001-T0017) ported from Uber's ADR (Apache-2.0). Read-only static data compiled into trail-activity — no DB or network access. Use it to ground threat analysis of agent sessions: pass `tactic` to narrow to one tactic's techniques, omit it for the full framework. Each technique carries id / name / jaName / description.", inputSchema: {
       tactic: GetThreatFrameworkInputSchema.shape.tactic,
     }, },
     async (args) => {
@@ -602,7 +602,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_acceptance_review',
-    { description: 'Assemble the acceptance-review material for a session (DCT-13): the delegated judgments, the doctrine clauses each judgment cited (verbatim quote + approval state + resolution result), the artifact diff, and the escalations with their reasons. Returns both structured data and a Markdown rendering meant to be pasted into the completion report. Read-only. The diff is taken from git directly (not the lagging session_commits import); a git failure degrades to available=false with a reason instead of failing the whole call.', inputSchema: {
+    { description: 'Assemble the acceptance-review material for a session (DCT-13): the delegated judgments, the doctrine clauses each judgment cited (verbatim quote + approval state + resolution result), the artifact diff, and the escalations with their reasons. Returns both structured data and a Markdown rendering meant to be pasted into the completion report. Read-only. The diff is taken from git directly (not the lagging activity_session_commits import); a git failure degrades to available=false with a reason instead of failing the whole call.', inputSchema: {
       session_id: GetAcceptanceReviewInputSchema.shape.session_id,
       base_ref: GetAcceptanceReviewInputSchema.shape.base_ref,
       head_ref: GetAcceptanceReviewInputSchema.shape.head_ref,
@@ -632,7 +632,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Review agent tools (memory-core)
+  //  Review agent tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -687,7 +687,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Bug history tools (memory-core)
+  //  Bug history tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -722,7 +722,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Review tools (memory-core)
+  //  Review tools (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -793,22 +793,22 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Memory graph search (memory-core)
+  //  CaravanBook graph search (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
-    'search_memory',
+    'search_caravan_book',
     { description: 'Search the memory graph for entities, relationships, and conversation episodes related to the query', inputSchema: {
-      query: SearchMemoryInputSchema.shape.query,
-      entity_types: SearchMemoryInputSchema.shape.entity_types,
-      source_type: SearchMemoryInputSchema.shape.source_type,
-      since: SearchMemoryInputSchema.shape.since,
-      limit: SearchMemoryInputSchema.shape.limit,
-      hops: SearchMemoryInputSchema.shape.hops,
-      workspacePath: SearchMemoryInputSchema.shape.workspacePath,
+      query: SearchCaravanBookInputSchema.shape.query,
+      entity_types: SearchCaravanBookInputSchema.shape.entity_types,
+      source_type: SearchCaravanBookInputSchema.shape.source_type,
+      since: SearchCaravanBookInputSchema.shape.since,
+      limit: SearchCaravanBookInputSchema.shape.limit,
+      hops: SearchCaravanBookInputSchema.shape.hops,
+      workspacePath: SearchCaravanBookInputSchema.shape.workspacePath,
     }, },
     async (args) => {
-      const result = await handleSearchMemory(args);
+      const result = await handleSearchCaravanBook(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -817,7 +817,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'get_verification_status',
     {
       description:
-        'Check the verification ledger (activity.db, table verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
+        'Check the verification ledger (activity.db, table activity_verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
       inputSchema: {
         package: GetVerificationStatusInputSchema.shape.package,
         kinds: GetVerificationStatusInputSchema.shape.kinds,

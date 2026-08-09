@@ -2,7 +2,7 @@ import type {
   AnalyzerContext,
   AnalyzerEvent,
   EventBusPublisher,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { SessionImporter } from '../SessionImporter';
@@ -325,7 +325,7 @@ describe('SessionImporter', () => {
     await importer.onRunStart(ctx);
     // session_imported はこの analyzer の subscribes 外なので無視される
     await importer.onEvent(
-      { kind: 'session_imported', sessionId: 'x', messageCount: 1, repoName: 'r' } as unknown as import('@anytime-markdown/memory-core').AnalyzerEvent,
+      { kind: 'session_imported', sessionId: 'x', messageCount: 1, repoName: 'r' } as unknown as import('@anytime-markdown/trail-caravan-book').AnalyzerEvent,
       ctx,
     );
     await importer.onRunEnd(ctx);

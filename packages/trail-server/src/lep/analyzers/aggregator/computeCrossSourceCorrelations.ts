@@ -19,7 +19,7 @@ export interface CrossSourceInput {
   readonly commitFiles: readonly CorrelationCommitFile[];
 }
 
-/** 相関の時間窓 (日)。CrossSourceCorrelator の session_commits 範囲フィルタとも共有する。 */
+/** 相関の時間窓 (日)。CrossSourceCorrelator の activity_session_commits 範囲フィルタとも共有する。 */
 export const DEFAULT_WINDOW_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
 
@@ -35,8 +35,8 @@ const MS_PER_DAY = 86_400_000;
  *
  * いずれも実証目的であり、相関 0 件でも例外なく [] を返す。
  *
- * > 補足: プラン当初案の「finding ↔ memory_review_findings」「review ↔ memory_drift_findings」は
- * > memory-core の別 DB に依存し Wave 4 (activity.db reader) から到達できないため、activity.db で完結する
+ * > 補足: プラン当初案の「finding ↔ caravan_review_findings」「review ↔ memory_drift_findings」は
+ * > trail-caravan-book の別 DB に依存し Wave 4 (activity.db reader) から到達できないため、activity.db で完結する
  * > 上記 3 相関に調整した (lep-step4 §6.4 / フォローアップ)。
  */
 type PushFn = (

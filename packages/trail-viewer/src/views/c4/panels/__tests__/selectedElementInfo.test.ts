@@ -9,8 +9,8 @@ import type {
   HotspotMap,
   LayerMatrix,
   SizeMatrix,
-} from '@anytime-markdown/trail-core/c4';
-import type { HotspotEntry } from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
+import type { HotspotEntry } from '@anytime-markdown/trail-activity/c4';
 import { buildDsmDegreeMap, buildSelectedElementInfo } from '../selectedElementInfo';
 
 const c4Model: C4Model = {

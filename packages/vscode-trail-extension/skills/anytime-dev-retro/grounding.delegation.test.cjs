@@ -37,21 +37,21 @@ function writeTrailDb(ws, { sessions, messages, toolCalls }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
   const db = new DatabaseSync(path.join(dbDir, 'activity.db'));
-  db.exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, start_time TEXT);
-    CREATE TABLE messages (session_id TEXT, type TEXT, model TEXT, agent_model TEXT, output_tokens INTEGER);
-    CREATE TABLE message_tool_calls (session_id TEXT, model TEXT, is_error INTEGER, has_thinking INTEGER, turn_exec_ms INTEGER);`);
+  db.exec(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY, start_time TEXT);
+    CREATE TABLE activity_messages (session_id TEXT, type TEXT, model TEXT, agent_model TEXT, output_tokens INTEGER);
+    CREATE TABLE activity_message_tool_calls (session_id TEXT, model TEXT, is_error INTEGER, has_thinking INTEGER, turn_exec_ms INTEGER);`);
   // start_time は SQLite の datetime 式で評価させる(プリペアド値だと文字列リテラルになり
   // grounding 側の datetime('now','-30 days') との比較が壊れる)。mod は '0 days'/'-40 days' 等。
   for (const s of sessions) {
-    db.prepare("INSERT INTO sessions VALUES (?, datetime('now', ?))").run(s.id, s.mod);
+    db.prepare("INSERT INTO activity_sessions VALUES (?, datetime('now', ?))").run(s.id, s.mod);
   }
   for (const m of messages) {
-    db.prepare('INSERT INTO messages VALUES (?,?,?,?,?)').run(
+    db.prepare('INSERT INTO activity_messages VALUES (?,?,?,?,?)').run(
       m.session_id, m.type, m.model, m.agent_model ?? null, m.output_tokens,
     );
   }
   for (const t of toolCalls) {
-    db.prepare('INSERT INTO message_tool_calls VALUES (?,?,?,?,?)').run(
+    db.prepare('INSERT INTO activity_message_tool_calls VALUES (?,?,?,?,?)').run(
       t.session_id, t.model, t.is_error, 0, t.turn_exec_ms,
     );
   }

@@ -2,8 +2,8 @@
 jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
@@ -14,7 +14,7 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { UnknownRepoError } from '../../analyze/AnalyzePipeline';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
-import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
+import { fetchC4Model } from '@anytime-markdown/trail-activity/c4';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 describe('GET /api/trail/search', () => {
@@ -924,14 +924,14 @@ describe('GET /api/code-graph/releases', () => {
 
   beforeEach(async () => {
     db = await createTestTrailDatabase();
-    rawRun('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+    rawRun('INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
       1, 'anytime-markdown', '2026-01-01T00:00:00.000Z',
     ]);
     // released_at 昇順と release_id 昇順が食い違う実データを再現する。
-    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+    rawRun('INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
       'v1.15.0', '2026-07-17T21:46:09.000Z', 1,
     ]);
-    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+    rawRun('INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
       'v1.14.0', '2026-07-17T07:38:41.000Z', 1,
     ]);
     server = new TrailDataServer('/tmp', db, makeMockLogger());
@@ -1012,18 +1012,18 @@ describe('Snapshot per Commit の API', () => {
 
   beforeEach(async () => {
     db = await createTestTrailDatabase();
-    rawRun('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+    rawRun('INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
       1, 'anytime-markdown', '2026-01-01T00:00:00.000Z',
     ]);
-    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+    rawRun('INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
       'v1.0.0', '2026-07-01T00:00:00.000Z', 1,
     ]);
-    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+    rawRun('INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
       'v1.1.0', '2026-07-10T00:00:00.000Z', 1,
     ]);
-    rawRun("INSERT OR IGNORE INTO sessions (id, start_time) VALUES ('s1', '2026-01-01T00:00:00.000Z')", []);
+    rawRun("INSERT OR IGNORE INTO activity_sessions (id, start_time) VALUES ('s1', '2026-01-01T00:00:00.000Z')", []);
     rawRun(
-      `INSERT OR IGNORE INTO session_commits
+      `INSERT OR IGNORE INTO activity_session_commits
          (session_id, commit_hash, commit_message, author, committed_at, repo_id)
        VALUES ('s1', 'abc1234', 'work', 'a', '2026-07-05T00:00:00.000Z', 1)`,
       [],
@@ -1190,11 +1190,11 @@ describe('GET /api/code-graph?release= のリポジトリ帰属', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     for (const [id, name] of [[1, 'repo-a'], [2, 'repo-b']] as Array<[number, string]>) {
-      rawRun('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+      rawRun('INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
         id, name, '2026-01-01T00:00:00.000Z',
       ]);
       // タグは repo をまたいで衝突し得る（releases の一意制約は UNIQUE (repo_id, tag)）。
-      rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+      rawRun('INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
         'v1.0.0', '2026-03-01T00:00:00.000Z', id,
       ]);
     }
@@ -1222,10 +1222,10 @@ describe('GET /api/code-graph?release= のリポジトリ帰属', () => {
     });
     // repo-b 側にだけ在庫を作る。tag だけで解決すると repo-a の release_id を掴んで 404 になる。
     const bId = (db as unknown as { db: { exec: (s: string, p?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }> } })
-      .db.exec('SELECT r.release_id FROM releases r JOIN repos p ON p.repo_id = r.repo_id WHERE p.repo_name = ?', ['repo-b']);
+      .db.exec('SELECT r.release_id FROM activity_releases r JOIN activity_repos p ON p.repo_id = r.repo_id WHERE p.repo_name = ?', ['repo-b']);
     expect(bId[0]?.values?.[0]?.[0]).toBeDefined();
     rawRun(
-      `INSERT OR REPLACE INTO release_code_graphs (release_id, graph_json, generated_at, updated_at)
+      `INSERT OR REPLACE INTO activity_release_code_graphs (release_id, graph_json, generated_at, updated_at)
        VALUES (?, ?, ?, ?)`,
       [
         Number(bId[0].values[0][0]),

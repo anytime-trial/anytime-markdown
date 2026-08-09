@@ -1,7 +1,7 @@
 /**
  * vanilla 版 ChatBridge（`useChatBridge.ts` の React hook を素 DOM ストア化したもの）。
  *
- * 脱React 移行で MemoryPanel が useChatBridge を直接生成していた経路が失われ、vanilla の
+ * 脱React 移行で CaravanPanel が useChatBridge を直接生成していた経路が失われ、vanilla の
  * mountTrailViewerApp からは常に makeNoopBridge にフォールバックしていた（Chat タブが常時
  * 「接続不可」になる回帰）。本ストアは WebSocket 接続・provider ステータス購読・chat チャンク
  * 配信を hook と同一ロジックで担い、status/detail が変わるたび onStatusChange を呼んで

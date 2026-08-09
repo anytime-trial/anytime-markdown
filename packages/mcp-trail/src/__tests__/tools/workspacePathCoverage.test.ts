@@ -5,7 +5,7 @@ import * as path from 'path';
  * 全ツールが DB パス解決へ `workspacePath` を渡していることを静的に固定する。
  *
  * 配線テスト（`workspacePathPassthrough.test.ts`）はモック負荷の都合で代表ツールしか
- * 通せない。引数なし呼び出し（`resolveMemoryDbPath({})`）へ戻る退行は 1 ファイル単位で
+ * 通せない。引数なし呼び出し（`resolveCaravanDbPath({})`）へ戻る退行は 1 ファイル単位で
  * 起きるため、ここでは全ファイルを走査して形で塞ぐ。
  *
  * 引数を渡さないと解決は cwd 基準に落ち、別ワークスペースの DB を掴んでも
@@ -13,10 +13,10 @@ import * as path from 'path';
  */
 const TOOLS_DIR = path.join(__dirname, '..', '..', 'tools');
 
-/** `resolveMemoryDbPath(...)` / `resolveDbPath(...)` の引数テキストを列挙する。 */
+/** `resolveCaravanDbPath(...)` / `resolveDbPath(...)` の引数テキストを列挙する。 */
 function collectResolveCalls(text: string): string[] {
     const calls: string[] = [];
-    const re = /resolve(?:Memory)?DbPath\(([^)]*)\)/g;
+    const re = /resolve(?:Caravan)?DbPath\(([^)]*)\)/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(text)) !== null) {
         calls.push(m[1].trim());
@@ -34,7 +34,7 @@ describe('DB パス解決の workspacePath 受け渡し（全ツール走査）'
         expect(files.length).toBeGreaterThan(10);
     });
 
-    it('引数なしの resolveDbPath({}) / resolveMemoryDbPath({}) が存在しない', () => {
+    it('引数なしの resolveDbPath({}) / resolveCaravanDbPath({}) が存在しない', () => {
         const offenders: string[] = [];
 
         for (const file of files) {
@@ -61,7 +61,7 @@ describe('DB パス解決の workspacePath 受け渡し（全ツール走査）'
 
         for (const file of files) {
             const text = fs.readFileSync(file, 'utf-8');
-            if (!/resolve(?:Memory)?DbPath\(/.test(text)) continue;
+            if (!/resolve(?:Caravan)?DbPath\(/.test(text)) continue;
             if (!text.includes('workspacePath:')) {
                 offenders.push(path.basename(file));
             }

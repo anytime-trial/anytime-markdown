@@ -2,7 +2,7 @@ export const TRAIL_SERVER_VERSION = '0.18.0';
 
 export { TrailDataServer } from './server/TrailDataServer';
 export type { AnalyzeAllPipelineResult } from './server/TrailDataServer';
-export { MemoryApiHandler } from './server/MemoryApiHandler';
+export { CaravanApiHandler } from './server/CaravanApiHandler';
 export type * from './server/types';
 
 export { CodeGraphService } from './analyze/CodeGraphService';
@@ -20,35 +20,35 @@ export type * from './analyze/CodeGraph.types';
 export type { Disposable } from './runtime/Disposable';
 export { DisposableStore } from './runtime/Disposable';
 
-export { RebuildScheduler } from './memory-chat/rebuildScheduler';
-export type { RebuildSchedulerLogger, RebuildSchedulerOptions } from './memory-chat/rebuildScheduler';
+export { RebuildScheduler } from './caravan-chat/rebuildScheduler';
+export type { RebuildSchedulerLogger, RebuildSchedulerOptions } from './caravan-chat/rebuildScheduler';
 
-export { ChatBridge } from './memory-chat/chatBridge';
-export type { ChatBridgeLogger, ChatBridgeConfig, ChatBridgeDeps } from './memory-chat/chatBridge';
-export type { MemoryChatLogger } from './memory-chat/types';
+export { ChatBridge } from './caravan-chat/chatBridge';
+export type { ChatBridgeLogger, ChatBridgeConfig, ChatBridgeDeps } from './caravan-chat/chatBridge';
+export type { CaravanChatLogger } from './caravan-chat/types';
 
-// createMemoryCoreRunner 値は MemoryCoreService 経由で ts を引き込むため
+// createCaravanBookRunner 値は CaravanBookService 経由で ts を引き込むため
 // `@anytime-markdown/trail-server/pipeline` subpath へ分離した (root は ts-free)。
-export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memoryCoreRunner';
+export type { CaravanBookRunner, CaravanBookOutputChannel } from './runtime/caravanBookRunner';
 
-// MemoryCoreService / defaultStatePath の **値** は ts を引き込むため
+// CaravanBookService / defaultStatePath の **値** は ts を引き込むため
 // `@anytime-markdown/trail-server/pipeline` subpath へ分離した (root は ts-free)。
-// 型のみ参照する thin client は root の `export type {...} from 'memory-core'`
+// 型のみ参照する thin client は root の `export type {...} from 'trail-caravan-book'`
 // (下記 type 専用ブロック) を経由する。
-export type { MemoryCoreService } from '@anytime-markdown/memory-core';
+export type { CaravanBookService } from '@anytime-markdown/trail-caravan-book';
 export {
-  defaultState as memoryCoreServiceDefaultState,
-  readState as memoryCoreServiceReadState,
-  writeState as memoryCoreServiceWriteState,
+  defaultState as caravanBookServiceDefaultState,
+  readState as caravanBookServiceReadState,
+  writeState as caravanBookServiceWriteState,
   STATE_SCHEMA_VERSION as MEMORY_CORE_SERVICE_STATE_SCHEMA_VERSION,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 export type {
-  MemoryCoreLogSink,
-  MemoryCoreServiceOptions,
-  MemoryCoreServiceStartOptions,
-  MemoryCoreServiceStatus,
-  RunReason as MemoryCoreRunReason,
-} from '@anytime-markdown/memory-core';
+  CaravanBookLogSink,
+  CaravanBookServiceOptions,
+  CaravanBookServiceStartOptions,
+  CaravanBookServiceStatus,
+  RunReason as CaravanBookRunReason,
+} from '@anytime-markdown/trail-caravan-book';
 
 export type { Logger, LogLevel } from './runtime/Logger';
 export { ConsoleLogger, FileLogger } from './runtime/Logger';
@@ -68,7 +68,7 @@ export {
   AGGREGATOR_ANALYZER_IDS,
   KNOWN_ANALYZER_IDS,
   disabledAnalyzerIds,
-  disabledMemoryAnalyzerIds,
+  disabledCaravanAnalyzerIds,
   ensureLepConfigFile,
   loadLepConfig,
   lepConfigSearchPaths,
@@ -94,7 +94,7 @@ export type {
   LepRagConfig,
   LepFtsConfig,
   LepConversationConfig,
-  LepMemoryConfig,
+  LepCaravanConfig,
   LepGitHubSourceConfig,
   LepSourcesConfig,
   ResolvedGitHubSource,
@@ -102,7 +102,7 @@ export type {
   LoadLepConfigOptions,
   MigrateConfigJsonOptions,
   MigrateConfigJsonResult,
-  MemoryAnalyzerId,
+  CaravanAnalyzerId,
   AggregatorAnalyzerId,
   PartialLepConfig,
 } from './runtime/LepConfig';

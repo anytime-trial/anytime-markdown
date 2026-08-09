@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-08-09
+
+### 変更
+
+- 解析系 API を Trail DB の改名へ追随させた。C4（model / DSM / releases / coverage / complexity / call-hierarchy / file-analysis）・code-graph（query / explain）・hotspot・defect-risk・temporal-coupling・docs-index・Trail の品質指標ルートが、`activity.db` の `activity_` 接頭辞付きテーブルを参照する。
+- Trail ビューアのページも同じ改名に追随した。
+
 ## [0.46.1] - 2026-08-08
 
 ### 変更

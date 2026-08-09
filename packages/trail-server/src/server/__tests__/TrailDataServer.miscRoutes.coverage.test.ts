@@ -2,8 +2,8 @@
 jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
@@ -11,7 +11,7 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
+import { fetchC4Model } from '@anytime-markdown/trail-activity/c4';
 
 const mockedFetchC4Model = fetchC4Model as jest.MockedFunction<typeof fetchC4Model>;
 
@@ -359,12 +359,12 @@ describe('TrailDataServer — notify methods (smoke)', () => {
 describe('decodePathParam', () => {
   it('decodes percent-encoded path params', async () => {
     const { decodePathParam } = await import('../TrailDataServer');
-    expect(decodePathParam('/api/memory/drift/events/drift%3Aentity%3Apkg', '/api/memory/drift/events/')).toBe('drift:entity:pkg');
+    expect(decodePathParam('/api/caravan/drift/events/drift%3Aentity%3Apkg', '/api/caravan/drift/events/')).toBe('drift:entity:pkg');
   });
 
   it('handles suffix stripping', async () => {
     const { decodePathParam } = await import('../TrailDataServer');
-    const result = decodePathParam('/api/memory/drift/events/my-id/resolve', '/api/memory/drift/events/', '/resolve');
+    const result = decodePathParam('/api/caravan/drift/events/my-id/resolve', '/api/caravan/drift/events/', '/resolve');
     expect(result).toBe('my-id');
   });
 });

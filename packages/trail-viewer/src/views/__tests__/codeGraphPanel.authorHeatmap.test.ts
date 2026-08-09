@@ -4,8 +4,8 @@
 jest.mock('sigma', () => ({ __esModule: true, default: class {} }));
 jest.mock('sigma/rendering', () => ({ __esModule: true, EdgeArrowProgram: class {} }));
 
-import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
-import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-core/authorHeatmap';
+import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
+import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-activity/authorHeatmap';
 import { chooseOption, openOptions } from './comboboxTestUtils';
 import { mountCodeGraphPanel, type CodeGraphPanelProps } from '../codeGraphPanel';
 

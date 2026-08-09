@@ -1,6 +1,6 @@
-import type { TrailGraph } from '@anytime-markdown/trail-core';
-import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
-import type { FileCategory } from '@anytime-markdown/trail-core/classify';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
+import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
+import type { FileCategory } from '@anytime-markdown/trail-activity/classify';
 
 /** ホスト → 子プロセス: 解析依頼（TS 経路専用） */
 export interface AnalyzeChildRequest {
@@ -14,13 +14,13 @@ export interface AnalyzeChildRequest {
   readonly pythonWasmPath?: string;
   /**
    * decision comment（WHY/RATIONALE/理由）の AST 走査を行うか。current code 解析でのみ
-   * true（memory-core が trail-db 経由で読む）。release 解析では graph のみ使うため false。
+   * true（trail-caravan-book が trail-db 経由で読む）。release 解析では graph のみ使うため false。
    */
   readonly includeDecisionComments?: boolean;
 }
 
 /**
- * ソースから抽出した意思決定コメント 1 件。memory-core の Decision entity 化に必要な
+ * ソースから抽出した意思決定コメント 1 件。trail-caravan-book の Decision entity 化に必要な
  * 最小情報のみ持つ（DB 永続化時に repo_id / commit_sha / recorded_at を付与）。
  */
 export interface DecisionComment {

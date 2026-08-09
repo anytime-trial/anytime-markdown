@@ -20,7 +20,7 @@ jest.mock('@supabase/supabase-js', () => ({
   createClient: mockCreateClient,
 }));
 
-jest.mock('@anytime-markdown/trail-core/codeGraph', () => ({
+jest.mock('@anytime-markdown/trail-activity/codeGraph', () => ({
   composeCodeGraph: mockComposeCodeGraph,
 }));
 

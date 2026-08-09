@@ -2,8 +2,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
-import { openMemoryDb } from '../sqlite/openDb';
+import { resolveCaravanDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openCaravanDb } from '../sqlite/openDb';
 import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCitations';
 import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
 import { resolveOddConfig } from '../doctrine/oddRoots';
@@ -108,8 +108,8 @@ export async function handleRecordDoctrineJudgment(
     }),
   });
   // 保存先は caravan-book.db（2026-08-07 に activity.db から移設。旧テーブルは遅延移行で回収）
-  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
-  const opened = await openMemoryDb(dbPath, 'readwrite');
+  const dbPath = resolveCaravanDbPathForWrite({ workspacePath });
+  const opened = await openCaravanDb(dbPath, 'readwrite');
   try {
     ensureAndMigrateDoctrineJudgments(opened.db, dbPath);
     const result = recordDoctrineJudgmentDirect(opened.db, {

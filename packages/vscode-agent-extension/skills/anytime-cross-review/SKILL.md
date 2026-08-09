@@ -1,18 +1,18 @@
 ---
 name: anytime-cross-review
 effort: medium
-description: develop マージ前に Claude(pr-review-toolkit:code-reviewer subagent)と Codex(codex exec review)が同一 diff を独立レビューし、互いの指摘を検証(adversarial cross-check)して合意指摘を採用する相互レビュー。指摘は review doc + trail memory_reviews に記録する。「相互レビュー」「cross review」「/anytime-cross-review」「Claude Codex レビュー」「二者レビュー」の指示で使用する。
+description: develop マージ前に Claude(pr-review-toolkit:code-reviewer subagent)と Codex(codex exec review)が同一 diff を独立レビューし、互いの指摘を検証(adversarial cross-check)して合意指摘を採用する相互レビュー。指摘は review doc + trail caravan_reviews に記録する。「相互レビュー」「cross review」「/anytime-cross-review」「Claude Codex レビュー」「二者レビュー」の指示で使用する。
 ---
 
 # anytime-cross-review — Claude × Codex 相互レビュー
 
-更新日: 2026-07-16
+更新日: 2026-08-09
 
 develop マージ前の品質ゲートを Claude と Codex の**二者独立レビュー＋相互検証**へ拡張する。設計は `<docsRoot>/plan/20260623-codex-cross-review-design.ja.md`。
 
 - **適用範囲**: 高重大度の変更（定義は `anytime-dev-cycle` SKILL.md 冒頭）。実装と同一基盤モデルだけで検証すると欠陥を共有し、AI レビュアー自身が騙され得る（cognitive monoculture / verification subversion）ため、実装とは別系統モデル（Codex）による独立検証を行う。`anytime-dev-cycle` 段6 は高重大度のとき本スキルを選択する。それ以外の変更は `superpowers:requesting-code-review` でよい。
 - 対象: 作業ブランチ → develop の diff（`<base>..HEAD`・既定 base=develop）。
-- 同梱ラッパ: `.claude/skills/anytime-cross-review/codex-review.cjs`（Codex review を headless 起動・read-only ガード付き）。
+- 同梱ラッパ: `.claude/skills/anytime-cross-review/codex-review.cjs`（Codex review を headless 起動・read-only ガード付き）。**正本は `packages/vscode-agent-extension/skills/anytime-cross-review/`** で、`.claude/skills/` 配下は anytime-agent 拡張が配置する複製（git 追跡外・拡張を配り直すまで古いまま）。修正は正本へ入れる。
 - Codex CLI の起動作法・環境制約（bwrap 不可のため `--dangerously-bypass-approvals-and-sandbox` 必須）は `.claude/skills/anytime-dev-cycle/references/codex-cli.md` を参照する（委譲系と共通）。
 - 起動: `/anytime-cross-review [base]`、または `anytime-dev-cycle` 段6 が高重大度と判定したときの選択。global `~/.claude/rules/pre-merge-review.md`（全マージへの一律適用）への統合は本スキル対象外。
 
@@ -22,6 +22,14 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 
 - DB ingest はラグ（数十分〜Reload）を伴うため、**ゲート判定はその場の統合サマリで行う**。trail 記録は事後の因果追跡用。
 - Codex 実行は bwrap 不可環境のため `--dangerously-bypass-approvals-and-sandbox`（ラッパが付与）。レビューは read-only。
+- **worktree から起動するときはラッパを main の絶対パスで呼ぶ**（2026-08-08 実測）。`.claude/skills/` は git 追跡外（拡張が main チェックアウトへ配置する複製）なので worktree には存在せず、相対パスの起動は `MODULE_NOT_FOUND` で落ちる。
+
+  ```bash
+  node /anytime-markdown/.claude/skills/anytime-cross-review/codex-review.cjs \
+    --base develop --cwd /anytime-markdown/.worktrees/<name>
+  ```
+
+  `--cwd` の既定は `process.cwd()` だが**必ず明示する**。Bash の作業ディレクトリは `cd` 後にリセットされて不定で、省略して main を指したままでも**エラーにならず**それらしい結果が返る（レビュー対象が違うことに気づけない）。
 
 ### 1. diff 確定
 
@@ -29,8 +37,8 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 
 ### 2. Round 1 — 独立デュアルレビュー（並行）
 
-- **Claude**: `pr-review-toolkit:code-reviewer` subagent に diff レビューを依頼する（`anytime-trail-review` 出力。`superpowers:requesting-code-review` と同様、subagent session 経由で memory_reviews に ingest され reviewer=`pr-review-toolkit:code-reviewer`）。
-- **Codex**: `node .claude/skills/anytime-cross-review/codex-review.cjs --base <base>` を実行する。
+- **Claude**: `pr-review-toolkit:code-reviewer` subagent に diff レビューを依頼する（`anytime-trail-review` 出力。`superpowers:requesting-code-review` と同様、subagent session 経由で caravan_reviews に ingest され reviewer=`pr-review-toolkit:code-reviewer`）。
+- **Codex**: `node .claude/skills/anytime-cross-review/codex-review.cjs --base <base>` を実行する（**worktree からは §0 の絶対パス + `--cwd` 形式で起動する**）。
   - stdout = レビュー本文（`### N.` 形式・bold マーカー）、stderr に `findings=N maxSeverity=...`。
   - exit 0 = 成功 / 2 = codex 失敗（非ゼロ終了・timeout）/ 3 = read-only 逸脱（codex がファイルを変更）。
   - **exit 2 のみ degrade**: Claude 単独レビューで続行し、統合サマリに「Codex レビュー欠落（理由）」を明記（グレースフルデグラデーション）。
@@ -47,7 +55,7 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 - **Codex 指摘** → `<docsRoot>/review/<YYYYMMDD>-<branch-slug>-codex.ja.md` を作成:
   - frontmatter: `title` / `date` / `type: review` / `lang: ja` / `reviewer: codex` / `severity: <maxSeverity>`（ラッパ stderr の値）。
   - 本文: codex-review.cjs の stdout（`anytime-trail-review`）。`anytime-markdown-output` 準拠。
-  - `bash ~/.claude/scripts/validate-markdown.sh <file>` で検証 → `review_incremental` が `parseReviewDoc` で ingest（source_kind=review_doc・reviewer=codex）。
+  - **`~/.claude/scripts/validate-markdown.sh` は存在しない**（2026-08-08 実測。手順どおり実行すると落ちる）。代わりに frontmatter 必須キー（`title` / `date` / `type` / `lang` / `reviewer` / `severity` / `excerpt`）の実在と、本文の `### N.` 件数がラッパ報告の `findings=N` と一致することを確認する。通過後 `review_incremental` が `parseReviewDoc` で ingest（source_kind=review_doc・reviewer=codex）。
 - **件数突合**: ラッパが報告した `findings=N` と review doc 内の `### N.` 件数が一致することを確認する。不一致は format drift の兆候 → 統合サマリに警告。
 - **Claude 指摘** は subagent session 経由で ingest 済み（追加作業なし）。
 
@@ -74,4 +82,4 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 (cd packages/vscode-agent-extension && npx jest skills/anytime-cross-review)
 ```
 
-E2E は小 diff に対し本手順を手動実行し、Codex review doc の ingest（memory_reviews に reviewer=codex 行）を Reload 後に確認する。
+E2E は小 diff に対し本手順を手動実行し、Codex review doc の ingest（caravan_reviews に reviewer=codex 行）を Reload 後に確認する。

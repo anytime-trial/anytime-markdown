@@ -1,4 +1,4 @@
-import type { C4Element } from '@anytime-markdown/trail-core/c4';
+import type { C4Element } from '@anytime-markdown/trail-activity/c4';
 
 /** Markdown テーブルセル用に値を無害化する（パイプのエスケープ・改行の畳み込み） */
 export function escapeTableCell(value: string): string {

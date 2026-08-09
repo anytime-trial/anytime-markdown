@@ -155,7 +155,7 @@ const mcpMarkdownServerConfig = {
     canvas: 'commonjs canvas',
     bufferutil: 'commonjs bufferutil',
     'utf-8-validate': 'commonjs utf-8-validate',
-    // doc-core 検索が使う Node 組み込み SQLite。実行時 require する。
+    // markdown-catalog 検索が使う Node 組み込み SQLite。実行時 require する。
     'node:sqlite': 'commonjs node:sqlite',
   },
   resolve: {
@@ -167,7 +167,7 @@ const mcpMarkdownServerConfig = {
       // 当該 worktree の src を直接解決する。
       ...buildWebpackAlias(),
       '@anytime-markdown/markdown-engine': path.resolve(__dirname, '../markdown-engine/src/index.ts'),
-      '@anytime-markdown/doc-core': path.resolve(__dirname, '../doc-core/src/index.ts'),
+      '@anytime-markdown/markdown-catalog': path.resolve(__dirname, '../markdown-catalog/src/index.ts'),
     },
   },
   module: {
@@ -198,8 +198,8 @@ const mcpMarkdownServerConfig = {
 };
 
 /**
- * doc-core ingest を行う node 子プロセス（拡張ホストから spawn）。`dist/doc-ingest.js` を生成。
- * doc-core（node:sqlite 利用）を取り込むのはこのバンドルのみ。native module 不要。
+ * markdown-catalog ingest を行う node 子プロセス（拡張ホストから spawn）。`dist/doc-ingest.js` を生成。
+ * markdown-catalog（node:sqlite 利用）を取り込むのはこのバンドルのみ。native module 不要。
  * @type WebpackConfig
  */
 const docIngestServerConfig = {
@@ -219,8 +219,8 @@ const docIngestServerConfig = {
     extensions: ['.ts', '.js'],
     extensionAlias: { '.js': ['.ts', '.js'] },
     alias: {
-      // worktree の node_modules symlink 経由を避け、当該 worktree の doc-core src を直接解決。
-      '@anytime-markdown/doc-core': path.resolve(__dirname, '../doc-core/src/index.ts'),
+      // worktree の node_modules symlink 経由を避け、当該 worktree の markdown-catalog src を直接解決。
+      '@anytime-markdown/markdown-catalog': path.resolve(__dirname, '../markdown-catalog/src/index.ts'),
     },
   },
   module: {
@@ -232,9 +232,9 @@ const docIngestServerConfig = {
           {
             loader: 'ts-loader',
             options: {
-              // doc-core（rootDir 制約のない tsconfig）を取り込むため doc-core 側 tsconfig を使い、
-              // 型診断はスキップ（型は doc-core / 拡張の tsc が担保）。
-              configFile: path.resolve(__dirname, '../doc-core/tsconfig.json'),
+              // markdown-catalog（rootDir 制約のない tsconfig）を取り込むため markdown-catalog 側 tsconfig を使い、
+              // 型診断はスキップ（型は markdown-catalog / 拡張の tsc が担保）。
+              configFile: path.resolve(__dirname, '../markdown-catalog/tsconfig.json'),
               transpileOnly: true,
             },
           },

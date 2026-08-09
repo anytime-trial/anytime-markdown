@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
-import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
+import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-activity';
+import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-activity/c4';
 import {
   aggregateCoverageFromDb,
   aggregateHeatmapColumnsToC4,
@@ -20,41 +20,41 @@ import {
   fetchC4ModelEntries,
   filterTreeByLevel,
   mapFileToC4Elements,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 import type {
   CallHierarchyDirection,
   CallHierarchyIndex,
   CallHierarchyScope,
-} from '@anytime-markdown/trail-core/c4/callHierarchy';
+} from '@anytime-markdown/trail-activity/c4/callHierarchy';
 import {
   buildCallHierarchyNodeFilter,
   buildIndex as buildCallHierarchyIndex,
   traverse as traverseCallHierarchy,
-} from '@anytime-markdown/trail-core/c4/callHierarchy';
-import { computeAuthorHeatmap, selectTopSessions } from '@anytime-markdown/trail-core/authorHeatmap';
-import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
-import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
-import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
+} from '@anytime-markdown/trail-activity/c4/callHierarchy';
+import { computeAuthorHeatmap, selectTopSessions } from '@anytime-markdown/trail-activity/authorHeatmap';
+import type { ClassifiedFunction } from '@anytime-markdown/trail-activity/centrality';
+import { toCodeGraphNodeId } from '@anytime-markdown/trail-activity/codeGraphNodeId';
+import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-activity/centrality';
 import {
   loadCommitCategories,
   loadCommitCategoriesFromFile,
   loadCommitCategoryLabels,
   loadCommitCategoryLabelsFromFile,
-} from '@anytime-markdown/trail-core/commitCategories';
-import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
-import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
+} from '@anytime-markdown/trail-activity/commitCategories';
+import { aggregateScoresToC4 } from '@anytime-markdown/trail-activity/deadCode';
+import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-activity/domain/metrics';
 import {
   loadSkillCategories,
   loadSkillCategoriesFromFile,
   loadSkillCategoryLabels,
   loadSkillCategoryLabelsFromFile,
-} from '@anytime-markdown/trail-core/skillCategories';
+} from '@anytime-markdown/trail-activity/skillCategories';
 import {
   loadToolCategories,
   loadToolCategoriesFromFile,
   loadToolCategoryLabels,
   loadToolCategoryLabelsFromFile,
-} from '@anytime-markdown/trail-core/toolCategories';
+} from '@anytime-markdown/trail-activity/toolCategories';
 // typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
 import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
 import type { AnalyticsData, CostOptimizationData,MessageRow, SessionCommitRow, SessionRow, TrailDatabase } from '@anytime-markdown/trail-db';
@@ -81,7 +81,7 @@ import { CodeGraphApiHandler } from './CodeGraphApiHandler';
 import { DocsApiHandler } from './DocsApiHandler';
 import { sendServerError } from './errorResponse';
 import { handlePostLogs } from './logsApi';
-import { MemoryApiHandler } from './MemoryApiHandler';
+import { CaravanApiHandler } from './CaravanApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import { ANY_METHOD, createRouteContext, type RouteDescriptor, RouteTable } from './routing';
 import type { ClientMessage, ServerMessage } from './types';
@@ -100,6 +100,21 @@ const RATE_LIMIT_MAX = 60;
 const JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
 };
+
+/**
+ * `minX,minY,maxX,maxY` 形式の視野を解釈する。
+ *
+ * 4 つすべてが有限値で、かつ min < max のときだけ視野として採る。1 つでも欠けた・逆転した
+ * 指定は視野として意味を成さないため、部分適用せず undefined（視野指定なし）へ倒す。
+ */
+export function parseBbox(value: string | null): { minX: number; minY: number; maxX: number; maxY: number } | undefined {
+  if (value === null || value === '') return undefined;
+  const parts = value.split(',').map((s) => Number(s));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return undefined;
+  const [minX, minY, maxX, maxY] = parts as [number, number, number, number];
+  if (!(minX < maxX) || !(minY < maxY)) return undefined;
+  return { minX, minY, maxX, maxY };
+}
 
 function clampInt(value: string | null, fallback: number, min: number, max: number): number {
   if (value === null || value === '') return fallback;
@@ -249,8 +264,8 @@ export interface C4DataProvider {
   handleCluster(enabled: boolean): void;
   handleRefresh(): void;
   handleResetClaudeActivity(): void;
-  getManualElements(repoName: string): readonly import('@anytime-markdown/trail-core').ManualElement[];
-  getManualRelationships(repoName: string): readonly import('@anytime-markdown/trail-core').ManualRelationship[];
+  getManualElements(repoName: string): readonly import('@anytime-markdown/trail-activity').ManualElement[];
+  getManualRelationships(repoName: string): readonly import('@anytime-markdown/trail-activity').ManualRelationship[];
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +282,7 @@ export class TrailDataServer {
   private getC4Provider: (() => C4DataProvider | undefined) | undefined;
   private lastClaudeActivity: { activeElementIds: readonly string[]; touchedElementIds: readonly string[]; plannedElementIds: readonly string[] } | undefined;
   private lastMultiAgentActivity: { agents: readonly import('./types').AgentActivityEntry[]; conflicts: readonly import('./types').FileConflict[] } | undefined;
-  /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
+  /** /api/c4/call-hierarchy 用の隣接リストキャッシュ。activity_current_graphs ロード後に lazy 構築し、graph 更新時に invalidate */
   private callHierarchyIndex: CallHierarchyIndex | null = null;
   private callHierarchyIndexRepo: string | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
@@ -309,8 +324,8 @@ export class TrailDataServer {
 
   private codeGraphService: CodeGraphService | undefined;
   private analyzeAllRunner: AnalyzeAllRunner | undefined;
-  private readonly memoryApi: MemoryApiHandler;
-  private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
+  private readonly caravanApi: CaravanApiHandler;
+  private chatBridge: import('../caravan-chat/chatBridge').ChatBridge | undefined;
   private logService: LogService | undefined;
   private logCleanupTimer: NodeJS.Timeout | null = null;
   private dailyTokensCache: { value: number; expiresAt: number } | null = null;
@@ -321,8 +336,8 @@ export class TrailDataServer {
   private readonly alignmentApi: AlignmentApiHandler;
   private readonly emergencyApi: EmergencyApiHandler;
   /**
-   * Flight Record（flight_reviews / instructions / instruction_sessions）の永続化層。
-   * 保存先は caravan-book.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
+   * Flight Record（caravan_flight_reviews / instructions / caravan_instruction_sessions）の永続化層。
+   * 保存先は caravan-book.db（2026-08-07 移設）のため caravanDbPath 未注入の構成では null になり、
    * flight 系エンドポイントはエラーを返す（暗黙の activity.db フォールバックはしない）。
    */
   private readonly flightRecordDb: FlightRecordDatabase | null = null;
@@ -332,7 +347,7 @@ export class TrailDataServer {
     private readonly trailDb: TrailDatabase,
     private logger: Logger,
     private readonly gitRoot?: string,
-    memoryDbPath?: string,
+    caravanDbPath?: string,
     /**
      * extension が lep.json / ワークスペースルートから解決して注入する表示用パス群。
      * daemon は fork 時 cwd 未指定でワークスペースを確実に知らないため、これらを明示注入して
@@ -359,21 +374,21 @@ export class TrailDataServer {
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
     // `.node` を推測できず crash するため、distPath 配下の絶対パスを
-    // BetterSqlite3MemoryDb に渡す (memory-core / TrailDatabase と同パターン)。
+    // BetterSqlite3CaravanDb に渡す (trail-caravan-book / TrailDatabase と同パターン)。
     // パス構成は trail-db の resolveBundledNativeBinding が唯一の正で、実在しない場合は
     // null（= better-sqlite3 の既定解決へフォールバック。テスト・ソース実行）。
     const nativeBinding = resolveBundledNativeBinding(this.distPath);
-    this.memoryApi = new MemoryApiHandler(
-      this.logger.child('MemoryApiHandler'),
+    this.caravanApi = new CaravanApiHandler(
+      this.logger.child('CaravanApiHandler'),
       // 未指定は「未設定」として明示的に伝える。ハンドラ側で cwd 基準の暗黙解決を
       // させない（解決の責務は注入元にある）。
-      memoryDbPath ?? null,
+      caravanDbPath ?? null,
       nativeBinding ?? undefined,
     );
     // Flight Record ストア（caravan-book.db 主接続 + activity.db ATTACH）。
     // 初期化失敗・移行失敗は fail-open（他エンドポイントを巻き込まない）。移行は毎起動の
     // 冪等実行で、activity.db 側に旧テーブルが残っていればコピー検証後に回収する。
-    if (memoryDbPath !== undefined && memoryDbPath !== '') {
+    if (caravanDbPath !== undefined && caravanDbPath !== '') {
       const flightLogger = this.logger.child('FlightRecordDatabase');
       const flightDbLogger = {
         info: (msg: string) => flightLogger.info(msg),
@@ -382,8 +397,8 @@ export class TrailDataServer {
         debugSql: () => {},
       };
       try {
-        const flightDb = new FlightRecordDatabase(memoryDbPath, {
-          trailDbPath: path.join(path.dirname(memoryDbPath), 'activity.db'),
+        const flightDb = new FlightRecordDatabase(caravanDbPath, {
+          trailDbPath: path.join(path.dirname(caravanDbPath), 'activity.db'),
           // バンドル済み拡張では distPath 配下の .node を渡さないと init() が必ず throw する。
           distPath: this.distPath,
           logger: flightDbLogger,
@@ -477,7 +492,7 @@ export class TrailDataServer {
     this.codeGraphApi.setCodeGraphService(service);
   }
 
-  setChatBridge(bridge: import('../memory-chat/chatBridge').ChatBridge): void {
+  setChatBridge(bridge: import('../caravan-chat/chatBridge').ChatBridge): void {
     this.chatBridge = bridge;
   }
 
@@ -491,9 +506,9 @@ export class TrailDataServer {
   }
 
   /**
-   * pipeline_run_logs 永続化用の LogService を wire する。設定後は
+   * caravan_pipeline_run_logs 永続化用の LogService を wire する。設定後は
    * `POST /api/logs` が有効化され、内部 logger が
-   * composite (OutputChannel + pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
+   * composite (OutputChannel + caravan_pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
    *
    * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
    */
@@ -588,7 +603,7 @@ export class TrailDataServer {
       clearInterval(this.logCleanupTimer);
       this.logCleanupTimer = null;
     }
-    this.memoryApi.dispose();
+    this.caravanApi.dispose();
     this.flightRecordDb?.close();
     for (const ws of this.clients) {
       ws.close();
@@ -697,8 +712,8 @@ export class TrailDataServer {
     this.registerC4ManualRoutes(table);
     this.registerCodeGraphRoutes(table);
     this.registerInsightRoutes(table);
-    this.registerMemoryDriftRoutes(table);
-    this.registerMemoryInsightRoutes(table);
+    this.registerCaravanDriftRoutes(table);
+    this.registerCaravanInsightRoutes(table);
     this.routeTable = table;
     return table;
   }
@@ -813,9 +828,9 @@ export class TrailDataServer {
     t.exact('GET', '/api/trail/flight-reviews', ({ res, url }) => this.handleListFlightReviews(res, url.searchParams));
     t.pattern('PATCH', /^\/api\/trail\/flight-reviews\/([^/]+)$/, ({ req, res, params }) =>
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
-    // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
+    // Flight Record: 指示単位の実行記録。/open は :id パターンより先に登録する
     // （後だと 'open' が指示 ID として食われる）。
-    // Flight Record のワークスペース選択肢。activity.db（指示・運航記録）と memory-core
+    // Flight Record のワークスペース選択肢。activity.db（指示・実行記録）と trail-caravan-book
     // （バグ修正・レビュー・乖離）は別 DB なので、両方の distinct を統合して 1 本で返す。
     t.exact('GET', '/api/trail/workspaces', ({ res }) => void this.handleListWorkspaces(res));
     t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));
@@ -989,11 +1004,11 @@ export class TrailDataServer {
   }
 
   /**
-   * Memory API の定型応答: 解決値を 200 + JSON、失敗はログ出力のうえ 500（本文なし）。
+   * Caravan API の定型応答: 解決値を 200 + JSON、失敗はログ出力のうえ 500（本文なし）。
    * 応答形状がこの型から外れる経路（400 の事前検証・404 分岐・500 に本文を載せるもの）は
    * 個別のハンドラに残す。
    */
-  private respondMemoryJson(res: http.ServerResponse, label: string, promise: Promise<unknown>): void {
+  private respondCaravanJson(res: http.ServerResponse, label: string, promise: Promise<unknown>): void {
     void promise.then((data) => {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(data));
@@ -1003,33 +1018,36 @@ export class TrailDataServer {
     });
   }
 
-  /** Memory API: 状態・根拠・ドリフト。 */
-  private registerMemoryDriftRoutes(t: RouteTable): void {
-    t.exact('GET', '/api/memory/rationale', (ctx) => {
+  /** Caravan API: 状態・根拠・ドリフト。 */
+  private registerCaravanDriftRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/caravan/rationale', (ctx) => {
       const sessionId = ctx.queryOpt('sessionId');
       if (!sessionId) {
         ctx.res.writeHead(400, JSON_HEADERS);
         ctx.res.end(JSON.stringify({ error: 'sessionId required' }));
         return;
       }
-      void this.memoryApi.listRationaleNodes({ sessionId }).then((rationale) => {
+      void this.caravanApi.listRationaleNodes({ sessionId }).then((rationale) => {
         ctx.res.writeHead(200, JSON_HEADERS);
         ctx.res.end(JSON.stringify({ rationale }));
       });
     });
 
-    t.exact('GET', '/api/memory/status', ({ res }) =>
-      this.respondMemoryJson(res, '/api/memory/status', this.memoryApi.handleStatus()));
+    t.exact('GET', '/api/caravan/status', ({ res }) =>
+      this.respondCaravanJson(res, '/api/caravan/status', this.caravanApi.handleStatus()));
 
     // 知識グラフ（共起ネットワーク表示用）。DB 未設定・不在は 200 + null（0 件の空配列と区別する）
-    t.exact('GET', '/api/memory/knowledge-graph', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/knowledge-graph', this.memoryApi.getKnowledgeGraph({
-        limit: clampInt(ctx.url.searchParams.get('limit'), 150, 1, 500),
+    t.exact('GET', '/api/caravan/knowledge-graph', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/knowledge-graph', this.caravanApi.getKnowledgeGraph({
+        // 上限 10000 の根拠は CaravanApiHandler の KNOWLEDGE_GRAPH_MAX_NODES を参照
+        limit: clampInt(ctx.url.searchParams.get('limit'), 150, 1, 10000),
         types: ctx.url.searchParams.get('types')?.split(',').filter((s) => s !== '') ?? undefined,
+        // 視野（世界座標 minX,minY,maxX,maxY）。指定時はその範囲の上位 N を返す
+        bbox: parseBbox(ctx.url.searchParams.get('bbox')),
       })));
 
-    t.exact('GET', '/api/memory/drift/by-day', (ctx) => {
-      void this.memoryApi.listDriftHistoryByDay({
+    t.exact('GET', '/api/caravan/drift/by-day', (ctx) => {
+      void this.caravanApi.listDriftHistoryByDay({
         since: ctx.queryOpt('since'),
         until: ctx.queryOpt('until'),
         driftType: ctx.queryOpt('driftType'),
@@ -1038,14 +1056,14 @@ export class TrailDataServer {
         ctx.res.writeHead(200, JSON_HEADERS);
         ctx.res.end(JSON.stringify({ points }));
       }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/drift/by-day] ${String(err)}`);
+        this.logger.error(`[/api/caravan/drift/by-day] ${String(err)}`);
         ctx.res.writeHead(500, JSON_HEADERS);
         ctx.res.end(JSON.stringify({ error: String(err) }));
       });
     });
 
-    t.exact('GET', '/api/memory/drift/events', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/drift/events', this.memoryApi.listDriftEvents({
+    t.exact('GET', '/api/caravan/drift/events', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/drift/events', this.caravanApi.listDriftEvents({
         unresolvedOnly: ctx.query('unresolvedOnly', '') === 'true',
         severity: ctx.queryOpt('severity'),
         driftType: ctx.queryOpt('driftType'),
@@ -1054,39 +1072,39 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
-    t.prefix('GET', '/api/memory/drift/events/', (ctx) => {
-      const eventId = decodePathParam(ctx.pathname, '/api/memory/drift/events/');
-      void this.memoryApi.getDriftEventDetail(eventId).then((data) => {
+    t.prefix('GET', '/api/caravan/drift/events/', (ctx) => {
+      const eventId = decodePathParam(ctx.pathname, '/api/caravan/drift/events/');
+      void this.caravanApi.getDriftEventDetail(eventId).then((data) => {
         if (!data) { ctx.res.writeHead(404); ctx.res.end(); return; }
         ctx.res.writeHead(200, JSON_HEADERS);
         ctx.res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/drift/events/:id] ${String(err)}`);
+        this.logger.error(`[/api/caravan/drift/events/:id] ${String(err)}`);
         ctx.res.writeHead(500); ctx.res.end();
       });
     });
 
-    t.prefix('POST', '/api/memory/drift/events/', (ctx) => {
+    t.prefix('POST', '/api/caravan/drift/events/', (ctx) => {
       if (!this.requireJsonContentType(ctx.req, ctx.res)) return;
-      const eventId = decodePathParam(ctx.pathname, '/api/memory/drift/events/', '/resolve');
+      const eventId = decodePathParam(ctx.pathname, '/api/caravan/drift/events/', '/resolve');
       void this.readJsonBody(ctx.req).then(async (body) => {
         const note = typeof (body as Record<string, unknown>)['resolutionNote'] === 'string'
           ? (body as Record<string, string>)['resolutionNote']
           : '';
-        const data = await this.memoryApi.resolveDriftEvent(eventId, note);
+        const data = await this.caravanApi.resolveDriftEvent(eventId, note);
         ctx.res.writeHead(200, JSON_HEADERS);
         ctx.res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/drift/events/:id POST] ${String(err)}`);
+        this.logger.error(`[/api/caravan/drift/events/:id POST] ${String(err)}`);
         ctx.res.writeHead(500); ctx.res.end();
       });
     });
   }
 
-  /** Memory API: 不具合・レビュー・パイプライン・エンティティ。 */
-  private registerMemoryInsightRoutes(t: RouteTable): void {
-    t.exact('GET', '/api/memory/bugs/recurring', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/bugs/recurring', this.memoryApi.listRecurringBugs({
+  /** Caravan API: 不具合・レビュー・パイプライン・エンティティ。 */
+  private registerCaravanInsightRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/caravan/bugs/recurring', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/bugs/recurring', this.caravanApi.listRecurringBugs({
         package: ctx.queryOpt('pkg'),
         windowDays: ctx.queryOpt('windowDays')
           ? clampInt(ctx.url.searchParams.get('windowDays'), 90, 1, 365)
@@ -1095,14 +1113,14 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 200),
       })));
 
-    t.exact('GET', '/api/memory/bugs/history', (ctx) => {
+    t.exact('GET', '/api/caravan/bugs/history', (ctx) => {
       // sessionIds は「指定なし（絞り込み無し）」と「指定したが 0 件」を区別する。
       // パラメータ自体が無いときだけ undefined にする（空文字は 0 件の絞り込み）。
       const rawSessionIds = ctx.queryOpt('sessionIds');
       const sessionIds = rawSessionIds === undefined
         ? undefined
         : rawSessionIds.split(',').map((s) => s.trim()).filter(Boolean);
-      this.respondMemoryJson(ctx.res, '/api/memory/bugs/history', this.memoryApi.getBugHistory({
+      this.respondCaravanJson(ctx.res, '/api/caravan/bugs/history', this.caravanApi.getBugHistory({
         package: ctx.queryOpt('pkg'),
         filePath: ctx.queryOpt('filePath'),
         category: ctx.queryOpt('category'),
@@ -1112,18 +1130,18 @@ export class TrailDataServer {
       }));
     });
 
-    t.exact('GET', '/api/memory/bugs/causal', (ctx) => {
+    t.exact('GET', '/api/caravan/bugs/causal', (ctx) => {
       const bugEntityId = ctx.queryOpt('bugEntityId');
       if (!bugEntityId) {
         ctx.res.writeHead(400, JSON_HEADERS);
         ctx.res.end(JSON.stringify({ error: 'bugEntityId required' }));
         return;
       }
-      this.respondMemoryJson(ctx.res, '/api/memory/bugs/causal', this.memoryApi.getBugCausalInfo(bugEntityId));
+      this.respondCaravanJson(ctx.res, '/api/caravan/bugs/causal', this.caravanApi.getBugCausalInfo(bugEntityId));
     });
 
-    t.exact('GET', '/api/memory/reviews/unaddressed', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/reviews/unaddressed', this.memoryApi.listUnaddressedReviewFindings({
+    t.exact('GET', '/api/caravan/reviews/unaddressed', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/reviews/unaddressed', this.caravanApi.listUnaddressedReviewFindings({
         category: ctx.queryOpt('category'),
         severity: ctx.queryOpt('severity'),
         daysSinceMin: ctx.queryOpt('daysSinceMin')
@@ -1132,8 +1150,8 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
-    t.exact('GET', '/api/memory/reviews/history', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/reviews/history', this.memoryApi.getReviewHistory({
+    t.exact('GET', '/api/caravan/reviews/history', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/reviews/history', this.caravanApi.getReviewHistory({
         targetFilePath: ctx.queryOpt('targetFilePath'),
         package: ctx.queryOpt('pkg'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
@@ -1141,50 +1159,50 @@ export class TrailDataServer {
 
     // Flight Record（指示単位）へ畳んだレビュー指摘。件数は一覧の列に出すため、
     // limit で欠ける一覧クエリではなく SQL 集計の専用ルートから取る。
-    t.exact('GET', '/api/memory/reviews/flight-counts', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/reviews/flight-counts',
-        this.memoryApi.getFlightReviewFindingCounts()));
+    t.exact('GET', '/api/caravan/reviews/flight-counts', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/reviews/flight-counts',
+        this.caravanApi.getFlightReviewFindingCounts()));
 
-    t.exact('GET', '/api/memory/reviews/flight-findings', (ctx) => {
+    t.exact('GET', '/api/caravan/reviews/flight-findings', (ctx) => {
       const raw = ctx.queryOpt('instructionIds');
       const instructionIds = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
-      this.respondMemoryJson(ctx.res, '/api/memory/reviews/flight-findings',
-        this.memoryApi.getFlightReviewFindings({
+      this.respondCaravanJson(ctx.res, '/api/caravan/reviews/flight-findings',
+        this.caravanApi.getFlightReviewFindings({
           instructionIds,
           workspace: ctx.queryOpt('workspace'),
           limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 1000),
         }));
     });
 
-    t.exact('GET', '/api/memory/pipeline/runs/by-day', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/by-day', this.memoryApi.listPipelineRunStatsByDay({
+    t.exact('GET', '/api/caravan/pipeline/runs/by-day', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/pipeline/runs/by-day', this.caravanApi.listPipelineRunStatsByDay({
         scope: ctx.queryOpt('scope'),
         since: ctx.queryOpt('since'),
       })));
 
-    t.exact('GET', '/api/memory/pipeline/runs', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs', this.memoryApi.listPipelineRuns({
+    t.exact('GET', '/api/caravan/pipeline/runs', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/pipeline/runs', this.caravanApi.listPipelineRuns({
         since: ctx.queryOpt('since'),
         wave: ctx.queryOpt('wave'),
         status: ctx.queryOpt('status'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 100, 1, 200),
       })));
 
-    t.pattern('GET', /^\/api\/memory\/pipeline\/runs\/([^/]+)\/logs$/, (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/:runId/logs', this.memoryApi.listPipelineRunLogs({
+    t.pattern('GET', /^\/api\/caravan\/pipeline\/runs\/([^/]+)\/logs$/, (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/pipeline/runs/:runId/logs', this.caravanApi.listPipelineRunLogs({
         runId: decodeURIComponent(ctx.params[0] ?? ''),
         limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 200),
       })));
 
-    t.exact('GET', '/api/memory/pipeline/failed', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/failed', this.memoryApi.listFailedItems({
+    t.exact('GET', '/api/caravan/pipeline/failed', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/pipeline/failed', this.caravanApi.listFailedItems({
         scope: ctx.queryOpt('scope'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
-    // 消費者は将来のグラフ表示。撤去可否は MemoryApiHandler.listInvalidations のコメント参照
-    t.exact('GET', '/api/memory/edges/invalidations', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/edges/invalidations', this.memoryApi.listInvalidations({
+    // 消費者は将来のグラフ表示。撤去可否は CaravanApiHandler.listInvalidations のコメント参照
+    t.exact('GET', '/api/caravan/edges/invalidations', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/edges/invalidations', this.caravanApi.listInvalidations({
         since: ctx.queryOpt('since'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
@@ -1830,14 +1848,14 @@ export class TrailDataServer {
         arr.push(mc.commitHash);
         commitsByMessageUuid.set(mc.messageUuid, arr);
       }
-      // message_commits stores user message UUIDs; map back to the parent assistant UUID
+      // activity_message_commits stores user message UUIDs; map back to the parent assistant UUID
       const commitsByAssistantUuid = new Map<string, string[]>();
       for (const m of rawMessages) {
         const hashes = commitsByMessageUuid.get(m.uuid);
         if (hashes && m.parent_uuid) commitsByAssistantUuid.set(m.parent_uuid, hashes);
       }
-      // Fallback: for sessions where message_commits is not yet backfilled,
-      // match git-commit assistant messages to session_commits by timestamp proximity.
+      // Fallback: for sessions where activity_message_commits is not yet backfilled,
+      // match git-commit assistant messages to activity_session_commits by timestamp proximity.
       if (commitsByAssistantUuid.size === 0) {
         const sessionCommitsList = this.trailDb.getSessionCommits(sessionId);
         if (sessionCommitsList.length > 0) {
@@ -1981,7 +1999,7 @@ export class TrailDataServer {
    * 要素 ID を揃える必要があるメトリクス集約（例: /api/bus-factor?unit=c4）も同じ経路を使う。
    */
   private async resolveC4ModelPayload(releaseId: string, repo?: string): Promise<C4ModelPayload | null> {
-    // trail-core の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
+    // trail-activity の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
     const repoName = repo ?? (this.defaultRepo());
     const provider = this.getC4Provider?.();
     const store = this.trailDb.asC4ModelStore();
@@ -2022,8 +2040,8 @@ export class TrailDataServer {
 
   private handleC4DsmEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): void {
     try {
-      // current: 解析直後のメモリを優先し、なければ SQLite の current_graphs
-      // release: SQLite の release_graphs から取得
+      // current: 解析直後のメモリを優先し、なければ SQLite の activity_current_graphs
+      // release: SQLite の activity_release_graphs から取得
       let matrix: DsmMatrix | undefined;
       if (releaseId === 'current') {
         matrix = this.getC4Provider?.()?.sourceMatrix;
@@ -2084,7 +2102,7 @@ export class TrailDataServer {
         return;
       }
 
-      // 特定リリース要求: release_coverage を repo 帰属確認のうえ取得
+      // 特定リリース要求: activity_release_coverage を repo 帰属確認のうえ取得
       // ファイルスキャンへのフォールバックは行わない（過去スナップショットと現在ファイルが混ざる不整合を防止）
       if (releaseId !== 'current') {
         const releaseTagBelongsToRepo = this.trailDb.getReleases()
@@ -2106,7 +2124,7 @@ export class TrailDataServer {
         return;
       }
 
-      // current 要求: current_coverage を読む (他の current 系と同じく DB-only)。
+      // current 要求: activity_current_coverage を読む (他の current 系と同じく DB-only)。
       if (repoName) {
         const currentRows = this.trailDb.getCurrentCoverage(repoName);
         if (currentRows.length > 0) {
@@ -2134,7 +2152,7 @@ export class TrailDataServer {
         }
       }
 
-      // current_coverage が空 (import 未実行) の場合は他の current 系と同じく空を返す。
+      // activity_current_coverage が空 (import 未実行) の場合は他の current 系と同じく空を返す。
       // 旧 FS フォールバック (packages/*/coverage/coverage-final.json スキャン) は廃止し DB-only に統一。
       // これにより current 系の表示は「DB が単一の真実源」に一本化され、gitRoot 依存も解消する。
       res.writeHead(200, JSON_HEADERS);
@@ -2709,7 +2727,7 @@ export class TrailDataServer {
           sessionId,
           commitHash,
           detectedAt: new Date().toISOString(),
-          matchConfidence: (matchConfidence ?? 'realtime') as import('@anytime-markdown/trail-core').MessageCommitMatchConfidence,
+          matchConfidence: (matchConfidence ?? 'realtime') as import('@anytime-markdown/trail-activity').MessageCommitMatchConfidence,
         });
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
@@ -2840,9 +2858,9 @@ export class TrailDataServer {
         const detailJson = typeof parsed['detailJson'] === 'string' ? parsed['detailJson'] : '{}';
         this.trailDb.recordEmergencyEvent({
           occurredAt: parsed['occurredAt'],
-          event: event as import('@anytime-markdown/trail-core').EmergencyEventKind,
+          event: event as import('@anytime-markdown/trail-activity').EmergencyEventKind,
           reason: typeof parsed['reason'] === 'string' ? parsed['reason'] : '',
-          actor: actor as import('@anytime-markdown/trail-core').EmergencyActor,
+          actor: actor as import('@anytime-markdown/trail-activity').EmergencyActor,
           sessionId: typeof parsed['sessionId'] === 'string' && parsed['sessionId'] !== '' ? parsed['sessionId'] : null,
           detailJson,
         });
@@ -2874,10 +2892,10 @@ export class TrailDataServer {
   /** transcript 読取の上限。超過時は集計せず最小行に縮退する（Stop フックの fail-open を保つ）。 */
   private static readonly FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES = 50 * 1024 * 1024;
 
-  /** flight record ストア。memoryDbPath 未注入・init 失敗時は明示エラー（暗黙の activity.db フォールバック禁止）。 */
+  /** flight record ストア。caravanDbPath 未注入・init 失敗時は明示エラー（暗黙の activity.db フォールバック禁止）。 */
   private requireFlightRecordDb(): FlightRecordDatabase {
     if (this.flightRecordDb === null) {
-      throw new Error('flight record store unavailable (memoryDbPath not configured or init failed)');
+      throw new Error('flight record store unavailable (caravanDbPath not configured or init failed)');
     }
     return this.flightRecordDb;
   }
@@ -2927,7 +2945,7 @@ export class TrailDataServer {
           if (assessment !== null) {
             flightDb.applySelfAssessmentToFlightReview(sessionId, assessment);
           }
-          // user_feedback_entries は activity.db 残留（移設対象は flight record 3 テーブルのみ）
+          // activity_user_feedback_entries は activity.db 残留（移設対象は flight record 3 テーブルのみ）
           const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
           const candidates = extractLessonCandidates({ lines, feedbackEntries });
           if (candidates.length > 0) {
@@ -3185,7 +3203,7 @@ export class TrailDataServer {
   /**
    * Flight Record のワークスペース選択肢（4 サブタブ共通）。
    *
-   * activity.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
+   * activity.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、trail-caravan-book 側は
    * 取込時に記録した repo_name。どちらもリポジトリ名なので同じ名前空間として統合する。
    * 片方の DB が読めなくても残りを返す（選択肢が空になると絞り込み自体ができなくなるため、
    * 部分的な結果でも出す）。
@@ -3200,9 +3218,9 @@ export class TrailDataServer {
       partial = true;
     }
     try {
-      for (const name of await this.memoryApi.listWorkspaces()) names.add(name);
+      for (const name of await this.caravanApi.listWorkspaces()) names.add(name);
     } catch (e) {
-      this.logger.error('handleListWorkspaces: memory-core side failed', e);
+      this.logger.error('handleListWorkspaces: trail-caravan-book side failed', e);
       partial = true;
     }
     res.writeHead(200, JSON_HEADERS);
@@ -3652,7 +3670,7 @@ export class TrailDataServer {
   }
 
   /** model / trailGraph を SQLite およびプロバイダから取得 */
-  private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-core/c4').C4Model; graph: import('@anytime-markdown/trail-core').TrailGraph } | null> {
+  private async resolveModelAndGraph(): Promise<{ model: import('@anytime-markdown/trail-activity/c4').C4Model; graph: import('@anytime-markdown/trail-activity').TrailGraph } | null> {
     const provider = this.getC4Provider?.();
     const repoName = this.defaultRepo();
 
@@ -3676,7 +3694,7 @@ export class TrailDataServer {
    * createSourceFile（typescript）は呼ばず、child へ渡すための内容収集のみ行う。
    */
   private readComponentSourceFiles(
-    graph: import('@anytime-markdown/trail-core').TrailGraph,
+    graph: import('@anytime-markdown/trail-activity').TrailGraph,
     nodeFilter: (nodeId: string) => boolean,
     logTag: string,
   ): C4SourceFileInput[] {
@@ -3822,7 +3840,7 @@ export class TrailDataServer {
         return;
       }
       const { model, graph } = resolved;
-      const { filterTrailGraphByElement } = await import('@anytime-markdown/trail-core/c4');
+      const { filterTrailGraphByElement } = await import('@anytime-markdown/trail-activity/c4');
       const out = filterTrailGraphByElement(graph, elementId, model);
       if (out.nodes.length === 0) {
         this.logger.warn(`[/api/c4/function-graph] empty result for elementId=${elementId}`);

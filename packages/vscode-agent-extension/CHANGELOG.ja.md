@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-08-09
+
+### 変更
+
+- 同梱スキルを更新した。`anytime-cross-review` に worktree 起動の実態と実在する検証手段を注記し、`anytime-analysis` / `anytime-impl-test-design` / `anytime-session-exit` も併せて更新した。
+- airspace バンドル導入・worktree 所有者判定・同梱スキル配線を `trail-core` → `trail-activity` のパッケージ改名へ追随させた。
+
 ## [1.14.1] - 2026-08-08
 
 ### 変更

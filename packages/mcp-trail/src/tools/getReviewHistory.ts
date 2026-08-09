@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { getReviewHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { ReviewHistoryEntry } from '@anytime-markdown/memory-core/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { getReviewHistory, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { ReviewHistoryEntry } from '@anytime-markdown/trail-caravan-book/query';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const GetReviewHistoryInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -16,7 +16,7 @@ export const GetReviewHistoryInputSchema = z.object({
 export type GetReviewHistoryInput = z.infer<typeof GetReviewHistoryInputSchema>;
 
 export async function handleGetReviewHistory(input: GetReviewHistoryInput): Promise<ReviewHistoryEntry[]> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return getReviewHistory({ db: memHandle.db, ...input, logger });

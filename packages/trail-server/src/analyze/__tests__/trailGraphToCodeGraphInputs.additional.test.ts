@@ -8,7 +8,7 @@
  * - docFiles が undefined のとき（line 48 の空ループ）
  * - stripExt が .mdx? 拡張子も除去する
  */
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
 import { trailGraphToCodeGraphInputs } from '../trailGraphToCodeGraphInputs';
 
 function fileNode(relPath: string) {

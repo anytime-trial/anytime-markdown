@@ -6,7 +6,7 @@
  * imperative DOM operations.
  */
 
-import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/c4';
 import { PanPhysics } from '../../../c4/canvas/PanPhysics';
 import type { ComplexityTier } from '../../../c4/components/panels/FunctionScatterPlot';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';

@@ -69,8 +69,8 @@ function main() {
   db.pragma('busy_timeout = 30000');
 
   const before = {
-    driftEvents: countRows(db, `SELECT COUNT(*) FROM memory_drift_events WHERE drift_type = ?`, [DRIFT_TYPE]),
-    edges: countRows(db, `SELECT COUNT(*) FROM memory_edges WHERE predicate = ?`, [PREDICATE]),
+    driftEvents: countRows(db, `SELECT COUNT(*) FROM caravan_drift_events WHERE drift_type = ?`, [DRIFT_TYPE]),
+    edges: countRows(db, `SELECT COUNT(*) FROM caravan_edges WHERE predicate = ?`, [PREDICATE]),
   };
 
   console.log(`[purge] db=${dbPath}`);
@@ -97,22 +97,22 @@ function main() {
   const deleted = db.transaction(() => {
     // FTS ミラーは外部コンテンツではなく rowid 手動同期なので、本体より先に消す。
     let fts = 0;
-    if (hasTable(db, 'memory_drift_events_fts')) {
+    if (hasTable(db, 'caravan_drift_events_fts')) {
       fts = db
         .prepare(
-          `DELETE FROM memory_drift_events_fts
-            WHERE rowid IN (SELECT rowid FROM memory_drift_events WHERE drift_type = ?)`,
+          `DELETE FROM caravan_drift_events_fts
+            WHERE rowid IN (SELECT rowid FROM caravan_drift_events WHERE drift_type = ?)`,
         )
         .run(DRIFT_TYPE).changes;
     }
-    const driftEvents = db.prepare(`DELETE FROM memory_drift_events WHERE drift_type = ?`).run(DRIFT_TYPE).changes;
-    const edges = db.prepare(`DELETE FROM memory_edges WHERE predicate = ?`).run(PREDICATE).changes;
+    const driftEvents = db.prepare(`DELETE FROM caravan_drift_events WHERE drift_type = ?`).run(DRIFT_TYPE).changes;
+    const edges = db.prepare(`DELETE FROM caravan_edges WHERE predicate = ?`).run(PREDICATE).changes;
     return { fts, driftEvents, edges };
   })();
 
   const after = {
-    driftEvents: countRows(db, `SELECT COUNT(*) FROM memory_drift_events WHERE drift_type = ?`, [DRIFT_TYPE]),
-    edges: countRows(db, `SELECT COUNT(*) FROM memory_edges WHERE predicate = ?`, [PREDICATE]),
+    driftEvents: countRows(db, `SELECT COUNT(*) FROM caravan_drift_events WHERE drift_type = ?`, [DRIFT_TYPE]),
+    edges: countRows(db, `SELECT COUNT(*) FROM caravan_edges WHERE predicate = ?`, [PREDICATE]),
   };
 
   console.log(`[purge] 削除: drift_events=${deleted.driftEvents} / fts=${deleted.fts} / edges=${deleted.edges}`);

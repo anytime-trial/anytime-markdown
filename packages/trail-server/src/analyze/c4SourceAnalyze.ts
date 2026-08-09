@@ -4,9 +4,9 @@ import {
   SequenceAnalyzer,
   createSourceFile,
   findFunctionNode,
-} from '@anytime-markdown/trail-core/analyzer';
-import type { C4Model } from '@anytime-markdown/trail-core/c4';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity/analyzer';
+import type { C4Model } from '@anytime-markdown/trail-activity/c4';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
 import type { C4SourceAnalyzeRequest, C4SourceAnalyzeResult } from './analyzeChildProtocol';
 
 const EMPTY_FLOW = { nodes: [], edges: [] };

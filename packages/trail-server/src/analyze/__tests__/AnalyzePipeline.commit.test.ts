@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import {
@@ -80,7 +80,7 @@ const TEST_REPO = 'anytime-markdown';
 
 const seedRepo = (db: TrailDatabase): void => {
   const raw = (db as unknown as { db: { run: (sql: string, p?: unknown[]) => void } }).db;
-  raw.run('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+  raw.run('INSERT OR IGNORE INTO activity_repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
     1,
     TEST_REPO,
     '2026-01-01T00:00:00.000Z',
@@ -90,7 +90,7 @@ const seedRepo = (db: TrailDatabase): void => {
 const insertRelease = (db: TrailDatabase, tag: string): void => {
   seedRepo(db);
   const raw = (db as unknown as { db: { run: (sql: string, p?: unknown[]) => void } }).db;
-  raw.run('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+  raw.run('INSERT OR IGNORE INTO activity_releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
     tag,
     '2026-01-01T00:00:00.000Z',
     1,
@@ -256,7 +256,7 @@ describe('runAnalyzeCommitCodePipeline', () => {
 
 describe('resolveGitRootForRepo', () => {
   // 保存先は repo が決めるのに解析対象は gitRoot が決めるため、検証せず primary を渡すと
-  // 別リポジトリ名で primary の断面が commit_code_graphs に残る。
+  // 別リポジトリ名で primary の断面が activity_commit_code_graphs に残る。
   it('picks the root whose basename matches the requested repo', () => {
     const roots = ['/work/anytime-markdown', '/work/anytime-trade'];
 

@@ -1,14 +1,14 @@
 ---
 name: anytime-trail-review
 effort: low
-description: コードレビュー結果を出力する際の Markdown 書式（memory-core ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象/観点の4メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
+description: コードレビュー結果を出力する際の Markdown 書式（trail-caravan-book ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象/観点の4メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
 ---
 
 # レビュー指摘の書式
 
 更新日: 2026-08-07
 
-コードレビュー結果を出力する際の Markdown 書式。`memory-core/src/ingest/review` パーサ（Route A: review .md doc / Route B: session 抽出 / Route C: agent review）がこの書式を前提に finding を抽出するため、**指摘を確実に Memory に蓄積したい場合は本書式に従う**こと。
+コードレビュー結果を出力する際の Markdown 書式。`trail-caravan-book/src/ingest/review` パーサ（Route A: review .md doc / Route B: session 抽出 / Route C: agent review）がこの書式を前提に finding を抽出するため、**指摘を確実に Memory に蓄積したい場合は本書式に従う**こと。
 
 ## 0. 最小要件（これだけは外さない）
 
@@ -20,7 +20,7 @@ description: コードレビュー結果を出力する際の Markdown 書式（
 | **太字なしの `問題:` だけ**で落ちている | 91 |
 | 見出しはあるがマーカーが無い | 229 |
 
-落ちた指摘は Flight Record に 1 件も残らず、`memory_reviews.summary` に「指摘なし（本文 5946 文字）」と出るだけになる。**本文を書いたのに指摘 0 件**という状態がそれ。
+落ちた指摘は Flight Record に 1 件も残らず、`caravan_reviews.summary` に「指摘なし（本文 5946 文字）」と出るだけになる。**本文を書いたのに指摘 0 件**という状態がそれ。
 
 外してはいけないのは次の 3 点だけ。
 
@@ -151,7 +151,7 @@ target_refs:               # 任意。レビュー対象パス
 カテゴリ・重大度はパーサが自動推論もするが、明示するほうが精度が高い。観点は推論されない（明示のみ。省略・不正値は未記録 null）。
 
 > [!IMPORTANT]
-> **対象は「見出し」ではなく機械が読む値**である。パーサは `- **対象**:` 行のバッククォート内（無ければ素の値）を `target_file_path` として採り、`trail.commit_files` に実在するリポジトリへ解決してから、レビュー後 30 日以内の修正コミットと突き合わせる（`memory-core/src/ingest/review/linkAddresses.ts`）。この 3 段のどこかで落ちると、その指摘は Flight Record の Review タブで永久に「判定対象外」になり、対処したかどうかを追跡できない。
+> **対象は「見出し」ではなく機械が読む値**である。パーサは `- **対象**:` 行のバッククォート内（無ければ素の値）を `target_file_path` として採り、`trail.activity_commit_files` に実在するリポジトリへ解決してから、レビュー後 30 日以内の修正コミットと突き合わせる（`trail-caravan-book/src/ingest/review/linkAddresses.ts`）。この 3 段のどこかで落ちると、その指摘は Flight Record の Review タブで永久に「判定対象外」になり、対処したかどうかを追跡できない。
 >
 > - **リポジトリに実在するパスを書く**。本文のコード例に出てくる架空のパス（`src/foo.ts` 等）は解決に失敗する（2026-08-06 実測: パスが記録されている 157 件のうち 83 件がリポジトリ未解決）
 > - **対象行を省略しない**。省略すると本文からの推測に落ち、その多くは NULL になる（同実測: 947 件中 790 件が対象欠落）
@@ -166,7 +166,7 @@ target_refs:               # 任意。レビュー対象パス
 
 - **重大度**: error
 - **カテゴリ**: logic
-- **対象**: `packages/<pkg>/src/components/MemoryPanel.tsx:<line>`
+- **対象**: `packages/<pkg>/src/components/CaravanPanel.tsx:<line>`
 - **観点**: §8
 
 **問題:**
@@ -191,12 +191,12 @@ const name = reader.session.user.name;
 
 - **重大度**: warn
 - **カテゴリ**: naming
-- **対象**: `packages/<pkg>/src/components/memory/ReviewPanel.tsx:<line>`
+- **対象**: `packages/<pkg>/src/components/caravan/ReviewPanel.tsx:<line>`
 - **観点**: §17
 
 **問題:**
 
-`t('memory.review.openInMessages')` を呼んでいるが、`i18n/types.ts` に定義がない。
+`t('caravan.review.openInMessages')` を呼んでいるが、`i18n/types.ts` に定義がない。
 ビルドエラーにはならないが、表示時に key 文字列がそのまま出る。
 
 **提案:**
@@ -274,7 +274,7 @@ const name = reader.session.user.name;
 - 出力の冒頭または末尾に `## レビュー指摘事項` を必ず含める
 - 番号付き `### N. <title>` 形式を使う（heading + metadata + マーカーペア）
 
-session 抽出は trail.messages の `text_content` 全体に対して `splitIntoChapters` を実行するため、`##` セクション分割が効く。
+session 抽出は trail.activity_messages の `text_content` 全体に対して `splitIntoChapters` を実行するため、`##` セクション分割が効く。
 
 ## 7. チェックリスト
 
@@ -300,7 +300,7 @@ session 抽出は trail.messages の `text_content` 全体に対して `splitInt
 
 既存の review .md で本書式に従っていないものは、書き直すか、書式変換スクリプトで `**問題:**` / `**提案:**` ペアに置換する。
 
-session レビュー（subagent 出力）は activity.db のメッセージが正本で書き直せないため、**取り込み後に LLM で本文から指摘を再抽出する**救済経路がある（`runReviewFindingExtraction`）。抽出した finding は `memory_review_findings.extracted_by` に抽出元（`llm:<model>`）が入るので、書式準拠で取り込まれた finding（空文字）と区別できる。
+session レビュー（subagent 出力）は activity.db のメッセージが正本で書き直せないため、**取り込み後に LLM で本文から指摘を再抽出する**救済経路がある（`runReviewFindingExtraction`）。抽出した finding は `caravan_review_findings.extracted_by` に抽出元（`llm:<model>`）が入るので、書式準拠で取り込まれた finding（空文字）と区別できる。
 
 > [!IMPORTANT]
 > LLM 再抽出は救済であって代替ではない。本文に無い内容を作らないよう抽出結果は原文との一致を検査してから登録するが、重大度・対象パスの精度は書式準拠の指摘に劣る。**書式を守るほうが常に精度が高い。**

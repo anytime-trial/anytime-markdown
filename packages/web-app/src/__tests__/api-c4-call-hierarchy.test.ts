@@ -20,7 +20,7 @@ jest.mock('@supabase/supabase-js', () => ({
   createClient: mockCreateClient,
 }));
 
-jest.mock('@anytime-markdown/trail-core/c4/callHierarchy', () => ({
+jest.mock('@anytime-markdown/trail-activity/c4/callHierarchy', () => ({
   buildCallHierarchyNodeFilter: mockBuildCallHierarchyNodeFilter,
   buildIndex: mockBuildCallHierarchyIndex,
   traverse: mockTraverseCallHierarchy,

@@ -2,7 +2,7 @@
 /**
  * anytime-dev-retro: 決定論的 grounding。
  *
- * Trail の 3DB(memory-core / doc-core / trail)を read-only で集計し、開発健全性の
+ * Trail の 3DB(trail-caravan-book / markdown-catalog / trail)を read-only で集計し、開発健全性の
  * signals snapshot を JSON で **stdout に出力** する。LLM 非依存・MCP 非依存(node:sqlite)
  * なので headless `claude -p` / cron でも完走する。
  *
@@ -103,16 +103,16 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   // コスト(モデル別・全期間累積)
   const cost = rows(q(db, `SELECT model, COUNT(*) sessions, ROUND(SUM(estimated_cost_usd),2) cost,
        SUM(cache_read_tokens) cache_read, SUM(input_tokens) input
-     FROM session_costs GROUP BY model ORDER BY cost DESC`));
+     FROM activity_session_costs GROUP BY model ORDER BY cost DESC`));
   snapshot.cost = summarizeCost(cost);
 
   // コスト(直近 30 日ウィンドウ)。opusCostSharePct/cacheReadSharePct/sessionsOver1000Msgs は
   // 全期間累積では単調増加し「増加=悪化」判定が構造的に偽陽性を出すため、真のデルタは本ウィンドウ値で見る。
-  // session_costs に日時列は無いため sessions.start_time で窓を切る(start_time 空/NULL のセッションは窓外扱い)。
+  // activity_session_costs に日時列は無いため sessions.start_time で窓を切る(start_time 空/NULL のセッションは窓外扱い)。
   // WINDOW_DAYS は数値定数のためテンプレート埋め込みでも SQL インジェクション懸念なし
   const costW = rows(q(db, `SELECT sc.model, COUNT(*) sessions, ROUND(SUM(sc.estimated_cost_usd),2) cost,
        SUM(sc.cache_read_tokens) cache_read, SUM(sc.input_tokens) input
-     FROM session_costs sc JOIN sessions s ON s.id = sc.session_id
+     FROM activity_session_costs sc JOIN activity_sessions s ON s.id = sc.session_id
      WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
      GROUP BY sc.model ORDER BY cost DESC`));
   const wCost = summarizeCost(costW);
@@ -124,7 +124,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     // 累積 sessionsOver1000Msgs と同じ算定方法(messages GROUP BY)を窓内に限定して整合させる
     sessionsOver1000Msgs: num(
       q(db, `SELECT COUNT(*) c FROM (
-               SELECT m.session_id FROM messages m JOIN sessions s ON s.id = m.session_id
+               SELECT m.session_id FROM activity_messages m JOIN activity_sessions s ON s.id = m.session_id
                WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
                GROUP BY m.session_id HAVING COUNT(*) > 1000)`),
       'c',
@@ -144,7 +144,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       db,
       `SELECT NULLIF(m.model,'') model,
               COUNT(*) assistantMsgs, ROUND(AVG(m.output_tokens)) avgOutputTokens
-       FROM messages m JOIN sessions s ON s.id = m.session_id
+       FROM activity_messages m JOIN activity_sessions s ON s.id = m.session_id
        WHERE m.type = 'assistant' AND m.model IS NOT NULL AND m.model != ''
          AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
        GROUP BY 1`,
@@ -158,7 +158,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       `SELECT NULLIF(mtc.model,'') model, COUNT(*) toolCalls,
               ROUND(100.0*SUM(mtc.is_error)/COUNT(*),1) toolErrorRatePct,
               ROUND(AVG(mtc.turn_exec_ms)) avgTurnExecMs
-       FROM message_tool_calls mtc JOIN sessions s ON s.id = mtc.session_id
+       FROM activity_message_tool_calls mtc JOIN activity_sessions s ON s.id = mtc.session_id
        WHERE mtc.model IS NOT NULL AND mtc.model != ''
          AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
        GROUP BY 1`,
@@ -197,11 +197,11 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
 
   // 活動
   snapshot.activity = {
-    sessions: num(q(db, 'SELECT COUNT(*) c FROM sessions'), 'c'),
-    messagesLast7d: num(q(db, "SELECT COUNT(*) c FROM messages WHERE timestamp >= datetime('now','-7 days')"), 'c'),
-    commitsLast7d: num(q(db, "SELECT COUNT(*) c FROM session_commits WHERE committed_at >= datetime('now','-7 days')"), 'c'),
+    sessions: num(q(db, 'SELECT COUNT(*) c FROM activity_sessions'), 'c'),
+    messagesLast7d: num(q(db, "SELECT COUNT(*) c FROM activity_messages WHERE timestamp >= datetime('now','-7 days')"), 'c'),
+    commitsLast7d: num(q(db, "SELECT COUNT(*) c FROM activity_session_commits WHERE committed_at >= datetime('now','-7 days')"), 'c'),
     sessionsOver1000Msgs: num(
-      q(db, 'SELECT COUNT(*) c FROM (SELECT session_id FROM messages GROUP BY session_id HAVING COUNT(*) > 1000)'),
+      q(db, 'SELECT COUNT(*) c FROM (SELECT session_id FROM activity_messages GROUP BY session_id HAVING COUNT(*) > 1000)'),
       'c',
     ),
   };
@@ -209,10 +209,10 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   // hotspot(認知的複雑度 top・規約 cc<=15)
   snapshot.hotspots = rows(
     q(db, `SELECT file_path, function_name, cognitive_complexity cc
-           FROM current_function_analysis ORDER BY cognitive_complexity DESC LIMIT 10`),
+           FROM activity_current_function_analysis ORDER BY cognitive_complexity DESC LIMIT 10`),
   ).map((r) => ({ file: r.file_path, fn: r.function_name, cc: r.cc }));
   snapshot.hotspotOver15 = num(
-    q(db, 'SELECT COUNT(*) c FROM current_function_analysis WHERE cognitive_complexity > 15'),
+    q(db, 'SELECT COUNT(*) c FROM activity_current_function_analysis WHERE cognitive_complexity > 15'),
     'c',
   );
 
@@ -224,35 +224,35 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   const { db, error } = open('caravan-book.db');
   if (error) snapshot.errors.push(error);
 
-  const bugFixes = num(q(db, 'SELECT COUNT(*) c FROM memory_bug_fixes'), 'c');
-  const reviewFindings = num(q(db, 'SELECT COUNT(*) c FROM memory_review_findings'), 'c');
+  const bugFixes = num(q(db, 'SELECT COUNT(*) c FROM caravan_bug_fixes'), 'c');
+  const reviewFindings = num(q(db, 'SELECT COUNT(*) c FROM caravan_review_findings'), 'c');
   snapshot.quality = {
     bugFixes,
     reviewFindings,
     bugToReviewRatio: reviewFindings > 0 ? Math.round((bugFixes / reviewFindings) * 10) / 10 : null,
-    findingsBySeverity: rows(q(db, 'SELECT severity, COUNT(*) c FROM memory_review_findings GROUP BY severity')),
-    addressedFindings: num(q(db, 'SELECT COUNT(*) c FROM memory_review_findings WHERE addressed_commit_sha IS NOT NULL'), 'c'),
-    unaddressedFindings: num(q(db, 'SELECT COUNT(*) c FROM memory_review_findings WHERE addressed_commit_sha IS NULL'), 'c'),
-    reviewsTotal: num(q(db, 'SELECT COUNT(*) c FROM memory_reviews'), 'c'),
-    reviewerEmpty: num(q(db, "SELECT COUNT(*) c FROM memory_reviews WHERE reviewer = '' OR reviewer IS NULL"), 'c'),
+    findingsBySeverity: rows(q(db, 'SELECT severity, COUNT(*) c FROM caravan_review_findings GROUP BY severity')),
+    addressedFindings: num(q(db, 'SELECT COUNT(*) c FROM caravan_review_findings WHERE addressed_commit_sha IS NOT NULL'), 'c'),
+    unaddressedFindings: num(q(db, 'SELECT COUNT(*) c FROM caravan_review_findings WHERE addressed_commit_sha IS NULL'), 'c'),
+    reviewsTotal: num(q(db, 'SELECT COUNT(*) c FROM caravan_reviews'), 'c'),
+    reviewerEmpty: num(q(db, "SELECT COUNT(*) c FROM caravan_reviews WHERE reviewer = '' OR reviewer IS NULL"), 'c'),
     topBugFiles: rows(
-      q(db, `SELECT json_each.value file, COUNT(*) c FROM memory_bug_fixes, json_each(affected_file_paths_json)
+      q(db, `SELECT json_each.value file, COUNT(*) c FROM caravan_bug_fixes, json_each(affected_file_paths_json)
              GROUP BY 1 ORDER BY c DESC LIMIT 8`),
     ).map((r) => ({ file: r.file, count: r.c })),
     // 観点キー (P2): checklist_ref='none' はチェックリスト該当章なし＝観点の穴の候補。
     // カテゴリ×パッケージで束ね 2 件以上を昇格候補クラスタとして掲載する。
-    // 列は memory-core migration 015 で追加。未マイグレーション DB では null（測定不能）。
-    ...(num(q(db, "SELECT COUNT(*) c FROM pragma_table_info('memory_review_findings') WHERE name = 'checklist_ref'"), 'c') > 0
+    // 列は trail-caravan-book migration 015 で追加。未マイグレーション DB では null（測定不能）。
+    ...(num(q(db, "SELECT COUNT(*) c FROM pragma_table_info('caravan_review_findings') WHERE name = 'checklist_ref'"), 'c') > 0
       ? {
-          checklistNone: num(q(db, "SELECT COUNT(*) c FROM memory_review_findings WHERE checklist_ref = 'none'"), 'c'),
-          checklistRefRecorded: num(q(db, 'SELECT COUNT(*) c FROM memory_review_findings WHERE checklist_ref IS NOT NULL'), 'c'),
+          checklistNone: num(q(db, "SELECT COUNT(*) c FROM caravan_review_findings WHERE checklist_ref = 'none'"), 'c'),
+          checklistRefRecorded: num(q(db, 'SELECT COUNT(*) c FROM caravan_review_findings WHERE checklist_ref IS NOT NULL'), 'c'),
           checklistNoneClusters: rows(
             q(db, `SELECT category,
                      CASE WHEN target_file_path GLOB 'packages/*/*'
                           THEN substr(target_file_path, 10, instr(substr(target_file_path, 10), '/') - 1)
                           ELSE '(unknown)' END pkg,
                      COUNT(*) c
-                   FROM memory_review_findings
+                   FROM caravan_review_findings
                    WHERE checklist_ref = 'none'
                    GROUP BY category, pkg
                    HAVING c >= 2
@@ -262,7 +262,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
           // （デルタで減らない章は書き方の見直し対象）に使う。累積でなく窓値。
           checklistByRef30d: rows(
             q(db, `SELECT checklist_ref, COUNT(*) c
-                   FROM memory_review_findings
+                   FROM caravan_review_findings
                    WHERE checklist_ref IS NOT NULL AND checklist_ref != 'none'
                      AND recorded_at >= datetime('now', '-30 days')
                    GROUP BY checklist_ref
@@ -278,9 +278,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   };
 
   snapshot.drift = {
-    total: num(q(db, 'SELECT COUNT(*) c FROM memory_drift_events'), 'c'),
-    unresolved: num(q(db, 'SELECT COUNT(*) c FROM memory_drift_events WHERE resolved_at IS NULL'), 'c'),
-    byType: rows(q(db, 'SELECT drift_type, COUNT(*) c FROM memory_drift_events GROUP BY drift_type ORDER BY c DESC')),
+    total: num(q(db, 'SELECT COUNT(*) c FROM caravan_drift_events'), 'c'),
+    unresolved: num(q(db, 'SELECT COUNT(*) c FROM caravan_drift_events WHERE resolved_at IS NULL'), 'c'),
+    byType: rows(q(db, 'SELECT drift_type, COUNT(*) c FROM caravan_drift_events GROUP BY drift_type ORDER BY c DESC')),
   };
 
   if (db) db.close();
@@ -291,15 +291,15 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   const { db, error } = open(resolveDocDbPath());
   if (error) snapshot.errors.push(error);
 
-  const docs = num(q(db, 'SELECT COUNT(*) c FROM doc'), 'c');
-  const embeddings = num(q(db, 'SELECT COUNT(*) c FROM doc_embedding'), 'c');
+  const docs = num(q(db, 'SELECT COUNT(*) c FROM catalog_doc'), 'c');
+  const embeddings = num(q(db, 'SELECT COUNT(*) c FROM catalog_doc_embedding'), 'c');
   snapshot.docCore = {
     docs,
-    relations: num(q(db, 'SELECT COUNT(*) c FROM doc_relation'), 'c'),
+    relations: num(q(db, 'SELECT COUNT(*) c FROM catalog_doc_relation'), 'c'),
     embeddings,
     embeddingCoveragePct: pct(embeddings, docs),
     orphanDocs: num(
-      q(db, 'SELECT COUNT(*) c FROM doc WHERE path NOT IN (SELECT from_path FROM doc_relation UNION SELECT to_path FROM doc_relation)'),
+      q(db, 'SELECT COUNT(*) c FROM catalog_doc WHERE path NOT IN (SELECT from_path FROM catalog_doc_relation UNION SELECT to_path FROM catalog_doc_relation)'),
       'c',
     ),
   };
@@ -307,8 +307,8 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
-// ── caravan-book.db / activity.db(未移行): Flight Record(運航記録・指示台帳) ────────
-// flight_reviews / instructions / instruction_sessions は 2026-08-07 に activity.db から
+// ── caravan-book.db / activity.db(未移行): Flight Record(実行記録・指示台帳) ────────
+// caravan_flight_reviews / instructions / caravan_instruction_sessions は 2026-08-07 に activity.db から
 // caravan-book.db へ移設した。移行前の DB(旧拡張・バックフィル未実行)では activity.db 側に
 // 残るため、テーブル実在で読み先を選ぶ。どちらにも無ければ null(測定不能。0 と区別する)。
 {
@@ -326,12 +326,12 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   };
   // 読み先は「テーブル実在」でなく**行数**で選ぶ。FlightRecordDatabase.ensureTables は
   // 空テーブルを常に作るため、実在判定だと移行未完了（行は trail 側に残存）の DB で
-  // 空の memory-core 側を読み、0 件を測定不能でなく実測 0 として出してしまう。
+  // 空の trail-caravan-book 側を読み、0 件を測定不能でなく実測 0 として出してしまう。
   const countRows = (db, table) =>
     hasTable(db, table) ? Number(one(q(db, `SELECT COUNT(*) c FROM ${table}`))?.c ?? 0) : 0;
-  const memoFr = countRows(memo.db, 'flight_reviews');
+  const memoFr = countRows(memo.db, 'caravan_flight_reviews');
   const memoIns = countRows(memo.db, 'instructions');
-  const trailFr = countRows(openTrail(), 'flight_reviews');
+  const trailFr = countRows(openTrail(), 'caravan_flight_reviews');
   const trailIns = countRows(trailOpened?.db ?? null, 'instructions');
   let frDb = null;
   let frSource = null;
@@ -343,20 +343,20 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       frSource = 'both(migration incomplete)';
       residualTrail = { flightReviews: trailFr, instructions: trailIns };
     } else {
-      frSource = 'memory-core';
+      frSource = 'trail-caravan-book';
     }
   } else if (trailFr + trailIns > 0) {
     frDb = trailOpened.db;
     frSource = 'trail(pre-migration)';
-  } else if (hasTable(memo.db, 'flight_reviews')) {
+  } else if (hasTable(memo.db, 'caravan_flight_reviews')) {
     frDb = memo.db;
-    frSource = 'memory-core(empty)';
+    frSource = 'trail-caravan-book(empty)';
   }
   if (frDb === null) {
     snapshot.flightRecord = null;
   } else {
     const outcomeRows = rows(
-      q(frDb, `SELECT outcome, COUNT(*) c FROM flight_reviews
+      q(frDb, `SELECT outcome, COUNT(*) c FROM caravan_flight_reviews
                WHERE ended_at >= datetime('now','-${WINDOW_DAYS} days') GROUP BY outcome`),
     );
     const outcomes = { achieved: 0, partial: 0, unachieved: 0, unknown: 0 };
@@ -368,7 +368,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
                  SUM(CASE WHEN outcome_source != 'machine' THEN 1 ELSE 0 END) assessed,
                  SUM(CASE WHEN lesson_candidates != '[]' THEN 1 ELSE 0 END) lessonReviews,
                  SUM(CASE WHEN unresolved_items != '[]' THEN 1 ELSE 0 END) unresolvedReviews
-               FROM flight_reviews WHERE ended_at >= datetime('now','-${WINDOW_DAYS} days')`),
+               FROM caravan_flight_reviews WHERE ended_at >= datetime('now','-${WINDOW_DAYS} days')`),
     ) ?? {};
     const total = agg.total ?? 0;
     const instr = one(
@@ -378,20 +378,20 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
                  SUM(CASE WHEN closed_at IS NULL THEN 1 ELSE 0 END) openTotal,
                  SUM(CASE WHEN closed_at IS NULL AND started_at < datetime('now','-7 days') THEN 1 ELSE 0 END) openOver7d,
                  COUNT(*) declaredTotal
-               FROM instructions`),
+               FROM caravan_instructions`),
     ) ?? {};
     const sessionsPer = one(
       q(frDb, `SELECT ROUND(AVG(cnt), 1) avgSessions,
                  SUM(CASE WHEN cnt > 1 THEN 1 ELSE 0 END) multiSession
-               FROM (SELECT COUNT(*) cnt FROM instruction_sessions GROUP BY instruction_id)`),
+               FROM (SELECT COUNT(*) cnt FROM caravan_instruction_sessions GROUP BY instruction_id)`),
     ) ?? {};
-    // 指示単位コスト: instruction_sessions(移設先) × trail.session_costs(activity.db 残留)を
+    // 指示単位コスト: caravan_instruction_sessions(移設先) × trail.activity_session_costs(activity.db 残留)を
     // JS 側で突合する(ATTACH 非依存。読み先が trail 側でも同一コードで動く)。
     // 対象は直近 30 日に開始した指示のみ。
     let topInstructionsByCost = [];
     const links = rows(
       q(frDb, `SELECT s.instruction_id id, s.session_id sid, i.summary summary
-               FROM instruction_sessions s JOIN instructions i ON i.id = s.instruction_id
+               FROM caravan_instruction_sessions s JOIN caravan_instructions i ON i.id = s.instruction_id
                WHERE i.started_at >= datetime('now','-${WINDOW_DAYS} days')`),
     );
     const costDb = openTrail();
@@ -399,7 +399,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       const ids = [...new Set(links.map((l) => l.sid))];
       const placeholders = ids.map(() => '?').join(', ');
       const costRows = rows(
-        q(costDb, `SELECT session_id, SUM(estimated_cost_usd) c FROM session_costs
+        q(costDb, `SELECT session_id, SUM(estimated_cost_usd) c FROM activity_session_costs
                    WHERE session_id IN (${placeholders}) GROUP BY session_id`, ids),
       );
       const costBySession = new Map(costRows.map((r) => [r.session_id, r.c ?? 0]));
@@ -464,16 +464,16 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   const trailOpened = open('activity.db');
   if (trailOpened.error) snapshot.errors.push(trailOpened.error);
   // 読み先は flight record と同じく**行数**で選ぶ（空テーブルが常に作られるため実在判定では選べない）
-  const memoCount = countRows(memo.db, 'doctrine_judgments');
-  const trailCount = countRows(trailOpened.db, 'doctrine_judgments');
-  const djDb = memoCount > 0 ? memo.db : trailCount > 0 ? trailOpened.db : hasTable(memo.db, 'doctrine_judgments') ? memo.db : null;
-  const djSource = memoCount > 0 ? (trailCount > 0 ? 'both(migration incomplete)' : 'memory-core')
+  const memoCount = countRows(memo.db, 'caravan_doctrine_judgments');
+  const trailCount = countRows(trailOpened.db, 'caravan_doctrine_judgments');
+  const djDb = memoCount > 0 ? memo.db : trailCount > 0 ? trailOpened.db : hasTable(memo.db, 'caravan_doctrine_judgments') ? memo.db : null;
+  const djSource = memoCount > 0 ? (trailCount > 0 ? 'both(migration incomplete)' : 'trail-caravan-book')
     : trailCount > 0 ? 'trail(pre-migration)'
-      : djDb != null ? 'memory-core(empty)' : null;
+      : djDb != null ? 'trail-caravan-book(empty)' : null;
 
   if (djDb === null) {
     snapshot.doctrineGap = null;
-  } else if (!rows(q(djDb, `PRAGMA table_info(doctrine_judgments)`)).some((c) => c.name === 'underspecified_points_json')) {
+  } else if (!rows(q(djDb, `PRAGMA table_info(caravan_doctrine_judgments)`)).some((c) => c.name === 'underspecified_points_json')) {
     // DCT-14 未マイグレーション。0 件ではなく**測定不能**として出す
     snapshot.doctrineGap = { source: djSource, available: false, reason: 'underspecified_points_json 列が無い(DCT-14 未マイグレーション)' };
   } else {
@@ -482,7 +482,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     const SINCE = '2026-08-07';
     const all = rows(
       q(djDb, `SELECT id, session_id, subject, agent_judgment, human_decision, judged_at, underspecified_points_json points
-               FROM doctrine_judgments WHERE judged_at >= ? ORDER BY judged_at DESC`, [SINCE]),
+               FROM caravan_doctrine_judgments WHERE judged_at >= ? ORDER BY judged_at DESC`, [SINCE]),
     );
     // 申告の 3 状態。破損を空にも非空にも倒さない（[[metric-conflates-causes-with-different-remedies]]）
     const declarationOf = (raw) => {
@@ -504,10 +504,10 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     };
     // 指示の全文は同一 DB の instructions から引く（無ければ undeclared へ縮退）
     const promptBySession = new Map();
-    if (hasTable(djDb, 'instruction_sessions') && hasTable(djDb, 'instructions')) {
+    if (hasTable(djDb, 'caravan_instruction_sessions') && hasTable(djDb, 'caravan_instructions')) {
       for (const r of rows(
         q(djDb, `SELECT s.session_id sid, i.origin_prompt prompt, i.summary summary
-                 FROM instruction_sessions s JOIN instructions i ON i.id = s.instruction_id`),
+                 FROM caravan_instruction_sessions s JOIN caravan_instructions i ON i.id = s.instruction_id`),
       )) {
         promptBySession.set(r.sid, { prompt: r.prompt, summary: r.summary });
       }
@@ -659,14 +659,14 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     const { db, error } = open('activity.db');
     if (error) snapshot.errors.push(error);
     const usage = rows(
-      q(db, `SELECT skill, COUNT(*) n FROM messages
+      q(db, `SELECT skill, COUNT(*) n FROM activity_messages
              WHERE skill IS NOT NULL AND skill != '' AND timestamp >= datetime('now','-30 days')
              GROUP BY skill ORDER BY n DESC`),
     );
     // 前 30 日窓(60〜30 日前)。版数バンプ(改訂)後に発火が減ったかを 2 窓比較で判定する材料
     // (proposal/20260716-prompt-feedback-loops)。判定自体は SKILL.md §2 のデルタ比較が行う。
     const usagePrev = rows(
-      q(db, `SELECT skill, COUNT(*) n FROM messages
+      q(db, `SELECT skill, COUNT(*) n FROM activity_messages
              WHERE skill IS NOT NULL AND skill != ''
                AND timestamp >= datetime('now','-60 days') AND timestamp < datetime('now','-30 days')
              GROUP BY skill`),

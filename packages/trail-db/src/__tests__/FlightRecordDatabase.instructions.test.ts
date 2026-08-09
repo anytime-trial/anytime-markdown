@@ -1,4 +1,4 @@
-// Flight Record: 指示台帳（instructions / instruction_sessions）と指示単位の一覧の外部仕様。
+// Flight Record: 指示台帳（instructions / caravan_instruction_sessions）と指示単位の一覧の外部仕様。
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -8,8 +8,8 @@ import { createTestFlightRecordDatabase } from './support/createTestFlightRecord
 import type { FlightRecordTestContext } from './support/createTestFlightRecordDb';
 import type { FlightRecordDatabase } from '../FlightRecordDatabase';
 
-// セッション由来テーブル（sessions / repos / session_costs / session_commits / commit_files /
-// messages / verification_runs）は activity.db 側に残るため、生 SQL は ctx.trailRun で流す。
+// セッション由来テーブル（sessions / repos / activity_session_costs / activity_session_commits / activity_commit_files /
+// messages / activity_verification_runs）は activity.db 側に残るため、生 SQL は ctx.trailRun で流す。
 function rawRun(ctx: FlightRecordTestContext, sql: string, params: unknown[] = []): void {
   ctx.trailRun(sql, params);
 }
@@ -144,12 +144,12 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
   });
 
   describe('指示単位の一覧', () => {
-    // 検証実行（activity.db の verification_runs）は session_id だけで指示へ畳む。宣言済みでも
+    // 検証実行（activity.db の activity_verification_runs）は session_id だけで指示へ畳む。宣言済みでも
     // 暗黙グループでも同じキーで引けることが、指示タブの検証列の前提。
     function insertRun(sessionId: string, kind: string, overrides: Record<string, string | number | null> = {}) {
       rawRun(
         ctx,
-        `INSERT INTO verification_runs
+        `INSERT INTO activity_verification_runs
          (session_id, workspace_path, kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, environment, started_at, finished_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -216,7 +216,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
     });
 
     describe('ワークスペース名', () => {
-      // flight_reviews.workspace_path はセッションの cwd 由来で、ワークスペース直下とは
+      // caravan_flight_reviews.workspace_path はセッションの cwd 由来で、ワークスペース直下とは
       // 限らない（実測: /anytime-markdown/.anytime/trail/db → 基準名が 'db' になる）
       let wsRoot: string;
 
@@ -268,7 +268,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
 
     describe('ワークスペース名はセッションのリポジトリ名を正本にする', () => {
       // worktree の `.git` は**ファイル**として実在するため、パスを遡る解決は worktree で
-      // 止まり `anytime-markdown` ではなく worktree 名を返す。memory-core 側（バグ・レビュー・
+      // 止まり `anytime-markdown` ではなく worktree 名を返す。trail-caravan-book 側（バグ・レビュー・
       // 乖離）は repos.repo_name を書いているので、この差のままだと同じワークスペースを指す
       // 2 つの名前が並び、片方のタブが必ず 0 件になる。
       let wsRoot: string;
@@ -288,13 +288,13 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
       });
 
       function registerSession(sessionId: string, repoName: string): void {
-        rawRun(ctx, 'INSERT OR IGNORE INTO repos (repo_name, created_at) VALUES (?, ?)', [
+        rawRun(ctx, 'INSERT OR IGNORE INTO activity_repos (repo_name, created_at) VALUES (?, ?)', [
           repoName,
           '2026-08-05T00:00:00.000Z',
         ]);
         rawRun(
           ctx,
-          `INSERT INTO sessions (id, repo_id) VALUES (?, (SELECT repo_id FROM repos WHERE repo_name = ?))`,
+          `INSERT INTO activity_sessions (id, repo_id) VALUES (?, (SELECT repo_id FROM activity_repos WHERE repo_name = ?))`,
           [sessionId, repoName],
         );
       }
@@ -508,15 +508,15 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
   });
 
   describe('トークン消費', () => {
-    it('所属セッションの session_costs をモデル別に合算する', () => {
+    it('所属セッションの activity_session_costs をモデル別に合算する', () => {
       db.upsertFlightReviewFromMachine(machineInput('s1', '2026-08-05T01:00:00.000Z'));
       db.upsertFlightReviewFromMachine(machineInput('s2', '2026-08-05T04:00:00.000Z'));
       db.openInstruction(openInput('inst-1', 's1'));
       db.continueInstruction({ instructionId: 'inst-1', sessionId: 's2', declaredAt: '2026-08-05T02:00:00.000Z' });
-      rawRun(ctx, `INSERT INTO sessions (id) VALUES ('s1'), ('s2')`);
+      rawRun(ctx, `INSERT INTO activity_sessions (id) VALUES ('s1'), ('s2')`);
       rawRun(
         ctx,
-        `INSERT INTO session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
+        `INSERT INTO activity_session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
          VALUES ('s1', 'opus', 100, 200, 300, 400, 1.5), ('s2', 'opus', 10, 20, 30, 40, 0.5)`,
       );
 
@@ -528,7 +528,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
       expect(record?.tokenUsage.byModel).toHaveLength(1);
     });
 
-    it('session_costs が無いセッションは imported=false（0 と区別する）', () => {
+    it('activity_session_costs が無いセッションは imported=false（0 と区別する）', () => {
       db.upsertFlightReviewFromMachine(machineInput('s1', '2026-08-05T01:00:00.000Z'));
 
       const record = db.listInstructionRecords()[0];
@@ -544,14 +544,14 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
       // repo_id=1 決め打ち INSERT（repos 行を用意しない）が通っていた。挙動を揃えるため合わせる。
       rawRun(ctx, `PRAGMA foreign_keys = OFF`);
       db.upsertFlightReviewFromMachine(machineInput('s1', '2026-08-05T01:00:00.000Z'));
-      rawRun(ctx, `INSERT INTO sessions (id) VALUES ('s1')`);
+      rawRun(ctx, `INSERT INTO activity_sessions (id) VALUES ('s1')`);
     });
 
     it('コミット済みは .md をドキュメント、それ以外をコードに分ける', () => {
-      rawRun(ctx, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
+      rawRun(ctx, `INSERT INTO activity_session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
       rawRun(
         ctx,
-        `INSERT INTO commit_files (commit_hash, file_path, repo_id)
+        `INSERT INTO activity_commit_files (commit_hash, file_path, repo_id)
          VALUES ('abc1234567', 'spec/a.md', 1), ('abc1234567', 'src/b.ts', 1)`,
       );
 
@@ -567,7 +567,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
     it('未コミットのドキュメントを Write / Edit の記録から拾う', () => {
       rawRun(
         ctx,
-        `INSERT INTO messages (uuid, session_id, type, tool_calls)
+        `INSERT INTO activity_messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"/ws/spec/new.md"}}]')`,
       );
 
@@ -580,7 +580,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
     it('serena / mcp-markdown 経由の未コミット編集も拾う（file_path 列には残らないため）', () => {
       rawRun(
         ctx,
-        `INSERT INTO messages (uuid, session_id, type, tool_calls)
+        `INSERT INTO activity_messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"mcp__serena__replace_content","input":{"relative_path":"docs/x.md"}}]'),
                 ('m2', 's1', 'assistant', '[{"name":"mcp__mcp-markdown__update_section","input":{"path":"docs/y.md"}}]')`,
       );
@@ -593,7 +593,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
     it('未コミットのコード編集は成果物に含めない（コードはコミット済みのみ）', () => {
       rawRun(
         ctx,
-        `INSERT INTO messages (uuid, session_id, type, tool_calls)
+        `INSERT INTO activity_messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Edit","input":{"file_path":"src/draft.ts"}}]')`,
       );
 
@@ -602,11 +602,11 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
     });
 
     it('同一パスがコミット済みと未コミットの双方にあればコミット済みを採る', () => {
-      rawRun(ctx, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
-      rawRun(ctx, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
+      rawRun(ctx, `INSERT INTO activity_session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
+      rawRun(ctx, `INSERT INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
       rawRun(
         ctx,
-        `INSERT INTO messages (uuid, session_id, type, tool_calls)
+        `INSERT INTO activity_messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"spec/a.md"}}]')`,
       );
 
@@ -617,11 +617,11 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
 
     it('コミットの相対パスとツール呼出の絶対パスが同じファイルなら 1 件に畳む', () => {
       // 実データではコミット側が repo 相対、ツール呼出側が絶対パスで残る
-      rawRun(ctx, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
-      rawRun(ctx, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
+      rawRun(ctx, `INSERT INTO activity_session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
+      rawRun(ctx, `INSERT INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
       rawRun(
         ctx,
-        `INSERT INTO messages (uuid, session_id, type, tool_calls)
+        `INSERT INTO activity_messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"/Shared/anytime-markdown-docs/spec/a.md"}}]')`,
       );
 
@@ -633,7 +633,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
     it('壊れた tool_calls の行があっても他の成果物を落とさない', () => {
       rawRun(
         ctx,
-        `INSERT INTO messages (uuid, session_id, type, tool_calls)
+        `INSERT INTO activity_messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', 'not json'),
                 ('m2', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"spec/ok.md"}}]')`,
       );

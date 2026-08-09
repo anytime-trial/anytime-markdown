@@ -4,10 +4,10 @@ import type { FlightRecordDatabase } from '../FlightRecordDatabase';
 
 const TS = '2026-07-17T10:00:00.000Z';
 
-// flight_reviews は caravan-book.db 側（FlightRecordDatabase が主接続として持つ）にあるため、
-// 生 SQL による直接検証は ctx.memoryRun で流す。
+// caravan_flight_reviews は caravan-book.db 側（FlightRecordDatabase が主接続として持つ）にあるため、
+// 生 SQL による直接検証は ctx.caravanRun で流す。
 function rawRun(ctx: FlightRecordTestContext, sql: string): void {
-  ctx.memoryRun(sql);
+  ctx.caravanRun(sql);
 }
 
 function machineInput(overrides: Partial<Parameters<FlightRecordDatabase['upsertFlightReviewFromMachine']>[0]> = {}) {
@@ -24,7 +24,7 @@ function machineInput(overrides: Partial<Parameters<FlightRecordDatabase['upsert
   };
 }
 
-describe('FlightRecordDatabase flight reviews (flight_reviews)', () => {
+describe('FlightRecordDatabase flight reviews (caravan_flight_reviews)', () => {
   let ctx: FlightRecordTestContext;
   let db: FlightRecordDatabase;
 
@@ -69,7 +69,7 @@ describe('FlightRecordDatabase flight reviews (flight_reviews)', () => {
     // S3 の手動訂正を模擬（直接 UPDATE）
     rawRun(
       ctx,
-      `UPDATE flight_reviews SET outcome = 'achieved', outcome_source = 'manual', tags = '["release"]', notes = 'ok' WHERE session_id = 'sess-1'`,
+      `UPDATE caravan_flight_reviews SET outcome = 'achieved', outcome_source = 'manual', tags = '["release"]', notes = 'ok' WHERE session_id = 'sess-1'`,
     );
     db.upsertFlightReviewFromMachine(machineInput({ toolCallCount: 20 }));
 
@@ -93,7 +93,7 @@ describe('FlightRecordDatabase flight reviews (flight_reviews)', () => {
   it('不正な outcome 値は CHECK 制約で拒否される（STRICT + CHECK の担保確認）', () => {
     db.upsertFlightReviewFromMachine(machineInput());
     expect(() =>
-      rawRun(ctx, `UPDATE flight_reviews SET outcome = 'great' WHERE session_id = 'sess-1'`),
+      rawRun(ctx, `UPDATE caravan_flight_reviews SET outcome = 'great' WHERE session_id = 'sess-1'`),
     ).toThrow();
   });
 
@@ -113,10 +113,10 @@ describe('FlightRecordDatabase flight reviews (flight_reviews)', () => {
 });
 
 describe('FlightRecordDatabase flight reviews S2 (self assessment / lesson candidates)', () => {
-  // NOTE: 旧 TrailDatabase.flightReview.test.ts の S2 ブロックには user_feedback_entries
+  // NOTE: 旧 TrailDatabase.flightReview.test.ts の S2 ブロックには activity_user_feedback_entries
   // （recordUserFeedbackEntry / listUserFeedbackEntries）のテストも含まれていたが、この
-  // テーブルは Flight Record 3 テーブル（instructions / instruction_sessions /
-  // flight_reviews）の移設対象に含まれておらず、FlightRecordDatabase にメソッドが無い
+  // テーブルは Flight Record 3 テーブル（instructions / caravan_instruction_sessions /
+  // caravan_flight_reviews）の移設対象に含まれておらず、FlightRecordDatabase にメソッドが無い
   // （TrailDatabase 側に残る）。当該 1 件は移行できないため対象外とした。
   let ctx: FlightRecordTestContext;
   let db: FlightRecordDatabase;
@@ -151,7 +151,7 @@ describe('FlightRecordDatabase flight reviews S2 (self assessment / lesson candi
     db.upsertFlightReviewFromMachine(machineInput());
     rawRun(
       ctx,
-      `UPDATE flight_reviews SET outcome = 'unachieved', outcome_source = 'manual' WHERE session_id = 'sess-1'`,
+      `UPDATE caravan_flight_reviews SET outcome = 'unachieved', outcome_source = 'manual' WHERE session_id = 'sess-1'`,
     );
     db.applySelfAssessmentToFlightReview('sess-1', assessment);
 
@@ -362,7 +362,7 @@ describe('FlightRecordDatabase flight reviews S4 (rationale audit)', () => {
   it('不正なステータス値は CHECK 制約で拒否される', () => {
     db.upsertFlightReviewFromMachine(machineInput());
     expect(() =>
-      rawRun(ctx, `UPDATE flight_reviews SET rationale_audit_status = 'great' WHERE session_id = 'sess-1'`),
+      rawRun(ctx, `UPDATE caravan_flight_reviews SET rationale_audit_status = 'great' WHERE session_id = 'sess-1'`),
     ).toThrow();
   });
 

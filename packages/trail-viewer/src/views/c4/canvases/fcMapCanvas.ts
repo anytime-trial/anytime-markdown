@@ -5,7 +5,7 @@
  * All draw logic is verbatim from the React source.
  */
 
-import type { C4Model, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { C4Model, FeatureMatrix } from '@anytime-markdown/trail-activity/c4';
 import { getC4Colors } from '../../../theme/c4Tokens';
 import { COMMUNITY_ROLE_LABELS, getCommunityRoleBgColors } from '../../../c4/communityRoleColors';
 import { truncate, clampViewport as clampViewportBase } from '../../../c4/canvasHelpers';

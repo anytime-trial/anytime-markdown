@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { mergeThresholds, DEFAULT_THRESHOLDS } from '@anytime-markdown/trail-core/domain/metrics';
-import type { ThresholdsConfig } from '@anytime-markdown/trail-core/domain/metrics';
+import { mergeThresholds, DEFAULT_THRESHOLDS } from '@anytime-markdown/trail-activity/domain/metrics';
+import type { ThresholdsConfig } from '@anytime-markdown/trail-activity/domain/metrics';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _log = { info: (m: string) => console.info(m), warn: (m: string) => console.warn(m), error: (m: string, e?: unknown) => console.error(m, e) };
 

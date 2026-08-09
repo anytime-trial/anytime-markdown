@@ -32,8 +32,8 @@ import { mountEvaluationPanel, type EvaluationPanelProps } from '../evaluationPa
 import { mountPromptManagerSidebar, type PromptManagerSidebarProps } from '../promptManager';
 import { mountCodeGraphPanel, type CodeGraphPanelProps } from '../codeGraphPanel';
 import { mountCodeGraphCanvas, type CodeGraphCanvasViewProps } from '../codeGraphCanvas';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
-import type { TrailEvaluation, TrailPromptEntry } from '@anytime-markdown/trail-core/domain';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
+import type { TrailEvaluation, TrailPromptEntry } from '@anytime-markdown/trail-activity/domain';
 
 // ---------------------------------------------------------------------------
 // Shared helpers

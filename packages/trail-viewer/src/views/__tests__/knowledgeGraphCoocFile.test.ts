@@ -1,3 +1,4 @@
+import { computeSpecHash } from '@anytime-markdown/graph-core';
 import { buildKnowledgeGraphCoocFile, type KnowledgeGraphResponse } from '../knowledgeGraphCoocFile';
 
 const GENERATED_AT = '2026-08-08T05:00:00.000Z';
@@ -20,7 +21,7 @@ describe('buildKnowledgeGraphCoocFile', () => {
       makeResponse({
         nodes: [
           { label: 'TrailDataServer', type: 'Concept', frequency: 42 },
-          { label: 'memory-core', type: 'Package', frequency: 17 },
+          { label: 'trail-caravan-book', type: 'Package', frequency: 17 },
           { label: 'FTS5', type: 'Concept', frequency: 5 },
         ],
         links: [
@@ -40,7 +41,7 @@ describe('buildKnowledgeGraphCoocFile', () => {
     expect(file.meta).toEqual({ schemaVersion: 1, generatedAt: GENERATED_AT, origin: 'mcp' });
     expect(file.spec.nodes).toEqual([
       { label: 'TrailDataServer', frequency: 42 },
-      { label: 'memory-core', frequency: 17 },
+      { label: 'trail-caravan-book', frequency: 17 },
       { label: 'FTS5', frequency: 5 },
     ]);
     // 無向のため 3 要素タプル（第 4 要素の向きを持たせると schemaVersion 2 になる）
@@ -114,5 +115,50 @@ describe('buildKnowledgeGraphCoocFile', () => {
     expect(file.spec.nodes).toEqual([]);
     expect(file.spec.links).toEqual([]);
     expect(file.spec.clusters).toEqual([]);
+  });
+
+  it('attaches a server layout when every node carries coordinates', () => {
+    const file = buildKnowledgeGraphCoocFile(
+      makeResponse({
+        nodes: [
+          { label: 'a', type: 'Concept', frequency: 2, x: 10, y: -20 },
+          { label: 'b', type: 'Concept', frequency: 1, x: 30.5, y: 40.25 },
+        ],
+        links: [{ a: 0, b: 1, strength: 1 }],
+      }),
+      GENERATED_AT,
+    );
+
+    expect(file.layout?.positions).toEqual([[10, -20], [30.5, 40.25]]);
+    expect(file.layout?.source).toBe('server');
+    // specHash が spec と一致していないとビューアは座標を捨てて計算し直す
+    expect(file.layout?.specHash).toBe(computeSpecHash(file.spec));
+  });
+
+  it('omits the layout when any node lacks coordinates', () => {
+    const file = buildKnowledgeGraphCoocFile(
+      makeResponse({
+        nodes: [
+          { label: 'a', type: 'Concept', frequency: 2, x: 10, y: -20 },
+          { label: 'b', type: 'Concept', frequency: 1 },
+        ],
+        links: [{ a: 0, b: 1, strength: 1 }],
+      }),
+      GENERATED_AT,
+    );
+
+    // 座標のある点と無い点が混ざると、無い点だけが原点へ固まる
+    expect(file.layout).toBeUndefined();
+  });
+
+  it('omits the layout when a coordinate is not finite', () => {
+    const file = buildKnowledgeGraphCoocFile(
+      makeResponse({
+        nodes: [{ label: 'a', type: 'Concept', frequency: 2, x: Number.NaN, y: 0 }],
+      }),
+      GENERATED_AT,
+    );
+
+    expect(file.layout).toBeUndefined();
   });
 });

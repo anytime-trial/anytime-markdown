@@ -7,7 +7,7 @@ import {
   CREATE_BOUNDARY_DRIFT_INDEXES,
   CREATE_BOUNDARY_DRIFT_RUNS,
   CREATE_BOUNDARY_DRIFT_WARNINGS,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import { handleListBoundaryDrift } from '../../tools/listBoundaryDrift';
 
@@ -22,23 +22,23 @@ function createWorkspace(): string {
   const db = new BetterSqlite3(path.join(dbDir, 'activity.db'));
   try {
     db.exec(
-      `CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)`,
+      `CREATE TABLE activity_repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)`,
     );
     db.exec(CREATE_BOUNDARY_DRIFT_WARNINGS);
     db.exec(CREATE_BOUNDARY_DRIFT_RUNS);
     for (const idx of CREATE_BOUNDARY_DRIFT_INDEXES) db.exec(idx);
-    db.prepare('INSERT INTO repos (repo_id, repo_name, created_at) VALUES (1, ?, ?)').run(
+    db.prepare('INSERT INTO activity_repos (repo_id, repo_name, created_at) VALUES (1, ?, ?)').run(
       'anytime-markdown',
       NEW_RUN,
     );
     const insertRun = db.prepare(
-      `INSERT INTO boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
+      `INSERT INTO activity_boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
        VALUES (1, ?, 1, 100)`,
     );
     insertRun.run(OLD_RUN);
     insertRun.run(NEW_RUN);
     const insert = db.prepare(
-      `INSERT INTO boundary_drift_warnings
+      `INSERT INTO activity_boundary_drift_warnings
          (repo_id, detected_at, kind, target_key, stable_key, span_count, dominance,
           community_count, node_count, severity, breakdown_json)
        VALUES (1, ?, 'boundary_spanning', ?, 'k', 3, 0.4, NULL, 10, ?, '[]')`,

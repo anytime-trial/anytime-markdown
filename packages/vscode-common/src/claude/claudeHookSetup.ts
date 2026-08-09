@@ -120,7 +120,7 @@ exit 0
 
 // user-feedback.sh — UserPromptSubmit フック。「前の出力を修正する指示」をプレフィルタで検知した
 // 場合のみ trail サーバへ POST する（毎プロンプト送信はしない）。Phase 6 S2 (User Feedback Logging)。
-// 判定の正本は trail-core の detectUserFeedback（サーバ側で再判定・不一致は破棄）。
+// 判定の正本は trail-activity の detectUserFeedback（サーバ側で再判定・不一致は破棄）。
 // ここのプレフィルタ正規表現はその軽量複製で、パターン変更時は両方を更新する。
 // サーバ未起動・タイムアウトは silent skip（常に exit 0・fail-open）。
 function userFeedbackScriptContent(port: number): string {
@@ -729,7 +729,7 @@ async function main() {
         }
       }
       // Phase 5 S4: Section Lock 検査（変更系ツールのみ・判定不能は fail-open で pass）。
-      // deny/warn イベントは emergency spool 経由で emergency_log へ届く（S2 と同機構）。
+      // deny/warn イベントは emergency spool 経由で activity_emergency_log へ届く（S2 と同機構）。
       if (loaded !== null && typeof loaded.api.evaluateSectionLockGate === 'function') {
         const verdict = loaded.api.evaluateSectionLockGate(
           input && input.tool_name,

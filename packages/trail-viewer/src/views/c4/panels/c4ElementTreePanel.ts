@@ -2,8 +2,8 @@
  * C4ElementTree の vanilla DOM 等価実装。
  * ツリー展開・選択・チェック・検索などの全 internal state をここで管理する。
  */
-import type { C4TreeNode, C4ReleaseEntry } from '@anytime-markdown/trail-core/c4';
-import { filterTreeBySearch } from '@anytime-markdown/trail-core/c4';
+import type { C4TreeNode, C4ReleaseEntry } from '@anytime-markdown/trail-activity/c4';
+import { filterTreeBySearch } from '@anytime-markdown/trail-activity/c4';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import type { Dispatch } from 'react';
 import { createSelect, createTabs, createCheckbox, createSpinner } from '@anytime-markdown/ui-core';

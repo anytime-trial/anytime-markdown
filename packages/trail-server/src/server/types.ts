@@ -1,7 +1,7 @@
 import type {
   DocLink,
   DsmMatrix,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 
 // ---------------------------------------------------------------------------
 //  Server → Client messages
