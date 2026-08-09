@@ -5,6 +5,7 @@ import {
 
 const mockClose = jest.fn();
 const mockListCaravanCommunities = jest.fn();
+const mockReassociate = jest.fn();
 const mockUpsertCaravanCommunitySummaries = jest.fn();
 const mockOpenCaravanBookDb = jest.fn();
 
@@ -16,6 +17,7 @@ jest.mock('../../dbPath', () => ({
 jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   openCaravanBookDb: (...args: unknown[]) => mockOpenCaravanBookDb(...args),
   listCaravanCommunities: (...args: unknown[]) => mockListCaravanCommunities(...args),
+  reassociateCaravanCommunitySummaries: (...args: unknown[]) => mockReassociate(...args),
   upsertCaravanCommunitySummaries: (...args: unknown[]) =>
     mockUpsertCaravanCommunitySummaries(...args),
 }));
@@ -49,6 +51,11 @@ describe('caravanCommunities tools', () => {
     });
 
     expect(mockOpenCaravanBookDb).toHaveBeenCalledWith('/tmp/mcp-trail-test/caravan-book.db');
+    // 版キャッシュの追従（書き込み）は list の前に明示的に実行される
+    expect(mockReassociate).toHaveBeenCalledWith({});
+    expect(mockReassociate.mock.invocationCallOrder[0]).toBeLessThan(
+      mockListCaravanCommunities.mock.invocationCallOrder[0],
+    );
     expect(mockListCaravanCommunities).toHaveBeenCalledWith(
       {},
       { minSize: 12, unsummarizedOnly: true, sampleSize: 5 },

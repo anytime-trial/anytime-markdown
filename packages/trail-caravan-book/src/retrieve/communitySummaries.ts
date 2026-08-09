@@ -72,19 +72,26 @@ function collectCommunities(db: CaravanDbConnection, graphVersion: string): Map<
 }
 
 /**
- * 既存要約行を現行版の所属へ更新する（再関連付け）。
- * layout 洗い替え後の (graph_version, community_id) キャッシュを追従させる。
+ * 既存要約行を現行版の所属へ更新する（再関連付け・**書き込みあり**）。
+ *
+ * fetchCommunityNames と CaravanApiHandler は (graph_version, community_id) の
+ * キャッシュ列で名前を引くため、layout 洗い替え後はこの関数で追従させる。
+ * listCaravanCommunities からは意図的に分離してある — 一覧取得は純読み取りに保ち、
+ * 読み取り専用接続（better-sqlite3 readonly はネイティブ実装で UPDATE が
+ * SQLITE_READONLY 例外になる）へ安全に配線できるようにするため。
+ * 対象は minSize によらず全コミュニティ（閾値未満へ縮んだ要約を孤立させない）。
  */
-function reassociateSummaries(
+export function reassociateCaravanCommunitySummaries(
   db: CaravanDbConnection,
-  communities: ReadonlyMap<number, string[]>,
-  graphVersion: string,
-  keys: ReadonlyMap<number, string>,
-  now: string,
-): void {
-  for (const [communityId, members] of communities) {
-    const stableKey = keys.get(communityId);
-    if (stableKey === undefined) continue;
+  options: { now?: string } = {},
+): { refreshed: number } {
+  const now = options.now ?? new Date().toISOString();
+  const graphVersion = currentGraphVersion(db);
+  if (graphVersion === null) return { refreshed: 0 };
+
+  let refreshed = 0;
+  for (const [communityId, members] of collectCommunities(db, graphVersion)) {
+    const stableKey = computeStableKey(members);
     db.run(
       `UPDATE caravan_community_summaries
        SET graph_version = ?, community_id = ?, member_count = ?, updated_at = ?
@@ -92,9 +99,12 @@ function reassociateSummaries(
          AND (graph_version != ? OR community_id != ? OR member_count != ?)`,
       [graphVersion, communityId, members.length, now, stableKey, graphVersion, communityId, members.length],
     );
+    refreshed += Number(db.exec(`SELECT changes()`)[0]?.values[0]?.[0] ?? 0);
   }
+  return { refreshed };
 }
 
+/** コミュニティの列挙（純読み取り。要約の照合は stable_key 直結合で版キャッシュに依存しない）。 */
 export function listCaravanCommunities(
   db: CaravanDbConnection,
   options: ListCommunitiesOptions = {},
@@ -107,7 +117,6 @@ export function listCaravanCommunities(
   const all = collectCommunities(db, graphVersion);
   const eligible = new Map([...all].filter(([, members]) => members.length >= minSize));
   const keys = new Map([...eligible].map(([id, members]) => [id, computeStableKey(members)] as const));
-  reassociateSummaries(db, eligible, graphVersion, keys, new Date().toISOString());
 
   const result: CaravanCommunity[] = [];
   for (const [communityId, members] of eligible) {

@@ -25,6 +25,7 @@ export { isLowInformationEntity } from '../canonical/entityQuality';
 // コミュニティ要約（T-22）
 export {
   listCaravanCommunities,
+  reassociateCaravanCommunitySummaries,
   upsertCaravanCommunitySummaries,
   fetchCommunityNames,
 } from '../retrieve/communitySummaries';

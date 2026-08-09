@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
 import {
   listCaravanCommunities,
+  reassociateCaravanCommunitySummaries,
   upsertCaravanCommunitySummaries,
   openCaravanBookDb,
 } from '@anytime-markdown/trail-caravan-book/query';
@@ -48,6 +49,10 @@ export async function handleListCaravanCommunities(
     resolveCaravanDbPath({ workspacePath: input.workspacePath }),
   );
   try {
+    // 版キャッシュの追従（書き込み）は list 本体から分離してある。この MCP 経路は
+    // read-write 接続なのでここで明示的に実行する（fetchCommunityNames / API の
+    // (graph_version, community_id) 結合が layout 洗い替え後も名前を引けるように）
+    reassociateCaravanCommunitySummaries(memHandle.db);
     const communities = listCaravanCommunities(memHandle.db, {
       minSize: input.min_size,
       unsummarizedOnly: input.unsummarized_only,

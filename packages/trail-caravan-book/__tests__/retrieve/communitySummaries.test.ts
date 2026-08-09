@@ -8,6 +8,7 @@ import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3Car
 import { runMigrations } from '../../src/db/migrations/runner';
 import {
   listCaravanCommunities,
+  reassociateCaravanCommunitySummaries,
   upsertCaravanCommunitySummaries,
   fetchCommunityNames,
 } from '../../src/retrieve/communitySummaries';
@@ -127,7 +128,7 @@ describe('listCaravanCommunities', () => {
     }
   });
 
-  test('re-associates summaries after layout regeneration (renumbered community_id)', () => {
+  test('carries summaries across layout regeneration; reassociate refreshes the version cache', () => {
     const db = makeDb();
     try {
       seedCommunity(db, 1, 'v1', NAMES_A);
@@ -141,15 +142,51 @@ describe('listCaravanCommunities', () => {
         insertLayout(db, id, 7, 'v2', { degree: 10 - i, recordedAt: '2026-08-09T10:00:00.000Z' });
       });
 
+      // list は純読み取りのまま stable_key 直結合で名前を引き継ぐ
       const after = listCaravanCommunities(db, { minSize: 10 });
       expect(after.length).toBe(1);
-      expect(after[0].name).toBe('A 群'); // stable_key 経由で引き継がれる
-      // 再関連付けで summaries 行の版・番号が現行へ更新される
+      expect(after[0].name).toBe('A 群');
+      // 版キャッシュはこの時点では古いまま（list は書き込まない）
+      const stale = db.exec(`SELECT graph_version FROM caravan_community_summaries`)[0];
+      expect(stale?.values[0][0]).toBe('v1');
+
+      // 明示的な再関連付けで summaries 行の版・番号が現行へ更新される
+      const { refreshed } = reassociateCaravanCommunitySummaries(db);
+      expect(refreshed).toBe(1);
       const row = db.exec(`SELECT graph_version, community_id FROM caravan_community_summaries`)[0];
       expect(row?.values[0][0]).toBe('v2');
       expect(row?.values[0][1]).toBe(7);
+      // 冪等: 変化が無ければ 0 件
+      expect(reassociateCaravanCommunitySummaries(db).refreshed).toBe(0);
     } finally {
       db.close();
+    }
+  });
+
+  test('listCaravanCommunities is safe on a native read-only connection', () => {
+    const os = require('node:os') as typeof import('node:os');
+    const fs = require('node:fs') as typeof import('node:fs');
+    const path = require('node:path') as typeof import('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'community-ro-'));
+    const dbPath = path.join(dir, 'caravan-book.db');
+    const rw = new BetterSqlite3CaravanDb({ filePath: dbPath });
+    try {
+      rw.run('PRAGMA foreign_keys = ON');
+      runMigrations(rw);
+      seedCommunity(rw, 1, 'v1', NAMES_A);
+    } finally {
+      rw.close();
+    }
+    // better-sqlite3 の readonly はネイティブ実装で、書き込みは SQLITE_READONLY 例外になる。
+    // list が UPDATE を隠し持っていた退行（cross-review 指摘）をここで固定する
+    const ro = new BetterSqlite3CaravanDb({ filePath: dbPath, readOnly: true });
+    try {
+      const communities = listCaravanCommunities(ro, { minSize: 10 });
+      expect(communities.length).toBe(1);
+      expect(communities[0].member_count).toBe(10);
+    } finally {
+      ro.close();
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });
