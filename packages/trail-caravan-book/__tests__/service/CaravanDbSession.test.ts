@@ -1073,6 +1073,17 @@ describe('CaravanDbSession', () => {
 
   // ── コールバック経路 (save / progress / onTotal) ───────────────────────
 
+  /** Incremental/Backfill Result の counter 部分（stub 用の全量ゼロ） */
+  const zeroConversationCounters = {
+    items_skipped: 0,
+    entities_inserted: 0,
+    entities_updated: 0,
+    entities_suppressed: 0,
+    edges_inserted: 0,
+    edges_invalidated: 0,
+    edges_suppressed: 0,
+  } as const;
+
   describe('callback paths', () => {
     it('invokes save callback passed to runConversationBackfill', async () => {
       const memDb = await makeCaravanDb();
@@ -1082,7 +1093,7 @@ describe('CaravanDbSession', () => {
       mockRunConversationBackfill.mockImplementation(async (opts) => {
         // save コールバックを実際に呼ぶ
         opts.save?.();
-        return { status: 'ok', items_processed: 1, items_failed: 0 };
+        return { status: 'success' as const, items_processed: 1, items_failed: 0, ...zeroConversationCounters };
       });
 
       await session.runConversation();
@@ -1107,7 +1118,7 @@ describe('CaravanDbSession', () => {
 
       mockRunConversationIncremental.mockImplementation(async (opts) => {
         opts.save?.();
-        return { status: 'ok', items_processed: 0, items_failed: 0 };
+        return { status: 'success' as const, items_processed: 0, items_failed: 0, ...zeroConversationCounters };
       });
 
       await session.runConversation();
@@ -1122,10 +1133,12 @@ describe('CaravanDbSession', () => {
       const trailDb = makeTrailDb();
       const session = makeSession(memDb, trailDb);
 
-      mockRunConversationBackfill.mockResolvedValue({ status: 'ok', items_processed: 0, items_failed: 0 });
+      mockRunConversationBackfill.mockResolvedValue({
+        status: 'success' as const, items_processed: 0, items_failed: 0, ...zeroConversationCounters,
+      });
       mockRunConversationFailedItemsRetry.mockImplementation(async (opts) => {
         opts.save?.();
-        return { status: 'ok', items_retried: 0, items_failed: 0 };
+        return { status: 'success' as const, items_retried: 0, items_recovered: 0, items_failed: 0 };
       });
 
       await session.runConversation();
@@ -1159,7 +1172,7 @@ describe('CaravanDbSession', () => {
       mockRunConversationBackfill.mockImplementation(async (opts) => {
         opts.onTotal?.(10);
         opts.progress?.(3, 0);
-        return { status: 'ok', items_processed: 3, items_failed: 0 };
+        return { status: 'success' as const, items_processed: 3, items_failed: 0, ...zeroConversationCounters };
       });
 
       await session.runConversation();
@@ -1200,7 +1213,7 @@ describe('CaravanDbSession', () => {
 
       mockRunConversationIncremental.mockImplementation(async (opts) => {
         opts.progress?.(2, 1);
-        return { status: 'ok', items_processed: 2, items_failed: 1 };
+        return { status: 'success' as const, items_processed: 2, items_failed: 1, ...zeroConversationCounters };
       });
 
       await session.runConversation();
