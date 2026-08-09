@@ -1,0 +1,95 @@
+{
+  "$comment": "検索評価ハーネスの golden task（spec memory-core §7.8）。expected_facts は応答 JSON に現れるべき部分文字列。アンカーは 2026-08-09 に本番 caravan-book.db から抽出した実在データ（時期を 2026-03 / 06 / 08 で層化）。実利用クエリ（activity.db の tool_calls）を月次で還流して作成者想定への偏りを補正する。",
+  "tasks": [
+    {
+      "id": "bug-2026-03-gapcursor-by-sha",
+      "kind": "bug_causality",
+      "input": { "commit_sha": "f75141e8" },
+      "expected_facts": ["f75141e856c18e49500f17d5c57de19969071745", "GapCursor", "editor-core"]
+    },
+    {
+      "id": "bug-2026-06-swc-field-by-sha",
+      "kind": "bug_causality",
+      "input": { "commit_sha": "d1b6aefd" },
+      "expected_facts": ["d1b6aefd36e276f13ee11765e3a5494336d3d672", "SWC", "markdown-core"]
+    },
+    {
+      "id": "bug-2026-08-traildb-by-sha",
+      "kind": "bug_causality",
+      "input": { "commit_sha": "9e512803" },
+      "expected_facts": ["trail-db", "マージ前レビュー"]
+    },
+    {
+      "id": "bug-query-gapcursor",
+      "kind": "bug_causality",
+      "input": { "query": "GapCursor" },
+      "expected_facts": ["f75141e856c18e49500f17d5c57de19969071745", "editor-core"]
+    },
+    {
+      "id": "bug-file-markdown-viewer",
+      "kind": "bug_causality",
+      "input": { "file_path": "packages/markdown-viewer" },
+      "expected_facts": ["markdown-viewer"]
+    },
+    {
+      "id": "search-identifier-blockalignment",
+      "kind": "search",
+      "input": { "query": "blockAlignment" },
+      "expected_facts": ["useBlockAlignment"]
+    },
+    {
+      "id": "search-identifier-knowledgegraphpanel",
+      "kind": "search",
+      "input": { "query": "knowledgeGraphPanel" },
+      "expected_facts": ["knowledgeGraphPanel"]
+    },
+    {
+      "id": "search-tool-graphrag",
+      "kind": "search",
+      "input": { "query": "GraphRAG" },
+      "expected_facts": ["GraphRAG"]
+    },
+    {
+      "id": "search-concept-nameless-suppression",
+      "kind": "search",
+      "input": { "query": "孤立エンティティ 知識グラフ 取込抑制" },
+      "expected_facts": ["無名エンティティ"]
+    },
+    {
+      "id": "search-concept-community-summary",
+      "kind": "search",
+      "input": { "query": "コミュニティ要約 段階付与" },
+      "expected_facts": ["コミュニティ"]
+    },
+    {
+      "id": "search-semantic-old-alignment",
+      "kind": "search",
+      "input": { "query": "ブロック整列 エディタ 位置合わせ" },
+      "expected_facts": ["Alignment"]
+    },
+    {
+      "id": "plan-caravan-retrieve",
+      "kind": "plan_context",
+      "input": { "target_paths": ["packages/trail-caravan-book/src/retrieve"] },
+      "expected_facts": ["trail-caravan-book"]
+    },
+    {
+      "id": "plan-markdown-editor",
+      "kind": "plan_context",
+      "input": { "target_paths": ["packages/markdown-editor/src"] },
+      "expected_facts": ["markdown-editor"]
+    },
+    {
+      "id": "plan-graph-core-engine",
+      "kind": "plan_context",
+      "input": { "target_paths": ["packages/graph-core/src/engine"] },
+      "expected_facts": ["graph-core"]
+    },
+    {
+      "id": "plan-web-app",
+      "kind": "plan_context",
+      "input": { "target_paths": ["packages/web-app/src"] },
+      "expected_facts": ["web-app"]
+    }
+  ]
+}

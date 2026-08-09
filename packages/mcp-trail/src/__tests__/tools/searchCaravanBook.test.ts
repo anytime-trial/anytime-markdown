@@ -12,12 +12,19 @@ jest.mock('../../dbPath', () => ({
   resolveCaravanDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
-  noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openCaravanBookDb: (...args: unknown[]) => mockOpenCaravanBookDb(...args),
-  // ツールは 2026-08-09 からハイブリッド経路を呼ぶ（素の searchCaravanBook は不使用）
-  hybridSearchCaravanBook: (...args: unknown[]) => mockSearchCaravanBookFn(...args),
-}));
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => {
+  // shapeSearchResponse / fetchEntityAliases は純粋関数なので実物を通す
+  // （モックで固定すると detail 段階開示の配線切れを検知できない）
+  const actual = jest.requireActual('@anytime-markdown/trail-caravan-book/query');
+  return {
+    noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
+    openCaravanBookDb: (...args: unknown[]) => mockOpenCaravanBookDb(...args),
+    // ツールは 2026-08-09 からハイブリッド経路を呼ぶ（素の searchCaravanBook は不使用）
+    hybridSearchCaravanBook: (...args: unknown[]) => mockSearchCaravanBookFn(...args),
+    shapeSearchResponse: actual.shapeSearchResponse,
+    fetchEntityAliases: actual.fetchEntityAliases,
+  };
+});
 
 jest.mock('@anytime-markdown/agent-core', () => ({
   createOllamaClient: (...args: unknown[]) => mockCreateOllamaClient(...args),
@@ -35,9 +42,10 @@ describe('handleSearchCaravanBook', () => {
     });
 
     mockSearchCaravanBookFn.mockResolvedValue({
-      entities: [{ id: 'e1', type: 'Tool', display_name: 'Jest', summary: 'A test runner', score: 0.9 }],
+      entities: [{ id: 'e1', type: 'Tool', display_name: 'Jest', summary: 'A test runner', score: 0.9, sources: ['bm25'] }],
       edges: [],
       episodes: [],
+      matched: true,
     });
   });
 
@@ -105,6 +113,27 @@ describe('handleSearchCaravanBook', () => {
     await handleSearchCaravanBook({ query: 'test' });
 
     expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('detail 既定は compact で応答へ明示され、full は episodes_per_entity=5 を渡す', async () => {
+    const compactResult = await handleSearchCaravanBook({ query: 'test' });
+    expect(compactResult.detail).toBe('compact');
+    expect(mockSearchCaravanBookFn).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ episodes_per_entity: 3 }) })
+    );
+
+    // full は aliases 取得のため db.exec を使う
+    mockOpenCaravanBookDb.mockResolvedValue({
+      db: { exec: jest.fn().mockReturnValue([{ values: [['e1', '["Jest Runner"]']] }]) },
+      save: jest.fn(),
+      close: mockClose,
+    });
+    const fullResult = await handleSearchCaravanBook({ query: 'test', detail: 'full' });
+    expect(fullResult.detail).toBe('full');
+    expect(mockSearchCaravanBookFn).toHaveBeenLastCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ episodes_per_entity: 5 }) })
+    );
+    expect(fullResult.entities[0].aliases).toEqual(['Jest Runner']);
   });
 
   test('searchCaravanBook が throw しても close() が呼ばれる', async () => {

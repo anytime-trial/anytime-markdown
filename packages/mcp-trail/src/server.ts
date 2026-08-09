@@ -52,6 +52,8 @@ import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './too
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchCaravanBook,SearchCaravanBookInputSchema } from './tools/searchCaravanBook.js';
+import { handleGetBugCausality, GetBugCausalityInputSchema } from './tools/getBugCausality.js';
+import { handleGetPlanContext, GetPlanContextInputSchema } from './tools/getPlanContext.js';
 import {
   handleListCaravanCommunities,
   ListCaravanCommunitiesInputSchema,
@@ -811,10 +813,39 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       since: SearchCaravanBookInputSchema.shape.since,
       limit: SearchCaravanBookInputSchema.shape.limit,
       hops: SearchCaravanBookInputSchema.shape.hops,
+      detail: SearchCaravanBookInputSchema.shape.detail,
       workspacePath: SearchCaravanBookInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleSearchCaravanBook(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_bug_causality',
+    { description: 'Return causality cards for bug fixes (symptom → root cause from commit body → introduced commit (inferred) → precursor review findings → recurrence → related decisions). Retro-analysis entry point; resolve by commit_sha, file_path or symptom keywords (spec memory-core §7.6)', inputSchema: {
+      query: GetBugCausalityInputSchema.shape.query,
+      commit_sha: GetBugCausalityInputSchema.shape.commit_sha,
+      file_path: GetBugCausalityInputSchema.shape.file_path,
+      limit: GetBugCausalityInputSchema.shape.limit,
+      workspacePath: GetBugCausalityInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetBugCausality(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_plan_context',
+    { description: 'Pack the past context relevant to files you are about to change — unaddressed review findings, recurring bugs, decisions, must-constraints and cochange partners — into one token-budgeted response (default 2000). Planning entry point; dropped items are reported in `truncated` (spec memory-core §7.7)', inputSchema: {
+      target_paths: GetPlanContextInputSchema.shape.target_paths,
+      token_budget: GetPlanContextInputSchema.shape.token_budget,
+      workspacePath: GetPlanContextInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetPlanContext(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

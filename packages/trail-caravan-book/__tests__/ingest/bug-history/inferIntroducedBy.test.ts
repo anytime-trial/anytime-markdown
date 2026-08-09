@@ -196,4 +196,24 @@ describe('inferIntroducedBy', () => {
 
     close();
   }, 30000);
+
+  test('git 引数はオプションを -- の前に置く（後ろに置くと pathspec 扱いで blame が usage エラー）', async () => {
+    const { db, bugId, close } = await openTestDb();
+    const SINGLE_LINE_DIFF = `diff --git a/foo.ts b/foo.ts\n@@ -5,1 +5,1 @@\n-old\n+new`;
+    mockedExecFileSync
+      .mockReturnValueOnce(SINGLE_LINE_DIFF as any)
+      .mockReturnValueOnce(BLAME_INTRO as any);
+
+    inferIntroducedBy({
+      db, bugEntityId: bugId, fixCommitSha: FIX_SHA,
+      affectedFilePaths: ['src/foo.ts'], repoRoot: '/tmp',
+      recordedAt: '2026-01-01T00:00:00.000Z', valid_from: '2026-01-01T00:00:00.000Z',
+      logger: noopLogger,
+    });
+
+    const diffArgs = mockedExecFileSync.mock.calls[0][1] as string[];
+    expect(diffArgs.indexOf('--unified=0')).toBeLessThan(diffArgs.indexOf('--'));
+    const blameArgs = mockedExecFileSync.mock.calls[1][1] as string[];
+    expect(blameArgs.indexOf('--porcelain')).toBeLessThan(blameArgs.indexOf('--'));
+  }, 30000);
 });

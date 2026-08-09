@@ -17,6 +17,7 @@ jest.mock('../../ingest/bug-history/inferIntroducedBy', () => ({
 }));
 jest.mock('../../ingest/bug-history/linkRootCauseEpisode', () => ({
   linkRootCauseEpisode: jest.fn(),
+  relinkNullRootCauseEpisodes: jest.fn(() => 0),
 }));
 jest.mock('../../ingest/bug-history/persist', () => ({
   upsertBugEntity: jest.fn(),
