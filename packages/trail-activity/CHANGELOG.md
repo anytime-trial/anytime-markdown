@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-09
+
+### Added
+
+- Server-side layout precomputation for the knowledge graph, and viewport-scoped delivery so the graph scales to 100,000 nodes.
+
+### Changed
+
+- The package was renamed from `trail-core` to `trail-activity`, and every table in `activity.db` now carries the `activity_` prefix.
+- Knowledge graph queries are index-driven; the link lookup pins its join order with `CROSS JOIN`.
+
+### Fixed
+
+- Node selection is edge-driven and emits `File` to `Function` `defines` edges, so hub nodes are no longer isolated.
+- Ghost endpoints outside the delivered viewport are excluded.
+
 ## [0.44.0] - 2026-08-08
 
 ### Added

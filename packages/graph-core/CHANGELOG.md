@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-09
+
+### Added
+
+- `CooccurrenceFile.layout` gained an optional `source` field (`'client'` | `'server'`). Server-supplied coordinates are used as-is without checking the algorithm version, because the supplier owns their correctness; only the client cache path still validates the version.
+- Structural validation for `layout` (positions must be `[x, y]` pairs).
+
 ## [1.0.1] - 2026-08-03
 
 ### Changed

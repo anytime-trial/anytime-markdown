@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-08-09
+
+### Changed
+
+- Version bump only, to keep the markdown release set (root / mcp-markdown / markdown-editor / markdown-rich-editor / the VS Code extension) in sync. No functional changes.
+
 ## [1.19.2] - 2026-08-04
 
 ### Added

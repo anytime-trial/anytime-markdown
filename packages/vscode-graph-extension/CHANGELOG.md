@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-09
+
+### Graph Core (graph-core)
+
+- Cooccurrence files can now declare who computed their layout (`layout.source`), so server-supplied coordinates are consumed without an algorithm-version check.
+- Added structural validation for the `layout` block.
+
 ## [1.1.0] - 2026-08-08
 
 ### Added

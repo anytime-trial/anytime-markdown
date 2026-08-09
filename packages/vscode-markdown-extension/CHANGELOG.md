@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-08-09
+
+### Changed
+
+- Followed the document database rename: `doc-core.db` is now `catalog.db` and its tables carry the `catalog_` prefix. Path resolution and the ingest entry point were updated accordingly, and an existing database is renamed the first time the extension opens it.
+- Refreshed the bundled skills (`anytime-doc-authoring`, `anytime-markdown-output`, `anytime-markdown-usage`, `anytime-spec-lookup`).
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- Version bump only, to keep the markdown release set in sync. No functional changes.
+
 ## [1.20.0] - 2026-08-08
 
 ### Changed

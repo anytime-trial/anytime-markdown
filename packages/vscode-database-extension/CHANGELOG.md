@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-08-09
+
+### Changed
+
+- Followed the `trail-core` to `trail-activity` package rename in the extension entry point, the database provider and the build configuration. The bundle changes, but there is no behavioral difference.
+
 ## [0.3.8] - 2026-08-08
 
 ### Changed
