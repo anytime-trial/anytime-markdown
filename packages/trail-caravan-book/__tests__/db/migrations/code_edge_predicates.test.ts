@@ -28,10 +28,10 @@ function makeDb(): BetterSqlite3CaravanDb {
   return db;
 }
 
-/** migration ファイルから caravan_edges への UPDATE（無効化）だけを取り出す。 */
-function invalidationStatement(): string {
+/** migration ファイルを文へ分解する（コメント行は落とす）。 */
+function readStatements(): string[] {
   const sql = fs.readFileSync(MIGRATION_PATH, 'utf8');
-  const statements = sql
+  return sql
     .split(';')
     .map((chunk) =>
       chunk
@@ -39,11 +39,24 @@ function invalidationStatement(): string {
         .filter((line) => !line.trimStart().startsWith('--'))
         .join('\n')
         .trim(),
-    )
-    .filter((s) => s.startsWith('UPDATE caravan_edges'));
-  // 取り出せなかったら「0 件で成功」に化けるので、ここで落とす
+    );
+}
+
+/** 取り出せなかったら「0 件で成功」に化けるので、必ず 1 件であることを確かめる。 */
+function singleStatement(prefix: string): string {
+  const statements = readStatements().filter((s) => s.startsWith(prefix));
   expect(statements.length).toBe(1);
   return statements[0];
+}
+
+/** caravan_edges への UPDATE（無効化）。 */
+function invalidationStatement(): string {
+  return singleStatement('UPDATE caravan_edges');
+}
+
+/** caravan_pipeline_state への UPDATE（ウォーターマーク巻き戻し）。 */
+function watermarkStatement(): string {
+  return singleStatement('UPDATE caravan_pipeline_state');
 }
 
 function insertEntity(db: BetterSqlite3CaravanDb, id: string, type = 'File'): string {
@@ -102,14 +115,30 @@ describe('migration 029 (code edge predicates)', () => {
     db.close();
   }, 30000);
 
-  test('code_incremental のウォーターマークが巻き戻る', () => {
+  // caravan_pipeline_state に行を作るのは各パイプラインランナーだけで、migration は 1 行も
+  // seed しない。新規 DB のまま検査すると UPDATE が 0 行に当たり、テストが無条件に通る。
+  test('code_incremental のウォーターマークだけが巻き戻る', () => {
     const db = makeDb();
-    const res = db.exec(
-      `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = 'code_incremental'`,
+    db.run(
+      `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
+       VALUES ('code_incremental', 'idle', '2026-08-09T00:00:00.000Z', '')`,
     );
-    // 行が無い環境（未実行）では UPDATE が 0 行に当たる。行がある場合のみ値を検査する。
-    const row = res[0]?.values[0];
-    if (row) expect(row[0]).toBe('1970-01-01T00:00:00.000Z');
+    // 他スコープを巻き込まないこと（WHERE を落とす退行の検知）も同時に見る
+    db.run(
+      `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
+       VALUES ('conversation_incremental', 'idle', '2026-08-09T00:00:00.000Z', '')`,
+    );
+
+    db.run(watermarkStatement());
+
+    const rows = db.exec(
+      `SELECT scope, last_processed_at FROM caravan_pipeline_state ORDER BY scope`,
+    )[0].values;
+    expect(rows).toEqual([
+      ['code_incremental', '1970-01-01T00:00:00.000Z'],
+      ['conversation_incremental', '2026-08-09T00:00:00.000Z'],
+    ]);
+
     db.close();
   }, 30000);
 

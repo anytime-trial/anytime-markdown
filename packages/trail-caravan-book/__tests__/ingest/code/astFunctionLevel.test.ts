@@ -299,13 +299,19 @@ describe('ingestAstFacts', () => {
   // 029 は述語の付け替えのため code 由来 relates_to を valid_to で無効化する。
   // 剥がす経路（ON CONFLICT DO UPDATE SET valid_to = NULL）が無いと、再取込しても
   // 無効のまま残り、File 間リンクが恒久的に見えなくなる。
-  test('AFL-6b: valid_to で無効化された辺は再 ingest で復活する', async () => {
+  test('AFL-6b: valid_to で無効化された辺は再 ingest で復活し、来歴も張り替わる', async () => {
     const db = await makeDb();
     const srcFile = 'src/foo.ts';
     const targetFile = 'src/bar.ts';
+    const callerFn = makeFunctionNode(`${srcFile}#greet`, srcFile, 10);
+    const calleeFn = makeFunctionNode(`${targetFile}#helper`, targetFile, 3);
+    // 同じ File 対に import と call の両方がある構成（029 が想定する実シナリオ）
     const graph = makeGraph(
-      [makeFileNode(srcFile), makeFileNode(targetFile)],
-      [{ source: srcFile, target: targetFile, type: 'import' }]
+      [makeFileNode(srcFile), makeFileNode(targetFile), callerFn, calleeFn],
+      [
+        { source: srcFile, target: targetFile, type: 'import' },
+        { source: callerFn.id, target: calleeFn.id, type: 'call' },
+      ]
     );
 
     ingestAstFacts({
@@ -314,11 +320,25 @@ describe('ingestAstFacts', () => {
     });
 
     const edgesAfterFirst = countEdges(db);
+    const callsFactId = db.exec(
+      `SELECT id FROM caravan_code_facts WHERE fact_type = 'calls'`
+    )[0].values[0][0] as string;
 
-    // migration 029 相当の無効化
+    // 029 以前の状態を再現する。旧実装では call も relates_to を作ったため、import と call が
+    // 同居する File 対の relates_to は「先に辺を作ったほう」の source_ref を持ち得た。
+    db.run(
+      `UPDATE caravan_edges SET source_ref = ?
+        WHERE predicate = 'relates_to' AND source_type = 'code'`,
+      [`code_fact:${callsFactId}`]
+    );
+
+    // migration 029 と同じ絞り込みで無効化する
     db.run(
       `UPDATE caravan_edges SET valid_to = '2026-08-09T00:00:00.000Z'
-        WHERE source_type = 'code' AND predicate = 'relates_to' AND source_ref LIKE 'code_fact:%'`
+        WHERE source_type = 'code' AND predicate = 'relates_to'
+          AND source_ref LIKE 'code_fact:%'
+          AND substr(source_ref, 11) IN (
+                SELECT id FROM caravan_code_facts WHERE fact_type IN ('calls', 'extends'))`
     );
     const invalidated = db.exec(
       `SELECT COUNT(*) FROM caravan_edges WHERE valid_to IS NOT NULL`
@@ -336,6 +356,45 @@ describe('ingestAstFacts', () => {
       `SELECT COUNT(*) FROM caravan_edges WHERE valid_to IS NOT NULL`
     )[0].values[0][0] as number;
     expect(stillInvalid).toBe(0);
+
+    // 復活した relates_to の来歴は、復活を起こした import fact を指す（calls のままにしない）
+    const revivedFactTypes = db.exec(
+      `SELECT f.fact_type FROM caravan_edges e
+         JOIN caravan_code_facts f ON f.id = substr(e.source_ref, 11)
+        WHERE e.predicate = 'relates_to' AND e.valid_to IS NULL`
+    )[0].values.map((row) => row[0]);
+    expect(revivedFactTypes).toEqual(['imports']);
+
+    db.close();
+  }, 30000);
+
+  // ── AFL-6c: defines 辺も同じ復活経路を持つ（info8 の非対称解消） ──────────
+  test('AFL-6c: 無効化された defines 辺も再 ingest で復活する', async () => {
+    const db = await makeDb();
+    const srcFile = 'src/foo.ts';
+    const fn = makeFunctionNode(`${srcFile}#greet`, srcFile, 10);
+    const graph = makeGraph([makeFileNode(srcFile), fn], []);
+
+    ingestAstFacts({
+      db, repoName: REPO, graph, commitSha: COMMIT_SHA,
+      recordedAt: RECORDED_AT, logger: silentLogger,
+    });
+
+    db.run(
+      `UPDATE caravan_edges SET valid_to = '2026-08-09T00:00:00.000Z' WHERE predicate = 'defines'`
+    );
+    expect(
+      db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE valid_to IS NOT NULL`)[0].values[0][0]
+    ).toBe(1);
+
+    ingestAstFacts({
+      db, repoName: REPO, graph, commitSha: COMMIT_SHA,
+      recordedAt: RECORDED_AT, logger: silentLogger,
+    });
+
+    expect(
+      db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE valid_to IS NOT NULL`)[0].values[0][0]
+    ).toBe(0);
 
     db.close();
   }, 30000);
