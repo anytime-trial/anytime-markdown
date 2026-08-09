@@ -680,6 +680,7 @@ export interface TrailI18n {
   'knowledgeGraph.typeFilter': string;
   'knowledgeGraph.typeAll': string;
   'knowledgeGraph.nodeLimit': string;
+  'knowledgeGraph.cardRows': string;
   /** 初回描画に数秒かかる件数の注記。選択肢ラベルへ後置する。 */
   'knowledgeGraph.nodeLimitSlowSuffix': string;
   'knowledgeGraph.shownCount': string;

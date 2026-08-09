@@ -677,6 +677,8 @@ export const en: TrailI18n = {
   'knowledgeGraph.typeFilter': 'Type',
   'knowledgeGraph.typeAll': 'All types',
   'knowledgeGraph.nodeLimit': 'Node limit',
+  // Cards stacked vertically per lane in the card skin; the rest wrap to the right within the column
+  'knowledgeGraph.cardRows': 'Cards per column',
   'knowledgeGraph.nodeLimitSlowSuffix': ' (slow)',
   'knowledgeGraph.shownCount': 'Showing {{shown}} of {{total}}',
   'flightRecord.filter.outcome': 'Outcome',

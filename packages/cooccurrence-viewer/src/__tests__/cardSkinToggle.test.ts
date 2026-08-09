@@ -89,6 +89,7 @@ describe('カード表示のトグルと配線', () => {
       cardCount: 3,
       hasUnclustered: true,
       subHeaderCount: 0,
+      maxRows: 20,
     });
   });
 
@@ -128,6 +129,7 @@ describe('カード表示のトグルと配線', () => {
       cardCount: 2,
       hasUnclustered: false,
       subHeaderCount: 0,
+      maxRows: 20,
     });
   });
 

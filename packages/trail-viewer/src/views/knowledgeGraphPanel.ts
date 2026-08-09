@@ -43,6 +43,12 @@ const LIMIT_CHOICES = ['50', '150', '300', '500', '1000', '2000', '5000', '10000
  */
 const SLOW_LIMIT_THRESHOLD = 5000;
 const DEFAULT_LIMIT = '150';
+/**
+ * カード表示（card スキン）で 1 列に縦へ積むカードの枚数。超えた分はカラム内で右へ折り返す。
+ * 既定 20 は cooccurrence-viewer の既定（CARD_MAX_ROWS）と同値で、追加前の見え方を変えない。
+ */
+const CARD_ROWS_CHOICES = ['10', '20', '30', '50', '100'] as const;
+const DEFAULT_CARD_ROWS = '20';
 
 type LoadState = 'loading' | 'failed' | 'empty' | 'ready';
 
@@ -93,6 +99,11 @@ export function mountKnowledgeGraphPanel(
   let typeFilter = '';
   let limit = DEFAULT_LIMIT;
   /**
+   * カード表示の縦の枚数。図の取得条件ではなく描き方の設定なので、変更しても取り直さず
+   * viewer へ渡すだけにする（再取得すると視野と読み込み表示が無駄に動く）。
+   */
+  let cardRows = DEFAULT_CARD_ROWS;
+  /**
    * 種別の選択肢。最後に成功した応答の availableTypes を保持する（絞り込み中の応答でも
    * 全種別が返るため上書きでよい。失敗時に消すと、失敗 → 選択肢が空 → 解除不能になる）。
    */
@@ -122,6 +133,7 @@ export function mountKnowledgeGraphPanel(
   toolbar.innerHTML = `
     <label><span data-am-kg-label="typeFilter"></span><span data-am-kg-type-select></span></label>
     <label><span data-am-kg-label="nodeLimit"></span><span data-am-kg-limit-select></span></label>
+    <label><span data-am-kg-label="cardRows"></span><span data-am-kg-card-rows-select></span></label>
     <button type="button" data-am-kg-reload></button>
     <span data-am-kg-count role="status"></span>
   `;
@@ -176,6 +188,20 @@ export function mountKnowledgeGraphPanel(
     },
   });
   toolbar.querySelector<HTMLElement>('[data-am-kg-limit-select]')?.appendChild(limitSelect.el);
+
+  const cardRowsSelect = createSelect<string>({
+    value: cardRows,
+    options: CARD_ROWS_CHOICES.map((v) => ({ value: v, label: v })),
+    ariaLabel: props.t('knowledgeGraph.cardRows'),
+    fullWidth: false,
+    minWidth: 72,
+    onChange: (value) => {
+      if (value === cardRows) return;
+      cardRows = value;
+      viewerHandle?.update({ cardMaxRows: Number(cardRows) });
+    },
+  });
+  toolbar.querySelector<HTMLElement>('[data-am-kg-card-rows-select]')?.appendChild(cardRowsSelect.el);
 
   toolbar.querySelector<HTMLButtonElement>('[data-am-kg-reload]')?.addEventListener('click', () => {
     void refresh();
@@ -286,6 +312,7 @@ export function mountKnowledgeGraphPanel(
       file,
       themeMode: props.isDark ? 'dark' : 'light',
       createLayoutWorker: createInlineLayoutWorker,
+      cardMaxRows: Number(cardRows),
       showPanels: true,
       onViewportChange: handleViewportChange,
     });
@@ -318,6 +345,7 @@ export function mountKnowledgeGraphPanel(
     if (reload) reload.textContent = t('knowledgeGraph.reload');
     typeSelect.update({ options: typeOptions(), ariaLabel: t('knowledgeGraph.typeFilter'), value: typeFilter });
     limitSelect.update({ options: limitOptions(t), ariaLabel: t('knowledgeGraph.nodeLimit'), value: limit });
+    cardRowsSelect.update({ ariaLabel: t('knowledgeGraph.cardRows'), value: cardRows });
 
     const count = toolbar.querySelector<HTMLElement>('[data-am-kg-count]');
     if (count) {
@@ -370,6 +398,7 @@ export function mountKnowledgeGraphPanel(
       controller?.abort();
       typeSelect.destroy();
       limitSelect.destroy();
+      cardRowsSelect.destroy();
       viewerHandle?.destroy();
       viewerHandle = null;
       root.remove();

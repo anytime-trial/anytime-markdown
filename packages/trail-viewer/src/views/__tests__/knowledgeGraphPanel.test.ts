@@ -370,6 +370,30 @@ describe('mountKnowledgeGraphPanel — viewport-driven delivery', () => {
     handle.destroy();
   });
 
+  it('カードの縦の枚数を選ぶと、取り直さずに viewer へ cardMaxRows が渡る', async () => {
+    fetchMock.mockResolvedValue(okResponse(SAMPLE));
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    // mount 時点で既定 20 を渡している（追加前の見え方を変えない）
+    expect((mountViewerMock.mock.calls[0][1] as { cardMaxRows: number }).cardMaxRows).toBe(20);
+
+    const rowsSelect = container.querySelector<HTMLElement>('[data-am-kg-card-rows-select] [role="combobox"]');
+    expect(rowsSelect).not.toBeNull();
+    rowsSelect?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find(
+      (el) => el.textContent === '50',
+    );
+    expect(option).toBeDefined();
+    option?.click();
+    await flush();
+
+    expect(viewerHandleMock.update).toHaveBeenCalledWith({ cardMaxRows: 50 });
+    // 描き方の設定なので取り直さない（初回の 1 回だけ）
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
   it('drops the viewport when the user changes a filter (操作は全体へ戻す)', async () => {
     fetchMock.mockResolvedValue(okResponse({ ...SAMPLE, bboxApplied: true }));
     const handle = mountKnowledgeGraphPanel(container, makeProps());

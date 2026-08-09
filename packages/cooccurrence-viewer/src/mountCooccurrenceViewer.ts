@@ -211,6 +211,8 @@ export function mountCooccurrenceViewer(
   let skin: CooccurrenceSkin = 'standard';
   /** カード表示の観測点。card スキンで図を組んだときだけ持つ。 */
   let cardState: CardLayoutState | null = null;
+  /** card スキンで 1 レーンに積むカードの上限枚数。undefined は cardLayout 側の既定に委ねる。 */
+  let cardMaxRows: number | undefined = options.cardMaxRows;
   let ozView: OzRenderer | null = null;
   let ozContainer: HTMLDivElement | null = null;
   /** WebGL 初期化に一度失敗したら再試行しない（毎トグルで throw を繰り返さないため）。 */
@@ -960,7 +962,11 @@ export function mountCooccurrenceViewer(
     filterCounts = filtered.counts;
     visibleNodeIndexes = filtered.nodeIndexes;
     visibleLinkIndexes = filtered.linkIndexes;
-    const layout = computeCardLayout({ file, visibleNodeIndexes: filtered.nodeIndexes });
+    const layout = computeCardLayout({
+      file,
+      visibleNodeIndexes: filtered.nodeIndexes,
+      ...(cardMaxRows === undefined ? {} : { maxRows: cardMaxRows }),
+    });
     cardState = layout.state;
     graph = buildRenderGraph({
       file,
@@ -1495,6 +1501,14 @@ export function mountCooccurrenceViewer(
     update(partial: CooccurrenceViewerUpdate): void {
       if (partial.skin !== undefined) {
         setSkin(partial.skin);
+      }
+      if (partial.cardMaxRows !== undefined && partial.cardMaxRows !== cardMaxRows) {
+        cardMaxRows = partial.cardMaxRows;
+        options = { ...options, cardMaxRows };
+        // 枚数を変えるとカラムの高さと幅が変わる。合わせ直さないと、増やした列が視野の
+        // 外へ出たまま「何も起きていない」ように見える（skin 切替で fitted を落とすのと同じ理由）。
+        fitted = false;
+        // 図の作り直しは update() 末尾の rebuildGraph() が行う。
       }
       if (partial.themeMode !== undefined) {
         themeMode = partial.themeMode;
