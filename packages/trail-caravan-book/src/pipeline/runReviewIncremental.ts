@@ -194,6 +194,242 @@ async function processRouteADoc(opts: {
   }
 }
 
+/** Route A / Route B / 後処理が共通で積み上げる集計。 */
+interface ReviewTotals {
+  totals: { items_processed: number; entities_inserted: number; edges_inserted: number };
+  reviewsInserted: number;
+  findingsInserted: number;
+  itemsFailed: number;
+}
+
+interface RouteContext {
+  db: CaravanDbConnection;
+  repoName: string;
+  ollama: OllamaClient;
+  model: string;
+  logger: CaravanLogger;
+  recordedAt: string;
+  force: boolean;
+}
+
+function listReviewDocs(reviewDir: string, logger: CaravanLogger): string[] {
+  try {
+    return fs
+      .readdirSync(reviewDir)
+      .filter((f) => f.endsWith('.md'))
+      .map((f) => path.join(reviewDir, f));
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: failed to list reviewDir=${reviewDir}`, err);
+    return [];
+  }
+}
+
+/** Route A: `<reviewDir>/*.md` を 1 件ずつ取り込む。 */
+async function runRouteADocs(acc: ReviewTotals, reviewDir: string, ctx: RouteContext): Promise<void> {
+  const { db, logger } = ctx;
+  if (!fs.existsSync(reviewDir)) {
+    logger.info(
+      `[anytime-memory] runReviewIncremental: reviewDir does not exist, skipping Route A (dir=${reviewDir})`,
+    );
+    return;
+  }
+
+  const mdFiles = listReviewDocs(reviewDir, logger);
+  logger.info(`[anytime-memory] review incremental (Route A): ${mdFiles.length} review docs to process`);
+  let routeAProcessed = 0;
+  for (const filePath of mdFiles) {
+    const relPath = path.relative(path.dirname(reviewDir), filePath);
+    acc.totals.items_processed += 1;
+    routeAProcessed += 1;
+    if (routeAProcessed % PROGRESS_LOG_INTERVAL === 0) {
+      logger.info(`[anytime-memory] review incremental Route A progress: ${routeAProcessed}/${mdFiles.length}`);
+    }
+
+    const docResult = await processRouteADoc({
+      db, filePath, relPath, reviewDir, recordedAt: ctx.recordedAt, force: ctx.force,
+      ollama: ctx.ollama, model: ctx.model, workspace: ctx.repoName, logger,
+    });
+
+    if (docResult.outcome === 'skipped') continue;
+    if (docResult.outcome === 'failed') {
+      recordFailedItem(db, SCOPE_DOC, relPath, 'parse_error', docResult.detail);
+      acc.itemsFailed += 1;
+      continue;
+    }
+    // outcome === 'processed'
+    if (docResult.is_new) {
+      acc.reviewsInserted += 1;
+      acc.totals.entities_inserted += 1;
+    }
+    acc.findingsInserted += docResult.findings_inserted;
+    acc.totals.edges_inserted += docResult.edges_inserted;
+  }
+}
+
+/** Route B のセッション 1 件。失敗しても他セッションを止めない。 */
+async function ingestReviewSession(
+  acc: ReviewTotals,
+  session: ReturnType<typeof parseReviewSessions>[number],
+  ctx: RouteContext,
+): Promise<string | null> {
+  const { db, logger } = ctx;
+  try {
+    const refined = await refineCategories({
+      findings: session.findings,
+      ollama: ctx.ollama,
+      model: ctx.model,
+      logger: { warn: (msg: string) => logger.info(msg) },
+    });
+    session.findings.splice(0, session.findings.length, ...refined.findings);
+
+    const result = upsertReviewSession(db, session, ctx.recordedAt, logger);
+    if (result.is_new) {
+      acc.reviewsInserted += 1;
+      acc.totals.entities_inserted += 1;
+    }
+    acc.findingsInserted += result.findings_inserted;
+    acc.totals.edges_inserted += result.edges_inserted;
+    return session.reviewed_at;
+  } catch (err) {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    logger.error(
+      `[anytime-memory] runReviewIncremental: failed to process session=${session.session_id}`,
+      err,
+    );
+    recordFailedItem(
+      db,
+      SCOPE_SESSION,
+      `${session.session_id}#${session.message_uuid_start}`,
+      'session_error',
+      detail,
+    );
+    acc.itemsFailed += 1;
+    return null;
+  }
+}
+
+/** Route B: レビュー会話セッションを取り込む。 */
+async function runRouteBSessions(acc: ReviewTotals, ctx: RouteContext): Promise<void> {
+  const { db, logger, force } = ctx;
+  try {
+    // force 時: last_processed_at をリセットして全期間再走査、既存 session findings を削除
+    const lastProcessedAt = force
+      ? '1970-01-01T00:00:00.000Z'
+      : readPipelineState(db, SCOPE_SESSION);
+    if (force) {
+      db.run(
+        `DELETE FROM caravan_review_findings WHERE review_id IN (
+           SELECT id FROM caravan_reviews WHERE source_kind='session'
+         )`,
+      );
+      logger.info('[anytime-memory] runReviewIncremental: force re-parse, cleared all session findings');
+    }
+
+    const sessions = parseReviewSessions({
+      db,
+      sinceISO: lastProcessedAt,
+      logger: { warn: (msg: string) => logger.info(msg) },
+    });
+
+    let maxReviewedAt = lastProcessedAt;
+    logger.info(`[anytime-memory] review incremental (Route B): ${sessions.length} sessions to process`);
+    let routeBProcessed = 0;
+    for (const session of sessions) {
+      acc.totals.items_processed += 1;
+      routeBProcessed += 1;
+      if (routeBProcessed % PROGRESS_LOG_INTERVAL === 0) {
+        logger.info(
+          `[anytime-memory] review incremental Route B progress: ${routeBProcessed}/${sessions.length}`
+        );
+      }
+      const reviewedAt = await ingestReviewSession(acc, session, ctx);
+      if (reviewedAt !== null && reviewedAt > maxReviewedAt) {
+        maxReviewedAt = reviewedAt;
+      }
+    }
+
+    if (sessions.length > 0) {
+      upsertPipelineState(db, SCOPE_SESSION, {
+        last_processed_at: maxReviewedAt,
+        status: 'idle',
+      });
+    }
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: Route B failed`, err);
+    acc.itemsFailed += 1;
+  }
+}
+
+/**
+ * 対象パスの正規化とリポジトリ解決。linkAddresses より **前** に置く。
+ * linkAddresses は target_repo を照合キーに使うため、解決前に走らせると
+ * 今回取り込んだ指摘が 1 サイクル遅れてしかリンクされない。
+ */
+function resolveTargetsStep(db: CaravanDbConnection, logger: CaravanLogger): void {
+  try {
+    const resolveResult = resolveReviewTargets({
+      db,
+      logger: {
+        warn: (msg: string) => logger.info(msg),
+        error: (msg: string, err?: unknown) => logger.error(msg, err),
+        info: (msg: string) => logger.info(msg),
+      },
+    });
+    logger.info(
+      `[anytime-memory] runReviewIncremental: resolveReviewTargets ` +
+        `workspaces=${resolveResult.workspacesFilled} targets=${resolveResult.targetsResolved} ` +
+        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected} ` +
+        // inferred / still_missing を毎回残す。上流（レビュー出力書式）の対象行必須化が
+        // 効いているかは still_missing の推移でしか読めず、inferred だけ見ていると
+        // 「救えている」と「そもそも欠落が少ない」を取り違える。
+        `inferred=${resolveResult.pathsInferred} still_missing=${resolveResult.pathsStillMissing}`,
+    );
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: resolveReviewTargets failed`, err);
+  }
+}
+
+function linkAddressesStep(acc: ReviewTotals, db: CaravanDbConnection, logger: CaravanLogger): void {
+  try {
+    const linkResult = linkAddresses({
+      db,
+      windowDays: 30,
+      logger: { warn: (msg: string) => logger.info(msg) },
+    });
+    acc.totals.edges_inserted += linkResult.edges_inserted;
+    // 内訳を毎回残す。対処率の改善施策（対象パスの必須化・照合強化）が効いたかは
+    // この母集合の推移でしか読めないため、リンク 0 件でも省略しない。
+    const skipped = linkResult.skipped;
+    const skippedText = skipped === null
+      ? 'skipped=unavailable'
+      : `skipped_info=${skipped.severity_info} skipped_no_path=${skipped.no_target_path} skipped_unresolved_repo=${skipped.unresolved_repo}`;
+    logger.info(
+      `[anytime-memory] runReviewIncremental: linkAddresses ` +
+        `candidates=${linkResult.candidates} linked=${linkResult.findings_linked} ` +
+        `no_matching_commit=${linkResult.no_matching_commit} ${skippedText} ` +
+        // シグナル別の内訳。テキスト以外の根拠で成立した割合が分からないと、
+        // 対処率の変化が実態の改善なのか照合の緩和なのか読めない。
+        `linked_session=${linkResult.linked_with_same_session} ` +
+        `linked_review_marker=${linkResult.linked_with_review_marker}`,
+    );
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: linkAddresses failed`, err);
+  }
+}
+
+function linkPrecedesStep(acc: ReviewTotals, db: CaravanDbConnection, logger: CaravanLogger): void {
+  try {
+    const precedesResult = linkPrecedesBugs({
+      db,
+      windowDays: 60,
+      logger: { warn: (msg: string) => logger.info(msg) },
+    });
+    acc.totals.edges_inserted += precedesResult.edges_inserted;
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: linkPrecedesBugs failed`, err);
+  }
+}
+
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export async function runReviewIncremental(input: {
@@ -228,224 +464,26 @@ export async function runReviewIncremental(input: {
   ledger.start(startedAt);
   upsertPipelineState(db, SCOPE_DOC, { status: 'running' });
 
-  const totals = {
-    items_processed: 0,
-    entities_inserted: 0,
-    edges_inserted: 0,
+  const acc: ReviewTotals = {
+    totals: { items_processed: 0, entities_inserted: 0, edges_inserted: 0 },
+    reviewsInserted: 0,
+    findingsInserted: 0,
+    itemsFailed: 0,
   };
-  let reviewsInserted = 0;
-  let findingsInserted = 0;
-  let itemsFailed = 0;
   const recordedAt = new Date().toISOString();
+  const ctx: RouteContext = { db, repoName, ollama, model, logger, recordedAt, force };
 
-  // ── Route A: doc files ────────────────────────────────────────────────────
-
-  if (fs.existsSync(reviewDir)) {
-    let mdFiles: string[];
-    try {
-      mdFiles = fs
-        .readdirSync(reviewDir)
-        .filter((f) => f.endsWith('.md'))
-        .map((f) => path.join(reviewDir, f));
-    } catch (err) {
-      logger.error(`[anytime-memory] runReviewIncremental: failed to list reviewDir=${reviewDir}`, err);
-      mdFiles = [];
-    }
-
-    logger.info(`[anytime-memory] review incremental (Route A): ${mdFiles.length} review docs to process`);
-    let routeAProcessed = 0;
-    for (const filePath of mdFiles) {
-      const relPath = path.relative(path.dirname(reviewDir), filePath);
-      totals.items_processed += 1;
-      routeAProcessed += 1;
-      if (routeAProcessed % PROGRESS_LOG_INTERVAL === 0) {
-        logger.info(`[anytime-memory] review incremental Route A progress: ${routeAProcessed}/${mdFiles.length}`);
-      }
-
-      const docResult = await processRouteADoc({
-        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model,
-        workspace: repoName, logger,
-      });
-
-      if (docResult.outcome === 'skipped') {
-        continue;
-      }
-      if (docResult.outcome === 'failed') {
-        recordFailedItem(db, SCOPE_DOC, relPath, 'parse_error', docResult.detail);
-        itemsFailed += 1;
-        continue;
-      }
-      // outcome === 'processed'
-      if (docResult.is_new) {
-        reviewsInserted += 1;
-        totals.entities_inserted += 1;
-      }
-      findingsInserted += docResult.findings_inserted;
-      totals.edges_inserted += docResult.edges_inserted;
-    }
-  } else {
-    logger.info(
-      `[anytime-memory] runReviewIncremental: reviewDir does not exist, skipping Route A (dir=${reviewDir})`,
-    );
-  }
-
-  // ── Route B: sessions ─────────────────────────────────────────────────────
-
-  try {
-    // force 時: last_processed_at をリセットして全期間再走査、既存 session findings を削除
-    const lastProcessedAt = force
-      ? '1970-01-01T00:00:00.000Z'
-      : readPipelineState(db, SCOPE_SESSION);
-    if (force) {
-      db.run(
-        `DELETE FROM caravan_review_findings WHERE review_id IN (
-           SELECT id FROM caravan_reviews WHERE source_kind='session'
-         )`,
-      );
-      logger.info('[anytime-memory] runReviewIncremental: force re-parse, cleared all session findings');
-    }
-
-    const sessions = parseReviewSessions({
-      db,
-      sinceISO: lastProcessedAt,
-      logger: {
-        warn: (msg: string) => logger.info(msg),
-      },
-    });
-
-    let maxReviewedAt = lastProcessedAt;
-
-    logger.info(`[anytime-memory] review incremental (Route B): ${sessions.length} sessions to process`);
-    let routeBProcessed = 0;
-    for (const session of sessions) {
-      totals.items_processed += 1;
-      routeBProcessed += 1;
-      if (routeBProcessed % PROGRESS_LOG_INTERVAL === 0) {
-        logger.info(
-          `[anytime-memory] review incremental Route B progress: ${routeBProcessed}/${sessions.length}`
-        );
-      }
-      try {
-        const refined = await refineCategories({
-          findings: session.findings,
-          ollama,
-          model,
-          logger: {
-            warn: (msg: string) => logger.info(msg),
-          },
-        });
-        session.findings.splice(0, session.findings.length, ...refined.findings);
-
-        const result = upsertReviewSession(db, session, recordedAt, logger);
-        if (result.is_new) {
-          reviewsInserted += 1;
-          totals.entities_inserted += 1;
-        }
-        findingsInserted += result.findings_inserted;
-        totals.edges_inserted += result.edges_inserted;
-
-        if (session.reviewed_at > maxReviewedAt) {
-          maxReviewedAt = session.reviewed_at;
-        }
-      } catch (err) {
-        const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
-        logger.error(
-          `[anytime-memory] runReviewIncremental: failed to process session=${session.session_id}`,
-          err,
-        );
-        recordFailedItem(
-          db,
-          SCOPE_SESSION,
-          `${session.session_id}#${session.message_uuid_start}`,
-          'session_error',
-          detail,
-        );
-        itemsFailed += 1;
-      }
-    }
-
-    if (sessions.length > 0) {
-      upsertPipelineState(db, SCOPE_SESSION, {
-        last_processed_at: maxReviewedAt,
-        status: 'idle',
-      });
-    }
-  } catch (err) {
-    logger.error(`[anytime-memory] runReviewIncremental: Route B failed`, err);
-    itemsFailed += 1;
-  }
+  await runRouteADocs(acc, reviewDir, ctx);
+  await runRouteBSessions(acc, ctx);
 
   // ── Post-processing: resolveReviewTargets → linkAddresses + linkPrecedesBugs ──
-  //
-  // 対象パスの正規化とリポジトリ解決は linkAddresses より **前** に置く。
-  // linkAddresses は target_repo を照合キーに使うため、解決前に走らせると
-  // 今回取り込んだ指摘が 1 サイクル遅れてしかリンクされない。
-
-  try {
-    const resolveResult = resolveReviewTargets({
-      db,
-      logger: {
-        warn: (msg: string) => logger.info(msg),
-        error: (msg: string, err?: unknown) => logger.error(msg, err),
-        info: (msg: string) => logger.info(msg),
-      },
-    });
-    logger.info(
-      `[anytime-memory] runReviewIncremental: resolveReviewTargets ` +
-        `workspaces=${resolveResult.workspacesFilled} targets=${resolveResult.targetsResolved} ` +
-        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected} ` +
-        // inferred / still_missing を毎回残す。上流（レビュー出力書式）の対象行必須化が
-        // 効いているかは still_missing の推移でしか読めず、inferred だけ見ていると
-        // 「救えている」と「そもそも欠落が少ない」を取り違える。
-        `inferred=${resolveResult.pathsInferred} still_missing=${resolveResult.pathsStillMissing}`,
-    );
-  } catch (err) {
-    logger.error(`[anytime-memory] runReviewIncremental: resolveReviewTargets failed`, err);
-  }
-
-  try {
-    const linkResult = linkAddresses({
-      db,
-      windowDays: 30,
-      logger: {
-        warn: (msg: string) => logger.info(msg),
-      },
-    });
-    totals.edges_inserted += linkResult.edges_inserted;
-    // 内訳を毎回残す。対処率の改善施策（対象パスの必須化・照合強化）が効いたかは
-    // この母集合の推移でしか読めないため、リンク 0 件でも省略しない。
-    const skipped = linkResult.skipped;
-    const skippedText = skipped === null
-      ? 'skipped=unavailable'
-      : `skipped_info=${skipped.severity_info} skipped_no_path=${skipped.no_target_path} skipped_unresolved_repo=${skipped.unresolved_repo}`;
-    logger.info(
-      `[anytime-memory] runReviewIncremental: linkAddresses ` +
-        `candidates=${linkResult.candidates} linked=${linkResult.findings_linked} ` +
-        `no_matching_commit=${linkResult.no_matching_commit} ${skippedText} ` +
-        // シグナル別の内訳。テキスト以外の根拠で成立した割合が分からないと、
-        // 対処率の変化が実態の改善なのか照合の緩和なのか読めない。
-        `linked_session=${linkResult.linked_with_same_session} ` +
-        `linked_review_marker=${linkResult.linked_with_review_marker}`,
-    );
-  } catch (err) {
-    logger.error(`[anytime-memory] runReviewIncremental: linkAddresses failed`, err);
-  }
-
-  try {
-    const precedesResult = linkPrecedesBugs({
-      db,
-      windowDays: 60,
-      logger: {
-        warn: (msg: string) => logger.info(msg),
-      },
-    });
-    totals.edges_inserted += precedesResult.edges_inserted;
-  } catch (err) {
-    logger.error(`[anytime-memory] runReviewIncremental: linkPrecedesBugs failed`, err);
-  }
+  resolveTargetsStep(db, logger);
+  linkAddressesStep(acc, db, logger);
+  linkPrecedesStep(acc, db, logger);
 
   // ── Finalize ──────────────────────────────────────────────────────────────
 
+  const { totals, reviewsInserted, findingsInserted, itemsFailed } = acc;
   const partialOrSuccess: 'partial' | 'success' = itemsFailed > 0 ? 'partial' : 'success';
   const finalStatus: 'success' | 'partial' | 'error' =
     itemsFailed > 0 && totals.items_processed === itemsFailed ? 'error' : partialOrSuccess;
