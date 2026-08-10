@@ -7,6 +7,7 @@ import type {
   CaravanFailedItemRow,
   CaravanFlightReviewFindingCountRow,
   CaravanFlightReviewFindingRow,
+  CaravanFlightReviewFindingSummary,
   CaravanInvalidationRow,
   CaravanPipelineRunLogRow,
   CaravanPipelineRunRow,
@@ -195,6 +196,11 @@ export class CaravanReader {
   /** 指示単位の指摘件数。一覧の列に出すため、件数は専用の集計ルートから取る。 */
   async getFlightReviewFindingCounts(): Promise<readonly CaravanFlightReviewFindingCountRow[]> {
     return this.fetchJson<CaravanFlightReviewFindingCountRow[]>('/api/caravan/reviews/flight-counts');
+  }
+
+  /** 対処率の分母別集計。サーバー側で集計に失敗した場合は null が返る（0 件と区別）。 */
+  async getFlightReviewFindingSummary(): Promise<CaravanFlightReviewFindingSummary | null> {
+    return this.fetchJson<CaravanFlightReviewFindingSummary | null>('/api/caravan/reviews/flight-summary');
   }
 
   async getFlightReviewFindings(params: {

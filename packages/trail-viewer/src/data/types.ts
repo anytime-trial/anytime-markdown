@@ -206,6 +206,21 @@ export interface CaravanFlightReviewFindingCountRow {
   readonly total: number;
 }
 
+/**
+ * 対処率の分母を分けた全指摘の集計（全経路・SQL 集計）。
+ * 分母の区分は `deriveFindingStatus` / trail-caravan-book `linkAddresses` の母集合条件と
+ * 同じもの: info は設計上リンク対象外、対象パス欠落・repo 未解決は照合不能。
+ * 対処率 = addressed / tracked（全件を分母にすると実態より低く見える）。
+ */
+export interface CaravanFlightReviewFindingSummary {
+  readonly total: number;
+  readonly info: number;
+  readonly noPath: number;
+  readonly unresolvedRepo: number;
+  readonly tracked: number;
+  readonly addressed: number;
+}
+
 export type CaravanPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 
 export interface CaravanPipelineRunStatsByDayRow {

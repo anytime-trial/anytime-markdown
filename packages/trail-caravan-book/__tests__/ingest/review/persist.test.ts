@@ -284,6 +284,21 @@ describe('upsertReviewDoc', () => {
     }
   });
 
+  test('findings に extracted_by=parser:review_doc を刻む（経路別の充足率測定の前提）', async () => {
+    const { db, close } = await openFresh();
+    try {
+      const logger = makeLogger();
+      const result = upsertReviewDoc(db, makeDoc(), 'review/extracted-by.md', 'hash-eb', TS, logger);
+      const rows = db.exec(
+        `SELECT DISTINCT extracted_by FROM caravan_review_findings WHERE review_id = ?`,
+        [result.review_id],
+      );
+      expect(rows[0]?.values.map((v) => v[0])).toEqual(['parser:review_doc']);
+    } finally {
+      close();
+    }
+  });
+
   test('same hash → returns is_new=false, no duplicate rows', async () => {
     const { db, close } = await openFresh();
     try {
@@ -492,6 +507,21 @@ describe('upsertReviewSession', () => {
       );
       expect(rows[0]?.values[0][0]).toBe('session');
       expect(rows[0]?.values[0][1]).toBe('code');
+    } finally {
+      close();
+    }
+  });
+
+  test('findings に extracted_by=parser:session を刻む（経路別の充足率測定の前提）', async () => {
+    const { db, close } = await openFresh();
+    try {
+      const logger = makeLogger();
+      const result = upsertReviewSession(db, makeSession(), TS, logger);
+      const rows = db.exec(
+        `SELECT DISTINCT extracted_by FROM caravan_review_findings WHERE review_id = ?`,
+        [result.review_id],
+      );
+      expect(rows[0]?.values.map((v) => v[0])).toEqual(['parser:session']);
     } finally {
       close();
     }

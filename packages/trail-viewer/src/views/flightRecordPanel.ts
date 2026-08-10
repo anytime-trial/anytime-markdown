@@ -36,6 +36,7 @@ import {
   findingCategories,
   findingCountCell,
   renderFindingSection,
+  renderFindingSummary,
   renderFindingTable,
   wireFindingLinks,
   FINDING_STATUS_LABEL_KEY,
@@ -148,6 +149,17 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary};
 }
 [data-am-review-table-host] { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* 対処率の集計行。値は tabular-nums で桁を揃える。色は使わない（率の良し悪しは閾値を
+   持たないため、色分けすると根拠のない評価に見える）。 */
+[data-am-review-summary-host] { flex: 0 0 auto; }
+[data-am-finding-summary] {
+  display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 8px; padding: 6px 10px;
+  border: 1px solid ${c.border}; border-radius: 4px; background: ${c.sectionBg}; font-size: 12px;
+}
+[data-am-finding-summary-item] { display: flex; gap: 6px; align-items: baseline; }
+[data-am-finding-summary-item] dt { color: ${c.textSecondary}; }
+[data-am-finding-summary-item] dd { margin: 0; color: ${c.textPrimary}; font-variant-numeric: tabular-nums; }
+[data-am-finding-summary-unavailable] { margin: 0 0 8px; font-size: 11px; color: ${c.textSecondary}; }
 /* 絞り込み後の表示件数。総件数と並べて「絞って消えた」を読み取れるようにする。 */
 [data-am-finding-shown] { margin-left: 8px; font-variant-numeric: tabular-nums; }
 /* Drift サブタブ。中身は memory 由来のドリフト一覧がそのまま描く。器の寸法はインラインで
@@ -622,6 +634,12 @@ export function mountFlightRecordPanel(
     </label>
   `;
   reviewRegion.appendChild(reviewToolbar);
+
+  // 対処率の集計行。フィルタバーと同じく固定し、絞り込みに影響されない全体値を出す
+  // （絞り込み後の件数で率を出すと、フィルタを触るたびに「対処率」が別の意味になる）。
+  const reviewSummaryHost = document.createElement('div');
+  reviewSummaryHost.dataset['amReviewSummaryHost'] = '';
+  reviewRegion.appendChild(reviewSummaryHost);
 
   // 表だけを内部スクロールさせる器。描画は毎回この innerHTML を差し替える。
   const reviewTableHost = document.createElement('div');
@@ -1234,6 +1252,11 @@ export function mountFlightRecordPanel(
       findingFilter.severity !== '' ||
       findingFilter.category !== '' ||
       findingFilter.status !== '';
+    reviewSummaryHost.innerHTML = renderFindingSummary({
+      t,
+      summary: state.summary,
+      loadFailed: state.loadFailed,
+    });
     reviewTableHost.innerHTML = renderFindingTable({
       t,
       findings,

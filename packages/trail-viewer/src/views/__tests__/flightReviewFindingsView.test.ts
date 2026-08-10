@@ -10,6 +10,7 @@ import {
   deriveFindingStatus,
   filterFindings,
   findingCategories,
+  renderFindingSummary,
   renderFindingTable,
   type FindingFilter,
 } from '../flightReviewFindingsView';
@@ -234,5 +235,46 @@ describe('renderFindingTable', () => {
     host.innerHTML = renderFindingTable({ ...input, findings: [], loadFailed: true, filterActive: true });
     expect(host.querySelector('[data-am-finding-load-failed]')).not.toBeNull();
     expect(host.querySelector('[data-am-finding-empty-filtered]')).toBeNull();
+  });
+});
+
+describe('renderFindingSummary', () => {
+  const summary = { total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2 };
+
+  it('対処率は追跡対象を分母に出し、追跡不能はパス欠落と repo 未解決の合算で出す', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderFindingSummary({ t, summary, loadFailed: false });
+    const rate = host.querySelector('[data-am-finding-summary-item][data-kind="rate"] dd');
+    expect(rate?.textContent).toBe('2 / 3 (67%)');
+    const untrackable = host.querySelector('[data-am-finding-summary-item][data-kind="untrackable"] dd');
+    expect(untrackable?.textContent).toBe('3');
+    const info = host.querySelector('[data-am-finding-summary-item][data-kind="info"] dd');
+    expect(info?.textContent).toBe('4');
+    const total = host.querySelector('[data-am-finding-summary-item][data-kind="total"] dd');
+    expect(total?.textContent).toBe('10');
+  });
+
+  it('追跡対象 0 件では率を出さない（0 除算を 0% や 100% と偽らない）', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderFindingSummary({
+      t,
+      summary: { ...summary, tracked: 0, addressed: 0 },
+      loadFailed: false,
+    });
+    const rate = host.querySelector('[data-am-finding-summary-item][data-kind="rate"] dd');
+    expect(rate?.textContent).toBe('—');
+  });
+
+  it('summary が無い（旧サーバー・集計失敗）ときは取得不可の 1 行を出す', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderFindingSummary({ t, summary: null, loadFailed: false });
+    expect(host.querySelector('[data-am-finding-summary-unavailable]')?.textContent).toBe(
+      'flightRecord.findings.summary.unavailable',
+    );
+    expect(host.querySelector('[data-am-finding-summary]')).toBeNull();
+  });
+
+  it('表本体が取得失敗を出すときは重ねて出さない', () => {
+    expect(renderFindingSummary({ t, summary: null, loadFailed: true })).toBe('');
   });
 });

@@ -776,6 +776,13 @@ export interface TrailI18n {
   'flightRecord.findings.filter.categoryAll': string;
   'flightRecord.findings.filter.status': string;
   'flightRecord.findings.filter.statusAll': string;
+  'flightRecord.findings.summary.addressedRate': string;
+  'flightRecord.findings.summary.untrackable': string;
+  'flightRecord.findings.summary.untrackableHint': string;
+  'flightRecord.findings.summary.info': string;
+  'flightRecord.findings.summary.total': string;
+  'flightRecord.findings.summary.unavailable': string;
+  'flightRecord.findings.summary.scopeHint': string;
   'flightRecord.detail.title': string;
   'flightRecord.detail.close': string;
   'flightRecord.detail.keyEvents': string;

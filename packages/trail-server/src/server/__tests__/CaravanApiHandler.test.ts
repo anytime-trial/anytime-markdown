@@ -319,6 +319,68 @@ describe('CaravanApiHandler', () => {
     });
   });
 
+  describe('getFlightReviewFindingSummary', () => {
+    // 共有 seed を汚さないよう専用 DB を作る（分母区分を全部踏むには行の組合せが要る）。
+    let sumTmpDir: string;
+    let sumHandler: CaravanApiHandler;
+
+    beforeAll(() => {
+      sumTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-api-summary-'));
+      const sumDbPath = path.join(sumTmpDir, 'caravan-book.db');
+      const db = new BetterSqlite3CaravanDb({ filePath: sumDbPath });
+      runMigrations(db);
+      db.run(
+        `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+         VALUES ('ent-1', 'Package', 'trail-viewer', 'trail-viewer', ?, ?, ?)`,
+        [TS, TS, TS],
+      );
+      db.run(
+        `INSERT INTO caravan_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
+         VALUES ('rev-s', 'session', 'sess-1#0', 'ent-1', 'code', 'Session review', ?, ?)`,
+        [TS, TS],
+      );
+      const insert = (
+        id: string, severity: string, targetPath: string | null, targetRepo: string | null, addressedAt: string | null,
+      ): void => {
+        db.run(
+          `INSERT INTO caravan_review_findings
+             (id, review_id, finding_entity_id, finding_index, target_file_path, target_repo, category, severity, finding_text, addressed_at, recorded_at)
+           VALUES (?, 'rev-s', 'ent-1', ?, ?, ?, 'logic', ?, 'x', ?, ?)`,
+          [id, Number(id.slice(-1)), targetPath, targetRepo, severity, addressedAt, TS],
+        );
+      };
+      insert('f-1', 'info', null, null, null);            // info（対象外）
+      insert('f-2', 'warn', null, null, null);            // noPath
+      insert('f-3', 'error', '', null, null);             // noPath（空文字も欠落扱い）
+      insert('f-4', 'warn', 'src/a.ts', null, null);      // unresolvedRepo
+      insert('f-5', 'error', 'src/b.ts', 'repo', null);   // tracked・未対処
+      insert('f-6', 'warn', 'src/c.ts', 'repo', TS);      // tracked・対処済み
+      db.close();
+      sumHandler = new CaravanApiHandler(makeMockLogger(), sumDbPath);
+    });
+
+    afterAll(() => {
+      fs.rmSync(sumTmpDir, { recursive: true, force: true });
+    });
+
+    it('分母を info / 追跡不能（パス欠落・repo 未解決）/ 追跡対象に分けて数える', async () => {
+      const summary = await sumHandler.getFlightReviewFindingSummary();
+      expect(summary).toEqual({
+        total: 6,
+        info: 1,
+        noPath: 2,
+        unresolvedRepo: 1,
+        tracked: 2,
+        addressed: 1,
+      });
+    });
+
+    it('DB を開けないときは null（0 件と区別する）', async () => {
+      const h = new CaravanApiHandler(makeMockLogger(), path.join(sumTmpDir, 'no-such.db'));
+      expect(await h.getFlightReviewFindingSummary()).toBeNull();
+    });
+  });
+
   describe('listPipelineRunStatsByDay', () => {
     it('groups runs by (day, scope) and sums duration', async () => {
       const rows = await handler.listPipelineRunStatsByDay({});

@@ -80,6 +80,48 @@ describe('flightFindingStore', () => {
     store.dispose();
   });
 
+  it('対処率集計（flight-summary）を取得して保持する', async () => {
+    stubFetch((url) => {
+      if (url.includes('flight-summary')) {
+        return jsonResponse({ total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2 });
+      }
+      return jsonResponse([]);
+    });
+    const store = createFlightFindingStore('http://x');
+    await store.refresh();
+
+    expect(store.getState().summary).toEqual({
+      total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2,
+    });
+    store.dispose();
+  });
+
+  it('summary の取得失敗は summary=null に留め、loadFailed へ波及させない（旧サーバー互換）', async () => {
+    stubFetch((url) =>
+      url.includes('flight-summary') ? jsonResponse(null, 404) : jsonResponse([]),
+    );
+    const store = createFlightFindingStore('http://x');
+    await store.refresh();
+
+    expect(store.getState().loadFailed).toBe(false);
+    expect(store.getState().summary).toBeNull();
+    store.dispose();
+  });
+
+  it('数値 6 フィールドが揃わない summary 応答は null へ倒す（誤った率を出さない）', async () => {
+    stubFetch((url) =>
+      url.includes('flight-summary')
+        ? jsonResponse({ total: 10, info: 'four' })
+        : jsonResponse([]),
+    );
+    const store = createFlightFindingStore('http://x');
+    await store.refresh();
+
+    expect(store.getState().summary).toBeNull();
+    expect(store.getState().loadFailed).toBe(false);
+    store.dispose();
+  });
+
   it('取得失敗は loadFailed で示し、0 件と区別する', async () => {
     stubFetch(() => jsonResponse(null, 500));
     const store = createFlightFindingStore('http://x');
