@@ -358,8 +358,8 @@ describe('runDriftDetection', () => {
         db.run(
           `INSERT INTO caravan_review_findings
              (id, review_id, finding_entity_id, finding_index, target_file_path,
-              severity, category, finding_text, recorded_at)
-           VALUES (?, 'rev-gone', ?, ?, 'packages/gone.ts', 'warn', 'logic', 'finding text', ?)`,
+              severity, category, finding_text, recorded_at, target_repo)
+           VALUES (?, 'rev-gone', ?, ?, 'packages/gone.ts', 'warn', 'logic', 'finding text', ?, 'ws-a')`,
           [fid, findingEntity, fid === 'rf-gone-1' ? 1 : 2, now],
         );
       }
@@ -368,7 +368,7 @@ describe('runDriftDetection', () => {
       const first = await runDriftDetection({
         db,
         logger: noopLogger,
-        resolveWorkspaceRoot: (ws) => (ws === 'ws-a' ? '/repo' : null),
+        resolveRepoRoot: (repo) => (repo === 'ws-a' ? '/repo' : null),
         fileExists: () => true,
       });
       expect(first.events_inserted).toBeGreaterThanOrEqual(1);
@@ -377,7 +377,7 @@ describe('runDriftDetection', () => {
       const second = await runDriftDetection({
         db,
         logger: noopLogger,
-        resolveWorkspaceRoot: (ws) => (ws === 'ws-a' ? '/repo' : null),
+        resolveRepoRoot: (repo) => (repo === 'ws-a' ? '/repo' : null),
         fileExists: () => false,
       });
       expect(second.events_resolved).toBeGreaterThanOrEqual(1);

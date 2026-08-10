@@ -491,7 +491,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
       const driftResult = await runDriftDetection({
         db: memDb.db,
         logger,
-        resolveWorkspaceRoot: (workspace) => (workspace === repoName ? gitRoot : null),
+        resolveRepoRoot: (repo) => (repo === repoName ? gitRoot : null),
       });
       // reopen（再発）も処理件数に含める。除くと再発だけの実行が 0 件処理に見える。
       const driftProcessed =

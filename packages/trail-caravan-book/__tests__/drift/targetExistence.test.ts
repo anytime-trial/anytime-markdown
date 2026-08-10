@@ -14,18 +14,23 @@ function makeCandidate(overrides: Partial<DriftEventInput> = {}): DriftEventInpu
     drift_type: 'recurring_review_finding',
     severity: 'warn',
     workspace: 'anytime-markdown',
-    detail: { file_path: 'packages/foo/src/a.ts', category: 'logic', cnt: 2 },
+    detail: {
+      file_path: 'packages/foo/src/a.ts',
+      category: 'logic',
+      cnt: 2,
+      target_repo: 'anytime-markdown',
+    },
     ...overrides,
   };
 }
 
-const resolveRoot = (ws: string) => (ws === 'anytime-markdown' ? '/repo' : null);
+const resolveRepoRoot = (repo: string) => (repo === 'anytime-markdown' ? '/repo' : null);
 
 describe('partitionByTargetExistence', () => {
-  it('ルート解決可・ファイル実在 → kept', () => {
+  it('target_repo のルート解決可・ファイル実在 → kept', () => {
     const result = partitionByTargetExistence({
       candidates: [makeCandidate()],
-      resolveWorkspaceRoot: resolveRoot,
+      resolveRepoRoot,
       fileExists: (p) => p === '/repo/packages/foo/src/a.ts',
       logger: silentLogger,
     });
@@ -33,10 +38,10 @@ describe('partitionByTargetExistence', () => {
     expect(result.missingTarget).toHaveLength(0);
   });
 
-  it('ルート解決可・ファイル消滅 → missingTarget', () => {
+  it('target_repo のルート解決可・ファイル消滅 → missingTarget', () => {
     const result = partitionByTargetExistence({
       candidates: [makeCandidate()],
-      resolveWorkspaceRoot: resolveRoot,
+      resolveRepoRoot,
       fileExists: () => false,
       logger: silentLogger,
     });
@@ -44,10 +49,10 @@ describe('partitionByTargetExistence', () => {
     expect(result.missingTarget).toHaveLength(1);
   });
 
-  it('ワークスペースのルートが解決できない → fail-open で kept', () => {
+  it('target_repo のルートが解決できない（別リポジトリ）→ fail-open で kept', () => {
     const result = partitionByTargetExistence({
-      candidates: [makeCandidate({ workspace: 'anytime-trade' })],
-      resolveWorkspaceRoot: resolveRoot,
+      candidates: [makeCandidate({ detail: { file_path: 'a.md', target_repo: 'anytime-markdown-docs' } })],
+      resolveRepoRoot,
       fileExists: () => false,
       logger: silentLogger,
     });
@@ -55,23 +60,30 @@ describe('partitionByTargetExistence', () => {
     expect(result.missingTarget).toHaveLength(0);
   });
 
-  it('workspace 空文字 → fail-open で kept', () => {
+  it('target_repo が null / 欠落 → workspace が一致していても fail-open で kept', () => {
+    // workspace は「レビューが行われたリポジトリ」であり対象の所在ではない。
+    // target_repo 未解決時に workspace へフォールバックすると、docs リポジトリの
+    // レビューが code リポジトリを指摘するケースで誤って「消滅」判定になる。
     const result = partitionByTargetExistence({
-      candidates: [makeCandidate({ workspace: '' })],
-      resolveWorkspaceRoot: resolveRoot,
+      candidates: [
+        makeCandidate({ detail: { file_path: 'packages/foo/src/a.ts', target_repo: null } }),
+        makeCandidate({ detail: { file_path: 'packages/foo/src/a.ts' } }),
+      ],
+      resolveRepoRoot,
       fileExists: () => false,
       logger: silentLogger,
     });
-    expect(result.kept).toHaveLength(1);
+    expect(result.kept).toHaveLength(2);
+    expect(result.missingTarget).toHaveLength(0);
   });
 
   it('file path を持たない候補 → fail-open で kept', () => {
     const result = partitionByTargetExistence({
       candidates: [
-        makeCandidate({ detail: { finding_id: 'x', target_file_path: null } }),
+        makeCandidate({ detail: { finding_id: 'x', target_file_path: null, target_repo: 'anytime-markdown' } }),
         makeCandidate({ detail: {} }),
       ],
-      resolveWorkspaceRoot: resolveRoot,
+      resolveRepoRoot,
       fileExists: () => false,
       logger: silentLogger,
     });
@@ -85,10 +97,10 @@ describe('partitionByTargetExistence', () => {
         makeCandidate({
           drift_type: 'review_unfixed',
           predicate: 'review_finding',
-          detail: { finding_id: 'f1', target_file_path: 'packages/gone.ts' },
+          detail: { finding_id: 'f1', target_file_path: 'packages/gone.ts', target_repo: 'anytime-markdown' },
         }),
       ],
-      resolveWorkspaceRoot: resolveRoot,
+      resolveRepoRoot,
       fileExists: () => false,
       logger: silentLogger,
     });
@@ -98,8 +110,8 @@ describe('partitionByTargetExistence', () => {
   it('絶対パスの file_path はルートを連結せずそのまま判定する', () => {
     const seen: string[] = [];
     partitionByTargetExistence({
-      candidates: [makeCandidate({ detail: { file_path: '/abs/b.ts' } })],
-      resolveWorkspaceRoot: resolveRoot,
+      candidates: [makeCandidate({ detail: { file_path: '/abs/b.ts', target_repo: 'anytime-markdown' } })],
+      resolveRepoRoot,
       fileExists: (p) => {
         seen.push(p);
         return true;
@@ -114,7 +126,7 @@ describe('partitionByTargetExistence', () => {
     const logger: CaravanLogger = { info: () => {}, error: (m) => errors.push(m) };
     const result = partitionByTargetExistence({
       candidates: [makeCandidate()],
-      resolveWorkspaceRoot: resolveRoot,
+      resolveRepoRoot,
       fileExists: () => {
         throw new Error('EACCES');
       },

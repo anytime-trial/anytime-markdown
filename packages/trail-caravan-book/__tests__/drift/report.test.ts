@@ -441,6 +441,21 @@ describe('reportDriftEvents - missingTargetCandidates（対象ファイル消滅
     expect(rows[0]?.values[0][0]).toBe(0);
   });
 
+  it('missingTarget 候補の key 照合は entity を生成しない（孤立 File entity を残さない）', () => {
+    const db = makeDb();
+
+    reportDriftEvents({
+      db,
+      candidates: [],
+      missingTargetCandidates: [makeCandidate('file:packages/deleted/src/gone.ts')],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    const rows = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type = 'File'`);
+    expect(rows[0]?.values[0][0]).toBe(0);
+  });
+
   it('missingTarget と無関係な既存イベントは従来 note で auto-resolve される', () => {
     const db = makeDb();
     const subjA = insertEntity(db);

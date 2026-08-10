@@ -32,15 +32,15 @@ export async function runDriftDetection(input: {
   db: CaravanDbConnection;
   logger: CaravanLogger;
   /**
-   * ワークスペース名 → リポジトリルート絶対パス（不明なら null）。
+   * リポジトリ名 (findings の target_repo) → リポジトリルート絶対パス（不明なら null）。
    * 渡すと、対象ファイルが消滅した drift 候補を検出から外し、既存イベントを
    * MISSING_TARGET_RESOLUTION_NOTE で解決する。省略時は実在チェックをしない（従来動作）。
    */
-  resolveWorkspaceRoot?: (workspace: string) => string | null;
+  resolveRepoRoot?: (repoName: string) => string | null;
   /** テスト用 DI。省略時は fs.existsSync。 */
   fileExists?: (absolutePath: string) => boolean;
 }): Promise<DriftDetectionResult> {
-  const { db, logger, resolveWorkspaceRoot, fileExists = existsSync } = input;
+  const { db, logger, resolveRepoRoot, fileExists = existsSync } = input;
   const startedAt = new Date().toISOString();
   const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
   ledger.start(startedAt);
@@ -107,13 +107,13 @@ export async function runDriftDetection(input: {
   }
 
   // 対象ファイル実在ゲート: 消滅した対象を指す候補を upsert から外し、既存イベントを
-  // 「auto: target file missing」で解決へ回す（resolveWorkspaceRoot 未指定なら素通し）。
+  // 「auto: target file missing」で解決へ回す（resolveRepoRoot 未指定なら素通し）。
   let keptCandidates = candidates;
   let missingTargetCandidates: DriftEventInput[] = [];
-  if (resolveWorkspaceRoot) {
+  if (resolveRepoRoot) {
     const partitioned = partitionByTargetExistence({
       candidates,
-      resolveWorkspaceRoot,
+      resolveRepoRoot,
       fileExists,
       logger,
     });
