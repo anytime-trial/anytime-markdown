@@ -93,7 +93,7 @@ export function createImageBlockChrome(
   const annotateBadgeWrap = document.createElement("span");
   annotateBadgeWrap.style.cssText = "position:relative;display:inline-flex;line-height:0;";
   if (annotateIcon) {
-    annotateBtn.replaceChild(annotateBadgeWrap, annotateIcon);
+    annotateIcon.replaceWith(annotateBadgeWrap);
     annotateBadgeWrap.appendChild(annotateIcon);
   } else {
     annotateBtn.appendChild(annotateBadgeWrap);

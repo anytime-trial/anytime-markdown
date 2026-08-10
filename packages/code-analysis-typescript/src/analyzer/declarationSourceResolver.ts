@@ -65,7 +65,9 @@ export function resolveDeclarationToSource(
   const pkg = normalize(pkgDir);
   if (hasSegment(pkg, 'node_modules')) return null;
 
-  const underPkg = [...byNormalized.keys()].filter((p) => isUnder(p, pkg)).sort();
+  const underPkg = [...byNormalized.keys()]
+    .filter((p) => isUnder(p, pkg))
+    .sort((a, b) => a.localeCompare(b));
   if (underPkg.length === 0) return null;
 
   const chosen =

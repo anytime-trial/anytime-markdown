@@ -244,16 +244,22 @@ function childIndentFor(parent: DocumentFragment | Element, before: Node | null)
 function insertElementNode(parent: DocumentFragment | Element, element: Element, index?: number): string | null {
   const children = Array.from(parent.children);
   const insertIndex = index === undefined ? children.length : Math.max(0, Math.min(index, children.length));
-  let before: Node | null = children[insertIndex] ?? null;
+  let before: ChildNode | null = children[insertIndex] ?? null;
   if (!before && isWhitespaceText(parent.lastChild)) before = parent.lastChild;
 
   const indent = childIndentFor(parent, before);
+  // 基準ノードが無いときは末尾追加。`before` が null の `insertBefore` と同義で、
+  // `ChildNode#before` は null を受け取れないためここで分岐を明示する。
+  const insertBeforeAnchor = (node: Node): void => {
+    if (before) before.before(node);
+    else parent.append(node);
+  };
   if (isWhitespaceText(before)) {
-    if (indent !== null) parent.insertBefore(parent.ownerDocument.createTextNode(indent), before);
-    parent.insertBefore(element, before);
+    if (indent !== null) insertBeforeAnchor(parent.ownerDocument.createTextNode(indent));
+    insertBeforeAnchor(element);
   } else {
-    parent.insertBefore(element, before);
-    if (indent !== null) parent.insertBefore(parent.ownerDocument.createTextNode(indent), before);
+    insertBeforeAnchor(element);
+    if (indent !== null) insertBeforeAnchor(parent.ownerDocument.createTextNode(indent));
   }
 
   const parentPath = element.parentElement ? pathOfElement(element.parentElement) : "";
@@ -419,7 +425,7 @@ export function wrapScreenmockElement(
     const wrapper = template.ownerDocument.createElement("div");
     wrapper.setAttribute("class", wrapperClassName);
     const indent = previousIndentOf(target);
-    parent.insertBefore(wrapper, target);
+    target.before(wrapper);
     wrapper.appendChild(target);
     normalizeElementLeadingWhitespace(wrapper, indent);
     newPath = `${pathOfElement(wrapper)}/0`;
@@ -452,8 +458,8 @@ export function unwrapScreenmockElement(source: string, screenIndex: number, pat
     removeLeadingWhitespace(target);
     for (const child of children) {
       removeLeadingWhitespace(child);
-      if (indent !== null) parent.insertBefore(template.ownerDocument.createTextNode(indent), target);
-      parent.insertBefore(child, target);
+      if (indent !== null) target.before(template.ownerDocument.createTextNode(indent));
+      target.before(child);
     }
     target.remove();
     return true;
@@ -733,7 +739,7 @@ export function moveScreenmockElement(
 
   const children = Array.from(parent.children);
   const remaining = children.filter((child) => child !== target);
-  let before: Node | null = remaining[resolveInsertIndex(toIndex, children, target)] ?? null;
+  let before: ChildNode | null = remaining[resolveInsertIndex(toIndex, children, target)] ?? null;
   // 末尾へ入れるときは閉じタグ手前の空白（インデント）より前に置く。
   if (!before && isWhitespaceText(parent.lastChild)) before = parent.lastChild;
 
@@ -741,9 +747,14 @@ export function moveScreenmockElement(
   const leadingWhitespace = target.previousSibling;
   if (isWhitespaceText(leadingWhitespace)) leadingWhitespace.remove();
 
-  parent.insertBefore(target, before);
+  // 基準ノードが無いときは末尾追加（`insertBefore(x, null)` と同義）。
+  const insertBeforeAnchor = (node: Node): void => {
+    if (before) before.before(node);
+    else parent.append(node);
+  };
+  insertBeforeAnchor(target);
   // 移動先でも要素が行頭に来るよう、直後へ元と同じインデントを補う。
-  if (indent !== null) parent.insertBefore(template.ownerDocument.createTextNode(indent), before);
+  if (indent !== null) insertBeforeAnchor(template.ownerDocument.createTextNode(indent));
 
   removePathAttributes(template.content);
   return template.innerHTML;

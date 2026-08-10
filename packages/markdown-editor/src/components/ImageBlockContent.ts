@@ -94,7 +94,7 @@ export function createImageBlockNodeView({
     annotationSvg = buildAnnotationSvg(
       parseAnnotations((attrs.annotations as string) ?? null),
     );
-    if (annotationSvg) dom.insertBefore(annotationSvg, handle);
+    if (annotationSvg) handle.before(annotationSvg);
   };
 
   const applyImage = (): void => {

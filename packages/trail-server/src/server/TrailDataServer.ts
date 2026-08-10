@@ -914,8 +914,8 @@ export class TrailDataServer {
     t.exact('GET', '/api/c4/sequence', (ctx) => void this.handleC4SequenceEndpoint(ctx.res, ctx.query('elementId', '')));
     t.exact('GET', '/api/c4/function-graph', (ctx) =>
       void this.handleC4FunctionGraphEndpoint(ctx.res, ctx.query('elementId', '')));
-    t.exact('GET', '/api/c4/call-hierarchy', (ctx) =>
-      void this.handleCallHierarchyEndpoint(ctx.res, {
+    t.exact('GET', '/api/c4/call-hierarchy', (ctx) => {
+      this.handleCallHierarchyEndpoint(ctx.res, {
         file: ctx.query('file', ''),
         fn: ctx.query('fn', ''),
         direction: ctx.query('direction', 'callees'),
@@ -923,7 +923,8 @@ export class TrailDataServer {
         lineParam: ctx.url.searchParams.get('line'),
         scope: ctx.query('scope', 'project'),
         excludeTests: ctx.query('excludeTests', '') === 'true',
-      }));
+      });
+    });
   }
 
   /** 手動 C4（要素・関係・グループ・コミュニティ要約）。書き込み系は Content-Type を検証する。 */
