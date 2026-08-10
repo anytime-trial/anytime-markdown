@@ -23,7 +23,7 @@ export function detectReviewUnfixed(input: {
   try {
     rows = db.exec(
       `SELECT f.id, f.finding_entity_id, f.target_file_path, f.severity, f.recorded_at,
-              COALESCE(r.workspace, '') AS workspace
+              COALESCE(r.workspace, '') AS workspace, f.target_repo
        FROM caravan_review_findings f
        LEFT JOIN caravan_reviews r ON r.id = f.review_id
        WHERE f.addressed_at IS NULL
@@ -64,6 +64,9 @@ export function detectReviewUnfixed(input: {
         target_file_path: filePath,
         recorded_at: recordedAt,
         days_old: daysOld,
+        // 対象ファイルの実在ゲート (targetExistence) の判定基準。workspace は
+        // 「レビューが行われたリポジトリ」であり対象の所在ではない（migration 016）。
+        target_repo: (row[6] as string | null) ?? null,
       },
     });
   }
@@ -156,7 +159,9 @@ export function detectRecurringReviewFindings(input: {
       `SELECT f.target_file_path, f.category, COUNT(*) AS cnt,
               GROUP_CONCAT(f.id) AS finding_ids,
               CASE WHEN COUNT(DISTINCT NULLIF(r.workspace, '')) = 1
-                   THEN MIN(NULLIF(r.workspace, '')) ELSE '' END AS workspace
+                   THEN MIN(NULLIF(r.workspace, '')) ELSE '' END AS workspace,
+              CASE WHEN COUNT(DISTINCT NULLIF(f.target_repo, '')) = 1
+                   THEN MIN(NULLIF(f.target_repo, '')) ELSE NULL END AS target_repo
        FROM caravan_review_findings f
        LEFT JOIN caravan_reviews r ON r.id = f.review_id
        WHERE f.category NOT IN (${placeholders})
@@ -189,7 +194,16 @@ export function detectRecurringReviewFindings(input: {
       drift_type: 'recurring_review_finding',
       severity: 'warn',
       workspace: (row[4] as string | null) ?? '',
-      detail: { file_path: filePath, category, cnt, finding_ids: findingIds, windowDays },
+      detail: {
+        file_path: filePath,
+        category,
+        cnt,
+        finding_ids: findingIds,
+        windowDays,
+        // クラスタ内の指摘が単一の target_repo（対象の実リポジトリ）へ収束するときだけ
+        // 確定する。混在・全 null は null（実在ゲートは fail-open で素通しする）。
+        target_repo: (row[5] as string | null) ?? null,
+      },
     });
   }
   return results;

@@ -8,6 +8,8 @@ import { detectRegressionClusters, detectSpecViolationClusters } from '../drift/
 import { detectReviewUnfixed, detectReviewVsCode, detectRecurringReviewFindings } from '../drift/reviewClusters';
 import { detectRecurringQuestions } from '../drift/recurringQuestions';
 import { reportDriftEvents } from '../drift/report';
+import { partitionByTargetExistence } from '../drift/targetExistence';
+import { existsSync } from 'node:fs';
 import { postProcessF22 } from '../drift/postProcessF22';
 import type { DriftEventInput } from '../drift/report';
 import { decideSeverity } from '../drift/policy';
@@ -29,8 +31,16 @@ export type DriftDetectionResult = {
 export async function runDriftDetection(input: {
   db: CaravanDbConnection;
   logger: CaravanLogger;
+  /**
+   * リポジトリ名 (findings の target_repo) → リポジトリルート絶対パス（不明なら null）。
+   * 渡すと、対象ファイルが消滅した drift 候補を検出から外し、既存イベントを
+   * MISSING_TARGET_RESOLUTION_NOTE で解決する。省略時は実在チェックをしない（従来動作）。
+   */
+  resolveRepoRoot?: (repoName: string) => string | null;
+  /** テスト用 DI。省略時は fs.existsSync。 */
+  fileExists?: (absolutePath: string) => boolean;
 }): Promise<DriftDetectionResult> {
-  const { db, logger } = input;
+  const { db, logger, resolveRepoRoot, fileExists = existsSync } = input;
   const startedAt = new Date().toISOString();
   const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
   ledger.start(startedAt);
@@ -96,6 +106,26 @@ export async function runDriftDetection(input: {
     candidates.push(...results);
   }
 
+  // 対象ファイル実在ゲート: 消滅した対象を指す候補を upsert から外し、既存イベントを
+  // 「auto: target file missing」で解決へ回す（resolveRepoRoot 未指定なら素通し）。
+  let keptCandidates = candidates;
+  let missingTargetCandidates: DriftEventInput[] = [];
+  if (resolveRepoRoot) {
+    const partitioned = partitionByTargetExistence({
+      candidates,
+      resolveRepoRoot,
+      fileExists,
+      logger,
+    });
+    keptCandidates = partitioned.kept;
+    missingTargetCandidates = partitioned.missingTarget;
+    if (missingTargetCandidates.length > 0) {
+      logger.info(
+        `[runDriftDetection] missing-target candidates excluded=${missingTargetCandidates.length}`,
+      );
+    }
+  }
+
   let reportResult = {
     events_inserted: 0,
     events_updated: 0,
@@ -104,14 +134,20 @@ export async function runDriftDetection(input: {
     events_redetect_suppressed: 0,
   };
   try {
-    reportResult = reportDriftEvents({ db, candidates, recordedAt: startedAt, logger });
+    reportResult = reportDriftEvents({
+      db,
+      candidates: keptCandidates,
+      missingTargetCandidates,
+      recordedAt: startedAt,
+      logger,
+    });
   } catch (err) {
     logger.error(`[runDriftDetection] reportDriftEvents failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
     hasPartialError = true;
   }
 
   try {
-    postProcessF22({ db, driftEvents: candidates, recordedAt: startedAt, logger });
+    postProcessF22({ db, driftEvents: keptCandidates, recordedAt: startedAt, logger });
   } catch (err) {
     logger.error(`[runDriftDetection] postProcessF22 failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
     hasPartialError = true;

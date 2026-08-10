@@ -80,6 +80,12 @@ const HISTORY_LIMIT = 10;
  */
 const AUTO_RESOLVE_NOTE_PREFIX = 'auto:';
 
+/**
+ * 対象ファイル消滅による解決 note。AUTO_RESOLVE_NOTE_PREFIX で始めることが必須
+ * （人手解決と区別され、ファイル復活時に reopenEvent の対象になる）。
+ */
+export const MISSING_TARGET_RESOLUTION_NOTE = 'auto: target file missing';
+
 function isAutoResolved(resolutionNote: string): boolean {
   return resolutionNote.startsWith(AUTO_RESOLVE_NOTE_PREFIX);
 }
@@ -234,38 +240,61 @@ function ensureEntity(
  *   確保する（canonical_name も接頭辞付きで実 Question と衝突しない）。
  * - 接頭辞無し（review_unfixed 等の実 entity id）はそのまま返す（既存なら no-op）。
  */
-function resolveSubjectEntity(db: CaravanDbConnection, subjectId: string, recordedAt: string): string {
+type SubjectDescriptor = {
+  id: string;
+  type: string;
+  canonicalName: string;
+  displayName: string;
+};
+
+/**
+ * subject_entity_id 正規化の純関数部分。entity 生成の副作用を持たない。
+ * key 照合だけが目的の経路（missingTargetCandidates）はこちらを使う —
+ * resolveSubjectEntity を通すと、挿入されないイベントのために孤立 entity が
+ * 永続化されてしまう。
+ */
+function normalizeSubject(subjectId: string): SubjectDescriptor {
   if (subjectId.startsWith('file:')) {
     const path = subjectId.slice('file:'.length);
     const canon = canonicalize(path);
-    const id = entityId('File', canon);
-    ensureEntity(db, id, 'File', canon, path, recordedAt);
-    return id;
+    return { id: entityId('File', canon), type: 'File', canonicalName: canon, displayName: path };
   }
   if (subjectId.startsWith('package:')) {
     const pkg = subjectId.slice('package:'.length);
     const canon = canonicalize(pkg);
-    const id = entityId('Package', canon);
-    ensureEntity(db, id, 'Package', canon, pkg, recordedAt);
-    return id;
+    return { id: entityId('Package', canon), type: 'Package', canonicalName: canon, displayName: pkg };
   }
   if (subjectId.startsWith('spec_clarification:')) {
-    ensureEntity(db, subjectId, 'Question', subjectId, subjectId.slice('spec_clarification:'.length), recordedAt);
-    return subjectId;
+    return {
+      id: subjectId,
+      type: 'Question',
+      canonicalName: subjectId,
+      displayName: subjectId.slice('spec_clarification:'.length),
+    };
   }
   // 接頭辞無し = 実 entity id（既存なら no-op。念のため不在時は Concept stub で FK を満たす）。
-  ensureEntity(db, subjectId, 'Concept', subjectId, subjectId, recordedAt);
-  return subjectId;
+  return { id: subjectId, type: 'Concept', canonicalName: subjectId, displayName: subjectId };
+}
+
+function resolveSubjectEntity(db: CaravanDbConnection, subjectId: string, recordedAt: string): string {
+  const subject = normalizeSubject(subjectId);
+  ensureEntity(db, subject.id, subject.type, subject.canonicalName, subject.displayName, recordedAt);
+  return subject.id;
 }
 
 export function reportDriftEvents(input: {
   db: CaravanDbConnection;
   candidates: DriftEventInput[];
+  /**
+   * 対象ファイルが消滅していた候補（partitionByTargetExistence の missingTarget）。
+   * upsert へは回さず、既存の未解決イベントだけを MISSING_TARGET_RESOLUTION_NOTE で解決する。
+   */
+  missingTargetCandidates?: DriftEventInput[];
   recordedAt: string;
   autoResolveStale?: boolean;
   logger: CaravanLogger;
 }): ReportResult {
-  const { db, candidates, recordedAt, autoResolveStale = true, logger } = input;
+  const { db, candidates, missingTargetCandidates = [], recordedAt, autoResolveStale = true, logger } = input;
 
   const result: ReportResult = {
     events_inserted: 0,
@@ -310,17 +339,30 @@ export function reportDriftEvents(input: {
     normalizedCandidates.map((c) => driftKey(c.subject_entity_id, c.predicate, c.drift_type)),
   );
 
-  // 3. auto-resolve: 候補に含まれなくなった既存 event
+  // 対象消滅分も同じ正規化を通す（key が一致しないと既存イベントを見つけられない）。
+  // ただし entity 生成の副作用を持たない normalizeSubject を使う — これらの候補は
+  // 挿入されないため、resolveSubjectEntity を通すと消滅ファイルの孤立 entity が残る。
+  const missingTargetKeys = new Set(
+    missingTargetCandidates.map((c) =>
+      driftKey(normalizeSubject(c.subject_entity_id).id, c.predicate, c.drift_type),
+    ),
+  );
+
+  // 3. auto-resolve: 候補に含まれなくなった既存 event。
+  //    対象ファイル消滅による不在は note を分けて記録する（後から解決理由を監査できるように）。
   if (autoResolveStale) {
     for (const ev of activeEvents) {
       const key = driftKey(ev.subject_entity_id, ev.predicate, ev.drift_type);
       if (!candidateKeys.has(key)) {
+        const note = missingTargetKeys.has(key)
+          ? MISSING_TARGET_RESOLUTION_NOTE
+          : 'auto: drift no longer present';
         try {
           db.run(
             `UPDATE caravan_drift_events
-             SET resolved_at = ?, resolution_note = 'auto: drift no longer present'
+             SET resolved_at = ?, resolution_note = ?
              WHERE id = ?`,
-            [recordedAt, ev.id],
+            [recordedAt, note, ev.id],
           );
           result.events_resolved++;
         } catch (err) {
