@@ -1,6 +1,7 @@
 import {
   extractProblemSuggestionPairs,
   extractNumberedFindings,
+  extractBasenameCandidates,
   inferSeverityFromHeading,
   inferSeverity,
   extractTargetFromFinding,
@@ -604,5 +605,76 @@ describe('resolveFindingTarget', () => {
     expect(
       resolveFindingTarget({ ownText: '対象の書かれていない指摘', chapterTarget: null, chapterFindingCount: 1 }),
     ).toBeNull();
+  });
+});
+
+// ── extractTargetFromFinding: Markdown 強調で潰れていた退行 ────────────────────
+//
+// `maskNonPathTokens` はグロブを落とすため `\S*[*?]\S*` を空白へ潰していた。
+// Markdown の強調 `**path**` も 1 トークンとして `*` を含むため丸ごと消え、
+// 「太字で対象を書いたレビュー」だけが対象欠落になっていた（本番実データで確認）。
+
+describe('extractTargetFromFinding: Markdown 強調', () => {
+  test('**bold** で囲まれたパスを取り出す', () => {
+    const text = '- **packages/foo/src/bar.ts:48** - 該当行の説明';
+    expect(extractTargetFromFinding(text)).toBe('packages/foo/src/bar.ts');
+  });
+
+  test('強調を剥がしてもグロブは落とす（誤抽出の再導入を防ぐ）', () => {
+    const text = '**packages/*/src/i18n/navigation.ts** を一括で直す';
+    expect(extractTargetFromFinding(text)).toBeNull();
+  });
+});
+
+// ── extractTargetFromFinding: 拡張子リストの単一の正 ──────────────────────────
+//
+// 抽出器と正規化で拡張子リストを二重管理していたため、`.py` / `.sh` 等は
+// 正規化を通るのに抽出器が拾わないという非対称が生じていた。
+
+describe('extractTargetFromFinding: 正規化と同じ拡張子集合', () => {
+  test('py を拾う', () => {
+    expect(extractTargetFromFinding('`scripts/collect.py:12` が落ちる')).toBe('scripts/collect.py');
+  });
+
+  test('sh を拾う', () => {
+    expect(extractTargetFromFinding('`scripts/build.sh` の exit code')).toBe('scripts/build.sh');
+  });
+});
+
+// ── extractBasenameCandidates ────────────────────────────────────────────────
+
+describe('extractBasenameCandidates', () => {
+  test('バッククォート内の裸のファイル名を候補にする', () => {
+    const text = '`pipelineWatchdog.ts:33-38` が `status=running` の run を書き換える';
+    expect(extractBasenameCandidates(text)).toEqual(['pipelineWatchdog.ts']);
+  });
+
+  test('出現順を保ち重複を畳む', () => {
+    const text = '`cli.ts` と `trailDaemonEntry.ts`、再び `cli.ts`';
+    expect(extractBasenameCandidates(text)).toEqual(['cli.ts', 'trailDaemonEntry.ts']);
+  });
+
+  test('ディレクトリ区切りを含むものは候補にしない（既存の抽出器の担当）', () => {
+    expect(extractBasenameCandidates('`packages/foo/src/bar.ts`')).toEqual([]);
+  });
+
+  test('絶対パスは候補にしない', () => {
+    expect(extractBasenameCandidates('`/anytime-markdown/CLAUDE.md`')).toEqual([]);
+  });
+
+  test('既知拡張子でないものは候補にしない（関数名・散文の誤抽出を防ぐ）', () => {
+    expect(extractBasenameCandidates('`runVerified()` と `status=running` と `.gitignore`')).toEqual([]);
+  });
+
+  test('バッククォート外のファイル名は候補にしない', () => {
+    expect(extractBasenameCandidates('cli.ts が落ちる')).toEqual([]);
+  });
+
+  test('文脈として常に言及される正本ファイルは候補にしない', () => {
+    expect(extractBasenameCandidates('`CLAUDE.md` の規約に従い `AGENTS.md` も見る')).toEqual([]);
+  });
+
+  test('空文字は空配列', () => {
+    expect(extractBasenameCandidates('')).toEqual([]);
   });
 });

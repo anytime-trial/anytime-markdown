@@ -1,4 +1,4 @@
-import { normalizeTargetPath } from './normalizeTargetPath';
+import { KNOWN_FILE_EXT_SOURCE, normalizeTargetPath } from './normalizeTargetPath';
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -435,7 +435,7 @@ export function parseTargetMarker(body: string): string | null {
  * 行末や本文中の `:<line>` `:<line>-<line>` サフィックスは除去してパスのみ返す。
  * 一致なしは null。
  */
-const FILE_EXT_RE = String.raw`(?:tsx?|jsx?|mts|cts|mjs|cjs|md|sql|json|yml|yaml|css|scss|html?)`;
+const FILE_EXT_RE = String.raw`(?:${KNOWN_FILE_EXT_SOURCE})`;
 const PATH_TOKEN_RE = new RegExp(
   String.raw`(?:packages\/[\w@.\-]+\/)?(?:src|tests?|spec|scripts|\.github\/workflows|docs|public|migrations)\/[\w./\-]+\.${FILE_EXT_RE}(?::\d+(?:-\d+)?)?`,
   'g',
@@ -457,10 +457,17 @@ function pushCandidate(candidates: string[], raw: string): void {
  * `packages/*​/src/i18n/navigation.ts` から `src/i18n/navigation.ts` が取れてしまう。
  * どちらも「実在しそうな別のパス」であり、拒否されるより質が悪い（誤リンクの原因になる）。
  * 正規化は部分文字列を受け取った時点で文脈を失うので、ここで先に落とす。
+ *
+ * ただしグロブ判定より**先に** Markdown の強調 `**...**` を剥がす。強調で囲んだパスは
+ * `**packages/foo/src/bar.ts:48**` のように `*` を含む 1 トークンになり、グロブとして
+ * 丸ごと潰されていた（「太字で対象を書いたレビューだけ対象欠落」という形で本番
+ * データに出ていた）。`__` は剥がさない — この monorepo では `__tests__` が普遍的で、
+ * 剥がすとパスの方を壊す。単独の `*` は残るので、真のグロブは従来どおり落ちる。
  */
 function maskNonPathTokens(text: string): string {
   return text
     .replace(/\b[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S*/g, ' ')
+    .replace(/\*\*/g, ' ')
     .replace(/\S*[*?]\S*/g, ' ');
 }
 
@@ -499,6 +506,62 @@ export function extractTargetFromFinding(text: string): string | null {
   const srcCand = candidates.find((c) => c.startsWith('src/'));
   if (srcCand) return srcCand;
   return candidates[0];
+}
+
+// ── Bare basename candidates (path-less findings) ────────────────────────────
+
+/**
+ * 「文脈として常に言及されるが、指摘の対象ではない」正本ファイル。
+ *
+ * 指摘本文は規約やメモリの根拠としてこれらを引くことが多く、リポジトリ内で
+ * 一意に解決してしまうため、そのまま対象にすると誤リンクの温床になる。
+ * 逆にこれらが本当に対象なら、`- **対象**:` 行に明示されるので拾える。
+ */
+const CONTEXTUAL_BASENAMES: ReadonlySet<string> = new Set([
+  'CLAUDE.md',
+  'AGENTS.md',
+  'README.md',
+  'MEMORY.md',
+]);
+
+/** ディレクトリ区切りを持たない既知拡張子のファイル名。 */
+const BARE_BASENAME_RE = new RegExp(String.raw`^[\w.\-]+\.(?:${KNOWN_FILE_EXT_SOURCE})$`, 'i');
+
+/**
+ * 指摘本文から「裸のファイル名」候補を出現順に抽出する。
+ *
+ * 実データでは、対象パスが空の指摘の大半が `` `cli.ts` `` `` `pipelineWatchdog.ts:33-38` ``
+ * のようにファイル名だけを書いている。`extractTargetFromFinding` はディレクトリ接頭辞を
+ * 必須にしているため、これらを 1 件も拾えなかった。
+ *
+ * ここで返すのは**候補**であって対象ではない。リポジトリ相対パスへ落とす責務は
+ * `resolveByBasename` が持ち、そこで実在と一意性を検査する（同名ファイルが複数在れば
+ * 採用しない）。この分担は `resolveTargetRepo` と同じ「実在で決める、推測しない」方針。
+ *
+ * バッククォート内に限るのは、散文中の語（`cli.ts が落ちる` の類ではなく、`次の 3 点.md`
+ * のような偶然パスに見える日本語）を拾わないため。レビュー本文でファイル名は
+ * 例外なくバッククォートで書かれている。
+ */
+export function extractBasenameCandidates(text: string): string[] {
+  if (!text) return [];
+
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  const re = /`([^`\n]+)`/g;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(text)) !== null) {
+    const normalized = normalizeTargetPath(m[1].trim());
+    if (normalized === null) continue;
+    if (normalized.absolute || normalized.path.includes('/')) continue;
+    if (!BARE_BASENAME_RE.test(normalized.path)) continue;
+    if (CONTEXTUAL_BASENAMES.has(normalized.path)) continue;
+    if (seen.has(normalized.path)) continue;
+    seen.add(normalized.path);
+    candidates.push(normalized.path);
+  }
+
+  return candidates;
 }
 
 /**

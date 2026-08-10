@@ -19,9 +19,19 @@
  */
 export type TargetPathKind = 'file' | 'directory' | 'unknown';
 
+/**
+ * 実在が確実な拡張子の交替パターン（単一の正）。
+ *
+ * 抽出器（`findingHelpers.ts` の PATH_TOKEN_RE）も同じ集合を使う。かつては両者が
+ * 別々のリストを持っており、`py` / `sh` / `rs` / `go` / `toml` が抽出器側にだけ
+ * 無かった。結果は「正規化は通るのに抽出器が拾わない」非対称で、症状は
+ * 「対象パスが空の指摘」に紛れて異常として現れない。リストは 1 箇所に置く。
+ */
+export const KNOWN_FILE_EXT_SOURCE =
+  'tsx?|jsx?|mts|cts|mjs|cjs|md|sql|jsonc|json|ya?ml|css|scss|html?|txt|sh|py|rs|go|toml|lock|svg|png|jpe?g|gif|ico|vsix';
+
 /** 実在が確実な拡張子（これらは常にファイルとして扱ってよい）。 */
-const KNOWN_FILE_EXT_RE =
-  /\.(?:tsx?|jsx?|mts|cts|mjs|cjs|md|sql|json|jsonc|ya?ml|css|scss|html?|txt|sh|py|rs|go|toml|lock|svg|png|jpe?g|gif|ico|vsix|cjs)$/i;
+const KNOWN_FILE_EXT_RE = new RegExp(String.raw`\.(?:${KNOWN_FILE_EXT_SOURCE})$`, 'i');
 
 export interface NormalizedTargetPath {
   readonly path: string;

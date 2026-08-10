@@ -775,6 +775,9 @@ export const en: TrailI18n = {
   'flightRecord.findings.summary.untrackable': 'Untrackable',
   'flightRecord.findings.summary.untrackableHint':
     'Findings that cannot be matched to an addressing commit because the target file path is missing or the target repository is unresolved (excluding info).',
+  'flightRecord.findings.summary.inferred': 'Inferred target',
+  'flightRecord.findings.summary.inferredHint':
+    'Findings whose target path was not stated by the reviewer and was resolved from a filename in the body. A path that resolved to a moved file matches no commit and stays unaddressed, so check here first when the rate stops improving.',
   'flightRecord.findings.summary.info': 'Not tracked (info)',
   'flightRecord.findings.summary.total': 'All findings',
   'flightRecord.findings.summary.unavailable': 'Addressed-rate summary is unavailable.',

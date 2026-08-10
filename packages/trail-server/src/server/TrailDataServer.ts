@@ -1220,9 +1220,13 @@ export class TrailDataServer {
 
     // 対処率の分母別集計（追跡対象 / info / 追跡不能）。一覧の limit に影響されない
     // よう SQL 集計の専用ルートから取る。失敗時は null が返り、0 件と区別できる。
+    // workspace は一覧（flight-findings）と同じ値を受ける。集計だけ横断のままにすると、
+    // 画面でワークスペースを選んでいるのに対処率だけが他ワークスペース込みという
+    // 食い違いになる（コミットが取込まれていないワークスペースは構造的に追跡対象 0 件で、
+    // 分母だけを押し上げる）。
     t.exact('GET', '/api/caravan/reviews/flight-summary', (ctx) =>
       this.respondCaravanJson(ctx.res, '/api/caravan/reviews/flight-summary',
-        this.caravanApi.getFlightReviewFindingSummary()));
+        this.caravanApi.getFlightReviewFindingSummary({ workspace: ctx.queryOpt('workspace') })));
 
     t.exact('GET', '/api/caravan/reviews/flight-findings', (ctx) => {
       const raw = ctx.queryOpt('instructionIds');

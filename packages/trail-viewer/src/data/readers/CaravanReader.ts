@@ -198,9 +198,19 @@ export class CaravanReader {
     return this.fetchJson<CaravanFlightReviewFindingCountRow[]>('/api/caravan/reviews/flight-counts');
   }
 
-  /** 対処率の分母別集計。サーバー側で集計に失敗した場合は null が返る（0 件と区別）。 */
-  async getFlightReviewFindingSummary(): Promise<CaravanFlightReviewFindingSummary | null> {
-    return this.fetchJson<CaravanFlightReviewFindingSummary | null>('/api/caravan/reviews/flight-summary');
+  /**
+   * 対処率の分母別集計。サーバー側で集計に失敗した場合は null が返る（0 件と区別）。
+   * workspace は一覧（getFlightReviewFindings）と同じ値を渡す — 集計だけ横断にすると
+   * 画面の選択と分母が食い違う。
+   */
+  async getFlightReviewFindingSummary(
+    params: { workspace?: string } = {},
+  ): Promise<CaravanFlightReviewFindingSummary | null> {
+    const q = new URLSearchParams();
+    if (params.workspace) q.set('workspace', params.workspace);
+    return this.fetchJson<CaravanFlightReviewFindingSummary | null>(
+      `/api/caravan/reviews/flight-summary?${q}`,
+    );
   }
 
   async getFlightReviewFindings(params: {

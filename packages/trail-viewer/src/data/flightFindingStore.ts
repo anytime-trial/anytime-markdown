@@ -66,7 +66,7 @@ function errorMessage(err: unknown): string {
 }
 
 /**
- * summary 応答の形検証。数値 6 フィールドが揃わない応答（旧サーバーの 404・プロキシの
+ * summary 応答の形検証。数値 7 フィールドが揃わない応答（旧サーバーの 404・プロキシの
  * エラー HTML・サーバー側集計失敗の null）は null へ倒す（誤った率を出すより出さない）。
  */
 async function parseSummary(res: Response | null): Promise<CaravanFlightReviewFindingSummary | null> {
@@ -75,7 +75,7 @@ async function parseSummary(res: Response | null): Promise<CaravanFlightReviewFi
     const body = (await res.json()) as unknown;
     if (body === null || typeof body !== 'object') return null;
     const r = body as Record<string, unknown>;
-    const fields = ['total', 'info', 'noPath', 'unresolvedRepo', 'tracked', 'addressed'] as const;
+    const fields = ['total', 'info', 'noPath', 'unresolvedRepo', 'tracked', 'addressed', 'inferred'] as const;
     if (!fields.every((f) => typeof r[f] === 'number')) {
       console.warn('[flightFinding] unexpected response shape from /api/caravan/reviews/flight-summary');
       return null;
@@ -142,9 +142,11 @@ export function createFlightFindingStore(
         // 絞られており、余分な行は突合で落ちる）。
         request('/api/caravan/reviews/flight-counts'),
         request(`/api/caravan/reviews/flight-findings?limit=${limit}${workspaceQuery}`),
-        // 対処率の分母別集計。ルートが無い旧サーバーでも表本体は出せるよう、
-        // 失敗は summary=null に留めて loadFailed へ波及させない。
-        request('/api/caravan/reviews/flight-summary').catch((err: unknown) => {
+        // 対処率の分母別集計。一覧と**同じ** workspace で絞る。ここだけ横断にすると、
+        // 画面で選んだワークスペースの表の上に、他ワークスペース込みの対処率が並ぶ。
+        // ルートが無い旧サーバーでも表本体は出せるよう、失敗は summary=null に留めて
+        // loadFailed へ波及させない。
+        request(`/api/caravan/reviews/flight-summary?${workspaceQuery.replace(/^&/, '')}`).catch((err: unknown) => {
           console.warn(`[flightFinding] failed to load flight-summary: ${errorMessage(err)}`);
           return null;
         }),

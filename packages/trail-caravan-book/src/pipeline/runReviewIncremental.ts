@@ -393,7 +393,11 @@ export async function runReviewIncremental(input: {
     logger.info(
       `[anytime-memory] runReviewIncremental: resolveReviewTargets ` +
         `workspaces=${resolveResult.workspacesFilled} targets=${resolveResult.targetsResolved} ` +
-        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected}`,
+        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected} ` +
+        // inferred / still_missing を毎回残す。上流（レビュー出力書式）の対象行必須化が
+        // 効いているかは still_missing の推移でしか読めず、inferred だけ見ていると
+        // 「救えている」と「そもそも欠落が少ない」を取り違える。
+        `inferred=${resolveResult.pathsInferred} still_missing=${resolveResult.pathsStillMissing}`,
     );
   } catch (err) {
     logger.error(`[anytime-memory] runReviewIncremental: resolveReviewTargets failed`, err);

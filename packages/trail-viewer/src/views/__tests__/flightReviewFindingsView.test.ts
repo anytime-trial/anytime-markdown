@@ -239,7 +239,7 @@ describe('renderFindingTable', () => {
 });
 
 describe('renderFindingSummary', () => {
-  const summary = { total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2 };
+  const summary = { total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2, inferred: 1 };
 
   it('対処率は追跡対象を分母に出し、追跡不能はパス欠落と repo 未解決の合算で出す', () => {
     const host = document.createElement('div');
@@ -252,6 +252,16 @@ describe('renderFindingSummary', () => {
     expect(info?.textContent).toBe('4');
     const total = host.querySelector('[data-am-finding-summary-item][data-kind="total"] dd');
     expect(total?.textContent).toBe('10');
+  });
+
+  // 推測で埋めた対象は「移動済みファイルの旧パスに解決して永久に一致しない」という
+  // 固有の失敗モードを持つ。追跡対象に混ぜたまま隠すと、対処率が伸びない原因を
+  // 「直していない」と読み違える。
+  it('追跡対象のうち推測で埋めた件数を併記する', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderFindingSummary({ t, summary, loadFailed: false });
+    const inferred = host.querySelector('[data-am-finding-summary-item][data-kind="inferred"] dd');
+    expect(inferred?.textContent).toBe('1');
   });
 
   it('追跡対象 0 件では率を出さない（0 除算を 0% や 100% と偽らない）', () => {
