@@ -219,6 +219,10 @@ export interface CaravanFlightReviewFindingSummary {
   readonly unresolvedRepo: number;
   readonly tracked: number;
   readonly addressed: number;
+  /** tracked のうち対象パスを推測で埋めたもの。対処率の読み替え材料。 */
+  readonly inferred: number;
+  /** addressed のうちテキスト一致以外の根拠だけで成立したリンク。同上。 */
+  readonly weakLinked: number;
 }
 
 export type CaravanPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';

@@ -784,6 +784,10 @@ export interface TrailI18n {
   'flightRecord.findings.summary.addressedRate': string;
   'flightRecord.findings.summary.untrackable': string;
   'flightRecord.findings.summary.untrackableHint': string;
+  'flightRecord.findings.summary.inferred': string;
+  'flightRecord.findings.summary.inferredHint': string;
+  'flightRecord.findings.summary.weakLinked': string;
+  'flightRecord.findings.summary.weakLinkedHint': string;
   'flightRecord.findings.summary.info': string;
   'flightRecord.findings.summary.total': string;
   'flightRecord.findings.summary.unavailable': string;

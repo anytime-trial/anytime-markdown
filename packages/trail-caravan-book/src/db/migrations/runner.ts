@@ -47,6 +47,8 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 30, apply: applyFtsIdentifierTokens, requiresFts5: true },
   { version: 31, file: '031_search_events.sql' },
   { version: 32, file: '032_search_event_source.sql' },
+  { version: 33, file: '033_review_finding_target_inferred_by.sql' },
+  { version: 34, file: '034_review_finding_addressed_signals.sql' },
 ]
 
 /**

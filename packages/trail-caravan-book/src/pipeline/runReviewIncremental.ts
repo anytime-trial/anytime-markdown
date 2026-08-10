@@ -393,7 +393,11 @@ export async function runReviewIncremental(input: {
     logger.info(
       `[anytime-memory] runReviewIncremental: resolveReviewTargets ` +
         `workspaces=${resolveResult.workspacesFilled} targets=${resolveResult.targetsResolved} ` +
-        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected}`,
+        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected} ` +
+        // inferred / still_missing を毎回残す。上流（レビュー出力書式）の対象行必須化が
+        // 効いているかは still_missing の推移でしか読めず、inferred だけ見ていると
+        // 「救えている」と「そもそも欠落が少ない」を取り違える。
+        `inferred=${resolveResult.pathsInferred} still_missing=${resolveResult.pathsStillMissing}`,
     );
   } catch (err) {
     logger.error(`[anytime-memory] runReviewIncremental: resolveReviewTargets failed`, err);
@@ -417,7 +421,11 @@ export async function runReviewIncremental(input: {
     logger.info(
       `[anytime-memory] runReviewIncremental: linkAddresses ` +
         `candidates=${linkResult.candidates} linked=${linkResult.findings_linked} ` +
-        `no_matching_commit=${linkResult.no_matching_commit} ${skippedText}`,
+        `no_matching_commit=${linkResult.no_matching_commit} ${skippedText} ` +
+        // シグナル別の内訳。テキスト以外の根拠で成立した割合が分からないと、
+        // 対処率の変化が実態の改善なのか照合の緩和なのか読めない。
+        `linked_session=${linkResult.linked_with_same_session} ` +
+        `linked_review_marker=${linkResult.linked_with_review_marker}`,
     );
   } catch (err) {
     logger.error(`[anytime-memory] runReviewIncremental: linkAddresses failed`, err);

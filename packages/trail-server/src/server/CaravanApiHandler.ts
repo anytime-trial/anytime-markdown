@@ -208,6 +208,21 @@ export interface FlightReviewFindingSummary {
   tracked: number;
   /** tracked のうち addressed_at 非 NULL。対処率 = addressed / tracked。 */
   addressed: number;
+  /**
+   * tracked のうち対象パスを推測で埋めたもの（`target_inferred_by` 非 NULL）。
+   *
+   * 推測由来は「移動済みファイルの旧パスへ一意解決し、以後どのコミットとも一致しない」
+   * という固有の失敗モードを持つ。混ぜたままだと、対処率が伸びない原因が「直していない」
+   * なのか「推測が外れた」なのか切り分けられない。
+   */
+  inferred: number;
+  /**
+   * addressed のうち、コミットメッセージとのテキスト一致**以外**の根拠だけで成立したリンク。
+   *
+   * 同一セッションかつレビュー対処を明示したコミット、という組合せで受理したもの。
+   * 対処率が上がったときに「実態が改善した」のか「照合を緩めた」のかを読み分けるために出す。
+   */
+  weakLinked: number;
 }
 
 export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
@@ -1275,21 +1290,44 @@ export class CaravanApiHandler {
    * SQL で数える。一覧（source_kind='session' 限定・limit 付き）から数えると母集合を
    * 誤るため専用クエリにする。DB を開けない・失敗時は null（0 件と区別する）。
    */
-  async getFlightReviewFindingSummary(): Promise<FlightReviewFindingSummary | null> {
+  async getFlightReviewFindingSummary(
+    params: {
+      /**
+       * レビューが行われたワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。
+       *
+       * 一覧（getFlightReviewFindings）と同じ引数を持つ。集計だけ横断のままにすると、
+       * 画面の選択と分母が食い違う。
+       */
+      workspace?: string;
+    } = {},
+  ): Promise<FlightReviewFindingSummary | null> {
     const db = this.openReadOnly();
     if (!db) return null;
     try {
       const tracked =
-        `severity <> 'info' AND target_file_path IS NOT NULL AND target_file_path <> '' ` +
-        `AND target_repo IS NOT NULL AND target_repo <> ''`;
+        `f.severity <> 'info' AND f.target_file_path IS NOT NULL AND f.target_file_path <> '' ` +
+        `AND f.target_repo IS NOT NULL AND f.target_repo <> ''`;
+      const bindValues: unknown[] = [];
+      let where = '';
+      if (params.workspace) {
+        where = 'WHERE r.workspace = ?';
+        bindValues.push(params.workspace);
+      }
       const result = db.exec(
         `SELECT COUNT(*) AS total,
-                SUM(CASE WHEN severity = 'info' THEN 1 ELSE 0 END) AS info_count,
-                SUM(CASE WHEN severity <> 'info' AND (target_file_path IS NULL OR target_file_path = '') THEN 1 ELSE 0 END) AS no_path,
-                SUM(CASE WHEN severity <> 'info' AND target_file_path IS NOT NULL AND target_file_path <> '' AND (target_repo IS NULL OR target_repo = '') THEN 1 ELSE 0 END) AS unresolved_repo,
+                SUM(CASE WHEN f.severity = 'info' THEN 1 ELSE 0 END) AS info_count,
+                SUM(CASE WHEN f.severity <> 'info' AND (f.target_file_path IS NULL OR f.target_file_path = '') THEN 1 ELSE 0 END) AS no_path,
+                SUM(CASE WHEN f.severity <> 'info' AND f.target_file_path IS NOT NULL AND f.target_file_path <> '' AND (f.target_repo IS NULL OR f.target_repo = '') THEN 1 ELSE 0 END) AS unresolved_repo,
                 SUM(CASE WHEN ${tracked} THEN 1 ELSE 0 END) AS tracked,
-                SUM(CASE WHEN ${tracked} AND addressed_at IS NOT NULL THEN 1 ELSE 0 END) AS addressed
-         FROM caravan_review_findings`,
+                SUM(CASE WHEN ${tracked} AND f.addressed_at IS NOT NULL THEN 1 ELSE 0 END) AS addressed,
+                SUM(CASE WHEN ${tracked} AND f.target_inferred_by IS NOT NULL THEN 1 ELSE 0 END) AS inferred,
+                SUM(CASE WHEN ${tracked} AND f.addressed_at IS NOT NULL
+                          AND f.addressed_signals_json IS NOT NULL
+                          AND f.addressed_signals_json NOT LIKE '%"text"%' THEN 1 ELSE 0 END) AS weak_linked
+         FROM caravan_review_findings f
+         JOIN caravan_reviews r ON r.id = f.review_id
+         ${where}`,
+        toBindParams(bindValues),
       );
       if (!result[0]) return null;
       const { columns, values } = result[0];
@@ -1303,6 +1341,8 @@ export class CaravanApiHandler {
         unresolvedRepo: toNum(r['unresolved_repo']),
         tracked: toNum(r['tracked']),
         addressed: toNum(r['addressed']),
+        inferred: toNum(r['inferred']),
+        weakLinked: toNum(r['weak_linked']),
       };
     } catch (err) {
       this.logger.error(`[CaravanApiHandler.getFlightReviewFindingSummary] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);

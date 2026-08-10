@@ -104,6 +104,60 @@ function splitAbsolute(
   return splits;
 }
 
+export interface ResolveByBasenameInput {
+  /** activity.db が attach 済みの trail-caravan-book 接続。 */
+  readonly db: CaravanDbConnection;
+  /** ディレクトリ区切りを持たないファイル名（`cli.ts` 等）。 */
+  readonly basename: string;
+  /** レビューが行われたワークスペースの repo_name。 */
+  readonly workspaceRepo: string;
+}
+
+/**
+ * 裸のファイル名を、ワークスペース内で**一意に決まるときだけ**リポジトリ相対パスへ解決する。
+ *
+ * 対象パスを書かない指摘（実データでは非 info の 6 割）を救うための経路。`resolveTargetRepo`
+ * と同じく実在で決めるが、こちらは入力が曖昧なぶん条件を 2 つ足して fail-closed にする。
+ *
+ * 1. **ワークスペースを跨いで探さない**。`workspaceRepo` が空なら即 null。同名ファイルは
+ *    リポジトリ間で普遍的に衝突するため、跨いだ時点で誤リンクが不可避になる。
+ * 2. **候補が 2 本以上あれば採用しない**。`types.ts` は 78 パス、`package.nls.json` は 9 パスに
+ *    一致する。1 本選ぶと誤リンクになるので「わからない」を返す。
+ *
+ * rename 表記（`old => new`）と git のクォート表記（`"..."`）の行は除外する。どちらも
+ * `activity_commit_files.file_path` に実在するが、パスそのものではなく差分の表現であり、
+ * basename を切り出すと存在しないファイル名になる。
+ *
+ * SQL の `LIKE` で絞ったあと **JS で末尾セグメントの完全一致を取り直す**。SQLite の `LIKE` は
+ * 既定で ASCII の大小文字を区別しないため、SQL だけで決めると `claude.md` が `CLAUDE.md` に
+ * 一致する。Linux のパスは大小文字を区別するので、これは別ファイルへの解決であり、
+ * `extractBasenameCandidates` の除外リスト（完全一致）も大小文字を変えるだけで素通りする。
+ * 一意性の判定は絞り込みではなく完全一致の結果に対して行う（`LIMIT` を置くと、大小文字違いの
+ * 行が枠を埋めて本来一意な一致を取り逃す）。
+ */
+export function resolveByBasename(input: ResolveByBasenameInput): ResolvedTargetRepo | null {
+  const { db, basename, workspaceRepo } = input;
+  if (workspaceRepo === '' || basename === '' || basename.includes('/')) return null;
+
+  const result = db.exec(
+    `SELECT DISTINCT cf.file_path
+       FROM trail.activity_commit_files cf
+       JOIN trail.activity_repos r ON r.repo_id = cf.repo_id
+      WHERE r.repo_name = ?
+        AND (cf.file_path = ? OR cf.file_path LIKE '%/' || ? ESCAPE '\\')
+        AND cf.file_path NOT LIKE '%=>%' ESCAPE '\\'
+        AND cf.file_path NOT LIKE '"%' ESCAPE '\\'`,
+    [workspaceRepo, basename, escapeLike(basename)],
+  );
+
+  const matches = (result[0]?.values ?? [])
+    .map((row) => String(row[0]))
+    .filter((filePath) => filePath.slice(filePath.lastIndexOf('/') + 1) === basename);
+  if (matches.length !== 1) return null;
+
+  return { repo: workspaceRepo, path: matches[0] };
+}
+
 export function resolveTargetRepo(input: ResolveTargetRepoInput): ResolvedTargetRepo | null {
   const { db, target, workspaceRepo } = input;
 

@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { openCaravanBookDb } from '../../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
-import { linkAddresses } from '../../../src/ingest/review/linkAddresses';
+import { linkAddresses, hasReviewFixMarker, scoreCandidate } from '../../../src/ingest/review/linkAddresses';
 import { entityId } from '../../../src/canonical/entityId';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -52,6 +52,12 @@ async function buildSetup(opts: {
   findingRecordedAt?: string;
   /** finding に記録する対象リポジトリ。null なら未解決（照合対象外）を表す。 */
   targetRepo?: string | null;
+  /** コミットを記録したセッション。既定は 'sess-other'（レビュー元と別セッション）。 */
+  commitSessionId?: string;
+  /** レビューの取込経路。'session' のとき source_ref が '<sessionId>#<msg>' になる。 */
+  reviewSourceKind?: 'review_doc' | 'session';
+  /** reviewSourceKind='session' のときのレビュー元セッション。 */
+  reviewSessionId?: string;
 }): Promise<SetupResult> {
   const {
     findingText,
@@ -65,6 +71,9 @@ async function buildSetup(opts: {
     reviewedAt = TS_BASE,
     findingRecordedAt = TS_BASE,
     targetRepo = repoName ?? REPO_NAME,
+    commitSessionId = 'sess-other',
+    reviewSourceKind = 'review_doc',
+    reviewSessionId = 'sess-review',
   } = opts;
 
   const tmpPath = makeTmpPath();
@@ -89,6 +98,7 @@ async function buildSetup(opts: {
   const repoIdRow = trailHandle.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   const repoId = Number(repoIdRow[0]?.values?.[0]?.[0] ?? 0);
   trailHandle.run(`CREATE TABLE activity_session_commits (
+    session_id TEXT NOT NULL,
     commit_hash TEXT NOT NULL,
     commit_message TEXT NOT NULL,
     committed_at TEXT NOT NULL,
@@ -104,8 +114,8 @@ async function buildSetup(opts: {
   if (commitFile && commitMessage && commitAt) {
     const hash = 'abc123def456';
     trailHandle.run(
-      `INSERT INTO activity_session_commits (commit_hash, commit_message, committed_at, repo_id) VALUES (?, ?, ?, ?)`,
-      [hash, commitMessage, commitAt, repoId]
+      `INSERT INTO activity_session_commits (session_id, commit_hash, commit_message, committed_at, repo_id) VALUES (?, ?, ?, ?, ?)`,
+      [commitSessionId, hash, commitMessage, commitAt, repoId]
     );
     trailHandle.run(
       `INSERT INTO activity_commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`,
@@ -126,11 +136,12 @@ async function buildSetup(opts: {
 
   // 4. Insert caravan_reviews
   const reviewId = 'rv-test-1';
+  const sourceRef = reviewSourceKind === 'session' ? `${reviewSessionId}#msg-1` : 'review/test.md';
   db.run(
     `INSERT OR IGNORE INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
-     VALUES (?, 'review_doc', 'review/test.md', ?, 'code', 'Test Review', ?, ?)`,
-    [reviewId, reviewEntityId, reviewedAt, TS_BASE]
+     VALUES (?, ?, ?, ?, 'code', 'Test Review', ?, ?)`,
+    [reviewId, reviewSourceKind, sourceRef, reviewEntityId, reviewedAt, TS_BASE]
   );
 
   // 5. Insert caravan_entities for finding entity (using Concept as allowed type)
@@ -680,5 +691,217 @@ describe('linkAddresses', () => {
 
       close();
     }, 30000);
+  });
+});
+
+// ── 第 3 段: 同一セッション照合とレビュー対処マーカー ─────────────────────────
+//
+// 現行は「対象ファイルを触るコミットが窓内にある」＋「コミットメッセージとの類似度 >= 2」の
+// 2 段ゲートで、指摘 1 件を名指ししないふつうの修正コミット（`fix(x): レビュー指摘対応`）は
+// 類似度に届かない。実測（2026-08-10・追跡対象で未対処 229 件）では、候補コミットが在るのに
+// 閾値未満で落ちているものが 98 件あり、同一セッション +1 で 10 件、レビュー対処マーカー +1 で
+// 17 件、両方の併用で 29 件が届く。どちらも**バイパスではなく加点**にするのは、テキストの
+// 裏付けが皆無のコミットを単独シグナルで受理させないため（誤リンクは無リンクより悪い）。
+
+describe('hasReviewFixMarker', () => {
+  test.each([
+    'fix(agent/logic): CLAUDE.md 誘導ブロックのマーカー不整合ガード（レビュー指摘対応）',
+    'fix(markdown-viewer): pre-merge review 指摘対応（i18n 残・detached 判定）',
+    'fix: レビュー指摘を対処する',
+    'fix: address review feedback',
+  ])('レビュー対処を表す件名を検出する: %s', (message) => {
+    expect(hasReviewFixMarker(message)).toBe(true);
+  });
+
+  test.each([
+    'feat(markdown-viewer): 比較モードの差異箇所をミニマップに表示',
+    'refactor(trail-viewer): 指摘の一覧を整理する',
+    'docs: レビューの書式を追記する',
+  ])('通常のコミットは検出しない: %s', (message) => {
+    expect(hasReviewFixMarker(message)).toBe(false);
+  });
+});
+
+describe('scoreCandidate', () => {
+  const findingText = 'silent catch が握りつぶしている';
+
+  it('テキストの裏付けが無いコミットは同一セッションだけでは受理点に届かない', () => {
+    const r = scoreCandidate({
+      commitMessage: 'chore: 依存を更新する',
+      findingText,
+      sameSession: true,
+    });
+    expect(r.score).toBe(1);
+    expect(r.signals).toEqual(['same_session']);
+  });
+
+  it('同一セッションとレビュー対処マーカーが揃えば受理点に届く', () => {
+    const r = scoreCandidate({
+      commitMessage: 'fix(x): レビュー指摘対応',
+      findingText,
+      sameSession: true,
+    });
+    expect(r.score).toBe(2);
+    expect(r.signals).toEqual(['same_session', 'review_marker']);
+  });
+
+  it('テキスト一致があるときは signals に text を含める', () => {
+    const r = scoreCandidate({
+      commitMessage: 'fix: silent catch を潰す',
+      findingText: 'silent catch',
+      sameSession: false,
+    });
+    expect(r.signals).toContain('text');
+    expect(r.score).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('linkAddresses: セッションとマーカーのシグナル', () => {
+  let setup: SetupResult;
+  afterEach(() => setup?.close());
+
+  it('同一セッションのレビュー対処コミットへリンクし、根拠を記録する', async () => {
+    setup = await buildSetup({
+      findingText: '握りつぶしている箇所がある',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_1,
+      commitSessionId: 'sess-review',
+      reviewSourceKind: 'session',
+      reviewSessionId: 'sess-review',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(1);
+    const row = setup.db.exec(
+      `SELECT addressed_commit_sha, addressed_signals_json FROM caravan_review_findings WHERE id = ?`,
+      [setup.findingId],
+    );
+    expect(String(row[0]?.values?.[0]?.[0] ?? '')).toBe('abc123def456');
+    expect(JSON.parse(String(row[0]?.values?.[0]?.[1] ?? '[]'))).toEqual(['same_session', 'review_marker']);
+  });
+
+  // 別セッションのコミットは同一セッション加点を受けない。ここが効かないと、
+  // 「たまたま同じファイルを触った他人の作業」が対処として確定する。
+  it('別セッションならレビュー対処マーカーだけでは受理点に届かない', async () => {
+    setup = await buildSetup({
+      findingText: '握りつぶしている箇所がある',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_1,
+      commitSessionId: 'sess-other',
+      reviewSourceKind: 'session',
+      reviewSessionId: 'sess-review',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+  });
+
+  // レビュー文書経由の指摘にはセッションが無い。シグナルが取れないだけで、
+  // 例外にも「全部同一セッション扱い」にもしてはならない。
+  it('セッションを持たない経路（review_doc）では同一セッション加点をしない', async () => {
+    setup = await buildSetup({
+      findingText: '握りつぶしている箇所がある',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_1,
+      commitSessionId: 'sess-other',
+      reviewSourceKind: 'review_doc',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+  });
+
+  it('テキスト一致だけで成立したリンクの根拠は text になる', async () => {
+    setup = await buildSetup({
+      findingText: 'silent catch が握りつぶしている',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix: silent catch を握りつぶしている箇所を直す',
+      commitAt: TS_PLUS_1,
+      commitSessionId: 'sess-other',
+      reviewSourceKind: 'review_doc',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(1);
+    const row = setup.db.exec(
+      `SELECT addressed_signals_json FROM caravan_review_findings WHERE id = ?`,
+      [setup.findingId],
+    );
+    expect(JSON.parse(String(row[0]?.values?.[0]?.[0] ?? '[]'))).toEqual(['text']);
+  });
+
+  // テキスト裏付け無しの受理が波及する範囲の境界。レビュー対処コミットであっても、
+  // **そのコミットが触っていないファイル**の指摘には決して届かない。この 1 点が、
+  // 「レビュー指摘対応」という汎用的な件名でレビュー全件が対処済みに化けるのを防いでいる。
+  it('レビュー対処コミットでも、触っていないファイルの指摘には波及しない', async () => {
+    setup = await buildSetup({
+      findingText: '別ファイルの問題',
+      severity: 'warn',
+      targetFilePath: 'src/untouched.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_1,
+      commitSessionId: 'sess-review',
+      reviewSourceKind: 'session',
+      reviewSessionId: 'sess-review',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+  });
+
+  // 窓の外なら、同一セッション・レビュー対処マーカーが揃っていても受理しない。
+  // 2 つのシグナルは既存の 2 段ゲート（ファイル一致・期間）を置き換えるものではない。
+  it('30 日窓の外のコミットは 2 シグナルが揃っても受理しない', async () => {
+    setup = await buildSetup({
+      findingText: '握りつぶしている箇所がある',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_31,
+      commitSessionId: 'sess-review',
+      reviewSourceKind: 'session',
+      reviewSessionId: 'sess-review',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+  });
+
+  it('シグナル別のリンク件数を戻り値に含める', async () => {
+    setup = await buildSetup({
+      findingText: '握りつぶしている箇所がある',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_1,
+      commitSessionId: 'sess-review',
+      reviewSourceKind: 'session',
+      reviewSessionId: 'sess-review',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.linked_with_same_session).toBe(1);
+    expect(result.linked_with_review_marker).toBe(1);
   });
 });
