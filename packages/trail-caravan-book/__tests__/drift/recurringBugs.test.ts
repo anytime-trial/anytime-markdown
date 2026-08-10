@@ -204,3 +204,31 @@ describe('ワークスペースの解決', () => {
 
 });
 
+describe('regression_cluster の target_repo（対象ファイル実在ゲート用）', () => {
+  it('クラスタが単一 workspace なら detail.target_repo に同じ値を渡す', () => {
+    const db = makeDb();
+    insertBugFix(db, { commitSha: 'tr1', bugEntityId: insertEntity(db), category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recentIso(), workspace: 'repo-a' });
+    insertBugFix(db, { commitSha: 'tr2', bugEntityId: insertEntity(db), category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recentIso(), workspace: 'repo-a' });
+
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].detail['target_repo']).toBe('repo-a');
+  });
+
+  it('workspace が混在・未解決なら detail.target_repo は null（fail-open）', () => {
+    const db = makeDb();
+    insertBugFix(db, { commitSha: 'tr3', bugEntityId: insertEntity(db), category: 'regression', affectedPaths: ['src/mix.ts'], committedAt: recentIso(), workspace: 'repo-a' });
+    insertBugFix(db, { commitSha: 'tr4', bugEntityId: insertEntity(db), category: 'regression', affectedPaths: ['src/mix.ts'], committedAt: recentIso(), workspace: 'repo-b' });
+    insertBugFix(db, { commitSha: 'tr5', bugEntityId: insertEntity(db), category: 'regression', affectedPaths: ['src/none.ts'], committedAt: recentIso() });
+    insertBugFix(db, { commitSha: 'tr6', bugEntityId: insertEntity(db), category: 'regression', affectedPaths: ['src/none.ts'], committedAt: recentIso() });
+
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(2);
+    for (const r of results) {
+      expect(r.detail['target_repo']).toBeNull();
+    }
+  });
+});
+

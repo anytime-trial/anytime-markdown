@@ -58,7 +58,16 @@ export function detectRegressionClusters(input: {
       drift_type: 'regression_cluster',
       severity: 'error',
       workspace: (row[3] as string | null) ?? '',
-      detail: { file_path: filePath, bug_fix_ids: bugFixIds, cnt, windowDays },
+      detail: {
+        file_path: filePath,
+        bug_fix_ids: bugFixIds,
+        cnt,
+        windowDays,
+        // 対象ファイル実在ゲート (targetExistence) の判定基準。バグ修正コミット由来の
+        // パスはコミットが属するリポジトリにしか存在しないため、レビュー指摘と違い
+        // workspace ＝対象の実リポジトリが成立する（未収束 '' は null で fail-open）。
+        target_repo: (row[3] as string | null) || null,
+      },
     });
   }
   return results;
