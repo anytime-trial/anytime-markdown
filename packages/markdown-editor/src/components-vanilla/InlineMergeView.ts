@@ -418,7 +418,7 @@ export function createInlineMergeView(
 
   // === DOM 構築 =============================================================
   const root = document.createElement("div");
-  root.setAttribute("data-am-inline-merge", "");
+  root.dataset.amInlineMerge = "";
   root.style.cssText =
     "display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden;";
 
@@ -526,7 +526,7 @@ export function createInlineMergeView(
   // 上端に配置する（中央だと縦長ペインで埋もれて視認しづらい）。z-index:2 で左パネルの
   // ソース textarea（.am-merge-textarea が z-index:1）より前面に出し、確実に見えるようにする。
   const leftPlaceholder = document.createElement("div");
-  leftPlaceholder.setAttribute("data-am-merge-drop-placeholder", "");
+  leftPlaceholder.dataset.amMergeDropPlaceholder = "";
   leftPlaceholder.textContent = state.t("mergeDropPlaceholder");
   leftPlaceholder.style.cssText =
     "position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;" +

@@ -238,7 +238,7 @@ export function createImageAnnotationDialog(
   svg.setAttribute("viewBox", "0 0 100 100");
   svg.setAttribute("preserveAspectRatio", "none");
   // 描画面の識別子（ツールアイコンの svg と区別するため）。
-  svg.setAttribute("data-am-annotation-surface", "");
+  svg.dataset.amAnnotationSurface = "";
   svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;";
 
   imgWrap.append(img, svg);

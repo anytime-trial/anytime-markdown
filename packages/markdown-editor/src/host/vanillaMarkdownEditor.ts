@@ -345,7 +345,7 @@ interface VanillaLayout {
 
 function buildLayout(): VanillaLayout {
   const root = document.createElement("div");
-  root.setAttribute("data-am-editor-root", "");
+  root.dataset.amEditorRoot = "";
   // テーマ連動の背景色を root に持たせる。サイドツールバー（bodyRow 直下・[data-am-content] の外・
   // 背景 transparent）はこの面に乗るため、themed 背景が無いとテーマ非対応ページ（拡張 / CDN）で
   // ダーク時も白帯が残る。--am-color-bg-default は両ホストの applyEditorThemeCssVars と WC の
@@ -354,22 +354,22 @@ function buildLayout(): VanillaLayout {
     "display:flex;flex-direction:column;height:100%;min-height:0;background-color:var(--am-color-bg-default);";
 
   const toolbarSlot = document.createElement("div");
-  toolbarSlot.setAttribute("data-am-toolbar-slot", "");
+  toolbarSlot.dataset.amToolbarSlot = "";
   toolbarSlot.style.flexShrink = "0";
 
   // フロントマターブロックのマウントスロット（showFrontmatter 時のみ表示）。
   // 折りたたみ/編集/削除可能な FrontmatterBlock を後段でこの中へ append する。
   const frontmatterEl = document.createElement("div");
-  frontmatterEl.setAttribute("data-am-frontmatter-slot", "");
+  frontmatterEl.dataset.amFrontmatterSlot = "";
   frontmatterEl.style.cssText = "display:none;flex-shrink:0;padding:8px 16px 0;";
 
   // content + sidebar を横並びにする行。
   const mainRow = document.createElement("div");
-  mainRow.setAttribute("data-am-main-row", "");
+  mainRow.dataset.amMainRow = "";
   mainRow.style.cssText = "display:flex;flex:1 1 auto;min-height:0;";
 
   const contentEl = document.createElement("div");
-  contentEl.setAttribute("data-am-content", "");
+  contentEl.dataset.amContent = "";
   // position:relative は merge ビュー等 contentEl 直下の絶対配置子の基準（従来挙動を維持）。
   // min-width:0 は flex item の自動最小サイズ（min-width:auto）を無効化し、狭幅でも flex
   // コンテナ幅まで縮小可能にする。これがないと noScroll（overflow:visible）時に本文が
@@ -379,7 +379,7 @@ function buildLayout(): VanillaLayout {
   // editor の実マウント先（React buildEditorPortalTarget 相当・display:contents）。
   // merge ビューの右パネルが editor.options.element ごと移設できるよう contentEl と分離する。
   const editorMountEl = document.createElement("div");
-  editorMountEl.setAttribute("data-am-editor-mount", "");
+  editorMountEl.dataset.amEditorMount = "";
   editorMountEl.style.display = "contents";
   contentEl.appendChild(editorMountEl);
 
@@ -387,7 +387,7 @@ function buildLayout(): VanillaLayout {
   // SearchReplaceBar（absolute・右上）はこの contentArea を基準に配置し、本文スクロールへ
   // 追従せず常時最上部に留める（contentEl 直下に置くとスクロール内容と一緒に流れてしまう）。
   const contentArea = document.createElement("div");
-  contentArea.setAttribute("data-am-content-area", "");
+  contentArea.dataset.amContentArea = "";
   contentArea.style.cssText =
     "position:relative;flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;";
   contentArea.appendChild(contentEl);
@@ -395,23 +395,23 @@ function buildLayout(): VanillaLayout {
   // 変更オーバービュー（MarkdownMinimap）のマウント先。本文スクロールバーの直右・
   // sidebar（outline/comment）の手前に縦置きし、旧 React EditorContentArea と同じ位置関係にする。
   const minimapSlot = document.createElement("div");
-  minimapSlot.setAttribute("data-am-minimap-slot", "");
+  minimapSlot.dataset.amMinimapSlot = "";
   minimapSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
 
   // Outline / Comment パネルのマウント先（toggle で表示）。
   const sidebarSlot = document.createElement("div");
-  sidebarSlot.setAttribute("data-am-sidebar-slot", "");
+  sidebarSlot.dataset.amSidebarSlot = "";
   sidebarSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
 
   // 右端の縦サイドツールバー（sideToolbar オプション時）。
   const sideToolbarSlot = document.createElement("div");
-  sideToolbarSlot.setAttribute("data-am-side-toolbar-slot", "");
+  sideToolbarSlot.dataset.amSideToolbarSlot = "";
   sideToolbarSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
 
   mainRow.append(contentArea, minimapSlot, sidebarSlot);
 
   const statusBarSlot = document.createElement("div");
-  statusBarSlot.setAttribute("data-am-statusbar-slot", "");
+  statusBarSlot.dataset.amStatusbarSlot = "";
   statusBarSlot.style.flexShrink = "0";
 
   // aria-live（モード切替等のアナウンス・視覚非表示）。
@@ -424,13 +424,13 @@ function buildLayout(): VanillaLayout {
   // toolbar / frontmatter / 本文 / statusbar を左カラムにまとめ、その右にレールを縦置きする
   // （旧構成では sideToolbar が mainRow 内＝ツールバーの下から始まり上部に届かなかった）。
   const mainColumn = document.createElement("div");
-  mainColumn.setAttribute("data-am-editor-main-column", "");
+  mainColumn.dataset.amEditorMainColumn = "";
   mainColumn.style.cssText =
     "display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:0;";
   mainColumn.append(toolbarSlot, frontmatterEl, mainRow, statusBarSlot);
 
   const bodyRow = document.createElement("div");
-  bodyRow.setAttribute("data-am-editor-body-row", "");
+  bodyRow.dataset.amEditorBodyRow = "";
   bodyRow.style.cssText = "display:flex;flex:1 1 auto;min-height:0;";
   bodyRow.append(mainColumn, sideToolbarSlot);
 

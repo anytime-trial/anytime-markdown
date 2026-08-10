@@ -442,11 +442,11 @@ function createSourceSegment(opts: {
     const lineEl = document.createElement("div");
     lineEl.style.cssText = "display:flex;justify-content:flex-end;gap:2px;";
     const navBlockId = mergeButtonIndices.get(i);
-    if (navBlockId !== undefined) lineEl.setAttribute("data-diff-block-id", String(navBlockId));
+    if (navBlockId !== undefined) lineEl.dataset.diffBlockId = String(navBlockId);
     // 追加/削除の記号セル（色以外の手がかり。空でも幅を確保して桁を揃える）。
     const symbol = lineChangeSymbol(diffLines[i]?.type ?? "equal");
     const symbolEl = document.createElement("span");
-    symbolEl.setAttribute("data-diff-gutter-symbol", "");
+    symbolEl.dataset.diffGutterSymbol = "";
     symbolEl.textContent = symbol || " ";
     symbolEl.style.cssText =
       "display:inline-block;min-width:0.8em;font-weight:700;text-align:center;" +

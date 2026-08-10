@@ -198,7 +198,7 @@ const ABOVE_GAP_PX = 6;
  */
 export function createBlockChromeAnchor(zIndex = 20): BlockChromeAnchorHandle {
   const el = document.createElement("div");
-  el.setAttribute("data-vanilla-block-chrome", "");
+  el.dataset.vanillaBlockChrome = "";
   el.style.cssText =
     `position:fixed;z-index:${zIndex};display:none;transform:translateY(-100%);`;
   document.body.appendChild(el);

@@ -329,7 +329,7 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
    */
   function buildOriginBadge(origin: FileOrigin): HTMLSpanElement {
     const badge = document.createElement("span");
-    badge.setAttribute("data-am-file-origin", origin);
+    badge.dataset.amFileOrigin = origin;
     badge.setAttribute("aria-hidden", "true");
     badge.style.cssText =
       "display:inline-flex;align-items:center;gap:4px;margin-left:8px;" +

@@ -77,7 +77,7 @@ function createFootnoteRefNodeView({
   const dom = document.createElement("span");
   let noteId = node.attrs.noteId as string;
   applyFootnoteRefStyle(dom);
-  dom.setAttribute("data-footnote-ref", noteId);
+  dom.dataset.footnoteRef = noteId;
   dom.textContent = `[${noteId}]`;
 
   const refreshTooltip = (): void => {
@@ -108,7 +108,7 @@ function createFootnoteRefNodeView({
       // refreshTooltip を呼ばない。定義テキストの鮮度は pointerenter で担保する。
       if (newId !== noteId) {
         noteId = newId;
-        dom.setAttribute("data-footnote-ref", noteId);
+        dom.dataset.footnoteRef = noteId;
         dom.textContent = `[${noteId}]`;
         refreshTooltip();
       }

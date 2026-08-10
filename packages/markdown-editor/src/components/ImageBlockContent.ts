@@ -52,7 +52,7 @@ export function createImageBlockNodeView({
 
   const dom = document.createElement("div");
   dom.className = "image-block";
-  dom.setAttribute("data-image-block", "");
+  dom.dataset.imageBlock = "";
   dom.contentEditable = "false";
   dom.style.cssText =
     "position:relative;display:inline-block;line-height:0;max-width:100%;";
@@ -73,7 +73,7 @@ export function createImageBlockNodeView({
   // （指摘30: 値もキーボード操作も提供しない slider は誤誘導になる）。装飾的なハンドルとして
   // aria-label のみ付与する。
   const handle = document.createElement("div");
-  handle.setAttribute("data-am-resize-handle", "");
+  handle.dataset.amResizeHandle = "";
   handle.setAttribute("aria-label", resolvedT("resizeImage"));
   handle.style.cssText =
     "position:absolute;right:0;bottom:0;width:16px;height:16px;display:none;" +

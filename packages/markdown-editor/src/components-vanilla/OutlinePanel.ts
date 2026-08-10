@@ -587,7 +587,7 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
           onToggleSectionLock(headingIndex);
         },
       });
-      lockBtn.el.setAttribute("data-am-outline-lock", lock ? (lock.tampered ? "tampered" : "locked") : "unlocked");
+      lockBtn.el.dataset.amOutlineLock = lock ? (lock.tampered ? "tampered" : "locked") : "unlocked";
       const lockTip = createTooltip({ reference: lockBtn.el, title: lockLabel, placement: "top" });
       listHandles.push(lockBtn, lockTip);
       if (lock) {

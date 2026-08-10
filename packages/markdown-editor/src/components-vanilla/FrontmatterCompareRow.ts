@@ -81,7 +81,7 @@ function buildColumn(lines: DiffLine[]): HTMLElement {
     "font-size:0.8125rem;line-height:1.5;";
   for (const line of lines) {
     const row = document.createElement("div");
-    row.setAttribute("data-fm-diff-line", "");
+    row.dataset.fmDiffLine = "";
     row.textContent = line.text === "" ? " " : line.text;
     row.style.cssText =
       "white-space:pre-wrap;word-break:break-word;" +
@@ -110,7 +110,7 @@ export function createFrontmatterCompareRow(
   const bodyId = `am-fm-compare-body-${(instanceSeq += 1)}`;
 
   const root = document.createElement("div");
-  root.setAttribute("data-am-frontmatter-compare", "");
+  root.dataset.amFrontmatterCompare = "";
   root.style.cssText =
     "flex-shrink:0;margin:0 0 8px;border:1px solid var(--am-color-divider);" +
     "border-radius:4px;overflow:hidden;";
@@ -133,7 +133,7 @@ export function createFrontmatterCompareRow(
   // 本文行（2 カラム + 中央 divider）。collapsed で display を切り替える。
   const bodyRow = document.createElement("div");
   bodyRow.id = bodyId;
-  bodyRow.setAttribute("data-fm-compare-body", "");
+  bodyRow.dataset.fmCompareBody = "";
   bodyRow.style.cssText = "display:flex;align-items:stretch;";
   root.appendChild(bodyRow);
 

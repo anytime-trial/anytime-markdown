@@ -54,7 +54,7 @@ export function createImageBlockChrome(
   // 警告（alt 未設定時のみ表示）。
   const warning = svgIcon(ICON.warning);
   const warningWrap = document.createElement("span");
-  warningWrap.setAttribute("data-image-alt-warning", "");
+  warningWrap.dataset.imageAltWarning = "";
   warningWrap.title = cb.t("imageNoAltWarning");
   warningWrap.style.cssText =
     "display:none;align-items:center;color:var(--am-color-warning-main);";
@@ -99,7 +99,7 @@ export function createImageBlockChrome(
     annotateBtn.appendChild(annotateBadgeWrap);
   }
   const annotateBadge = document.createElement("span");
-  annotateBadge.setAttribute("data-am-annotation-badge", "");
+  annotateBadge.dataset.amAnnotationBadge = "";
   annotateBadge.style.cssText =
     "position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;line-height:1;" +
     "color:var(--am-color-primary-main);display:none;";

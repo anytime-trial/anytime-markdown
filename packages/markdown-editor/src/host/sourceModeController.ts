@@ -260,27 +260,27 @@ export function createSourceModeController(
   const doShowTextarea = (): void => {
     if (textarea) return;
     sourceWrap = document.createElement("div");
-    sourceWrap.setAttribute("data-am-source-wrap", "");
+    sourceWrap.dataset.amSourceWrap = "";
     sourceWrap.style.cssText = SOURCE_WRAP_CSS;
 
     // 左端の行番号ガター（VS Code markdown 拡張のソース表示に倣う）。
     gutter = document.createElement("div");
-    gutter.setAttribute("data-am-source-gutter", "");
+    gutter.dataset.amSourceGutter = "";
     gutter.setAttribute("aria-hidden", "true");
     gutter.style.cssText = GUTTER_CSS;
 
     // textarea + ミラーを重ねるコンテナ。ミラーは折り返し後の行高を計測する透明レイヤ。
     const textContainer = document.createElement("div");
-    textContainer.setAttribute("data-am-source-text", "");
+    textContainer.dataset.amSourceText = "";
     textContainer.style.cssText = TEXT_CONTAINER_CSS;
 
     mirror = document.createElement("div");
-    mirror.setAttribute("data-am-source-mirror", "");
+    mirror.dataset.amSourceMirror = "";
     mirror.setAttribute("aria-hidden", "true");
     mirror.style.cssText = MIRROR_CSS;
 
     textarea = document.createElement("textarea");
-    textarea.setAttribute("data-am-source-textarea", "");
+    textarea.dataset.amSourceTextarea = "";
     textarea.setAttribute("aria-label", t("sourceMode"));
     textarea.spellcheck = false;
     textarea.style.cssText = TEXTAREA_CSS;
@@ -294,7 +294,7 @@ export function createSourceModeController(
 
     textContainer.append(mirror, textarea);
     sourceInner = document.createElement("div");
-    sourceInner.setAttribute("data-am-source-inner", "");
+    sourceInner.dataset.amSourceInner = "";
     sourceInner.style.cssText = SOURCE_INNER_CSS;
     sourceInner.append(gutter, textContainer);
     sourceWrap.append(sourceInner);

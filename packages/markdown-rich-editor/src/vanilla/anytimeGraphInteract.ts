@@ -422,7 +422,7 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
 
   const groups = previewEl.querySelectorAll<SVGGElement>("svg [data-metadata]");
   groups.forEach((g) => {
-    const raw = g.getAttribute("data-metadata");
+    const raw = g.dataset.metadata;
     if (!raw) return;
     let path: string | undefined;
     try {

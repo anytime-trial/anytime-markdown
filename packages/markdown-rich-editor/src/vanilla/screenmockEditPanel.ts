@@ -951,7 +951,7 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
       input.type = "number";
       input.step = "1";
       input.min = "1";
-      input.value = el.getAttribute("data-lines") ?? "";
+      input.value = el.dataset.lines ?? "";
       input.addEventListener("change", () => applyElementAttribute("data-lines", input.value));
     }
 
