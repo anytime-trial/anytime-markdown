@@ -35,6 +35,16 @@ jest.mock('../reactIsland', () => ({
 
 // Also mock PromptManagerIsland and TraceViewer so tsx imports don't blow up in ts-jest.
 jest.mock('../PromptManagerIsland', () => ({ PromptManagerIsland: 'PromptManagerIsland' }));
+// 知識グラフタブの描画（canvas 前提）は jsdom で動かないためモックする
+jest.mock('@anytime-markdown/cooccurrence-viewer', () => ({
+  mountCooccurrenceViewer: jest.fn(() => ({
+    update: jest.fn(),
+    destroy: jest.fn(),
+    selectNode: jest.fn(),
+    getSelectedNodeIndex: jest.fn(() => null),
+  })),
+  createInlineLayoutWorker: () => null,
+}));
 jest.mock('@anytime-markdown/trace-viewer', () => ({ TraceViewer: 'TraceViewer' }));
 
 // Mock analyticsPanel so we can capture onOpenPromptsPopup callback for popup tests.
@@ -222,6 +232,55 @@ describe('mountTrailViewer', () => {
 
     h.destroy();
     expect(container.querySelector('[aria-label="chat-panel"]')).toBeNull();
+  });
+
+  it('Chat の entity 引用クリックで知識グラフタブへ切り替え、該当実体の seed 取得へ入る（知識グラフ設計書 §3.6）', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => null });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const handlers = new Set<(chunk: unknown) => void>();
+    const bridge = {
+      status: 'ready',
+      detail: undefined,
+      subscribe(handler: (chunk: unknown) => void) {
+        handlers.add(handler);
+        return () => handlers.delete(handler);
+      },
+      send: () => {},
+      abort: () => {},
+      recheck: () => {},
+    } as unknown as NonNullable<TrailViewerViewProps['bridge']>;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const h = mountTrailViewer(container, makeBaseProps({ initialTab: 10, serverUrl: 'http://s', bridge }));
+
+    // SEND で状態を初期化してから citation 付きの回答を流す
+    const input = container.querySelector<HTMLTextAreaElement>('#trail-panel-10 textarea');
+    if (input) input.value = 'q';
+    const sendBtn = container.querySelector<HTMLButtonElement>('[aria-label="caravan.chat.send"]');
+    sendBtn?.removeAttribute('disabled');
+    sendBtn?.click();
+    for (const emit of handlers) {
+      emit({ type: 'sources', payload: [] });
+      emit({ type: 'token', payload: { delta: 'See [^entity:e42].' } });
+      emit({ type: 'done', payload: { interrupted: false } });
+    }
+
+    // チップ実装のクラス名に依存せず、回答ログ内を総当たりでクリックする
+    const log = container.querySelector<HTMLElement>('#trail-panel-10 [role="log"]');
+    expect(log).not.toBeNull();
+    expect(log?.textContent ?? '').toContain('See');
+    for (const el of log?.querySelectorAll<HTMLElement>('*') ?? []) el.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 知識グラフタブ（値 11）がマウントされ、seed 付き取得が走っている
+    expect(container.querySelector('#trail-panel-11')).not.toBeNull();
+    const seedCall = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('seed=e42'),
+    );
+    expect(seedCall).toBeDefined();
+    h.destroy();
+    container.remove();
   });
 
   it('タブは アクティビティ / 実行記録 / 知識グラフ / パイプライン / Chat の順に並ぶ', () => {

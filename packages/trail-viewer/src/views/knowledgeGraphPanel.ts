@@ -33,6 +33,21 @@ interface KnowledgeGraphSearchResponse {
   readonly hits: readonly KnowledgeGraphSearchHit[];
   readonly truncated: boolean;
 }
+
+/** エージェント照会（§2.5）。MCP search_caravan_book が記録した検索とそのヒット。 */
+interface AgentSearchQuery {
+  readonly id: string;
+  readonly query: string;
+  readonly occurredAt: string;
+  readonly hits: readonly { id: string; label: string; type: string }[];
+}
+
+interface AgentSearchesResponse {
+  readonly queries: readonly AgentSearchQuery[];
+}
+
+/** ego を開いた起点動線（計測 origin。§3.6）。 */
+type EgoOrigin = 'search' | 'citation' | 'agent_history';
 import { formatBboxParam, shouldRefetchForViewport, type ViewportBox } from './knowledgeGraphViewport';
 
 export interface KnowledgeGraphPanelProps {
@@ -98,12 +113,29 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   padding: 4px 12px; font-size: 12px; cursor: pointer; color: ${c.textPrimary};
   background: transparent; border: 1px solid ${c.border}; border-radius: 4px;
 }
-[data-am-kg-search-results] {
+[data-am-kg-search-results],
+[data-am-kg-agent-list] {
   position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px;
   min-width: 280px; max-height: 320px; overflow-y: auto;
   background: ${c.charcoal}; border: 1px solid ${c.border}; border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
+[data-am-kg-agent-list] [data-am-kg-agent-query] {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 10px; font-size: 12px; cursor: pointer; color: ${c.textPrimary};
+  background: transparent; border: none; border-radius: 0;
+}
+[data-am-kg-agent-list] [data-am-kg-agent-query]:hover:not(:disabled) { background: ${c.hoverBg}; }
+[data-am-kg-agent-list] [data-am-kg-agent-query]:disabled { cursor: default; color: ${c.textSecondary}; }
+[data-am-kg-agent-list] [data-am-kg-agent-query] .am-kg-agent-time { color: ${c.textSecondary}; flex: none; }
+[data-am-kg-agent-list] [data-am-kg-agent-query] .am-kg-agent-query-text {
+  flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+[data-am-kg-agent-list] [data-am-kg-agent-query] .am-kg-agent-count { color: ${c.textSecondary}; flex: none; }
+[data-am-kg-agent-list] [data-am-kg-agent-empty] {
+  padding: 6px 10px; font-size: 12px; color: ${c.textSecondary};
+}
+[data-am-kg-status][data-kind="notFound"] { padding: 4px; }
 [data-am-kg-search-results] [data-am-kg-search-hit] {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
   padding: 6px 10px; font-size: 12px; cursor: pointer; color: ${c.textPrimary};
@@ -126,10 +158,15 @@ function format(template: string, values: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => values[k] ?? '');
 }
 
+/** パネルの handle。引用からの遷移（focusEntity）を通常の view handle に加えて持つ。 */
+export type KnowledgeGraphPanelHandle = VanillaViewHandle<KnowledgeGraphPanelProps> & {
+  focusEntity(id: string, label?: string): void;
+};
+
 export function mountKnowledgeGraphPanel(
   container: HTMLElement,
   initialProps: KnowledgeGraphPanelProps,
-): VanillaViewHandle<KnowledgeGraphPanelProps> {
+): KnowledgeGraphPanelHandle {
   let props = initialProps;
   let destroyed = false;
 
@@ -169,6 +206,15 @@ export function mountKnowledgeGraphPanel(
   /** 検索結果ドロップダウンの表示状態。null は非表示。 */
   let searchResults: KnowledgeGraphSearchResponse | 'failed' | null = null;
   let searchController: AbortController | null = null;
+  /** 結果リストから ego を開いたときに計測へ送る起点動線（§3.6）。 */
+  let resultsOrigin: EgoOrigin = 'search';
+  /** エージェント照会ドロップダウンの表示状態。null は非表示。 */
+  let agentQueries: AgentSearchesResponse | 'failed' | null = null;
+  let agentController: AbortController | null = null;
+  /** 引用・照会の実体が現存しない場合の告知（図は維持する。§3.6）。 */
+  let entityNotFound = false;
+  /** ego → 全体へ戻ったとき選択を 1 度だけ解除するためのフラグ。 */
+  let egoSelectionApplied = false;
 
   ensureStyle(container.ownerDocument, props.tokens);
 
@@ -186,8 +232,10 @@ export function mountKnowledgeGraphPanel(
     <span data-am-kg-search-wrap>
       <input type="search" data-am-kg-search-input />
       <button type="button" data-am-kg-search-run></button>
+      <button type="button" data-am-kg-agent-btn></button>
       <button type="button" data-am-kg-ego-clear hidden></button>
       <span data-am-kg-search-results hidden></span>
+      <span data-am-kg-agent-list hidden></span>
     </span>
     <span data-am-kg-count role="status"></span>
   `;
@@ -269,12 +317,20 @@ export function mountKnowledgeGraphPanel(
 
   const searchInput = toolbar.querySelector<HTMLInputElement>('[data-am-kg-search-input]');
   const searchRunBtn = toolbar.querySelector<HTMLButtonElement>('[data-am-kg-search-run]');
+  const agentBtn = toolbar.querySelector<HTMLButtonElement>('[data-am-kg-agent-btn]');
   const egoClearBtn = toolbar.querySelector<HTMLButtonElement>('[data-am-kg-ego-clear]');
   const searchResultsEl = toolbar.querySelector<HTMLElement>('[data-am-kg-search-results]');
+  const agentListEl = toolbar.querySelector<HTMLElement>('[data-am-kg-agent-list]');
 
   /** 計測イベントの送信。失敗しても検索・表示を止めない（設計書 §2.4 fail-open）。 */
   function postSearchEvent(
-    body: { kind: 'search' | 'ego_open' | 'clear'; query: string; resultCount?: number; entityId?: string },
+    body: {
+      kind: 'search' | 'ego_open' | 'clear';
+      query: string;
+      resultCount?: number;
+      entityId?: string;
+      origin?: EgoOrigin;
+    },
   ): void {
     if (props.serverUrl === '') return;
     void fetch(`${props.serverUrl}/api/caravan/knowledge-graph/search-events`, {
@@ -301,6 +357,9 @@ export function mountKnowledgeGraphPanel(
       const json = res.ok ? ((await res.json()) as KnowledgeGraphSearchResponse | null) : null;
       if (destroyed || ctrl !== searchController) return;
       searchResults = json ?? 'failed';
+      resultsOrigin = 'search';
+      agentQueries = null;
+      renderAgentList();
       if (json) postSearchEvent({ kind: 'search', query: q, resultCount: json.hits.length });
     } catch (err) {
       if (destroyed || (err instanceof DOMException && err.name === 'AbortError')) return;
@@ -310,11 +369,12 @@ export function mountKnowledgeGraphPanel(
     renderSearchResults();
   }
 
-  function openEgo(hit: KnowledgeGraphSearchHit): void {
+  function openEgo(hit: Pick<KnowledgeGraphSearchHit, 'id' | 'label'>, origin: EgoOrigin): void {
     egoSeed = { id: hit.id, label: hit.label };
+    entityNotFound = false;
     searchResults = null;
     renderSearchResults();
-    postSearchEvent({ kind: 'ego_open', query: searchInput?.value.trim() ?? '', entityId: hit.id });
+    postSearchEvent({ kind: 'ego_open', query: searchInput?.value.trim() ?? '', entityId: hit.id, origin });
     render();
     void refresh();
   }
@@ -323,8 +383,84 @@ export function mountKnowledgeGraphPanel(
     if (egoSeed === null) return;
     postSearchEvent({ kind: 'clear', query: searchInput?.value.trim() ?? '' });
     egoSeed = null;
+    entityNotFound = false;
     render();
     void refresh();
+  }
+
+  // ---- エージェント照会リスト（設計書 §3.6 (b)）----
+
+  /** 照会リストの取得と表示。押すたびに取り直す（照会は MCP 側で随時増えるため）。 */
+  async function openAgentList(): Promise<void> {
+    if (destroyed || props.serverUrl === '') return;
+    searchResults = null;
+    renderSearchResults();
+    agentController?.abort();
+    const ctrl = new AbortController();
+    agentController = ctrl;
+    try {
+      const res = await fetch(`${props.serverUrl}/api/caravan/knowledge-graph/agent-searches`, {
+        signal: ctrl.signal,
+      });
+      const json = res.ok ? ((await res.json()) as AgentSearchesResponse | null) : null;
+      if (destroyed || ctrl !== agentController) return;
+      agentQueries = json ?? 'failed';
+    } catch (err) {
+      if (destroyed || (err instanceof DOMException && err.name === 'AbortError')) return;
+      console.warn(`[knowledgeGraph] agent searches failed: ${err instanceof Error ? err.message : String(err)}`);
+      agentQueries = 'failed';
+    }
+    renderAgentList();
+  }
+
+  /** 照会を選ぶと、そのヒット一覧を検索結果と同じ UI（同じ終点 = ego + 選択）で出す。 */
+  function openAgentHits(query: AgentSearchQuery): void {
+    agentQueries = null;
+    renderAgentList();
+    searchResults = {
+      hits: query.hits.map((hit) => ({ ...hit, degree: 0 })),
+      truncated: false,
+    };
+    resultsOrigin = 'agent_history';
+    renderSearchResults();
+  }
+
+  function renderAgentList(): void {
+    if (!agentListEl) return;
+    agentListEl.textContent = '';
+    agentListEl.hidden = agentQueries === null;
+    if (agentQueries === null) return;
+    if (agentQueries === 'failed' || agentQueries.queries.length === 0) {
+      const div = document.createElement('div');
+      div.dataset['amKgAgentEmpty'] = '';
+      div.textContent = props.t(
+        agentQueries === 'failed' ? 'knowledgeGraph.agentSearchesFailed' : 'knowledgeGraph.agentSearchesEmpty',
+      );
+      agentListEl.appendChild(div);
+      return;
+    }
+    for (const query of agentQueries.queries) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset['amKgAgentQuery'] = query.id;
+      // ヒット 0 件（実体が現存しない照会を含む）は選べない行として明示する（abstain の可視化）
+      btn.disabled = query.hits.length === 0;
+      const time = document.createElement('span');
+      time.className = 'am-kg-agent-time';
+      time.textContent = query.occurredAt.slice(0, 16).replace('T', ' ');
+      const text = document.createElement('span');
+      text.className = 'am-kg-agent-query-text';
+      text.textContent = query.query;
+      text.title = query.query;
+      const count = document.createElement('span');
+      count.className = 'am-kg-agent-count';
+      count.textContent = format(props.t('knowledgeGraph.agentSearchHitCount'), {
+        count: String(query.hits.length),
+      });
+      btn.append(time, text, count);
+      if (!btn.disabled) btn.addEventListener('click', () => openAgentHits(query));
+      agentListEl.appendChild(btn);
+    }
   }
 
   function renderSearchResults(): void {
@@ -353,12 +489,21 @@ export function mountKnowledgeGraphPanel(
       labelSpan.textContent = hit.label;
       labelSpan.title = hit.label;
       btn.append(typeSpan, labelSpan);
-      btn.addEventListener('click', () => openEgo(hit));
+      btn.addEventListener('click', () => openEgo(hit, resultsOrigin));
       searchResultsEl.appendChild(btn);
     }
   }
 
   searchRunBtn?.addEventListener('click', () => { void runSearch(); });
+  agentBtn?.addEventListener('click', () => {
+    // 開いていれば閉じる（トグル）。開くときは毎回取り直す
+    if (agentQueries !== null) {
+      agentQueries = null;
+      renderAgentList();
+      return;
+    }
+    void openAgentList();
+  });
   searchInput?.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') void runSearch();
     if (ev.key === 'Escape') {
@@ -367,13 +512,15 @@ export function mountKnowledgeGraphPanel(
     }
   });
   egoClearBtn?.addEventListener('click', clearEgo);
-  /** 外側クリックで結果リストを閉じる（設計書 §3.5）。 */
+  /** 外側クリックで結果リスト・照会リストを閉じる（設計書 §3.5 / §3.6）。 */
   const onDocPointerDown = (ev: PointerEvent): void => {
-    if (searchResults === null) return;
+    if (searchResults === null && agentQueries === null) return;
     const wrap = toolbar.querySelector('[data-am-kg-search-wrap]');
     if (wrap && ev.target instanceof Node && wrap.contains(ev.target)) return;
     searchResults = null;
+    agentQueries = null;
     renderSearchResults();
+    renderAgentList();
   };
   container.ownerDocument.addEventListener('pointerdown', onDocPointerDown);
 
@@ -471,6 +618,25 @@ export function mountKnowledgeGraphPanel(
       // なので、今の図を残しておけばその領域は自然に空白として見える。
       return;
     }
+    if (egoSeed !== null && json.nodes.length === 0) {
+      // 引用・照会の実体が現存しない（soft delete・DB 入れ替え）。図を空にすると
+      // 戻れなくなるので現在の図を維持し、告知だけ出す（設計書 §3.6）。
+      entityNotFound = true;
+      egoSeed = null;
+      if (data !== null) {
+        loadState = data.nodes.length === 0 ? 'empty' : 'ready';
+        return;
+      }
+      // 初回表示より先に引用から入った場合は全体表示へ倒す（維持する図が無い）
+      void refresh();
+      return;
+    }
+    if (egoSeed !== null) {
+      // focusEntity は id しか知らない。件数表示のラベルは応答から解決する
+      const seedNode = json.nodes.find((n) => n.id === egoSeed?.id);
+      if (seedNode) egoSeed = { id: egoSeed.id, label: seedNode.label };
+    }
+    entityNotFound = false;
     data = json;
     loadState = json.nodes.length === 0 ? 'empty' : 'ready';
     if (loadState !== 'ready') return;
@@ -478,10 +644,33 @@ export function mountKnowledgeGraphPanel(
       buildKnowledgeGraphCoocFile(
         json,
         new Date().toISOString(),
-        egoSeed ? { subjectLabel: egoSeed.label } : undefined,
+        egoSeed ? { subjectId: egoSeed.id, subjectLabel: egoSeed.label } : undefined,
       ),
       viewportDriven,
     );
+    applySubjectSelection(json);
+  }
+
+  /**
+   * ego の中心ノードを選択状態にする（設計書 §3.6。ego 差し替えだけでは「どれがその
+   * 実体か」がパン後に読めない）。全体表示へ戻ったら 1 度だけ解除する — 視野駆動の
+   * 差し替えでは触らない（利用者が自分でクリックした選択を横から消さない）。
+   */
+  function applySubjectSelection(json: KnowledgeGraphResponse): void {
+    if (!viewerHandle) return;
+    if (egoSeed === null) {
+      if (egoSelectionApplied) {
+        viewerHandle.selectNode(null);
+        egoSelectionApplied = false;
+      }
+      return;
+    }
+    const seedId = egoSeed.id;
+    const seedLabel = egoSeed.label;
+    const byId = json.nodes.findIndex((n) => n.id === seedId);
+    const index = byId >= 0 ? byId : json.nodes.findIndex((n) => n.label === seedLabel);
+    viewerHandle.selectNode(index >= 0 ? index : null);
+    egoSelectionApplied = index >= 0;
   }
 
   /** 図を差し替える（初回だけ mount、以後は update）。 */
@@ -532,6 +721,7 @@ export function mountKnowledgeGraphPanel(
 
     if (searchInput) searchInput.placeholder = t('knowledgeGraph.searchPlaceholder');
     if (searchRunBtn) searchRunBtn.textContent = t('knowledgeGraph.searchRun');
+    if (agentBtn) agentBtn.textContent = t('knowledgeGraph.agentSearches');
     if (egoClearBtn) {
       egoClearBtn.textContent = t('knowledgeGraph.egoClear');
       egoClearBtn.hidden = egoSeed === null;
@@ -560,9 +750,16 @@ export function mountKnowledgeGraphPanel(
       empty: 'knowledgeGraph.empty',
     };
     const key = statusKey[loadState];
-    statusEl.hidden = key === undefined;
-    statusEl.dataset['kind'] = loadState;
-    statusEl.textContent = key === undefined ? '' : t(key);
+    if (entityNotFound && loadState === 'ready') {
+      // 実体不在の告知は図を維持したまま出す（設計書 §3.6。0 件表示と区別する）
+      statusEl.hidden = false;
+      statusEl.dataset['kind'] = 'notFound';
+      statusEl.textContent = t('knowledgeGraph.entityNotFound');
+    } else {
+      statusEl.hidden = key === undefined;
+      statusEl.dataset['kind'] = loadState;
+      statusEl.textContent = key === undefined ? '' : t(key);
+    }
     viewerHost.hidden = loadState !== 'ready';
   }
 
@@ -570,6 +767,22 @@ export function mountKnowledgeGraphPanel(
   void refresh();
 
   return {
+    /**
+     * 引用（Chat タブの entity チップ）から該当実体を開く（設計書 §3.6 (a)）。
+     * ラベルは応答から解決するため id だけでよい。
+     */
+    focusEntity(id: string, label?: string): void {
+      if (destroyed || id === '') return;
+      egoSeed = { id, label: label ?? id };
+      entityNotFound = false;
+      searchResults = null;
+      agentQueries = null;
+      renderSearchResults();
+      renderAgentList();
+      postSearchEvent({ kind: 'ego_open', query: '', entityId: id, origin: 'citation' });
+      render();
+      void refresh();
+    },
     update(next: KnowledgeGraphPanelProps) {
       const prev = props;
       props = next;
@@ -594,6 +807,7 @@ export function mountKnowledgeGraphPanel(
       destroyed = true;
       controller?.abort();
       searchController?.abort();
+      agentController?.abort();
       container.ownerDocument.removeEventListener('pointerdown', onDocPointerDown);
       typeSelect.destroy();
       limitSelect.destroy();

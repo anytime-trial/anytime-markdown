@@ -46,6 +46,7 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 29, file: '029_code_edge_predicates.sql' },
   { version: 30, apply: applyFtsIdentifierTokens, requiresFts5: true },
   { version: 31, file: '031_search_events.sql' },
+  { version: 32, file: '032_search_event_source.sql' },
 ]
 
 /**

@@ -8,6 +8,8 @@ const mountViewerMock = jest.fn();
 const viewerHandleMock = {
   update: jest.fn(),
   destroy: jest.fn(),
+  selectNode: jest.fn(),
+  getSelectedNodeIndex: jest.fn(() => null),
 };
 jest.mock('@anytime-markdown/cooccurrence-viewer', () => ({
   mountCooccurrenceViewer: (...args: unknown[]) => {
@@ -563,6 +565,170 @@ describe('mountKnowledgeGraphPanel 検索（設計書 §3.5）', () => {
     expect(container.querySelectorAll('[data-am-kg-search-hit]')).toHaveLength(2);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+    handle.destroy();
+  });
+});
+
+describe('mountKnowledgeGraphPanel エージェント照会ハイライト（設計書 §3.6）', () => {
+  let container: HTMLElement;
+  let fetchMock: jest.Mock;
+
+  const EGO: KnowledgeGraphResponse = {
+    nodes: [
+      { id: 'e9', label: 'Seed 実体', type: 'Concept', frequency: 3 },
+      { id: 'n1', label: '隣接', type: 'File', frequency: 1 },
+    ],
+    links: [{ a: 0, b: 1, strength: 1 }],
+    clusters: [{ label: 'Concept', members: [0] }],
+    totalEntityCount: 100,
+    truncated: false,
+    availableTypes: ['Concept', 'File'],
+  };
+
+  const AGENT_SEARCHES = {
+    queries: [
+      {
+        id: 'q1',
+        query: 'blockAlignment',
+        occurredAt: '2026-08-10T01:00:00.000Z',
+        hits: [{ id: 'e9', label: 'Seed 実体', type: 'Concept' }],
+      },
+      { id: 'q0', query: '空振り', occurredAt: '2026-08-10T00:00:00.000Z', hits: [] },
+    ],
+  };
+
+  function routeFetch(over?: { egoBody?: KnowledgeGraphResponse }): void {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/search-events')) return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      if (url.includes('/agent-searches')) {
+        return Promise.resolve({ ok: true, json: async () => AGENT_SEARCHES });
+      }
+      if (url.includes('seed=')) {
+        return Promise.resolve(okResponse(over?.egoBody ?? EGO));
+      }
+      return Promise.resolve(okResponse(SAMPLE));
+    });
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    container.remove();
+  });
+
+  function eventBodies(): Array<Record<string, unknown>> {
+    return fetchMock.mock.calls
+      .filter((c) => typeof c[0] === 'string' && (c[0] as string).includes('/search-events'))
+      .map((c) => JSON.parse((c[1] as RequestInit).body as string) as Record<string, unknown>);
+  }
+
+  it('focusEntity で seed 取得へ入り、中心ノードを選択し、origin=citation を記録する', async () => {
+    routeFetch();
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    handle.focusEntity('e9');
+    await flush();
+
+    const seedCall = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('seed='),
+    );
+    expect(seedCall?.[0]).toBe(`${SERVER_URL}/api/caravan/knowledge-graph?limit=150&seed=e9`);
+    // subject は id 解決で添字 0。選択状態も同じ添字
+    expect(viewerHandleMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        file: expect.objectContaining({ spec: expect.objectContaining({ subject: 0 }) }),
+      }),
+    );
+    expect(viewerHandleMock.selectNode).toHaveBeenCalledWith(0);
+    expect(eventBodies()).toContainEqual(
+      expect.objectContaining({ kind: 'ego_open', entityId: 'e9', origin: 'citation' }),
+    );
+    // 件数表示は応答から解決したラベルで出る
+    expect(container.querySelector('[data-am-kg-count]')?.textContent).toContain('Seed 実体');
+    handle.destroy();
+  });
+
+  it('エージェント照会リストから照会 → ヒット → ego（origin=agent_history）へ辿れる', async () => {
+    routeFetch();
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    container.querySelector<HTMLButtonElement>('[data-am-kg-agent-btn]')?.click();
+    await flush();
+
+    const queryRows = container.querySelectorAll('[data-am-kg-agent-query]');
+    expect(queryRows).toHaveLength(2);
+    // 0 ヒットの照会は選べない行
+    expect((queryRows[1] as HTMLButtonElement).disabled).toBe(true);
+
+    (queryRows[0] as HTMLButtonElement).click();
+    const hit = container.querySelector<HTMLButtonElement>('[data-am-kg-search-hit]');
+    expect(hit?.textContent).toContain('Seed 実体');
+    hit?.click();
+    await flush();
+
+    expect(eventBodies()).toContainEqual(
+      expect.objectContaining({ kind: 'ego_open', entityId: 'e9', origin: 'agent_history' }),
+    );
+    expect(viewerHandleMock.selectNode).toHaveBeenCalledWith(0);
+    handle.destroy();
+  });
+
+  it('検索起点の ego は origin=search を記録し、中心ノードを選択する', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/search-events')) return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      if (url.includes('/knowledge-graph/search?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ hits: [{ id: 'e9', label: 'Seed 実体', type: 'Concept', degree: 3 }], truncated: false }),
+        });
+      }
+      if (url.includes('seed=')) return Promise.resolve(okResponse(EGO));
+      return Promise.resolve(okResponse(SAMPLE));
+    });
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    const input = container.querySelector<HTMLInputElement>('[data-am-kg-search-input]');
+    if (!input) throw new Error('search input not found');
+    input.value = 'seed';
+    container.querySelector<HTMLButtonElement>('[data-am-kg-search-run]')?.click();
+    await flush();
+    container.querySelector<HTMLButtonElement>('[data-am-kg-search-hit]')?.click();
+    await flush();
+
+    expect(eventBodies()).toContainEqual(
+      expect.objectContaining({ kind: 'ego_open', entityId: 'e9', origin: 'search' }),
+    );
+    expect(viewerHandleMock.selectNode).toHaveBeenCalledWith(0);
+    handle.destroy();
+  });
+
+  it('引用実体が見つからないときは図を維持し entityNotFound を表示する', async () => {
+    routeFetch({
+      egoBody: { ...EGO, nodes: [], links: [], clusters: [] },
+    });
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+    expect(viewerHandleMock.destroy).not.toHaveBeenCalled();
+
+    handle.focusEntity('gone');
+    await flush();
+
+    // 図は破棄されず、状態行に「見つからない」が出る。ego モードにも入らない
+    expect(viewerHandleMock.destroy).not.toHaveBeenCalled();
+    const status = container.querySelector<HTMLElement>('[data-am-kg-status]');
+    expect(status?.hidden).toBe(false);
+    expect(status?.textContent).toBe(t('knowledgeGraph.entityNotFound'));
+    expect(container.querySelector<HTMLElement>('[data-am-kg-viewer]')?.hidden).toBe(false);
+    expect(container.querySelector<HTMLButtonElement>('[data-am-kg-ego-clear]')?.hidden).toBe(true);
     handle.destroy();
   });
 });

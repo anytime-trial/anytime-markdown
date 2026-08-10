@@ -435,7 +435,21 @@ export function mountTrailViewer(
     return {
       t: props.t,
       bridge: props.bridge ?? makeNoopBridge(),
+      onCitationClick: handleCitationClick,
     };
+  }
+
+  /**
+   * 回答の引用チップ（entity:<id>）から知識グラフタブの該当実体表示へ遷移する
+   * （知識グラフ設計書 §3.6 (a)。終点は ego 表示 + 中心ノードの選択状態）。
+   */
+  function handleCitationClick(tag: string): void {
+    const entityId = /^entity:(.+)$/.exec(tag)?.[1];
+    // サーバ未接続では知識グラフタブが mount できない。チャットの表示を奪ってまで
+    // 空タブへ遷移しない
+    if (entityId === undefined || !props.serverUrl) return;
+    visitTab(11);
+    knowledgeGraphHandle?.focusEntity(entityId);
   }
 
   // ── Derive FlightRecordPanel props ──

@@ -435,6 +435,23 @@ describe('createMessageBubble', () => {
     expect(el.textContent).toContain('My Source');
   });
 
+  it('entity 引用チップのクリックだけが onCitationClick へ届く（episode は非クリック。知識グラフ設計書 §3.6）', () => {
+    const clicked: string[] = [];
+    const { el } = createMessageBubble({
+      message: {
+        role: 'assistant',
+        content: 'See [^entity:abc123] and [^episode:ep9].',
+        citations: ['entity:abc123', 'episode:ep9'],
+      },
+      sources: [],
+      onCitationClick: (tag) => clicked.push(tag),
+    });
+    // chip 実装のクラス名に依存せず全要素をクリックし、entity タグだけが届くことを見る
+    for (const target of el.querySelectorAll<HTMLElement>('*')) target.click();
+    expect(clicked).toContain('entity:abc123');
+    expect(clicked).not.toContain('episode:ep9');
+  });
+
   it('error メッセージがある場合は表示する', () => {
     const { el } = createMessageBubble({
       message: { role: 'assistant', content: '', citations: [], error: 'oops' },
