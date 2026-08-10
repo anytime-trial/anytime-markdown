@@ -80,6 +80,12 @@ const HISTORY_LIMIT = 10;
  */
 const AUTO_RESOLVE_NOTE_PREFIX = 'auto:';
 
+/**
+ * 対象ファイル消滅による解決 note。AUTO_RESOLVE_NOTE_PREFIX で始めることが必須
+ * （人手解決と区別され、ファイル復活時に reopenEvent の対象になる）。
+ */
+export const MISSING_TARGET_RESOLUTION_NOTE = 'auto: target file missing';
+
 function isAutoResolved(resolutionNote: string): boolean {
   return resolutionNote.startsWith(AUTO_RESOLVE_NOTE_PREFIX);
 }
@@ -261,11 +267,16 @@ function resolveSubjectEntity(db: CaravanDbConnection, subjectId: string, record
 export function reportDriftEvents(input: {
   db: CaravanDbConnection;
   candidates: DriftEventInput[];
+  /**
+   * 対象ファイルが消滅していた候補（partitionByTargetExistence の missingTarget）。
+   * upsert へは回さず、既存の未解決イベントだけを MISSING_TARGET_RESOLUTION_NOTE で解決する。
+   */
+  missingTargetCandidates?: DriftEventInput[];
   recordedAt: string;
   autoResolveStale?: boolean;
   logger: CaravanLogger;
 }): ReportResult {
-  const { db, candidates, recordedAt, autoResolveStale = true, logger } = input;
+  const { db, candidates, missingTargetCandidates = [], recordedAt, autoResolveStale = true, logger } = input;
 
   const result: ReportResult = {
     events_inserted: 0,
@@ -310,17 +321,28 @@ export function reportDriftEvents(input: {
     normalizedCandidates.map((c) => driftKey(c.subject_entity_id, c.predicate, c.drift_type)),
   );
 
-  // 3. auto-resolve: 候補に含まれなくなった既存 event
+  // 対象消滅分も同じ正規化を通す。key が一致しないと既存イベントを見つけられない。
+  const missingTargetKeys = new Set(
+    missingTargetCandidates.map((c) =>
+      driftKey(resolveSubjectEntity(db, c.subject_entity_id, recordedAt), c.predicate, c.drift_type),
+    ),
+  );
+
+  // 3. auto-resolve: 候補に含まれなくなった既存 event。
+  //    対象ファイル消滅による不在は note を分けて記録する（後から解決理由を監査できるように）。
   if (autoResolveStale) {
     for (const ev of activeEvents) {
       const key = driftKey(ev.subject_entity_id, ev.predicate, ev.drift_type);
       if (!candidateKeys.has(key)) {
+        const note = missingTargetKeys.has(key)
+          ? MISSING_TARGET_RESOLUTION_NOTE
+          : 'auto: drift no longer present';
         try {
           db.run(
             `UPDATE caravan_drift_events
-             SET resolved_at = ?, resolution_note = 'auto: drift no longer present'
+             SET resolved_at = ?, resolution_note = ?
              WHERE id = ?`,
-            [recordedAt, ev.id],
+            [recordedAt, note, ev.id],
           );
           result.events_resolved++;
         } catch (err) {

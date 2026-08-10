@@ -484,7 +484,15 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     const logger = this.logger;
     this.status?.start('drift_detection');
     try {
-      const driftResult = await runDriftDetection({ db: memDb.db, logger });
+      // 対象ファイル実在ゲート用の resolver。この daemon が管理するのは gitRoot の
+      // 1 リポジトリだけなので、repoName 一致以外は null（= 実在チェックせず fail-open）。
+      const gitRoot = this.deps.gitRoot;
+      const repoName = this.repoName;
+      const driftResult = await runDriftDetection({
+        db: memDb.db,
+        logger,
+        resolveWorkspaceRoot: (workspace) => (workspace === repoName ? gitRoot : null),
+      });
       // reopen（再発）も処理件数に含める。除くと再発だけの実行が 0 件処理に見える。
       const driftProcessed =
         driftResult.events_inserted + driftResult.events_updated + driftResult.events_reopened;

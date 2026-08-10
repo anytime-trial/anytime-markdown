@@ -337,4 +337,61 @@ describe('runDriftDetection', () => {
       close();
     }
   }, 30000);
+
+  // D-missing: 対象ファイルが消滅した recurring_review_finding は
+  // 検出から外れ、既存イベントは auto: target file missing で解決される
+  test('D-missing: 対象ファイル消滅 → イベントを解決し新規挿入しない', async () => {
+    const { db, close } = await openTestDb();
+    try {
+      const now = new Date().toISOString();
+      const findingEntity = 'ent_finding_gone';
+      insertEntity(db, findingEntity, 'FindingEntity');
+      const reviewEntity = 'ent_review_gone';
+      insertEntity(db, reviewEntity, 'ReviewEntity');
+      db.run(
+        `INSERT INTO caravan_reviews
+           (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
+         VALUES ('rev-gone', 'review_doc', 'rev-gone', ?, 'code', 'Test Review', ?, ?, 'ws-a')`,
+        [reviewEntity, now, now],
+      );
+      for (const fid of ['rf-gone-1', 'rf-gone-2']) {
+        db.run(
+          `INSERT INTO caravan_review_findings
+             (id, review_id, finding_entity_id, finding_index, target_file_path,
+              severity, category, finding_text, recorded_at)
+           VALUES (?, 'rev-gone', ?, ?, 'packages/gone.ts', 'warn', 'logic', 'finding text', ?)`,
+          [fid, findingEntity, fid === 'rf-gone-1' ? 1 : 2, now],
+        );
+      }
+
+      // 1 回目: ファイル実在 → イベント挿入
+      const first = await runDriftDetection({
+        db,
+        logger: noopLogger,
+        resolveWorkspaceRoot: (ws) => (ws === 'ws-a' ? '/repo' : null),
+        fileExists: () => true,
+      });
+      expect(first.events_inserted).toBeGreaterThanOrEqual(1);
+
+      // 2 回目: ファイル消滅 → 既存イベントが専用 note で解決され、新規挿入なし
+      const second = await runDriftDetection({
+        db,
+        logger: noopLogger,
+        resolveWorkspaceRoot: (ws) => (ws === 'ws-a' ? '/repo' : null),
+        fileExists: () => false,
+      });
+      expect(second.events_resolved).toBeGreaterThanOrEqual(1);
+      expect(second.events_inserted).toBe(0);
+
+      const rows = db.exec(
+        `SELECT resolved_at, resolution_note FROM caravan_drift_events
+         WHERE drift_type = 'recurring_review_finding'`,
+      );
+      expect(rows[0]?.values).toHaveLength(1);
+      expect(rows[0]?.values[0][0]).not.toBeNull();
+      expect(rows[0]?.values[0][1]).toBe('auto: target file missing');
+    } finally {
+      close();
+    }
+  }, 30000);
 });
