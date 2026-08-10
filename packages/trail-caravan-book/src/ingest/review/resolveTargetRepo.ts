@@ -127,6 +127,13 @@ export interface ResolveByBasenameInput {
  * rename 表記（`old => new`）と git のクォート表記（`"..."`）の行は除外する。どちらも
  * `activity_commit_files.file_path` に実在するが、パスそのものではなく差分の表現であり、
  * basename を切り出すと存在しないファイル名になる。
+ *
+ * SQL の `LIKE` で絞ったあと **JS で末尾セグメントの完全一致を取り直す**。SQLite の `LIKE` は
+ * 既定で ASCII の大小文字を区別しないため、SQL だけで決めると `claude.md` が `CLAUDE.md` に
+ * 一致する。Linux のパスは大小文字を区別するので、これは別ファイルへの解決であり、
+ * `extractBasenameCandidates` の除外リスト（完全一致）も大小文字を変えるだけで素通りする。
+ * 一意性の判定は絞り込みではなく完全一致の結果に対して行う（`LIMIT` を置くと、大小文字違いの
+ * 行が枠を埋めて本来一意な一致を取り逃す）。
  */
 export function resolveByBasename(input: ResolveByBasenameInput): ResolvedTargetRepo | null {
   const { db, basename, workspaceRepo } = input;
@@ -139,15 +146,16 @@ export function resolveByBasename(input: ResolveByBasenameInput): ResolvedTarget
       WHERE r.repo_name = ?
         AND (cf.file_path = ? OR cf.file_path LIKE '%/' || ? ESCAPE '\\')
         AND cf.file_path NOT LIKE '%=>%' ESCAPE '\\'
-        AND cf.file_path NOT LIKE '"%' ESCAPE '\\'
-      LIMIT 2`,
+        AND cf.file_path NOT LIKE '"%' ESCAPE '\\'`,
     [workspaceRepo, basename, escapeLike(basename)],
   );
 
-  const values = result[0]?.values ?? [];
-  if (values.length !== 1) return null;
+  const matches = (result[0]?.values ?? [])
+    .map((row) => String(row[0]))
+    .filter((filePath) => filePath.slice(filePath.lastIndexOf('/') + 1) === basename);
+  if (matches.length !== 1) return null;
 
-  return { repo: workspaceRepo, path: String(values[0][0]) };
+  return { repo: workspaceRepo, path: matches[0] };
 }
 
 export function resolveTargetRepo(input: ResolveTargetRepoInput): ResolvedTargetRepo | null {

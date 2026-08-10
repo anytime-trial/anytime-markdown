@@ -344,6 +344,42 @@ describe('resolveMissingFindingPaths（resolveReviewTargets 経由）', () => {
     expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
   });
 
+  // SQLite の LIKE は既定で ASCII の大小文字を区別しない。SQL だけで決めると
+  // `claude.md` が `CLAUDE.md` に一致し、Linux では別ファイルであるうえ
+  // extractBasenameCandidates の除外リスト（完全一致）も大小文字を変えるだけで素通りする。
+  it('大小文字違いのファイル名を引き当てない', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/Widget.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`widget.ts` が壊れている' }],
+      }],
+    });
+
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
+    expect(result.pathsInferred).toBe(0);
+  });
+
+  // 大小文字違いの行が絞り込み枠を埋めて、本来一意な一致を取り逃してはならない。
+  it('大小文字違いの同名ファイルが在っても完全一致が 1 本なら解決する', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/Widget.ts', 'packages/b/src/WIDGET.ts', 'packages/c/src/widget.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`widget.ts` が壊れている' }],
+      }],
+    });
+
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({
+      path: 'packages/c/src/widget.ts',
+      repo: 'anytime-markdown',
+    });
+  });
+
   it('severity=info は設計上リンク対象外なので補完しない', async () => {
     fixture = await buildFixture({
       repos: { 'anytime-markdown': ['packages/a/src/unique.ts'] },
