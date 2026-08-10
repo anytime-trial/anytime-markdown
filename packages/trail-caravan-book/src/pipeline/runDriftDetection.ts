@@ -19,6 +19,8 @@ export type DriftDetectionResult = {
   events_inserted: number;
   events_updated: number;
   events_resolved: number;
+  /** 解決済みだった drift が再検出され、未解決へ戻された件数。 */
+  events_reopened: number;
   duration_ms: number;
 };
 
@@ -92,7 +94,7 @@ export async function runDriftDetection(input: {
     candidates.push(...results);
   }
 
-  let reportResult = { events_inserted: 0, events_updated: 0, events_resolved: 0 };
+  let reportResult = { events_inserted: 0, events_updated: 0, events_resolved: 0, events_reopened: 0 };
   try {
     reportResult = reportDriftEvents({ db, candidates, recordedAt: startedAt, logger });
   } catch (err) {
@@ -109,7 +111,9 @@ export async function runDriftDetection(input: {
 
   const durationMs = Date.now() - new Date(startedAt).getTime();
   const status = hasPartialError ? 'partial' : 'success';
-  const totalDrifts = reportResult.events_inserted + reportResult.events_updated;
+  // reopen も「いま出ている drift」なので検出件数に含める（除くと再発が 0 件に見える）。
+  const totalDrifts =
+    reportResult.events_inserted + reportResult.events_updated + reportResult.events_reopened;
 
   ledger.finish(
     status,
@@ -122,6 +126,7 @@ export async function runDriftDetection(input: {
     events_inserted: reportResult.events_inserted,
     events_updated: reportResult.events_updated,
     events_resolved: reportResult.events_resolved,
+    events_reopened: reportResult.events_reopened,
     duration_ms: durationMs,
   };
 }

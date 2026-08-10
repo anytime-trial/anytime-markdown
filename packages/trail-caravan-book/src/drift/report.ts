@@ -26,14 +26,68 @@ type ReportResult = {
   events_inserted: number;
   events_updated: number;
   events_resolved: number;
+  /** 解決済みだった drift が再検出され、未解決へ戻された件数。 */
+  events_reopened: number;
 };
 
-type ActiveEvent = {
+type KnownEvent = {
   id: string;
   subject_entity_id: string;
   predicate: string;
   drift_type: string;
+  /** null なら未解決。解決済み行は再検出で reopen する。 */
+  resolved_at: string | null;
+  resolution_note: string;
+  detected_at: string;
+  detail_json: string;
 };
+
+/** reopen 時に detail_json へ積む前ライフサイクルの記録。 */
+type ReopenRecord = {
+  reopened_at: string;
+  previous_detected_at: string;
+  previous_resolved_at: string;
+  previous_resolution_note: string;
+};
+
+/**
+ * 再発の履歴上限。detail_json は行内 TEXT なので無制限追記は行を肥大させる。
+ * 直近 10 サイクルあれば「再発しているか」の判断には足り、それ以前は古い方から落とす。
+ */
+const REOPEN_HISTORY_LIMIT = 10;
+
+/**
+ * reopen 履歴を積んだ detail_json を作る。
+ * 既存 detail_json が壊れていても再発の記録自体は落とさない（履歴だけ諦める）。
+ */
+function buildReopenDetailJson(
+  base: Record<string, unknown>,
+  existing: KnownEvent,
+  recordedAt: string,
+  logger: CaravanLogger,
+): string {
+  let history: ReopenRecord[] = [];
+  try {
+    const prev = JSON.parse(existing.detail_json) as { reopen_history?: ReopenRecord[] };
+    if (Array.isArray(prev.reopen_history)) {
+      history = prev.reopen_history;
+    }
+  } catch (err) {
+    logger.error(
+      `[reportDriftEvents] reopen history unreadable id=${existing.id}: ${String(err)}`,
+    );
+  }
+  history = [
+    ...history,
+    {
+      reopened_at: recordedAt,
+      previous_detected_at: existing.detected_at,
+      previous_resolved_at: existing.resolved_at ?? '',
+      previous_resolution_note: existing.resolution_note,
+    },
+  ].slice(-REOPEN_HISTORY_LIMIT);
+  return JSON.stringify({ ...base, reopen_history: history });
+}
 
 function driftKey(subjectId: string, predicate: string, driftType: string): string {
   return `${subjectId}:${predicate}:${driftType}`;
@@ -111,7 +165,12 @@ export function reportDriftEvents(input: {
 }): ReportResult {
   const { db, candidates, recordedAt, autoResolveStale = true, logger } = input;
 
-  const result: ReportResult = { events_inserted: 0, events_updated: 0, events_resolved: 0 };
+  const result: ReportResult = {
+    events_inserted: 0,
+    events_updated: 0,
+    events_resolved: 0,
+    events_reopened: 0,
+  };
 
   // 0. subject_entity_id を正準 entity id へ正規化し、FK 用に entity を確保する。
   //    以降の key 計算・突合・INSERT はすべて正規化後の id で行う。
@@ -120,16 +179,28 @@ export function reportDriftEvents(input: {
     subject_entity_id: resolveSubjectEntity(db, c.subject_entity_id, recordedAt),
   }));
 
-  // 1. 既存の active drift events を取得
+  // 1. 既存の drift events を取得（解決済みも含む）
+  //
+  // 解決済みを除くと、一度 resolve した key は「既存なし」と判定されて INSERT へ回り、
+  // UNIQUE (subject_entity_id, predicate, drift_type) に阻まれて例外になる。例外は
+  // catch されてログに落ちるだけなので、**再発した drift が恒久的に記録されなくなる**。
+  // auto-resolve が対象にするのは未解決行だけなので、そちらは下で絞り直す。
   const rows = db.exec(
-    'SELECT id, subject_entity_id, predicate, drift_type FROM caravan_drift_events WHERE resolved_at IS NULL',
+    `SELECT id, subject_entity_id, predicate, drift_type, resolved_at, resolution_note,
+            detected_at, detail_json
+       FROM caravan_drift_events`,
   );
-  const activeEvents: ActiveEvent[] = (rows[0]?.values ?? []).map((r) => ({
+  const knownEvents: KnownEvent[] = (rows[0]?.values ?? []).map((r) => ({
     id: r[0] as string,
     subject_entity_id: r[1] as string,
     predicate: r[2] as string,
     drift_type: r[3] as string,
+    resolved_at: r[4] == null ? null : String(r[4]),
+    resolution_note: r[5] == null ? '' : String(r[5]),
+    detected_at: r[6] == null ? '' : String(r[6]),
+    detail_json: r[7] == null ? '{}' : String(r[7]),
   }));
+  const activeEvents: KnownEvent[] = knownEvents.filter((ev) => ev.resolved_at === null);
 
   // 2. 候補を Set 化
   const candidateKeys = new Set(
@@ -156,18 +227,45 @@ export function reportDriftEvents(input: {
     }
   }
 
-  // 4. 候補を upsert（SELECT → UPDATE or INSERT）
-  const activeByKey = new Map<string, ActiveEvent>();
-  for (const ev of activeEvents) {
-    activeByKey.set(driftKey(ev.subject_entity_id, ev.predicate, ev.drift_type), ev);
+  // 4. 候補を upsert（SELECT → UPDATE / REOPEN / INSERT）
+  const knownByKey = new Map<string, KnownEvent>();
+  for (const ev of knownEvents) {
+    knownByKey.set(driftKey(ev.subject_entity_id, ev.predicate, ev.drift_type), ev);
   }
 
   for (const candidate of normalizedCandidates) {
     const key = driftKey(candidate.subject_entity_id, candidate.predicate, candidate.drift_type);
-    const existing = activeByKey.get(key);
-    const detailJson = JSON.stringify({ ...candidate.detail, policy_version: 'phase4-v1' });
+    const existing = knownByKey.get(key);
+    const detailBase = { ...candidate.detail, policy_version: 'phase4-v1' };
+    const detailJson = JSON.stringify(detailBase);
 
-    if (existing) {
+    if (existing && existing.resolved_at !== null) {
+      // 解決済みの drift が再発した。UNIQUE (subject, predicate, drift_type) があるため
+      // 新規行は作れない。同じ行を未解決へ戻し、前ライフサイクルは detail_json の
+      // reopen_history に残す（初回検出時刻を失わないため）。
+      // detected_at を今回の検出時刻へ進めるのは、未解決期間の起点が「いま出ている drift が
+      // いつから出ているか」だからで、解決済み期間を跨いだ日数を滞留として数えないため。
+      try {
+        db.run(
+          `UPDATE caravan_drift_events
+              SET resolved_at = NULL, resolution_note = '', detected_at = ?,
+                  severity = ?, detail_json = ?, workspace = COALESCE(NULLIF(?, ''), workspace)
+            WHERE id = ?`,
+          [
+            recordedAt,
+            candidate.severity,
+            buildReopenDetailJson(detailBase, existing, recordedAt, logger),
+            candidate.workspace,
+            existing.id,
+          ],
+        );
+        result.events_reopened++;
+      } catch (err) {
+        logger.error(
+          `[reportDriftEvents] reopen failed id=${existing.id}: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
+        );
+      }
+    } else if (existing) {
       // severity・detail_json・workspace のみ更新（detected_at は変えない）。
       // workspace を更新対象に含めるのは、列追加前に作られた既存行（'' のまま）が
       // 再検出で埋まるようにするため。ただし埋める方向にだけ効かせる:
@@ -186,7 +284,8 @@ export function reportDriftEvents(input: {
         logger.error(`[reportDriftEvents] update failed id=${existing.id}: ${String(err)}`);
       }
     } else {
-      // 新規 INSERT（resolved の行があっても新規行として追加）。
+      // 未知の key のみ新規 INSERT。既知の key は解決済みでも上の reopen 分岐が拾うため、
+      // ここへは来ない（来ると UNIQUE 制約で必ず落ちる）。
       // subject entity は step 0 で正規化・確保済みなので FK は満たされる。
       try {
         db.run(

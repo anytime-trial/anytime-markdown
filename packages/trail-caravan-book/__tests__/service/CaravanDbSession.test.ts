@@ -817,6 +817,7 @@ describe('CaravanDbSession', () => {
         status: 'ok',
         events_inserted: 3,
         events_updated: 2,
+        events_reopened: 1,
       });
 
       const result = await session.runDrift();
@@ -824,7 +825,7 @@ describe('CaravanDbSession', () => {
       expect(mockRunDriftDetection).toHaveBeenCalledTimes(1);
       expect(result.scope).toBe('drift_detection');
       expect(result.status).toBe('ok');
-      expect(result.itemsProcessed).toBe(5); // 3 + 2
+      expect(result.itemsProcessed).toBe(6); // 3 + 2 + 1(reopen)
       expect(result.itemsFailed).toBe(0);
       expect(memDb.save).toHaveBeenCalled();
 
@@ -852,7 +853,7 @@ describe('CaravanDbSession', () => {
       const trailDb = makeTrailDb();
       const session = makeSession(memDb, trailDb);
 
-      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 0, events_updated: 0 });
+      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 0, events_updated: 0, events_reopened: 0 });
 
       const result = await session.runDrift();
 
@@ -954,7 +955,7 @@ describe('CaravanDbSession', () => {
         statusWriter: statusWriter as unknown as import('../../src/status/PipelineStatusWriter').PipelineStatusWriter,
       });
 
-      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 1, events_updated: 0 });
+      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 1, events_updated: 0, events_reopened: 0 });
 
       await session.runDrift();
 
