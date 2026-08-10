@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CaravanDbConnection } from '../connection/types';
 import { applyTablePrefix, applyTablePrefixFts } from './023_table_prefix';
+import { applyFtsIdentifierTokens } from './030_fts_identifier_tokens';
 
 interface MigrationDef {
   readonly version: number;
@@ -43,6 +44,8 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 27, file: '027_entity_layout_degree.sql' },
   { version: 28, file: '028_community_summaries.sql' },
   { version: 29, file: '029_code_edge_predicates.sql' },
+  { version: 30, apply: applyFtsIdentifierTokens, requiresFts5: true },
+  { version: 31, file: '031_search_events.sql' },
 ]
 
 /**

@@ -64,7 +64,7 @@ export function applyTablePrefix(conn: CaravanDbConnection): void {
   conn.execMany(['BEGIN', ...statements, 'COMMIT'].join(';\n'));
 }
 
-const FTS_TOKENIZE = `tokenize='unicode61 remove_diacritics 2'`;
+export const FTS_TOKENIZE = `tokenize='unicode61 remove_diacritics 2'`;
 
 export function applyTablePrefixFts(conn: CaravanDbConnection): void {
   // 旧 FTS は contentless (content='') で中身を SELECT できないため、rename でなく
