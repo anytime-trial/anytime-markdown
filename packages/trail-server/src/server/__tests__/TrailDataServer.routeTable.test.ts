@@ -136,6 +136,7 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/caravan/reviews/unaddressed" },
   { method: "GET", kind: "exact", path: "/api/caravan/reviews/history" },
   { method: "GET", kind: "exact", path: "/api/caravan/reviews/flight-counts" },
+  { method: "GET", kind: "exact", path: "/api/caravan/reviews/flight-summary" },
   { method: "GET", kind: "exact", path: "/api/caravan/reviews/flight-findings" },
   { method: "GET", kind: "exact", path: "/api/caravan/pipeline/runs/by-day" },
   { method: "GET", kind: "exact", path: "/api/caravan/pipeline/runs" },
