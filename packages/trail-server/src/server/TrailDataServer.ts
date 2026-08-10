@@ -1044,7 +1044,51 @@ export class TrailDataServer {
         types: ctx.url.searchParams.get('types')?.split(',').filter((s) => s !== '') ?? undefined,
         // 視野（世界座標 minX,minY,maxX,maxY）。指定時はその範囲の上位 N を返す
         bbox: parseBbox(ctx.url.searchParams.get('bbox')),
+        // seed 指定時は ego サブグラフ（画面設計書 §2.4。types / bbox は適用されない）
+        seed: ctx.queryOpt('seed'),
       })));
+
+    // 知識グラフ画面検索（画面設計書 §2.4）。空 q は 400
+    t.exact('GET', '/api/caravan/knowledge-graph/search', (ctx) => {
+      const q = ctx.url.searchParams.get('q')?.trim() ?? '';
+      if (q === '') {
+        ctx.res.writeHead(400, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: 'q required' }));
+        return;
+      }
+      this.respondCaravanJson(ctx.res, '/api/caravan/knowledge-graph/search',
+        this.caravanApi.searchKnowledgeGraph({
+          q,
+          limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 50),
+        }));
+    });
+
+    // 画面検索の計測イベント（記録は検索機能の受け入れ条件。失敗は ok:false で fail-open）
+    t.exact('POST', '/api/caravan/knowledge-graph/search-events', (ctx) => {
+      if (!this.requireJsonContentType(ctx.req, ctx.res)) return;
+      void this.readJsonBody(ctx.req).then(async (body) => {
+        const b = body as Record<string, unknown>;
+        const kind = typeof b['kind'] === 'string' ? b['kind'] : '';
+        const query = typeof b['query'] === 'string' ? b['query'] : '';
+        if (!['search', 'ego_open', 'clear'].includes(kind)) {
+          ctx.res.writeHead(400, JSON_HEADERS);
+          ctx.res.end(JSON.stringify({ error: 'invalid kind' }));
+          return;
+        }
+        const data = await this.caravanApi.recordSearchEvent({
+          kind: kind as 'search' | 'ego_open' | 'clear',
+          query,
+          ...(typeof b['resultCount'] === 'number' ? { resultCount: b['resultCount'] } : {}),
+          ...(typeof b['entityId'] === 'string' ? { entityId: b['entityId'] } : {}),
+        });
+        ctx.res.writeHead(200, JSON_HEADERS);
+        ctx.res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        this.logger.error(`[/api/caravan/knowledge-graph/search-events POST] ${String(err)}`);
+        ctx.res.writeHead(500, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: String(err) }));
+      });
+    });
 
     t.exact('GET', '/api/caravan/drift/by-day', (ctx) => {
       void this.caravanApi.listDriftHistoryByDay({

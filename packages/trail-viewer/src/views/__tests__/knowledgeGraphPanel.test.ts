@@ -411,3 +411,158 @@ describe('mountKnowledgeGraphPanel — viewport-driven delivery', () => {
     handle.destroy();
   });
 });
+
+describe('mountKnowledgeGraphPanel 検索（設計書 §3.5）', () => {
+  let container: HTMLElement;
+  let fetchMock: jest.Mock;
+
+  const HITS = {
+    hits: [
+      { id: 'f1', label: 'packages/foo/useBlockAlignment.ts', type: 'File', degree: 5 },
+      { id: 'c1', label: 'ブロック整列', type: 'Concept', degree: 2 },
+    ],
+    truncated: false,
+  };
+
+  /** URL で分岐する fetch モック。graph は SAMPLE、search は HITS、events は ok。 */
+  function routeFetch(): void {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/knowledge-graph/search-events')) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      }
+      if (url.includes('/knowledge-graph/search?')) {
+        return Promise.resolve({ ok: true, json: async () => HITS });
+      }
+      return Promise.resolve(okResponse(SAMPLE));
+    });
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    container.remove();
+  });
+
+  function runSearch(query: string): void {
+    const input = container.querySelector<HTMLInputElement>('[data-am-kg-search-input]');
+    if (!input) throw new Error('search input not found');
+    input.value = query;
+    container.querySelector<HTMLButtonElement>('[data-am-kg-search-run]')?.click();
+  }
+
+  it('検索実行で /search を呼び結果リストを描画し、search イベントを送る', async () => {
+    routeFetch();
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    runSearch('blockAlignment');
+    await flush();
+
+    const searchCall = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('/knowledge-graph/search?'),
+    );
+    expect(searchCall?.[0]).toBe(`${SERVER_URL}/api/caravan/knowledge-graph/search?q=blockAlignment`);
+    const hitButtons = container.querySelectorAll('[data-am-kg-search-hit]');
+    expect(hitButtons).toHaveLength(2);
+    expect(hitButtons[0]?.textContent).toContain('useBlockAlignment.ts');
+
+    const eventCall = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('/search-events'),
+    );
+    expect(eventCall).toBeDefined();
+    expect(JSON.parse((eventCall?.[1] as RequestInit).body as string)).toMatchObject({
+      kind: 'search',
+      query: 'blockAlignment',
+      resultCount: 2,
+    });
+    handle.destroy();
+  });
+
+  it('0 件は「一致なし」を表示する', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/search-events')) return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      if (url.includes('/knowledge-graph/search?')) {
+        return Promise.resolve({ ok: true, json: async () => ({ hits: [], truncated: false }) });
+      }
+      return Promise.resolve(okResponse(SAMPLE));
+    });
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    runSearch('存在しない語');
+    await flush();
+
+    expect(container.querySelector('[data-am-kg-search-empty]')?.textContent).toBe(t('knowledgeGraph.searchNoMatch'));
+    handle.destroy();
+  });
+
+  it('結果選択で seed 付き取得へ切り替わり、クリアで全体表示へ戻る', async () => {
+    routeFetch();
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    runSearch('blockAlignment');
+    await flush();
+    container.querySelector<HTMLButtonElement>('[data-am-kg-search-hit]')?.click();
+    await flush();
+
+    const seedCall = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('seed='),
+    );
+    expect(seedCall?.[0]).toBe(`${SERVER_URL}/api/caravan/knowledge-graph?limit=150&seed=f1`);
+    const egoEvent = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('/search-events')
+        && JSON.parse((c[1] as RequestInit).body as string).kind === 'ego_open',
+    );
+    expect(JSON.parse((egoEvent?.[1] as RequestInit).body as string)).toMatchObject({
+      kind: 'ego_open',
+      entityId: 'f1',
+    });
+    // ego 表示中はクリアボタンが見え、件数表示が「周辺 N 件」になる
+    const clearBtn = container.querySelector<HTMLButtonElement>('[data-am-kg-ego-clear]');
+    expect(clearBtn?.hidden).toBe(false);
+    expect(container.querySelector('[data-am-kg-count]')?.textContent).toContain('の周辺');
+
+    clearBtn?.click();
+    await flush();
+    const lastGraphCall = [...fetchMock.mock.calls].reverse().find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('/knowledge-graph?'),
+    );
+    expect(lastGraphCall?.[0]).toBe(`${SERVER_URL}/api/caravan/knowledge-graph?limit=150`);
+    const clearEvent = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('/search-events')
+        && JSON.parse((c[1] as RequestInit).body as string).kind === 'clear',
+    );
+    expect(clearEvent).toBeDefined();
+    expect(container.querySelector<HTMLButtonElement>('[data-am-kg-ego-clear]')?.hidden).toBe(true);
+    handle.destroy();
+  });
+
+  it('計測 POST の失敗で検索・表示は止まらない', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/search-events')) return Promise.reject(new Error('events down'));
+      if (url.includes('/knowledge-graph/search?')) {
+        return Promise.resolve({ ok: true, json: async () => HITS });
+      }
+      return Promise.resolve(okResponse(SAMPLE));
+    });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const handle = mountKnowledgeGraphPanel(container, makeProps());
+    await flush();
+
+    runSearch('blockAlignment');
+    await flush();
+    await flush();
+
+    expect(container.querySelectorAll('[data-am-kg-search-hit]')).toHaveLength(2);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+    handle.destroy();
+  });
+});

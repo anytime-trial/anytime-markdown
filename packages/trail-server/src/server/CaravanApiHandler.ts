@@ -1,5 +1,12 @@
-import { BetterSqlite3CaravanDb, attachTrailDbReadOnly, resolveDrift } from '@anytime-markdown/trail-caravan-book';
+import {
+  BetterSqlite3CaravanDb,
+  attachTrailDbReadOnly,
+  resolveDrift,
+  tokenizeForFts5,
+  isLowInformationEntity,
+} from '@anytime-markdown/trail-caravan-book';
 import type { CaravanDbConnection, CaravanDbSqlValue as SqlValue } from '@anytime-markdown/trail-caravan-book';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -99,6 +106,20 @@ export interface KnowledgeGraphResponse {
    * クライアントはこれを見て「この視野は空」と「視野を無視して全体を返した」を区別する。
    */
   bboxApplied: boolean;
+}
+
+/** 知識グラフ画面検索の 1 ヒット（画面設計書 §2.4）。 */
+export interface KnowledgeGraphSearchHit {
+  id: string;
+  label: string;
+  type: string;
+  /** 保存済み全体次数（migration 027）。無い DB では 0。 */
+  degree: number;
+}
+
+export interface KnowledgeGraphSearchResponse {
+  hits: KnowledgeGraphSearchHit[];
+  truncated: boolean;
 }
 
 export interface UnaddressedReviewFindingRow {
@@ -1671,7 +1692,7 @@ export class CaravanApiHandler {
    * DB 未設定・不在は null（「データ 0 件」と区別する。0 件は正常応答の空配列）。
    */
   async getKnowledgeGraph(
-    params: { limit?: number; types?: string[]; bbox?: KnowledgeGraphBbox },
+    params: { limit?: number; types?: string[]; bbox?: KnowledgeGraphBbox; seed?: string },
   ): Promise<KnowledgeGraphResponse | null> {
     const db = this.openReadOnly();
     if (!db) return null;
@@ -1680,6 +1701,10 @@ export class CaravanApiHandler {
       // （bbox 指定の有無によらず）もこの判定に乗っている。
       this.refreshLayoutCapability(db);
       const limit = Math.max(1, clampLimit(params.limit, 150, KNOWLEDGE_GRAPH_MAX_NODES));
+      // seed 指定は ego サブグラフ経路。種別・視野は適用しない（画面設計書 §2.4）
+      if (params.seed !== undefined && params.seed !== '') {
+        return this.getKnowledgeGraphEgo(db, { seed: params.seed, limit });
+      }
       // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
       const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
       // 座標が 1 件も無い DB では視野で絞れない。無視した事実は応答の bboxApplied で返す
@@ -2015,6 +2040,265 @@ export class CaravanApiHandler {
   }
 
   /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */
+  // ---- knowledge graph search（画面設計書 §2.4）----
+
+  /**
+   * 知識グラフ画面の検索。埋め込み・LLM を使わない 2 アーム構成
+   * （FTS: 語彙・識別子分割 / LIKE: トークン境界に乗らない部分文字列）。
+   * webview 経路を ollama 稼働へ依存させないための設計（proposal 20260810）。
+   */
+  async searchKnowledgeGraph(
+    params: { q: string; limit?: number },
+  ): Promise<KnowledgeGraphSearchResponse | null> {
+    const db = this.openReadOnly();
+    if (!db) return null;
+    try {
+      this.refreshLayoutCapability(db);
+      const q = params.q.trim();
+      if (!q) return { hits: [], truncated: false };
+      const limit = Math.max(1, Math.min(params.limit ?? 20, 50));
+      const pool = limit * 3;
+      // 統合順: 完全一致(0) → 前方一致(1000) → FTS bm25 順(2000+) → LIKE 出現位置順(3000+)。
+      // 小さいほど上位。両アームでヒットした id は良い方の順位を採る
+      const rankById = new Map<string, number>();
+      const consider = (id: string, score: number): void => {
+        const prev = rankById.get(id);
+        if (prev === undefined || score < prev) rankById.set(id, score);
+      };
+      this.searchKnowledgeGraphFtsArm(db, q, pool).forEach((id, i) => consider(id, 2000 + i));
+      this.searchKnowledgeGraphLikeArm(db, q, pool).forEach((id, i) => consider(id, 3000 + i));
+      if (rankById.size === 0) return { hits: [], truncated: false };
+
+      const detail = db.exec(
+        `SELECT id, display_name, canonical_name, type, summary FROM caravan_entities
+          WHERE id IN (SELECT value FROM json_each(?)) AND valid_until IS NULL`,
+        [JSON.stringify([...rankById.keys()])],
+      );
+      const ql = q.toLowerCase();
+      const scored: { id: string; label: string; type: string; score: number }[] = [];
+      for (const row of detail[0]?.values ?? []) {
+        const id = toStr(row[0]);
+        const label = toStr(row[1]);
+        const canonical = toStr(row[2]);
+        const type = toStr(row[3]);
+        const summary = toStr(row[4]);
+        // 無名・低情報エンティティは返さない（2026-08-09 に上位独占の実測があった）
+        if (isLowInformationEntity(label, summary)) continue;
+        let score = rankById.get(id) ?? Number.MAX_SAFE_INTEGER;
+        if (label.toLowerCase() === ql || canonical.toLowerCase() === ql) score = 0;
+        else if (label.toLowerCase().startsWith(ql)) score = Math.min(score, 1000);
+        scored.push({ id, label, type, score });
+      }
+      scored.sort((a, b) => a.score - b.score || a.label.localeCompare(b.label));
+      const truncated = scored.length > limit;
+      const top = scored.slice(0, limit);
+      const degrees = this.fetchStoredDegrees(db, top.map((t) => t.id));
+      return {
+        hits: top.map((t) => ({ id: t.id, label: t.label, type: t.type, degree: degrees.get(t.id) ?? 0 })),
+        truncated,
+      };
+    } catch (err) {
+      this.logger.error(`[CaravanApiHandler.searchKnowledgeGraph] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return null;
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /** FTS アーム。FTS 表の無い DB（migration 013 未適用・FTS5 非対応ビルド）は空で縮退する。 */
+  private searchKnowledgeGraphFtsArm(db: CaravanDbConnection, q: string, limit: number): string[] {
+    const tableCount = Number(
+      db.exec(
+        `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'caravan_entities_fts'`,
+      )[0]?.values[0]?.[0] ?? 0,
+    );
+    if (tableCount === 0) return [];
+    const match = tokenizeForFts5(q);
+    if (!match) return [];
+    const rows = db.exec(
+      `SELECT e.id FROM caravan_entities_fts f
+         JOIN caravan_entities e ON e.rowid = f.rowid
+        WHERE caravan_entities_fts MATCH ? AND e.valid_until IS NULL
+        ORDER BY bm25(caravan_entities_fts) ASC
+        LIMIT ?`,
+      [match, limit],
+    );
+    return (rows[0]?.values ?? []).map((r) => toStr(r[0]));
+  }
+
+  /**
+   * LIKE アーム。識別子形クエリ（空白を含まない）に限る。トークン境界に乗らない
+   * 部分文字列（`lockAlign` 等）を拾う。B1 の FTS 分割が索引済みでも境界内の
+   * 部分一致は FTS では原理的に引けないため、撤去せず併走する。
+   */
+  private searchKnowledgeGraphLikeArm(db: CaravanDbConnection, q: string, limit: number): string[] {
+    if (!/^[A-Za-z0-9_./\\-]+$/.test(q)) return [];
+    const escaped = q.replace(/[\\%_]/g, (m) => `\\${m}`);
+    const rows = db.exec(
+      `SELECT id FROM caravan_entities
+        WHERE display_name LIKE ? ESCAPE '\\' AND valid_until IS NULL
+        ORDER BY INSTR(LOWER(display_name), LOWER(?)) ASC, LENGTH(display_name) ASC, id
+        LIMIT ?`,
+      [`%${escaped}%`, q, limit],
+    );
+    return (rows[0]?.values ?? []).map((r) => toStr(r[0]));
+  }
+
+  /** 保存済み全体次数（migration 027）。無い DB では空 Map（呼び出し側で 0 に倒す）。 */
+  private fetchStoredDegrees(db: CaravanDbConnection, ids: readonly string[]): Map<string, number> {
+    if (!this.entityLayoutDegreeAvailable || ids.length === 0) return new Map();
+    const rows = db.exec(
+      `SELECT entity_id, degree FROM caravan_entity_layout
+        WHERE entity_id IN (SELECT value FROM json_each(?))`,
+      [JSON.stringify([...ids])],
+    );
+    return new Map((rows[0]?.values ?? []).map((r) => [toStr(r[0]), toNum(r[1])]));
+  }
+
+  /**
+   * seed の 1 ホップ ego サブグラフ（画面設計書 §2.4）。隣接は多重度降順で
+   * `limit - 1` 件に切り、隣接ノード同士のエッジも含めて返す。
+   *
+   * メイン経路（エッジ誘導選定）と応答組み立てが部分的に重複するが、選定・順序の
+   * 規則が異なる（重要度でなく seed 距離が軸）ため、共通化して条件分岐を増やすより
+   * 独立した小メソッドを保つ。
+   */
+  private getKnowledgeGraphEgo(
+    db: CaravanDbConnection,
+    params: { seed: string; limit: number },
+  ): KnowledgeGraphResponse {
+    const { seed, limit } = params;
+    const empty: KnowledgeGraphResponse = {
+      nodes: [],
+      links: [],
+      clusters: [],
+      totalEntityCount: this.countEntities(db, []),
+      truncated: false,
+      availableTypes: this.listEntityTypes(db),
+      bboxApplied: false,
+    };
+    const seedExists = db.exec(
+      `SELECT 1 FROM caravan_entities WHERE id = ? AND valid_until IS NULL`,
+      [seed],
+    );
+    if ((seedExists[0]?.values.length ?? 0) === 0) return empty;
+
+    const { sql: activeCte, binds: activeBinds } = buildActiveEdgesCte({ types: [], bbox: null });
+    const capacity = Math.max(0, limit - 1);
+    const neighborRows = db.exec(
+      `WITH ${activeCte}
+      SELECT CASE WHEN s = ? THEN o ELSE s END AS nb, COUNT(*) AS strength
+      FROM active
+      WHERE s = ? OR o = ?
+      GROUP BY nb
+      ORDER BY strength DESC, nb
+      LIMIT ?`,
+      toBindParams([...activeBinds, seed, seed, seed, capacity + 1]),
+    )[0]?.values ?? [];
+    const truncated = neighborRows.length > capacity;
+    const ids = [seed, ...neighborRows.slice(0, capacity).map((r) => toStr(r[0]))];
+
+    const degCte = `
+        deg AS (
+          SELECT id, SUM(c) AS d FROM (
+            SELECT s AS id, COUNT(*) AS c FROM active GROUP BY s
+            UNION ALL
+            SELECT o AS id, COUNT(*) AS c FROM active GROUP BY o
+          ) GROUP BY id
+        )`;
+    const layoutColumns = this.entityLayoutAvailable ? 'el.x, el.y' : 'NULL AS x, NULL AS y';
+    const layoutJoin = this.entityLayoutAvailable
+      ? 'LEFT JOIN caravan_entity_layout el ON el.entity_id = en.id'
+      : '';
+    const nodeResult = db.exec(
+      `WITH ${activeCte}, ${degCte}
+      SELECT en.id, en.display_name, en.type, COALESCE(deg.d, 0), ${layoutColumns}
+      FROM caravan_entities en
+      LEFT JOIN deg ON deg.id = en.id
+      ${layoutJoin}
+      WHERE en.id IN (SELECT value FROM json_each(?))
+      ORDER BY CASE WHEN en.id = ? THEN 0 ELSE 1 END, COALESCE(deg.d, 0) DESC, en.id`,
+      toBindParams([...activeBinds, JSON.stringify(ids), seed]),
+    );
+    const nodeRows = (nodeResult[0]?.values ?? []).map((row) => {
+      const x = row[4];
+      const y = row[5];
+      const hasPosition = typeof x === 'number' && typeof y === 'number';
+      return {
+        id: toStr(row[0]),
+        label: toStr(row[1]),
+        type: toStr(row[2]),
+        frequency: Number(row[3] ?? 0),
+        ...(hasPosition ? { x, y } : {}),
+      };
+    });
+
+    const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
+    let links: { a: number; b: number; strength: number }[] = [];
+    if (nodeRows.length > 0) {
+      const linkResult = db.exec(
+        `WITH ${activeCte},
+        sel(id) AS (SELECT value FROM json_each(?))
+        SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
+        FROM active
+        WHERE s IN (SELECT id FROM sel) AND o IN (SELECT id FROM sel)
+        GROUP BY MIN(s, o), MAX(s, o)`,
+        toBindParams([...activeBinds, JSON.stringify(nodeRows.map((r) => r.id))]),
+      );
+      links = (linkResult[0]?.values ?? []).flatMap((row) => {
+        const a = indexById.get(toStr(row[0]));
+        const b = indexById.get(toStr(row[1]));
+        if (a === undefined || b === undefined) return [];
+        return [{ a, b, strength: Number(row[2] ?? 0) }];
+      });
+    }
+
+    return {
+      ...empty,
+      nodes: nodeRows.map(({ id: _id, ...node }) => node),
+      links,
+      clusters: this.buildClusters(db, nodeRows),
+      truncated,
+    };
+  }
+
+  /**
+   * 画面検索の計測イベント記録（画面設計書 §2.4。記録は本機能の受け入れ条件）。
+   * 記録の失敗で検索機能を止めない（fail-open。充足率は評価ハーネス側で監視する）。
+   */
+  async recordSearchEvent(
+    params: { kind: 'search' | 'ego_open' | 'clear'; query: string; resultCount?: number; entityId?: string },
+  ): Promise<{ ok: boolean }> {
+    if (!['search', 'ego_open', 'clear'].includes(params.kind)) {
+      this.logger.warn(`[CaravanApiHandler.recordSearchEvent] invalid kind: ${String(params.kind)}`);
+      return { ok: false };
+    }
+    const db = this.openReadWrite();
+    if (!db) return { ok: false };
+    try {
+      db.run(
+        `INSERT INTO caravan_search_events (id, occurred_at, kind, query, result_count, entity_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          randomUUID(),
+          new Date().toISOString(),
+          params.kind,
+          params.query,
+          params.resultCount ?? null,
+          params.entityId ?? null,
+        ],
+      );
+      this.close(db);
+      return { ok: true };
+    } catch (err) {
+      this.logger.warn(
+        `[CaravanApiHandler.recordSearchEvent] ${err instanceof Error ? (err.stack ?? String(err)) : String(err)}`,
+      );
+      this.close(db);
+      return { ok: false };
+    }
+  }
+
   private countEntities(db: CaravanDbConnection, types: readonly string[]): number {
     const filter = types.length > 0 ? `WHERE type IN (${types.map(() => '?').join(',')})` : '';
     const result = db.exec(`SELECT COUNT(*) FROM caravan_entities ${filter}`, toBindParams([...types]));
