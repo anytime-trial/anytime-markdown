@@ -485,12 +485,15 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     this.status?.start('drift_detection');
     try {
       const driftResult = await runDriftDetection({ db: memDb.db, logger });
-      this.status?.finish('drift_detection', driftResult.status, driftResult.events_inserted + driftResult.events_updated, 0);
+      // reopen（再発）も処理件数に含める。除くと再発だけの実行が 0 件処理に見える。
+      const driftProcessed =
+        driftResult.events_inserted + driftResult.events_updated + driftResult.events_reopened;
+      this.status?.finish('drift_detection', driftResult.status, driftProcessed, 0);
       this.save();
       return {
         scope: 'drift_detection',
         status: driftResult.status,
-        itemsProcessed: driftResult.events_inserted + driftResult.events_updated,
+        itemsProcessed: driftProcessed,
         itemsFailed: 0,
       };
     } catch (err) {
