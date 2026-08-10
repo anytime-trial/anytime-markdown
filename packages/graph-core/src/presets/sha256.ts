@@ -40,35 +40,48 @@ function rotr(value: number, bits: number): number {
 function utf8Bytes(input: string): Uint8Array {
   const out: number[] = [];
   for (let i = 0; i < input.length; i += 1) {
-    let code = input.charCodeAt(i);
-    if (code >= 0xd800 && code <= 0xdbff) {
-      const low = i + 1 < input.length ? input.charCodeAt(i + 1) : 0;
-      if (low >= 0xdc00 && low <= 0xdfff) {
-        code = 0x10000 + ((code - 0xd800) << 10) + (low - 0xdc00);
-        i += 1;
-      } else {
-        code = 0xfffd;
-      }
-    } else if (code >= 0xdc00 && code <= 0xdfff) {
-      code = 0xfffd;
-    }
-
-    if (code < 0x80) {
-      out.push(code);
-    } else if (code < 0x800) {
-      out.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
-    } else if (code < 0x10000) {
-      out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
-    } else {
-      out.push(
-        0xf0 | (code >> 18),
-        0x80 | ((code >> 12) & 0x3f),
-        0x80 | ((code >> 6) & 0x3f),
-        0x80 | (code & 0x3f),
-      );
-    }
+    const { code, consumed } = readCodePointAt(input, i);
+    i += consumed - 1;
+    pushUtf8(out, code);
   }
   return new Uint8Array(out);
+}
+
+/**
+ * 位置 i のコードポイントと、そこで消費した UTF-16 コードユニット数を返す。
+ * 対になっていないサロゲートは U+FFFD へ写す（消費は 1）。
+ */
+function readCodePointAt(input: string, i: number): { code: number; consumed: number } {
+  const code = input.charCodeAt(i);
+  if (code >= 0xd800 && code <= 0xdbff) {
+    const low = i + 1 < input.length ? input.charCodeAt(i + 1) : 0;
+    if (low >= 0xdc00 && low <= 0xdfff) {
+      return { code: 0x10000 + ((code - 0xd800) << 10) + (low - 0xdc00), consumed: 2 };
+    }
+    return { code: 0xfffd, consumed: 1 };
+  }
+  if (code >= 0xdc00 && code <= 0xdfff) {
+    return { code: 0xfffd, consumed: 1 };
+  }
+  return { code, consumed: 1 };
+}
+
+/** コードポイント 1 個を UTF-8 のバイト列として out へ追記する。 */
+function pushUtf8(out: number[], code: number): void {
+  if (code < 0x80) {
+    out.push(code);
+  } else if (code < 0x800) {
+    out.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+  } else if (code < 0x10000) {
+    out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+  } else {
+    out.push(
+      0xf0 | (code >> 18),
+      0x80 | ((code >> 12) & 0x3f),
+      0x80 | ((code >> 6) & 0x3f),
+      0x80 | (code & 0x3f),
+    );
+  }
 }
 
 /** UTF-8 として符号化した文字列の SHA-256 を 16 進小文字で返す。 */

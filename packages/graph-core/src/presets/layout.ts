@@ -384,6 +384,74 @@ function initialRing(n: number, spacing: number, groups: number[] | undefined): 
   return pos;
 }
 
+/** 斥力: 全ペアが反発する。半径ぶんを差し引くことで大きい円ほど離れる。 */
+function accumulatePairRepulsion(
+  pos: Point[],
+  ctx: { disp: Point[]; radii: readonly number[] | undefined; k: number },
+): void {
+  const { disp, radii, k } = ctx;
+  for (let i = 0; i < pos.length; i++) {
+    for (let j = i + 1; j < pos.length; j++) {
+      let dx = pos[i].x - pos[j].x;
+      let dy = pos[i].y - pos[j].y;
+      let d = Math.hypot(dx, dy);
+      if (d < 1e-6) {
+        // 完全一致は方向が定まらないので、添字から決定的な微小オフセットを与える
+        dx = (i + 1) * 1e-3;
+        dy = (j + 1) * 1e-3;
+        d = Math.hypot(dx, dy);
+      }
+      // 古典的な Fruchterman–Reingold の斥力。距離に反比例するため遠方では弱い。
+      let force = (k * k) / d;
+      // 円が重なる距離まで近づいたときだけ、追加で強く押し戻す
+      const minGap = (radii?.[i] ?? 0) + (radii?.[j] ?? 0) + NODE_MARGIN;
+      if (d < minGap) force += (minGap - d) * k;
+      const ux = (dx / d) * force;
+      const uy = (dy / d) * force;
+      disp[i].x += ux;
+      disp[i].y += uy;
+      disp[j].x -= ux;
+      disp[j].y -= uy;
+    }
+  }
+}
+
+/** 引力: 結合されたペアが weight に比例して引き合う。 */
+function accumulateLinkAttraction(
+  pos: Point[],
+  links: readonly ForceLink[],
+  ctx: { disp: Point[]; k: number },
+): void {
+  const { disp, k } = ctx;
+  for (const link of links) {
+    const a = pos[link.source];
+    const b = pos[link.target];
+    if (!a || !b) continue;
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-6) continue;
+    const force = ((d * d) / k) * link.weight;
+    const ux = (dx / d) * force;
+    const uy = (dy / d) * force;
+    disp[link.source].x -= ux;
+    disp[link.source].y -= uy;
+    disp[link.target].x += ux;
+    disp[link.target].y += uy;
+  }
+}
+
+/** 変位を温度で頭打ちにして適用（振動を抑えつつ徐々に収束させる）。 */
+function applyTemperedDisplacement(pos: Point[], disp: Point[], temp: number): void {
+  for (let i = 0; i < pos.length; i++) {
+    const len = Math.hypot(disp[i].x, disp[i].y);
+    if (len < 1e-9) continue;
+    const scale = Math.min(len, temp) / len;
+    pos[i].x += disp[i].x * scale;
+    pos[i].y += disp[i].y * scale;
+  }
+}
+
 /**
  * 力学モデル（Fruchterman–Reingold 系）でノード座標を解く。
  *
@@ -417,49 +485,9 @@ export function forceDirectedLayout(
       d.y = 0;
     }
 
-    // 斥力: 全ペアが反発する。半径ぶんを差し引くことで大きい円ほど離れる。
-    for (let i = 0; i < nodeCount; i++) {
-      for (let j = i + 1; j < nodeCount; j++) {
-        let dx = pos[i].x - pos[j].x;
-        let dy = pos[i].y - pos[j].y;
-        let d = Math.hypot(dx, dy);
-        if (d < 1e-6) {
-          // 完全一致は方向が定まらないので、添字から決定的な微小オフセットを与える
-          dx = (i + 1) * 1e-3;
-          dy = (j + 1) * 1e-3;
-          d = Math.hypot(dx, dy);
-        }
-        // 古典的な Fruchterman–Reingold の斥力。距離に反比例するため遠方では弱い。
-        let force = (k * k) / d;
-        // 円が重なる距離まで近づいたときだけ、追加で強く押し戻す
-        const minGap = (radii?.[i] ?? 0) + (radii?.[j] ?? 0) + NODE_MARGIN;
-        if (d < minGap) force += (minGap - d) * k;
-        const ux = (dx / d) * force;
-        const uy = (dy / d) * force;
-        disp[i].x += ux;
-        disp[i].y += uy;
-        disp[j].x -= ux;
-        disp[j].y -= uy;
-      }
-    }
+    accumulatePairRepulsion(pos, { disp, radii, k });
 
-    // 引力: 結合されたペアが weight に比例して引き合う
-    for (const link of links) {
-      const a = pos[link.source];
-      const b = pos[link.target];
-      if (!a || !b) continue;
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      const d = Math.hypot(dx, dy);
-      if (d < 1e-6) continue;
-      const force = ((d * d) / k) * link.weight;
-      const ux = (dx / d) * force;
-      const uy = (dy / d) * force;
-      disp[link.source].x -= ux;
-      disp[link.source].y -= uy;
-      disp[link.target].x += ux;
-      disp[link.target].y += uy;
-    }
+    accumulateLinkAttraction(pos, links, { disp, k });
 
     // 求心力: 原点へ引き戻す。斥力は全ペアに働くのに引力は結合ペアにしか働かないため、
     // これが無いと共起を持たない孤立語が際限なく飛んでいき、図全体のスケールが破綻する。
@@ -468,14 +496,7 @@ export function forceDirectedLayout(
       disp[i].y -= pos[i].y * GRAVITY;
     }
 
-    // 変位を温度で頭打ちにして適用（振動を抑えつつ徐々に収束させる）
-    for (let i = 0; i < nodeCount; i++) {
-      const len = Math.hypot(disp[i].x, disp[i].y);
-      if (len < 1e-9) continue;
-      const scale = Math.min(len, temp) / len;
-      pos[i].x += disp[i].x * scale;
-      pos[i].y += disp[i].y * scale;
-    }
+    applyTemperedDisplacement(pos, disp, temp);
     temp -= cooling;
   }
 

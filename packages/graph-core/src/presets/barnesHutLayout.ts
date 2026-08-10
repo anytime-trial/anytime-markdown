@@ -181,6 +181,71 @@ function applyBarnesHutRepulsion(i: number, nodeIndex: number, nodes: QuadNode[]
   if (q.se >= 0) applyBarnesHutRepulsion(i, q.se, nodes, pos, k, disp);
 }
 
+/** 現在位置からセル（格子）台帳を作る。キーは `cx,cy`。 */
+function buildOverlapCells(pos: Point[], cellSize: number): Map<string, number[]> {
+  const cells = new Map<string, number[]>();
+  for (let i = 0; i < pos.length; i++) {
+    const cx = Math.floor(pos[i].x / cellSize);
+    const cy = Math.floor(pos[i].y / cellSize);
+    const key = `${cx},${cy}`;
+    const cell = cells.get(key);
+    if (cell) cell.push(i);
+    else cells.set(key, [i]);
+  }
+  return cells;
+}
+
+/** 2 点が最低ギャップ未満なら互いを半分ずつ押し離す（完全同位置は決定的な微小ずらしを与える）。 */
+function separatePair(pos: Point[], i: number, other: { j: number; minGap: number }): void {
+  const { j, minGap } = other;
+  let dx = pos[i].x - pos[j].x;
+  let dy = pos[i].y - pos[j].y;
+  let d = Math.hypot(dx, dy);
+  if (d < EPSILON) {
+    dx = (i + 1) * 1e-3;
+    dy = (j + 1) * 1e-3;
+    d = Math.hypot(dx, dy);
+  }
+  if (d >= minGap) return;
+  const push = (minGap - d + 0.1) / 2;
+  const ux = (dx / d) * push;
+  const uy = (dy / d) * push;
+  pos[i].x += ux;
+  pos[i].y += uy;
+  pos[j].x -= ux;
+  pos[j].y -= uy;
+}
+
+/** ノード i を、対象セル内の後続インデックス（j > i）の相手から押し離す。 */
+function separateAgainstCell(
+  pos: Point[],
+  i: number,
+  ctx: { cell: number[] | undefined; radii: readonly number[] },
+): void {
+  const { cell, radii } = ctx;
+  if (!cell) return;
+  for (const j of cell) {
+    if (j <= i) continue;
+    separatePair(pos, i, { j, minGap: (radii[i] ?? 0) + (radii[j] ?? 0) + NODE_MARGIN });
+  }
+}
+
+/** ノード i と、それを含む 3x3 近傍セルの相手との重なりを解く。 */
+function separateNeighbors(
+  pos: Point[],
+  i: number,
+  ctx: { cells: Map<string, number[]>; cellSize: number; radii: readonly number[] },
+): void {
+  const { cells, cellSize, radii } = ctx;
+  const cx = Math.floor(pos[i].x / cellSize);
+  const cy = Math.floor(pos[i].y / cellSize);
+  for (let ox = -1; ox <= 1; ox++) {
+    for (let oy = -1; oy <= 1; oy++) {
+      separateAgainstCell(pos, i, { cell: cells.get(`${cx + ox},${cy + oy}`), radii });
+    }
+  }
+}
+
 function relaxOverlaps(pos: Point[], radii: readonly number[] | undefined, passes: number): void {
   if (!radii) return;
   const maxRadius = radii.reduce((m, r) => Math.max(m, r), 0);
@@ -195,46 +260,92 @@ function relaxOverlaps(pos: Point[], radii: readonly number[] | undefined, passe
   // 一方この台帳ずれによる違反は、語数 60〜1000・半径分布を変えた 4 構成の
   // 全ペア検査で 1 件も再現していない（overlapViolations=0 を維持）。
   // 再現しない不具合のために実在する予算を割らない判断とする。
-  const cells = new Map<string, number[]>();
-  for (let i = 0; i < pos.length; i++) {
-    const cx = Math.floor(pos[i].x / cellSize);
-    const cy = Math.floor(pos[i].y / cellSize);
-    const key = `${cx},${cy}`;
-    const cell = cells.get(key);
-    if (cell) cell.push(i);
-    else cells.set(key, [i]);
-  }
+  const cells = buildOverlapCells(pos, cellSize);
   for (let pass = 0; pass < passes; pass++) {
     for (let i = 0; i < pos.length; i++) {
-      const cx = Math.floor(pos[i].x / cellSize);
-      const cy = Math.floor(pos[i].y / cellSize);
-      for (let ox = -1; ox <= 1; ox++) {
-        for (let oy = -1; oy <= 1; oy++) {
-          const cell = cells.get(`${cx + ox},${cy + oy}`);
-          if (!cell) continue;
-          for (const j of cell) {
-            if (j <= i) continue;
-            let dx = pos[i].x - pos[j].x;
-            let dy = pos[i].y - pos[j].y;
-            let d = Math.hypot(dx, dy);
-            if (d < EPSILON) {
-              dx = (i + 1) * 1e-3;
-              dy = (j + 1) * 1e-3;
-              d = Math.hypot(dx, dy);
-            }
-            const minGap = (radii[i] ?? 0) + (radii[j] ?? 0) + NODE_MARGIN;
-            if (d >= minGap) continue;
-            const push = (minGap - d + 0.1) / 2;
-            const ux = (dx / d) * push;
-            const uy = (dy / d) * push;
-            pos[i].x += ux;
-            pos[i].y += uy;
-            pos[j].x -= ux;
-            pos[j].y -= uy;
-          }
-        }
-      }
+      separateNeighbors(pos, i, { cells, cellSize, radii });
     }
+  }
+}
+
+/** リンクの引力を disp へ積算する（半径の合計未満まで縮んだリンクは引かない）。 */
+function accumulateLinkForces(
+  pos: Point[],
+  links: readonly ForceLink[],
+  ctx: { disp: Point[]; radii: readonly number[] | undefined; k: number },
+): void {
+  const { disp, radii, k } = ctx;
+  for (const link of links) {
+    const a = pos[link.source];
+    const b = pos[link.target];
+    if (!a || !b) continue;
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    const d = Math.hypot(dx, dy);
+    if (d < EPSILON) continue;
+    const linkMinGap = (radii?.[link.source] ?? 0) + (radii?.[link.target] ?? 0) + NODE_MARGIN;
+    if (d < linkMinGap) continue;
+    const force = ((d * d) / k) * link.weight;
+    const ux = (dx / d) * force;
+    const uy = (dy / d) * force;
+    disp[link.source].x -= ux;
+    disp[link.source].y -= uy;
+    disp[link.target].x += ux;
+    disp[link.target].y += uy;
+  }
+}
+
+/** 積算した変位を温度で頭打ちにして座標へ適用する。 */
+function applyDisplacement(pos: Point[], disp: Point[], temp: number): void {
+  for (let i = 0; i < pos.length; i++) {
+    const len = Math.hypot(disp[i].x, disp[i].y);
+    if (len < 1e-9) continue;
+    const scale = Math.min(len, Math.max(temp, MIN_TEMPERATURE)) / len;
+    pos[i].x += disp[i].x * scale;
+    pos[i].y += disp[i].y * scale;
+  }
+}
+
+/** 1 反復分の力学（斥力・引力・求心力・変位適用・重なり緩和）の入力。 */
+interface LayoutStepContext {
+  pos: Point[];
+  disp: Point[];
+  links: readonly ForceLink[];
+  radii: readonly number[] | undefined;
+  k: number;
+  gravity: number;
+  temp: number;
+  /** 収束直前の数反復か（重なり緩和のパス数を増やす）。 */
+  finalPhase: boolean;
+}
+
+/** 1 反復分の力学を進める。 */
+function runLayoutStep(ctx: LayoutStepContext): void {
+  const { pos, disp, links, radii, k, gravity, temp, finalPhase } = ctx;
+  for (const d of disp) {
+    d.x = 0;
+    d.y = 0;
+  }
+
+  const tree = buildQuadTree(pos);
+  for (let i = 0; i < pos.length; i++) {
+    applyBarnesHutRepulsion(i, 0, tree, pos, k, disp);
+  }
+
+  accumulateLinkForces(pos, links, { disp, radii, k });
+
+  for (let i = 0; i < pos.length; i++) {
+    disp[i].x -= pos[i].x * gravity;
+    disp[i].y -= pos[i].y * gravity;
+  }
+
+  applyDisplacement(pos, disp, temp);
+
+  if (finalPhase) {
+    relaxOverlaps(pos, radii, 10);
+    relaxOverlaps(pos, radii, 10);
+  } else {
+    relaxOverlaps(pos, radii, 1);
   }
 }
 
@@ -266,53 +377,16 @@ export function barnesHutLayout(
   let temp = initialTemp;
 
   for (let step = 0; step < iterations; step++) {
-    for (const d of disp) {
-      d.x = 0;
-      d.y = 0;
-    }
-
-    const tree = buildQuadTree(pos);
-    for (let i = 0; i < nodeCount; i++) {
-      applyBarnesHutRepulsion(i, 0, tree, pos, k, disp);
-    }
-
-    for (const link of links) {
-      const a = pos[link.source];
-      const b = pos[link.target];
-      if (!a || !b) continue;
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      const d = Math.hypot(dx, dy);
-      if (d < EPSILON) continue;
-      const linkMinGap = (radii?.[link.source] ?? 0) + (radii?.[link.target] ?? 0) + NODE_MARGIN;
-      if (d < linkMinGap) continue;
-      const force = ((d * d) / k) * link.weight;
-      const ux = (dx / d) * force;
-      const uy = (dy / d) * force;
-      disp[link.source].x -= ux;
-      disp[link.source].y -= uy;
-      disp[link.target].x += ux;
-      disp[link.target].y += uy;
-    }
-
-    for (let i = 0; i < nodeCount; i++) {
-      disp[i].x -= pos[i].x * gravity;
-      disp[i].y -= pos[i].y * gravity;
-    }
-
-    for (let i = 0; i < nodeCount; i++) {
-      const len = Math.hypot(disp[i].x, disp[i].y);
-      if (len < 1e-9) continue;
-      const scale = Math.min(len, Math.max(temp, MIN_TEMPERATURE)) / len;
-      pos[i].x += disp[i].x * scale;
-      pos[i].y += disp[i].y * scale;
-    }
-    if (step >= iterations - 8) {
-      relaxOverlaps(pos, radii, 10);
-      relaxOverlaps(pos, radii, 10);
-    } else {
-      relaxOverlaps(pos, radii, 1);
-    }
+    runLayoutStep({
+      pos,
+      disp,
+      links,
+      radii,
+      k,
+      gravity,
+      temp,
+      finalPhase: step >= iterations - 8,
+    });
     temp -= cooling;
   }
 

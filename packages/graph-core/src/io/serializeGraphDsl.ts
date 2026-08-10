@@ -9,7 +9,17 @@
  * - 純粋関数（副作用なし）。プレビュー操作層が parse → mutate → serialize → 書き戻しに使う。
  */
 
-import type { ThinkingDiagramSpec } from '../presets/index';
+import type {
+  AffinitySpec,
+  CausalLoopSpec,
+  CooccurrenceSpec,
+  FishboneSpec,
+  MorphBoxSpec,
+  PyramidSpec,
+  StructureMapSpec,
+  ThinkingDiagramSpec,
+  WhyChainSpec,
+} from '../presets/index';
 import type { CooccurrenceLinkDirection } from '../presets/cooccurrence';
 
 /** 共起の向きに対応する DSL の矢印。parseGraphDsl の解釈と対をなす（設計書 §2.5）。 */
@@ -50,31 +60,116 @@ function pushHeader(lines: string[], key: string, value: string | undefined): vo
   }
 }
 
+/** fishbone: 問題行と、カテゴリごとの bullet 行。 */
+function fishboneLines(spec: FishboneSpec): string[] {
+  const lines: string[] = [`problem: ${spec.problem}`];
+  for (const cat of spec.categories) {
+    lines.push(labeledBulletLine(cat.label, cat.causes));
+  }
+  return lines;
+}
+
+/** causal-loop: 任意の title と、`A -> B: 極性` 行。 */
+function causalLoopLines(spec: CausalLoopSpec): string[] {
+  const lines: string[] = [];
+  pushHeader(lines, 'title', spec.title);
+  for (const link of spec.links) {
+    lines.push(`${link.from} -> ${link.to}: ${link.polarity}`);
+  }
+  return lines;
+}
+
+/** pyramid: 任意の title と、階層ごとの bullet 行（desc があれば `: ` で続ける）。 */
+function pyramidLines(spec: PyramidSpec): string[] {
+  const lines: string[] = [];
+  pushHeader(lines, 'title', spec.title);
+  for (const tier of spec.tiers) {
+    lines.push(tier.desc ? `- ${tier.label}: ${tier.desc}` : `- ${tier.label}`);
+  }
+  return lines;
+}
+
+/** why-chain: 問題行と、なぜの段ごとの bullet 行。 */
+function whyChainLines(spec: WhyChainSpec): string[] {
+  const lines: string[] = [`problem: ${spec.problem}`];
+  for (const step of spec.steps) {
+    lines.push(`- ${step}`);
+  }
+  return lines;
+}
+
+/** morph-box: 任意の title と、パラメータごとの bullet 行。 */
+function morphBoxLines(spec: MorphBoxSpec): string[] {
+  const lines: string[] = [];
+  pushHeader(lines, 'title', spec.title);
+  for (const param of spec.parameters) {
+    lines.push(labeledBulletLine(param.label, param.options));
+  }
+  return lines;
+}
+
+/** affinity: 任意の title と、グループごとの bullet 行。 */
+function affinityLines(spec: AffinitySpec): string[] {
+  const lines: string[] = [];
+  pushHeader(lines, 'title', spec.title);
+  for (const group of spec.groups) {
+    lines.push(labeledBulletLine(group.label, group.notes));
+  }
+  return lines;
+}
+
+/** structure-map: 全体・部分の bullet 行と、関係行・domains ヘッダ。 */
+function structureMapLines(spec: StructureMapSpec): string[] {
+  const lines: string[] = [`whole: ${spec.whole}`];
+  for (const part of spec.parts) {
+    lines.push(labeledBulletLine(part.label, part.items));
+  }
+  // 関係は `relations:` 見出しに続けて `A -> B` 行で出力する（parser は `->` 行を関係として拾う）。
+  if (spec.relations.length > 0) {
+    lines.push('relations:');
+    for (const rel of spec.relations) {
+      lines.push(`- ${rel.from} -> ${rel.to}`);
+    }
+  }
+  pushHeader(lines, 'domains', spec.domains.length > 0 ? joinItems(spec.domains) : undefined);
+  return lines;
+}
+
+/** cooccurrence: 任意ヘッダ・語の bullet 行・共起行・クラスタ行。 */
+function cooccurrenceLines(spec: CooccurrenceSpec): string[] {
+  const lines: string[] = [];
+  pushHeader(lines, 'title', spec.title);
+  pushHeader(lines, 'subject', spec.subject);
+  for (const node of spec.nodes) {
+    lines.push(`- ${node.label}: ${node.frequency}`);
+  }
+  // 共起は `A -- B: 強度`（parser は bullet 行の `--` の有無で語と振り分ける）。
+  // 向きは矢印で書く。書かないと、DSL へ書き出した時点で向きが黙って消える（設計書 §2.5）。
+  for (const link of spec.links) {
+    lines.push(`- ${link.a} ${COOCCURRENCE_ARROW[link.direction ?? 'none']} ${link.b}: ${link.strength}`);
+  }
+  for (const cluster of spec.clusters ?? []) {
+    lines.push(`cluster ${cluster.label}: ${joinItems(cluster.members)}`);
+  }
+  return lines;
+}
+
 export function serializeGraphDsl(spec: ThinkingDiagramSpec): string {
   const lines: string[] = [`type: ${spec.type}`];
 
   switch (spec.type) {
     case 'fishbone': {
-      lines.push(`problem: ${spec.problem}`);
-      for (const cat of spec.categories) {
-        lines.push(labeledBulletLine(cat.label, cat.causes));
-      }
+      lines.push(...fishboneLines(spec));
       break;
     }
 
     case 'causal-loop': {
-      pushHeader(lines, 'title', spec.title);
-      for (const link of spec.links) {
-        lines.push(`${link.from} -> ${link.to}: ${link.polarity}`);
-      }
+      lines.push(...causalLoopLines(spec));
       break;
     }
 
     case 'pyramid': {
-      pushHeader(lines, 'title', spec.title);
-      for (const tier of spec.tiers) {
-        lines.push(tier.desc ? `- ${tier.label}: ${tier.desc}` : `- ${tier.label}`);
-      }
+      lines.push(...pyramidLines(spec));
       break;
     }
 
@@ -91,10 +186,7 @@ export function serializeGraphDsl(spec: ThinkingDiagramSpec): string {
     }
 
     case 'why-chain': {
-      lines.push(`problem: ${spec.problem}`);
-      for (const step of spec.steps) {
-        lines.push(`- ${step}`);
-      }
+      lines.push(...whyChainLines(spec));
       break;
     }
 
@@ -116,51 +208,22 @@ export function serializeGraphDsl(spec: ThinkingDiagramSpec): string {
     }
 
     case 'morph-box': {
-      pushHeader(lines, 'title', spec.title);
-      for (const param of spec.parameters) {
-        lines.push(labeledBulletLine(param.label, param.options));
-      }
+      lines.push(...morphBoxLines(spec));
       break;
     }
 
     case 'affinity': {
-      pushHeader(lines, 'title', spec.title);
-      for (const group of spec.groups) {
-        lines.push(labeledBulletLine(group.label, group.notes));
-      }
+      lines.push(...affinityLines(spec));
       break;
     }
 
     case 'structure-map': {
-      lines.push(`whole: ${spec.whole}`);
-      for (const part of spec.parts) {
-        lines.push(labeledBulletLine(part.label, part.items));
-      }
-      // 関係は `relations:` 見出しに続けて `A -> B` 行で出力する（parser は `->` 行を関係として拾う）。
-      if (spec.relations.length > 0) {
-        lines.push('relations:');
-        for (const rel of spec.relations) {
-          lines.push(`- ${rel.from} -> ${rel.to}`);
-        }
-      }
-      pushHeader(lines, 'domains', spec.domains.length > 0 ? joinItems(spec.domains) : undefined);
+      lines.push(...structureMapLines(spec));
       break;
     }
 
     case 'cooccurrence': {
-      pushHeader(lines, 'title', spec.title);
-      pushHeader(lines, 'subject', spec.subject);
-      for (const node of spec.nodes) {
-        lines.push(`- ${node.label}: ${node.frequency}`);
-      }
-      // 共起は `A -- B: 強度`（parser は bullet 行の `--` の有無で語と振り分ける）。
-      // 向きは矢印で書く。書かないと、DSL へ書き出した時点で向きが黙って消える（設計書 §2.5）。
-      for (const link of spec.links) {
-        lines.push(`- ${link.a} ${COOCCURRENCE_ARROW[link.direction ?? 'none']} ${link.b}: ${link.strength}`);
-      }
-      for (const cluster of spec.clusters ?? []) {
-        lines.push(`cluster ${cluster.label}: ${joinItems(cluster.members)}`);
-      }
+      lines.push(...cooccurrenceLines(spec));
       break;
     }
 
