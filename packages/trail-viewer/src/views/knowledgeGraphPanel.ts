@@ -208,6 +208,12 @@ export function mountKnowledgeGraphPanel(
   let searchController: AbortController | null = null;
   /** 結果リストから ego を開いたときに計測へ送る起点動線（§3.6）。 */
   let resultsOrigin: EgoOrigin = 'search';
+  /**
+   * 表示中のヒット一覧の元になったエージェント照会語。origin='agent_history' の ego_open
+   * 計測はこれを query に送る（検索欄の値を送ると「どの照会のヒットを開いたか」を
+   * caravan_search_events から復元できない。cross-review 2026-08-10 Codex 指摘 1）。
+   */
+  let agentHitsQuery = '';
   /** エージェント照会ドロップダウンの表示状態。null は非表示。 */
   let agentQueries: AgentSearchesResponse | 'failed' | null = null;
   let agentController: AbortController | null = null;
@@ -374,7 +380,8 @@ export function mountKnowledgeGraphPanel(
     entityNotFound = false;
     searchResults = null;
     renderSearchResults();
-    postSearchEvent({ kind: 'ego_open', query: searchInput?.value.trim() ?? '', entityId: hit.id, origin });
+    const eventQuery = origin === 'agent_history' ? agentHitsQuery : searchInput?.value.trim() ?? '';
+    postSearchEvent({ kind: 'ego_open', query: eventQuery, entityId: hit.id, origin });
     render();
     void refresh();
   }
@@ -422,6 +429,7 @@ export function mountKnowledgeGraphPanel(
       truncated: false,
     };
     resultsOrigin = 'agent_history';
+    agentHitsQuery = query.query;
     renderSearchResults();
   }
 

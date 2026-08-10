@@ -674,8 +674,14 @@ describe('mountKnowledgeGraphPanel エージェント照会ハイライト（設
     hit?.click();
     await flush();
 
+    // query は検索欄の値でなく元のエージェント照会語（cross-review 2026-08-10 Codex 指摘 1）
     expect(eventBodies()).toContainEqual(
-      expect.objectContaining({ kind: 'ego_open', entityId: 'e9', origin: 'agent_history' }),
+      expect.objectContaining({
+        kind: 'ego_open',
+        entityId: 'e9',
+        origin: 'agent_history',
+        query: 'blockAlignment',
+      }),
     );
     expect(viewerHandleMock.selectNode).toHaveBeenCalledWith(0);
     handle.destroy();
