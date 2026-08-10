@@ -53,6 +53,13 @@ function scatterXBounds(spec: ChartSpec): [number, number] {
 /** 数量軸のスケール関数（値 → キャンバス座標）。 */
 type Scale = (v: number) => number;
 
+/**
+ * 凡例モード。`ChartOptions["legend"]` の union をそのまま使い、`string` へ開かない
+ * （開くと各所のリテラル比較が型検査から外れ、綴り違いが「そのモードだけ無言で
+ * 描画されない」形で出る）。
+ */
+type LegendMode = NonNullable<NonNullable<ChartSpec["options"]>["legend"]>;
+
 /** 系列描画の結果。`pointsBySeries` は near-line 凡例の配置に使う。 */
 interface SeriesPlot {
   points: PlottedPoint[];
@@ -99,7 +106,7 @@ function renderPieChart(
 function renderHorizontalBarChart(
   ctx: CanvasRenderingContext2D,
   rect: Rect,
-  args: { plot: Rect; spec: ChartSpec; theme: ChartTheme; legend: string },
+  args: { plot: Rect; spec: ChartSpec; theme: ChartTheme; legend: LegendMode },
 ): ChartLayout {
   const { plot, spec, theme, legend } = args;
   const hStacked = Boolean(spec.options?.stacked) && !spec.options?.grouped;
@@ -242,8 +249,8 @@ function plotSeries(ctx: CanvasRenderingContext2D, spec: ChartSpec, c: PlotConte
  * バー/面の塗りに重なり同系色で不可視になるため、複数系列は隣接凡例へ振り替え、
  * 単一系列は凡例不要として抑止する（デジタル庁ガイドブック p.46「グラフと凡例を隣接させる」）。
  */
-function resolveLegendMode(legend: string, spec: ChartSpec): string {
-  let mode = legend;
+function resolveLegendMode(legend: LegendMode, spec: ChartSpec): LegendMode {
+  let mode: LegendMode = legend;
   if (legend !== "none" && legend !== "bottom" && spec.kind === "combo") mode = "adjacent";
   if (mode === "near-line" && (spec.kind === "bar" || spec.kind === "area")) {
     return spec.series.length > 1 ? "adjacent" : "none";
@@ -258,7 +265,7 @@ function drawChartLegend(
     plot: Rect;
     spec: ChartSpec;
     theme: ChartTheme;
-    legendMode: string;
+    legendMode: LegendMode;
     pointsBySeries: PlottedPoint[][];
     hasRight: boolean;
     stacked: boolean;
@@ -285,7 +292,7 @@ function drawChartLegend(
 
 /** 図種によらず先に決まる外枠（凡例モード・右軸の有無・plot 矩形）。 */
 interface ChartFrame {
-  legend: string;
+  legend: LegendMode;
   hasTitle: boolean;
   hasRight: boolean;
   yAxisLabel: string | undefined;

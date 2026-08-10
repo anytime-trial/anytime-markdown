@@ -58,7 +58,11 @@ function applyAccountTokens(token: JWT, account: Account): void {
 
 /**
  * 期限切れの Google access token を refresh token で更新する。
- * 失敗は error ログのみで既存 token を保ったまま継続する（サインアウトさせない）。
+ *
+ * **HTTP エラー応答**は error ログのみで既存 token を保ったまま継続する
+ * （サインアウトさせない）。一方、fetch 自体の失敗や `res.json()` の解析失敗は
+ * 呼び出し元へ伝播する（従来からの挙動）。「失敗しても継続する」と読める書き方に
+ * すると、呼び出し側で catch が不要だと誤解される。
  */
 async function refreshGoogleAccessToken(token: JWT, refreshToken: string): Promise<void> {
   const res = await fetch("https://oauth2.googleapis.com/token", {

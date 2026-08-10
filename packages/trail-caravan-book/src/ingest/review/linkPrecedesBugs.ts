@@ -127,18 +127,27 @@ function insertPrecedesEdge(db: CaravanDbConnection, finding: Finding, bug: BugF
   return db.getRowsModified() > 0;
 }
 
-/** 指摘 1 件について、突合した bug へ precedes エッジを張る。戻り値は挿入件数。 */
-function linkFinding(db: CaravanDbConnection, finding: Finding, windowDays: number): number {
+/**
+ * 指摘 1 件について、突合した bug へ precedes エッジを張る。
+ *
+ * 件数は**挿入した直後に `counter` へ加算する**。戻り値で返して呼び出し側で足すと、
+ * 途中の挿入が throw したときに、既に書き込み済みのエッジ数が報告から消える
+ * （呼び出し側は finding 単位で例外を握って次へ進むため、書き込み自体は残る）。
+ */
+function linkFinding(
+  db: CaravanDbConnection,
+  args: { finding: Finding; windowDays: number },
+  counter: { edgesInserted: number },
+): void {
+  const { finding, windowDays } = args;
   const bugs = loadCandidateBugs(db, finding, windowDays);
-  if (bugs.length === 0) return 0;
+  if (bugs.length === 0) return;
 
   const now = new Date().toISOString();
-  let inserted = 0;
   for (const bug of bugs) {
     if (!matchesFilePath(finding, bug) && !matchesSymbol(finding, bug)) continue;
-    if (insertPrecedesEdge(db, finding, bug, now)) inserted += 1;
+    if (insertPrecedesEdge(db, finding, bug, now)) counter.edgesInserted += 1;
   }
-  return inserted;
 }
 
 // ── Main function ─────────────────────────────────────────────────────────────
@@ -147,10 +156,10 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
   const { db, windowDays, logger } = input;
   const effectiveWindowDays = resolveWindowDays(windowDays);
 
-  let edgesInserted = 0;
+  const counter = { edgesInserted: 0 };
   for (const finding of loadFindings(db, logger)) {
     try {
-      edgesInserted += linkFinding(db, finding, effectiveWindowDays);
+      linkFinding(db, { finding, windowDays: effectiveWindowDays }, counter);
     } catch (err) {
       logger.warn(
         `[anytime-memory] linkPrecedesBugs: failed to process finding id=${finding.id}: ${String(err)}`
@@ -158,5 +167,5 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
     }
   }
 
-  return { edges_inserted: edgesInserted };
+  return { edges_inserted: counter.edgesInserted };
 }

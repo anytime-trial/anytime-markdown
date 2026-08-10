@@ -73,21 +73,6 @@ interface WarningRow {
   readonly breakdown_json: string;
 }
 
-/**
- * activity_boundary_drift_warnings を severity 降順で読む。
- *
- * 履歴テーブル（解析のたびに 1 世代積まれる）なので、既定では最新の検出回に
- * 属する行だけを返す。全世代を混ぜると同じコミュニティが何度も並び、
- * 「今どうなっているか」を読めなくなるため。
- *
- * 最新回は警告行ではなく `activity_boundary_drift_runs`（警告 0 件でも積まれる）から
- * **repo ごとに**取る。警告行の MAX を採ると、警告が解消された repo は古い回に
- * 貼り付いたままになり、複数 repo では直近に解析された 1 repo 以外が消える。
- *
- * **severity は kind 内でのみ比較可能**（`boundary_spanning` は spanCount×(1-dominance)、
- * `package_fragmentation` は communityCount で尺度が違う）。そのため `minSeverity` は
- * `kind` を指定したときだけ受け付ける。
- */
 /** repoName / kind / minSeverity の絞り込み結果。repoName が台帳に無ければ unknown-repo。 */
 type BoundaryDriftFilter =
   | {
@@ -125,6 +110,21 @@ function buildBoundaryDriftFilter(
   return { kind: 'ok', conditions, params, repoId };
 }
 
+/**
+ * activity_boundary_drift_warnings を severity 降順で読む。
+ *
+ * 履歴テーブル（解析のたびに 1 世代積まれる）なので、既定では最新の検出回に
+ * 属する行だけを返す。全世代を混ぜると同じコミュニティが何度も並び、
+ * 「今どうなっているか」を読めなくなるため。
+ *
+ * 最新回は警告行ではなく `activity_boundary_drift_runs`（警告 0 件でも積まれる）から
+ * **repo ごとに**取る。警告行の MAX を採ると、警告が解消された repo は古い回に
+ * 貼り付いたままになり、複数 repo では直近に解析された 1 repo 以外が消える。
+ *
+ * **severity は kind 内でのみ比較可能**（`boundary_spanning` は spanCount×(1-dominance)、
+ * `package_fragmentation` は communityCount で尺度が違う）。そのため `minSeverity` は
+ * `kind` を指定したときだけ受け付ける。
+ */
 export function listBoundaryDriftDirect(
   db: Database,
   options: BoundaryDriftListOptions = {},

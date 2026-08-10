@@ -116,7 +116,7 @@ type ChangedSpec = Awaited<ReturnType<typeof discoverChangedSpecs>>[number];
  * 集計（items_* / consecutiveFailures / finalStatus）は呼び出し側だけが持つ。
  */
 type SpecItemOutcome =
-  | { kind: 'processed'; entitiesInserted: number; edgesInserted: number }
+  | { kind: 'processed' }
   | { kind: 'skipped' }
   /** quarantined が true のとき呼び出し側は finalStatus='partial' で打ち切る。 */
   | { kind: 'failed'; quarantined: boolean }
@@ -130,6 +130,12 @@ interface SpecItemContext {
   logger: CaravanLogger;
   /** 直前までの連続失敗数。quarantine 判定は「これ + 1」で行う（旧実装の ++ 後判定と同値）。 */
   consecutiveFailures: number;
+  /**
+   * 挿入件数の集計。**書き込んだ直後にここへ加算する**。戻り値で返して呼び出し側で
+   * 足す形にすると、後続の手順（linkByC4Scope 等）が throw したときに、既に DB へ
+   * 書き込み済みの件数が報告から丸ごと消える（書き込み自体は巻き戻らない）。
+   */
+  inserted: { entities: number; edges: number };
 }
 
 /** 失敗を記録し、quarantine 到達なら打ち切りを求める outcome を返す。 */
@@ -220,6 +226,8 @@ async function persistSpec(
     claims: extracted.claims,
     recordedAt,
   });
+  ctx.inserted.entities += claimResult.entities_inserted;
+  ctx.inserted.edges += claimResult.edges_inserted;
 
   const c4Result = linkByC4Scope({
     db: ctx.db,
@@ -229,16 +237,13 @@ async function persistSpec(
     recordedAt,
     logger: ctx.logger,
   });
+  ctx.inserted.edges += c4Result.edges_inserted;
 
   ctx.logger.info(
     `[${recordedAt}] [INFO] [anytime-memory] runSpecIncremental: processed ${spec.rel_path} ` +
     `(entities_inserted=${claimResult.entities_inserted}, edges_inserted=${claimResult.edges_inserted + c4Result.edges_inserted})`,
   );
-  return {
-    kind: 'processed',
-    entitiesInserted: claimResult.entities_inserted,
-    edgesInserted: claimResult.edges_inserted + c4Result.edges_inserted,
-  };
+  return { kind: 'processed' };
 }
 
 /** 想定外例外の振り分け。LLM 接続断だけは即時打ち切り（fatal）にする。 */
@@ -334,8 +339,7 @@ export async function runSpecIncremental(
 
   let items_processed = 0;
   let items_skipped = 0;
-  let entities_inserted = 0;
-  let edges_inserted = 0;
+  const inserted = { entities: 0, edges: 0 };
   let items_failed = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
   let consecutiveFailures = 0;
@@ -362,13 +366,13 @@ export async function runSpecIncremental(
             `(failed=${items_failed})`
         );
       }
-      const outcome = await processChangedSpec(spec, { db, ollama, model, logger, consecutiveFailures });
+      const outcome = await processChangedSpec(spec, {
+        db, ollama, model, logger, consecutiveFailures, inserted,
+      });
 
       if (outcome.kind === 'processed') {
         items_processed++;
         consecutiveFailures = 0;
-        entities_inserted += outcome.entitiesInserted;
-        edges_inserted += outcome.edgesInserted;
         continue;
       }
       if (outcome.kind === 'skipped') {
@@ -403,8 +407,8 @@ export async function runSpecIncremental(
     finalStatus,
     {
       items_processed,
-      entities_inserted,
-      edges_inserted,
+      entities_inserted: inserted.entities,
+      edges_inserted: inserted.edges,
       items_failed,
     },
     errorDetail,
@@ -422,15 +426,15 @@ export async function runSpecIncremental(
     items_processed,
     items_skipped,
     items_failed,
-    entities_inserted,
-    edges_inserted,
+    entities_inserted: inserted.entities,
+    edges_inserted: inserted.edges,
     duration_ms: durationMs,
   };
 
   logger.info(
     `[${finishedAt}] [INFO] [anytime-memory] runSpecIncremental: done ` +
     `status=${finalStatus}, items_processed=${items_processed}, items_skipped=${items_skipped}, ` +
-    `entities_inserted=${entities_inserted}, edges_inserted=${edges_inserted}, duration_ms=${durationMs}`,
+    `entities_inserted=${inserted.entities}, edges_inserted=${inserted.edges}, duration_ms=${durationMs}`,
   );
 
   return result;

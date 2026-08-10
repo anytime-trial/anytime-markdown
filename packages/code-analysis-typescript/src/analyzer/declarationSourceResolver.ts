@@ -65,9 +65,12 @@ export function resolveDeclarationToSource(
   const pkg = normalize(pkgDir);
   if (hasSegment(pkg, 'node_modules')) return null;
 
+  // 先頭要素が代表ソース（＝ remap 先）になるため、比較はコードユニット順に固定する。
+  // Why not localeCompare: 既定ロケールに解決されるため、同じリポジトリでも実行環境が
+  // 変われば大小文字の相対順が入れ替わり、代表ソースの選択がマシン依存になる。
   const underPkg = [...byNormalized.keys()]
     .filter((p) => isUnder(p, pkg))
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   if (underPkg.length === 0) return null;
 
   const chosen =
