@@ -66,7 +66,7 @@ function errorMessage(err: unknown): string {
 }
 
 /**
- * summary 応答の形検証。数値 7 フィールドが揃わない応答（旧サーバーの 404・プロキシの
+ * summary 応答の形検証。数値 8 フィールドが揃わない応答（旧サーバーの 404・プロキシの
  * エラー HTML・サーバー側集計失敗の null）は null へ倒す（誤った率を出すより出さない）。
  */
 async function parseSummary(res: Response | null): Promise<CaravanFlightReviewFindingSummary | null> {
@@ -75,7 +75,7 @@ async function parseSummary(res: Response | null): Promise<CaravanFlightReviewFi
     const body = (await res.json()) as unknown;
     if (body === null || typeof body !== 'object') return null;
     const r = body as Record<string, unknown>;
-    const fields = ['total', 'info', 'noPath', 'unresolvedRepo', 'tracked', 'addressed', 'inferred'] as const;
+    const fields = ['total', 'info', 'noPath', 'unresolvedRepo', 'tracked', 'addressed', 'inferred', 'weakLinked'] as const;
     if (!fields.every((f) => typeof r[f] === 'number')) {
       console.warn('[flightFinding] unexpected response shape from /api/caravan/reviews/flight-summary');
       return null;

@@ -236,6 +236,11 @@ export function renderFindingSummary(input: {
       <dt>${escapeHtml(t('flightRecord.findings.summary.inferred'))}</dt>
       <dd>${summary.inferred}</dd>
     </div>
+    <div data-am-finding-summary-item data-kind="weak-linked"
+      title="${escapeHtml(t('flightRecord.findings.summary.weakLinkedHint'))}">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.weakLinked'))}</dt>
+      <dd>${summary.weakLinked}</dd>
+    </div>
     <div data-am-finding-summary-item data-kind="info">
       <dt>${escapeHtml(t('flightRecord.findings.summary.info'))}</dt>
       <dd>${summary.info}</dd>

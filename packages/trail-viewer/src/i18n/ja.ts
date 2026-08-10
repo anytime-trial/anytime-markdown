@@ -783,6 +783,9 @@ export const ja: TrailI18n = {
   'flightRecord.findings.summary.inferred': 'うち推測対象',
   'flightRecord.findings.summary.inferredHint':
     'レビュアーが対象を書かず、本文中のファイル名から一意に解決して埋めた指摘。移動済みファイルの旧パスへ解決した場合はどのコミットとも一致せず未対処のまま残るため、対処率が伸びないときはここを疑う。',
+  'flightRecord.findings.summary.weakLinked': 'うち弱い根拠',
+  'flightRecord.findings.summary.weakLinkedHint':
+    'コミットメッセージとのテキスト一致では届かず、同一セッションかつレビュー対処の明示という組合せで対処済みと判定した指摘。対処率が上がったのが実態の改善か照合の緩和かを読み分けるために出している。',
   'flightRecord.findings.summary.info': '対象外 (info)',
   'flightRecord.findings.summary.total': '全指摘',
   'flightRecord.findings.summary.unavailable': '対処率の集計を取得できません。',

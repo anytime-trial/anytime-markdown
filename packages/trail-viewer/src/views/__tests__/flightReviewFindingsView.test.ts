@@ -239,7 +239,7 @@ describe('renderFindingTable', () => {
 });
 
 describe('renderFindingSummary', () => {
-  const summary = { total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2, inferred: 1 };
+  const summary = { total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2, inferred: 1, weakLinked: 1 };
 
   it('対処率は追跡対象を分母に出し、追跡不能はパス欠落と repo 未解決の合算で出す', () => {
     const host = document.createElement('div');
@@ -262,6 +262,14 @@ describe('renderFindingSummary', () => {
     host.innerHTML = renderFindingSummary({ t, summary, loadFailed: false });
     const inferred = host.querySelector('[data-am-finding-summary-item][data-kind="inferred"] dd');
     expect(inferred?.textContent).toBe('1');
+  });
+
+  // 対処率が上がったのが実態の改善か照合の緩和かを読み分けられるようにする。
+  it('テキスト一致以外の根拠だけで成立したリンク件数を併記する', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderFindingSummary({ t, summary, loadFailed: false });
+    const weak = host.querySelector('[data-am-finding-summary-item][data-kind="weak-linked"] dd');
+    expect(weak?.textContent).toBe('1');
   });
 
   it('追跡対象 0 件では率を出さない（0 除算を 0% や 100% と偽らない）', () => {

@@ -83,7 +83,7 @@ describe('flightFindingStore', () => {
   it('対処率集計（flight-summary）を取得して保持する', async () => {
     stubFetch((url) => {
       if (url.includes('flight-summary')) {
-        return jsonResponse({ total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2, inferred: 1 });
+        return jsonResponse({ total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2, inferred: 1, weakLinked: 0 });
       }
       return jsonResponse([]);
     });
@@ -91,7 +91,7 @@ describe('flightFindingStore', () => {
     await store.refresh();
 
     expect(store.getState().summary).toEqual({
-      total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2, inferred: 1,
+      total: 10, info: 4, noPath: 2, unresolvedRepo: 1, tracked: 3, addressed: 2, inferred: 1, weakLinked: 0,
     });
     store.dispose();
   });
@@ -104,7 +104,7 @@ describe('flightFindingStore', () => {
     stubFetch((url) => {
       urls.push(url);
       return url.includes('flight-summary')
-        ? jsonResponse({ total: 1, info: 0, noPath: 0, unresolvedRepo: 0, tracked: 1, addressed: 1, inferred: 0 })
+        ? jsonResponse({ total: 1, info: 0, noPath: 0, unresolvedRepo: 0, tracked: 1, addressed: 1, inferred: 0, weakLinked: 0 })
         : jsonResponse([]);
     });
     const store = createFlightFindingStore('http://x');
@@ -127,7 +127,7 @@ describe('flightFindingStore', () => {
     store.dispose();
   });
 
-  it('数値 7 フィールドが揃わない summary 応答は null へ倒す（誤った率を出さない）', async () => {
+  it('数値 8 フィールドが揃わない summary 応答は null へ倒す（誤った率を出さない）', async () => {
     stubFetch((url) =>
       url.includes('flight-summary')
         ? jsonResponse({ total: 10, info: 'four' })

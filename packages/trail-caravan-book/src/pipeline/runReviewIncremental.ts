@@ -421,7 +421,11 @@ export async function runReviewIncremental(input: {
     logger.info(
       `[anytime-memory] runReviewIncremental: linkAddresses ` +
         `candidates=${linkResult.candidates} linked=${linkResult.findings_linked} ` +
-        `no_matching_commit=${linkResult.no_matching_commit} ${skippedText}`,
+        `no_matching_commit=${linkResult.no_matching_commit} ${skippedText} ` +
+        // シグナル別の内訳。テキスト以外の根拠で成立した割合が分からないと、
+        // 対処率の変化が実態の改善なのか照合の緩和なのか読めない。
+        `linked_session=${linkResult.linked_with_same_session} ` +
+        `linked_review_marker=${linkResult.linked_with_review_marker}`,
     );
   } catch (err) {
     logger.error(`[anytime-memory] runReviewIncremental: linkAddresses failed`, err);

@@ -778,6 +778,9 @@ export const en: TrailI18n = {
   'flightRecord.findings.summary.inferred': 'Inferred target',
   'flightRecord.findings.summary.inferredHint':
     'Findings whose target path was not stated by the reviewer and was resolved from a filename in the body. A path that resolved to a moved file matches no commit and stays unaddressed, so check here first when the rate stops improving.',
+  'flightRecord.findings.summary.weakLinked': 'Weak evidence',
+  'flightRecord.findings.summary.weakLinkedHint':
+    'Findings marked addressed without any text match against the commit message, accepted because the commit came from the same session and stated it was addressing review feedback. Shown so a rising rate can be read as real improvement rather than looser matching.',
   'flightRecord.findings.summary.info': 'Not tracked (info)',
   'flightRecord.findings.summary.total': 'All findings',
   'flightRecord.findings.summary.unavailable': 'Addressed-rate summary is unavailable.',

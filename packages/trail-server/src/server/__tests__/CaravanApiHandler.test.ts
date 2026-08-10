@@ -383,6 +383,7 @@ describe('CaravanApiHandler', () => {
         tracked: 2,
         addressed: 1,
         inferred: 1,
+        weakLinked: 0,
       });
     });
 
@@ -391,10 +392,10 @@ describe('CaravanApiHandler', () => {
     // 分母だけを押し上げるため、混ざると対処率が実態より低く出る。
     it('workspace を指定するとそのワークスペースだけを数える', async () => {
       expect(await sumHandler.getFlightReviewFindingSummary({ workspace: 'anytime-markdown' })).toEqual({
-        total: 6, info: 1, noPath: 2, unresolvedRepo: 1, tracked: 2, addressed: 1, inferred: 1,
+        total: 6, info: 1, noPath: 2, unresolvedRepo: 1, tracked: 2, addressed: 1, inferred: 1, weakLinked: 0,
       });
       expect(await sumHandler.getFlightReviewFindingSummary({ workspace: 'anytime-trade' })).toEqual({
-        total: 1, info: 0, noPath: 1, unresolvedRepo: 0, tracked: 0, addressed: 0, inferred: 0,
+        total: 1, info: 0, noPath: 1, unresolvedRepo: 0, tracked: 0, addressed: 0, inferred: 0, weakLinked: 0,
       });
     });
 
