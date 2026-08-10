@@ -273,12 +273,13 @@ test('I22: valid 1-finding run → success, caravan_review_runs + caravan_review
     );
     expect(reviewRows[0]?.values?.[0]?.[0]).toBe('agent');
 
-    // caravan_review_findings: 1 row
+    // caravan_review_findings: 1 row（extracted_by は経路刻印 'agent:review'）
     const findingRows = db.exec(
-      `SELECT COUNT(*) FROM caravan_review_findings WHERE review_id = ?`,
+      `SELECT COUNT(*), MAX(extracted_by) FROM caravan_review_findings WHERE review_id = ?`,
       [result.review_id!],
     );
     expect(findingRows[0]?.values?.[0]?.[0] as number).toBe(1);
+    expect(findingRows[0]?.values?.[0]?.[1]).toBe('agent:review');
 
     // flagged edge: confidence_label='INFERRED'
     const edgeRows = db.exec(

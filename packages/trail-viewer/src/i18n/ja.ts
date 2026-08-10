@@ -776,6 +776,15 @@ export const ja: TrailI18n = {
   'flightRecord.findings.filter.categoryAll': 'すべてのカテゴリ',
   'flightRecord.findings.filter.status': '状態',
   'flightRecord.findings.filter.statusAll': 'すべての状態',
+  'flightRecord.findings.summary.addressedRate': '対処率（追跡対象）',
+  'flightRecord.findings.summary.untrackable': '追跡不能',
+  'flightRecord.findings.summary.untrackableHint':
+    '対象ファイルパスの欠落、または対象リポジトリ未解決のため、対処コミットと照合できない指摘（info 除く）。',
+  'flightRecord.findings.summary.info': '対象外 (info)',
+  'flightRecord.findings.summary.total': '全指摘',
+  'flightRecord.findings.summary.unavailable': '対処率の集計を取得できません。',
+  'flightRecord.findings.summary.scopeHint':
+    '全経路（セッション・レビュー文書）の指摘の集計。下の一覧（セッション経路のみ）より範囲が広い。',
   'flightRecord.detail.title': 'ふりかえり',
   'flightRecord.detail.close': '閉じる',
   'flightRecord.detail.keyEvents': '主要イベント',

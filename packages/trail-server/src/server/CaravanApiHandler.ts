@@ -191,6 +191,25 @@ export interface FlightReviewFindingCountRow {
   total: number;
 }
 
+/**
+ * 対処率の分母を分けた全指摘の集計。単一の「対処率 = 対処済み / 全件」は、リンク対象外
+ * （info）と追跡不能（対象パス欠落・repo 未解決）を分母へ混ぜて実態より低く見えるため、
+ * 「追跡対象（自動リンクの母集合）に対する率」と「追跡不能の残量」を別の数字として返す。
+ */
+export interface FlightReviewFindingSummary {
+  total: number;
+  /** severity='info'。設計上リンク対象外。 */
+  info: number;
+  /** 非 info で target_file_path が無い（追跡不能）。 */
+  noPath: number;
+  /** 非 info・パス有りで target_repo が解決できていない（追跡不能）。 */
+  unresolvedRepo: number;
+  /** 非 info・パス有り・repo 解決済み（自動リンクの母集合＝追跡対象）。 */
+  tracked: number;
+  /** tracked のうち addressed_at 非 NULL。対処率 = addressed / tracked。 */
+  addressed: number;
+}
+
 export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 
 export interface PipelineRunStatsByDayRow {
@@ -1246,6 +1265,48 @@ export class CaravanApiHandler {
     } catch (err) {
       this.logger.error(`[CaravanApiHandler.getFlightReviewFindingCounts] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /**
+   * 対処率の分母別集計。全経路（source_kind 問わず）の caravan_review_findings を
+   * SQL で数える。一覧（source_kind='session' 限定・limit 付き）から数えると母集合を
+   * 誤るため専用クエリにする。DB を開けない・失敗時は null（0 件と区別する）。
+   */
+  async getFlightReviewFindingSummary(): Promise<FlightReviewFindingSummary | null> {
+    const db = this.openReadOnly();
+    if (!db) return null;
+    try {
+      const tracked =
+        `severity <> 'info' AND target_file_path IS NOT NULL AND target_file_path <> '' ` +
+        `AND target_repo IS NOT NULL AND target_repo <> ''`;
+      const result = db.exec(
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN severity = 'info' THEN 1 ELSE 0 END) AS info_count,
+                SUM(CASE WHEN severity <> 'info' AND (target_file_path IS NULL OR target_file_path = '') THEN 1 ELSE 0 END) AS no_path,
+                SUM(CASE WHEN severity <> 'info' AND target_file_path IS NOT NULL AND target_file_path <> '' AND (target_repo IS NULL OR target_repo = '') THEN 1 ELSE 0 END) AS unresolved_repo,
+                SUM(CASE WHEN ${tracked} THEN 1 ELSE 0 END) AS tracked,
+                SUM(CASE WHEN ${tracked} AND addressed_at IS NOT NULL THEN 1 ELSE 0 END) AS addressed
+         FROM caravan_review_findings`,
+      );
+      if (!result[0]) return null;
+      const { columns, values } = result[0];
+      const row = values[0];
+      if (!row) return null;
+      const r = mapRow<Record<string, unknown>>(columns, row);
+      return {
+        total: toNum(r['total']),
+        info: toNum(r['info_count']),
+        noPath: toNum(r['no_path']),
+        unresolvedRepo: toNum(r['unresolved_repo']),
+        tracked: toNum(r['tracked']),
+        addressed: toNum(r['addressed']),
+      };
+    } catch (err) {
+      this.logger.error(`[CaravanApiHandler.getFlightReviewFindingSummary] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return null;
     } finally {
       this.close(db);
     }

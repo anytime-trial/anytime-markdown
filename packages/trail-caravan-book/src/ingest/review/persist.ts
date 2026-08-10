@@ -45,8 +45,9 @@ export function upsertReviewFinding(
   recordedAt: string,
   logger: CaravanLogger,
   /**
-   * 抽出元。既定の '' は「書式準拠のパーサが抽出」を意味する。
-   * INSERT に含めるのは、後から UPDATE で刻むと失敗時に LLM 由来の行が
+   * 抽出元。'parser:review_doc' / 'parser:session' / 'llm:<model>' / 'agent:review'。
+   * 既定の '' は「経路不明（extracted_by 配線前の旧データと同義）」であり、新規経路は
+   * 必ず明示する。INSERT に含めるのは、後から UPDATE で刻むと失敗時に LLM 由来の行が
    * 書式準拠を装って残り、一括取り消しが効かなくなるため。
    */
   extractedBy = '',
@@ -274,7 +275,7 @@ export function upsertReviewDoc(
 
     // Insert findings
     for (const finding of doc.findings) {
-      const result = upsertReviewFinding(db, reviewEntityId, finding, recordedAt, logger);
+      const result = upsertReviewFinding(db, reviewEntityId, finding, recordedAt, logger, 'parser:review_doc');
       if (result.inserted) {
         findingsInserted += 1;
         edgesInserted += 1; // flagged edge
@@ -394,7 +395,7 @@ export function upsertReviewSession(
 
     // Insert findings
     for (const finding of session.findings) {
-      const result = upsertReviewFinding(db, reviewEntityId, finding, recordedAt, logger);
+      const result = upsertReviewFinding(db, reviewEntityId, finding, recordedAt, logger, 'parser:session');
       if (result.inserted) {
         findingsInserted += 1;
         edgesInserted += 1;

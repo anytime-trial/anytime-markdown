@@ -1218,6 +1218,12 @@ export class TrailDataServer {
       this.respondCaravanJson(ctx.res, '/api/caravan/reviews/flight-counts',
         this.caravanApi.getFlightReviewFindingCounts()));
 
+    // 対処率の分母別集計（追跡対象 / info / 追跡不能）。一覧の limit に影響されない
+    // よう SQL 集計の専用ルートから取る。失敗時は null が返り、0 件と区別できる。
+    t.exact('GET', '/api/caravan/reviews/flight-summary', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/reviews/flight-summary',
+        this.caravanApi.getFlightReviewFindingSummary()));
+
     t.exact('GET', '/api/caravan/reviews/flight-findings', (ctx) => {
       const raw = ctx.queryOpt('instructionIds');
       const instructionIds = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;

@@ -771,6 +771,15 @@ export const en: TrailI18n = {
   'flightRecord.findings.column.reviewedAt': 'Reviewed',
   'flightRecord.findings.column.status': 'Status',
   'flightRecord.findings.noneFiltered': 'No findings match the current filter (try relaxing it)',
+  'flightRecord.findings.summary.addressedRate': 'Addressed rate (tracked)',
+  'flightRecord.findings.summary.untrackable': 'Untrackable',
+  'flightRecord.findings.summary.untrackableHint':
+    'Findings that cannot be matched to an addressing commit because the target file path is missing or the target repository is unresolved (excluding info).',
+  'flightRecord.findings.summary.info': 'Not tracked (info)',
+  'flightRecord.findings.summary.total': 'All findings',
+  'flightRecord.findings.summary.unavailable': 'Addressed-rate summary is unavailable.',
+  'flightRecord.findings.summary.scopeHint':
+    'Aggregated over findings from all routes (sessions and review docs) — broader than the table below, which shows the session route only.',
   'flightRecord.findings.filter.severity': 'Severity',
   'flightRecord.findings.filter.severityAll': 'All severities',
   'flightRecord.findings.filter.category': 'Category',

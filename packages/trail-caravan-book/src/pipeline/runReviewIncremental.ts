@@ -408,6 +408,17 @@ export async function runReviewIncremental(input: {
       },
     });
     totals.edges_inserted += linkResult.edges_inserted;
+    // 内訳を毎回残す。対処率の改善施策（対象パスの必須化・照合強化）が効いたかは
+    // この母集合の推移でしか読めないため、リンク 0 件でも省略しない。
+    const skipped = linkResult.skipped;
+    const skippedText = skipped === null
+      ? 'skipped=unavailable'
+      : `skipped_info=${skipped.severity_info} skipped_no_path=${skipped.no_target_path} skipped_unresolved_repo=${skipped.unresolved_repo}`;
+    logger.info(
+      `[anytime-memory] runReviewIncremental: linkAddresses ` +
+        `candidates=${linkResult.candidates} linked=${linkResult.findings_linked} ` +
+        `no_matching_commit=${linkResult.no_matching_commit} ${skippedText}`,
+    );
   } catch (err) {
     logger.error(`[anytime-memory] runReviewIncremental: linkAddresses failed`, err);
   }

@@ -10,7 +10,10 @@
  */
 import { escapeHtml } from '../shared/escapeHtml';
 import { workspaceLabel } from '../shared/workspaceLabel';
-import type { CaravanFlightReviewFindingRow } from '../data/types';
+import type {
+  CaravanFlightReviewFindingRow,
+  CaravanFlightReviewFindingSummary,
+} from '../data/types';
 
 export type FindingsTranslate = (key: string) => string;
 
@@ -192,6 +195,51 @@ export function renderFindingSection(input: {
     )
     .join('');
   return `<ul data-am-finding-list>${items}</ul>`;
+}
+
+/**
+ * Review サブタブ上部の対処率集計。
+ *
+ * 分母を「追跡対象（自動リンクの母集合）」に限った率と、分母から外れた残量（info /
+ * 追跡不能）を並べて出す。全件を分母にした単一の率は、リンク対象外が 8 割を占める
+ * 現状では実態より低く見え、改善施策が効いたかも読めないため出さない。
+ * 集計は全経路（セッション・レビュー文書）で、一覧（セッション経路のみ）より広い。
+ */
+export function renderFindingSummary(input: {
+  t: FindingsTranslate;
+  summary: CaravanFlightReviewFindingSummary | null;
+  loadFailed: boolean;
+}): string {
+  const { t, summary } = input;
+  // 表本体が loadFailed の文言を出すので、ここでは重ねない。
+  if (input.loadFailed) return '';
+  if (summary === null) {
+    return `<p data-am-finding-summary-unavailable role="status">${escapeHtml(
+      t('flightRecord.findings.summary.unavailable'),
+    )}</p>`;
+  }
+  const untrackable = summary.noPath + summary.unresolvedRepo;
+  const rate = summary.tracked === 0 ? null : Math.round((summary.addressed / summary.tracked) * 100);
+  const rateText = rate === null ? '—' : `${summary.addressed} / ${summary.tracked} (${rate}%)`;
+  return `<dl data-am-finding-summary title="${escapeHtml(t('flightRecord.findings.summary.scopeHint'))}">
+    <div data-am-finding-summary-item data-kind="rate">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.addressedRate'))}</dt>
+      <dd>${escapeHtml(rateText)}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="untrackable"
+      title="${escapeHtml(t('flightRecord.findings.summary.untrackableHint'))}">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.untrackable'))}</dt>
+      <dd>${untrackable}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="info">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.info'))}</dt>
+      <dd>${summary.info}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="total">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.total'))}</dt>
+      <dd>${summary.total}</dd>
+    </div>
+  </dl>`;
 }
 
 /**
