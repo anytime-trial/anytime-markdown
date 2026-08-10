@@ -1063,6 +1063,13 @@ export class TrailDataServer {
         }));
     });
 
+    // エージェント照会（MCP search_caravan_book が記録した検索）の直近リスト（画面設計書 §2.5）
+    t.exact('GET', '/api/caravan/knowledge-graph/agent-searches', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/knowledge-graph/agent-searches',
+        this.caravanApi.getAgentSearches({
+          limit: clampInt(ctx.url.searchParams.get('limit'), 10, 1, 50),
+        })));
+
     // 画面検索の計測イベント（記録は検索機能の受け入れ条件。失敗は ok:false で fail-open）
     t.exact('POST', '/api/caravan/knowledge-graph/search-events', (ctx) => {
       if (!this.requireJsonContentType(ctx.req, ctx.res)) return;
@@ -1080,6 +1087,10 @@ export class TrailDataServer {
           query,
           ...(typeof b['resultCount'] === 'number' ? { resultCount: b['resultCount'] } : {}),
           ...(typeof b['entityId'] === 'string' ? { entityId: b['entityId'] } : {}),
+          // 起点動線（screen spec §3.6）。列挙外は recordSearchEvent 側が ok:false へ落とす
+          ...(typeof b['origin'] === 'string'
+            ? { origin: b['origin'] as 'search' | 'citation' | 'agent_history' }
+            : {}),
         });
         ctx.res.writeHead(200, JSON_HEADERS);
         ctx.res.end(JSON.stringify(data));

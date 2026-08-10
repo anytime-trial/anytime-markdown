@@ -47,13 +47,17 @@ function buildSearchDb(dbPath: string, opts?: { withFts?: boolean }): void {
     invalidated_at TEXT NOT NULL,
     reason TEXT NOT NULL
   ) STRICT`);
+  // migration 032 適用後の形状（source / origin / hit_entity_ids）
   db.exec(`CREATE TABLE caravan_search_events (
     id TEXT PRIMARY KEY,
     occurred_at TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('search', 'ego_open', 'clear')),
     query TEXT NOT NULL,
     result_count INTEGER,
-    entity_id TEXT
+    entity_id TEXT,
+    source TEXT NOT NULL DEFAULT 'screen' CHECK (source IN ('screen', 'agent')),
+    origin TEXT CHECK (origin IS NULL OR origin IN ('search', 'citation', 'agent_history')),
+    hit_entity_ids TEXT CHECK (hit_entity_ids IS NULL OR json_valid(hit_entity_ids))
   ) STRICT`);
   if (withFts) {
     db.exec(`CREATE VIRTUAL TABLE caravan_entities_fts USING fts5(
@@ -213,6 +217,106 @@ describe('CaravanApiHandler.getKnowledgeGraph seed（ego サブグラフ）', ()
     expect(result?.nodes).toEqual([]);
     expect(result?.links).toEqual([]);
   });
+
+  it('全体・ego とも nodes が実体 id を持つ（引用・照会ヒットの解決に使う。screen spec §2.5）', async () => {
+    const full = await handler.getKnowledgeGraph({});
+    expect(full?.nodes.length).toBeGreaterThan(0);
+    for (const node of full?.nodes ?? []) expect(typeof node.id).toBe('string');
+    const ego = await handler.getKnowledgeGraph({ seed: 's1' });
+    expect(ego?.nodes.map((n) => n.id)).toEqual(expect.arrayContaining(['s1', 'n1']));
+  });
+});
+
+describe('CaravanApiHandler.getAgentSearches', () => {
+  let tmpDir: string;
+  let dbPath: string;
+  let handler: CaravanApiHandler;
+
+  function insertEvent(row: {
+    id: string;
+    occurredAt: string;
+    kind?: string;
+    query?: string;
+    source?: string;
+    hitEntityIds?: string | null;
+  }): void {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(
+      `INSERT INTO caravan_search_events (id, occurred_at, kind, query, result_count, source, hit_entity_ids)
+       VALUES (?, ?, ?, ?, NULL, ?, ?)`,
+    ).run(
+      row.id,
+      row.occurredAt,
+      row.kind ?? 'search',
+      row.query ?? 'q',
+      row.source ?? 'agent',
+      row.hitEntityIds === undefined ? null : row.hitEntityIds,
+    );
+    db.close();
+  }
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-agent-searches-'));
+    dbPath = path.join(tmpDir, 'caravan-book.db');
+    buildSearchDb(dbPath);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+  });
+
+  afterEach(() => {
+    handler.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('agent 照会を新しい順に返し、ヒットを label / type へ解決する', async () => {
+    insertEvent({ id: 'q1', occurredAt: '2026-08-10T01:00:00.000Z', query: 'block', hitEntityIds: JSON.stringify(['f1', 'c1']) });
+    insertEvent({ id: 'q2', occurredAt: '2026-08-10T02:00:00.000Z', query: 'seed', hitEntityIds: JSON.stringify(['s1']) });
+    const result = await handler.getAgentSearches({});
+    expect(result?.queries.map((q) => q.query)).toEqual(['seed', 'block']);
+    expect(result?.queries[1]?.hits).toEqual([
+      { id: 'f1', label: 'packages/foo/useBlockAlignment.ts', type: 'File' },
+      { id: 'c1', label: 'ブロック整列', type: 'Concept' },
+    ]);
+  });
+
+  it('screen の検索イベントと kind!=search を含めない', async () => {
+    insertEvent({ id: 'sc1', occurredAt: '2026-08-10T01:00:00.000Z', source: 'screen' });
+    insertEvent({ id: 'eg1', occurredAt: '2026-08-10T02:00:00.000Z', kind: 'ego_open' });
+    const result = await handler.getAgentSearches({});
+    expect(result?.queries).toEqual([]);
+  });
+
+  it('soft delete 済みのヒットは除外し、全滅した照会も 0 ヒットで返す', async () => {
+    insertEvent({ id: 'q1', occurredAt: '2026-08-10T01:00:00.000Z', hitEntityIds: JSON.stringify(['del1', 'f1']) });
+    insertEvent({ id: 'q2', occurredAt: '2026-08-10T02:00:00.000Z', hitEntityIds: JSON.stringify(['del1']) });
+    const result = await handler.getAgentSearches({});
+    expect(result?.queries[1]?.hits.map((h) => h.id)).toEqual(['f1']);
+    expect(result?.queries[0]?.hits).toEqual([]);
+  });
+
+  it('limit で件数を絞る（clamp 1〜50）', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      insertEvent({ id: `q${i}`, occurredAt: `2026-08-10T0${i}:00:00.000Z` });
+    }
+    const result = await handler.getAgentSearches({ limit: 2 });
+    expect(result?.queries).toHaveLength(2);
+  });
+
+  it('032 未適用（source 列なし）の旧 DB では空リストへ縮退する', async () => {
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-agent-old-'));
+    const oldPath = path.join(oldDir, 'caravan-book.db');
+    const db = new BetterSqlite3(oldPath);
+    db.exec(`CREATE TABLE caravan_entities (id TEXT PRIMARY KEY, type TEXT NOT NULL, display_name TEXT NOT NULL, valid_until TEXT) STRICT`);
+    db.exec(`CREATE TABLE caravan_search_events (
+      id TEXT PRIMARY KEY, occurred_at TEXT NOT NULL, kind TEXT NOT NULL, query TEXT NOT NULL,
+      result_count INTEGER, entity_id TEXT
+    ) STRICT`);
+    db.close();
+    const old = new CaravanApiHandler(makeMockLogger(), oldPath);
+    const result = await old.getAgentSearches({});
+    expect(result?.queries).toEqual([]);
+    old.dispose();
+    fs.rmSync(oldDir, { recursive: true, force: true });
+  });
 });
 
 describe('CaravanApiHandler.recordSearchEvent', () => {
@@ -248,6 +352,20 @@ describe('CaravanApiHandler.recordSearchEvent', () => {
     const row = db.prepare(`SELECT kind, entity_id FROM caravan_search_events`).get() as Record<string, unknown>;
     db.close();
     expect(row).toMatchObject({ kind: 'ego_open', entity_id: 'f1' });
+  });
+
+  it('origin（起点動線）を記録する（screen spec §3.6）', async () => {
+    const r = await handler.recordSearchEvent({ kind: 'ego_open', query: '', entityId: 'f1', origin: 'citation' });
+    expect(r.ok).toBe(true);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(`SELECT origin FROM caravan_search_events`).get() as Record<string, unknown>;
+    db.close();
+    expect(row).toMatchObject({ origin: 'citation' });
+  });
+
+  it('列挙外の origin は記録せず ok:false（throw しない）', async () => {
+    const r = await handler.recordSearchEvent({ kind: 'ego_open', query: '', origin: 'toolbar' as never });
+    expect(r.ok).toBe(false);
   });
 
   it('不正な kind は記録せず ok:false（throw しない）', async () => {

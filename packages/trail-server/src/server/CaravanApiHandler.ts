@@ -92,7 +92,7 @@ export interface KnowledgeGraphResponse {
    * **全ノードに揃っている時だけ**クライアントはレイアウトを省略できる。1 件でも欠けると
    * クライアント側計算へ縮退する（座標のある点と無い点が混ざった図は配置が破綻するため）。
    */
-  nodes: { label: string; type: string; frequency: number; x?: number; y?: number }[];
+  nodes: { id: string; label: string; type: string; frequency: number; x?: number; y?: number }[];
   links: { a: number; b: number; strength: number }[];
   clusters: { label: string; members: number[] }[];
   /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */
@@ -402,6 +402,21 @@ function toStr(v: unknown): string {
 
 function toNullStr(v: unknown): string | null {
   return v == null ? null : String(v);
+}
+
+/**
+ * `hit_entity_ids`（JSON 配列の TEXT 列）を string[] へ解す。CHECK は json_valid までしか
+ * 保証しない（配列でない JSON・文字列以外の要素が通り得る）ため、形が想定外の値は
+ * 空配列へ落として図の描画側へ渡さない。
+ */
+function parseHitEntityIds(v: unknown): string[] {
+  if (typeof v !== 'string' || v === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 function toNum(v: unknown): number {
@@ -1834,7 +1849,8 @@ export class CaravanApiHandler {
       const connectedEntityCount = Number(connectedResult[0]?.values[0]?.[0] ?? 0);
 
       return {
-        nodes: nodeRows.map(({ id: _id, ...node }) => node),
+        // id は引用・エージェント照会ヒット（実体 ID）と図のノードを突き合わせる鍵（§2.5）
+        nodes: nodeRows,
         links,
         clusters,
         totalEntityCount: this.countEntities(db, types),
@@ -1971,7 +1987,7 @@ export class CaravanApiHandler {
     );
 
     return {
-      nodes: nodes.map(({ id: _id, ...node }) => node),
+      nodes,
       links,
       clusters,
       totalEntityCount: this.countEntities(db, []),
@@ -2255,7 +2271,7 @@ export class CaravanApiHandler {
 
     return {
       ...empty,
-      nodes: nodeRows.map(({ id: _id, ...node }) => node),
+      nodes: nodeRows,
       links,
       clusters: this.buildClusters(db, nodeRows),
       truncated,
@@ -2263,22 +2279,99 @@ export class CaravanApiHandler {
   }
 
   /**
+   * エージェント照会（MCP search_caravan_book が記録した `source='agent'` の検索）の
+   * 直近リスト（画面設計書 §2.5）。ヒット実体は label / type へ解決し、soft delete 済みは
+   * 除外する（存在しない実体を画面の選択肢に出さない）。解決後 0 件の照会も返す —
+   * 「エージェントは照会したが現存実体に到達しなかった」事実を隠さない。
+   *
+   * migration 032 未適用の旧 DB（source 列なし）はクエリが失敗するため空リストへ縮退する
+   * （照会リストは付加機能であり、ここで 500 を返すと画面全体が障害の顔になる）。
+   */
+  async getAgentSearches(params: { limit?: number }): Promise<{
+    queries: { id: string; query: string; occurredAt: string; hits: { id: string; label: string; type: string }[] }[];
+  } | null> {
+    const db = this.openReadOnly();
+    if (!db) return null;
+    const limit = Math.max(1, clampLimit(params.limit, 10, 50));
+    try {
+      const eventResult = db.exec(
+        `SELECT id, occurred_at, query, hit_entity_ids
+         FROM caravan_search_events
+         WHERE source = 'agent' AND kind = 'search'
+         ORDER BY occurred_at DESC
+         LIMIT ?`,
+        toBindParams([limit]),
+      );
+      const events = (eventResult[0]?.values ?? []).map((row) => ({
+        id: toStr(row[0]),
+        occurredAt: toStr(row[1]),
+        query: toStr(row[2]),
+        hitIds: parseHitEntityIds(row[3]),
+      }));
+
+      const allIds = [...new Set(events.flatMap((e) => e.hitIds))];
+      const entityById = new Map<string, { label: string; type: string }>();
+      if (allIds.length > 0) {
+        const entityResult = db.exec(
+          `SELECT id, display_name, type
+           FROM caravan_entities
+           WHERE id IN (SELECT value FROM json_each(?)) AND valid_until IS NULL`,
+          toBindParams([JSON.stringify(allIds)]),
+        );
+        for (const row of entityResult[0]?.values ?? []) {
+          entityById.set(toStr(row[0]), { label: toStr(row[1]), type: toStr(row[2]) });
+        }
+      }
+
+      return {
+        queries: events.map((event) => ({
+          id: event.id,
+          query: event.query,
+          occurredAt: event.occurredAt,
+          hits: event.hitIds.flatMap((hitId) => {
+            const entity = entityById.get(hitId);
+            return entity ? [{ id: hitId, ...entity }] : [];
+          }),
+        })),
+      };
+    } catch (err) {
+      this.logger.warn(
+        `[CaravanApiHandler.getAgentSearches] degraded to empty list: ${err instanceof Error ? (err.stack ?? String(err)) : String(err)}`,
+      );
+      return { queries: [] };
+    }
+  }
+
+  /**
    * 画面検索の計測イベント記録（画面設計書 §2.4。記録は本機能の受け入れ条件）。
    * 記録の失敗で検索機能を止めない（fail-open。充足率は評価ハーネス側で監視する）。
    */
   async recordSearchEvent(
-    params: { kind: 'search' | 'ego_open' | 'clear'; query: string; resultCount?: number; entityId?: string },
+    params: {
+      kind: 'search' | 'ego_open' | 'clear';
+      query: string;
+      resultCount?: number;
+      entityId?: string;
+      /** ego_open の起点動線（screen spec §3.6）。search / clear では送られない。 */
+      origin?: 'search' | 'citation' | 'agent_history';
+    },
   ): Promise<{ ok: boolean }> {
     if (!['search', 'ego_open', 'clear'].includes(params.kind)) {
       this.logger.warn(`[CaravanApiHandler.recordSearchEvent] invalid kind: ${String(params.kind)}`);
       return { ok: false };
     }
+    if (params.origin !== undefined && !['search', 'citation', 'agent_history'].includes(params.origin)) {
+      this.logger.warn(`[CaravanApiHandler.recordSearchEvent] invalid origin: ${String(params.origin)}`);
+      return { ok: false };
+    }
     const db = this.openReadWrite();
     if (!db) return { ok: false };
     try {
+      // origin 列は migration 032 が前提。未適用 DB では INSERT が失敗し fail-open で
+      // WARN に落ちる（デーモン/拡張の次回 open が migration を流すまでの一時的な欠落）。
       db.run(
-        `INSERT INTO caravan_search_events (id, occurred_at, kind, query, result_count, entity_id)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO caravan_search_events (id, occurred_at, kind, query, result_count, entity_id, origin)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           randomUUID(),
           new Date().toISOString(),
@@ -2286,6 +2379,7 @@ export class CaravanApiHandler {
           params.query,
           params.resultCount ?? null,
           params.entityId ?? null,
+          params.origin ?? null,
         ],
       );
       this.close(db);

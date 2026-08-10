@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
 import {
@@ -28,6 +29,43 @@ export const SearchCaravanBookInputSchema = z.object({
 
 export type SearchCaravanBookInput = z.infer<typeof SearchCaravanBookInputSchema>;
 
+/** hit_entity_ids へ保存するヒット実体 ID の上限（screen spec §2.5）。 */
+export const AGENT_SEARCH_HIT_CAP = 20;
+
+/**
+ * エージェント照会を caravan_search_events へ記録する（screen spec §2.5）。
+ *
+ * 知識グラフ画面の「エージェント照会」リストがここで残した hit_entity_ids を読んで
+ * 該当実体を開く。記録の失敗で検索応答を止めない（fail-open。警告は MCP stdio の
+ * プロトコルと衝突しない stderr へ出す）。
+ */
+export function recordAgentSearchEvent(
+  db: { run(sql: string, params?: ReadonlyArray<string | number | null>): void },
+  params: { query: string; hitEntityIds: readonly string[] },
+): boolean {
+  try {
+    db.run(
+      `INSERT INTO caravan_search_events (id, occurred_at, kind, query, result_count, source, hit_entity_ids)
+       VALUES (?, ?, 'search', ?, ?, 'agent', ?)`,
+      [
+        randomUUID(),
+        new Date().toISOString(),
+        params.query,
+        params.hitEntityIds.length,
+        JSON.stringify(params.hitEntityIds.slice(0, AGENT_SEARCH_HIT_CAP)),
+      ],
+    );
+    return true;
+  } catch (err) {
+    console.error(
+      `[mcp-trail] agent search event record failed (query=${params.query}): ${
+        err instanceof Error ? (err.stack ?? String(err)) : String(err)
+      }`,
+    );
+    return false;
+  }
+}
+
 export async function handleSearchCaravanBook(input: SearchCaravanBookInput): Promise<ShapedSearchResult> {
   const ollamaBaseUrl = process.env['OLLAMA_BASE_URL'];
 
@@ -55,6 +93,12 @@ export async function handleSearchCaravanBook(input: SearchCaravanBookInput): Pr
     });
     const aliases =
       detail === 'full' ? fetchEntityAliases(memHandle.db, result.entities.map((e) => e.id)) : undefined;
+    // 照会の記録（screen spec §2.5）。openCaravanBookDb は readwrite で open 時に
+    // migration を流すため、この handle でそのまま INSERT できる。
+    recordAgentSearchEvent(memHandle.db, {
+      query: input.query,
+      hitEntityIds: result.entities.map((e) => e.id),
+    });
     return shapeSearchResponse(result, detail, aliases);
   } finally {
     memHandle.close();

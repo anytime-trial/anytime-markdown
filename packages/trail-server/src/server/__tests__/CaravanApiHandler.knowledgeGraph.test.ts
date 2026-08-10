@@ -151,10 +151,10 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
     // 次数: e1=4, e2=3, e3=2, e4=1
     // （失効 x1・無効化 x2・リテラル x3・自己ループ x4・soft delete 端点 x5 は数えない）
     expect(result?.nodes).toEqual([
-      { label: 'TrailDataServer', type: 'Concept', frequency: 4 },
-      { label: 'trail-caravan-book', type: 'Concept', frequency: 3 },
-      { label: 'server.ts', type: 'File', frequency: 2 },
-      { label: 'FTS crash', type: 'Bug', frequency: 1 },
+      { id: 'e1', label: 'TrailDataServer', type: 'Concept', frequency: 4 },
+      { id: 'e2', label: 'trail-caravan-book', type: 'Concept', frequency: 3 },
+      { id: 'e3', label: 'server.ts', type: 'File', frequency: 2 },
+      { id: 'e4', label: 'FTS crash', type: 'Bug', frequency: 1 },
     ]);
     const sortedLinks = [...(result?.links ?? [])].sort((l, r) => l.a - r.a || l.b - r.b);
     expect(sortedLinks).toEqual([
@@ -186,8 +186,8 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
 
     // Concept 同士のエッジは e1-e2 ×2 のみ。File との混合エッジは次数に入らない
     expect(result?.nodes).toEqual([
-      { label: 'TrailDataServer', type: 'Concept', frequency: 2 },
-      { label: 'trail-caravan-book', type: 'Concept', frequency: 2 },
+      { id: 'e1', label: 'TrailDataServer', type: 'Concept', frequency: 2 },
+      { id: 'e2', label: 'trail-caravan-book', type: 'Concept', frequency: 2 },
     ]);
     expect(result?.links).toEqual([{ a: 0, b: 1, strength: 2 }]);
     expect(result?.totalEntityCount).toBe(2);

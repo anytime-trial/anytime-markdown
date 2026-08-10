@@ -124,6 +124,7 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/caravan/status" },
   { method: "GET", kind: "exact", path: "/api/caravan/knowledge-graph" },
   { method: "GET", kind: "exact", path: "/api/caravan/knowledge-graph/search" },
+  { method: "GET", kind: "exact", path: "/api/caravan/knowledge-graph/agent-searches" },
   { method: "POST", kind: "exact", path: "/api/caravan/knowledge-graph/search-events" },
   { method: "GET", kind: "exact", path: "/api/caravan/drift/by-day" },
   { method: "GET", kind: "exact", path: "/api/caravan/drift/events" },

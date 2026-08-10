@@ -74,6 +74,17 @@ export type CooccurrenceViewerUpdate = Partial<
 export interface CooccurrenceViewerHandle {
   update(partial: CooccurrenceViewerUpdate): void;
   destroy(): void;
+  /**
+   * ホストからの選択指定（機能仕様書 §6.4.1）。効果は語のクリックと同一の選択状態だが、
+   * **トグルではなく指定**（同じ添字を渡しても解除されず、null で解除）。ホストは現在の
+   * 選択状態を知らずに呼ぶため、トグルだと「選択したつもりが解除」が起きる。
+   * 範囲外・非整数の添字は無視して現在の選択を保つ（黙って消すと利用者には「押したのに
+   * 何も起きない」として現れ、ホストの添字ズレへ辿れない）。ファイル差し替えで添字の
+   * 意味が変わるため、ホストは `update({ file })` の後に改めて呼ぶ。
+   */
+  selectNode(index: number | null): void;
+  /** 観測点。現在選択中の語の添字（未選択は null）。selectNode の反映を外から検査する。 */
+  getSelectedNodeIndex(): number | null;
   getLayoutStatus(): LayoutStatus;
   getCacheDecision(): CacheDecision;
   getLayoutRunCount(): number;

@@ -1498,6 +1498,18 @@ export function mountCooccurrenceViewer(
   if (initialSkin !== 'standard') setSkin(initialSkin);
 
   return {
+    selectNode(index: number | null): void {
+      // 範囲は描画中の graph.nodes（絞り込みで欠番が出る）ではなく spec.nodes で判定する。
+      // 添字の意味はファイル上の語の並びであり、絞り込み中でも選択自体は成立する。
+      if (index !== null && (!Number.isInteger(index) || index < 0 || index >= file.spec.nodes.length)) {
+        console.warn(
+          `[cooccurrence-viewer] selectNode ignored out-of-range index: ${index} (nodes=${file.spec.nodes.length})`,
+        );
+        return;
+      }
+      selectNode(index);
+    },
+    getSelectedNodeIndex: () => selectedNodeIndex,
     update(partial: CooccurrenceViewerUpdate): void {
       if (partial.skin !== undefined) {
         setSkin(partial.skin);

@@ -151,6 +151,34 @@ describe('buildKnowledgeGraphCoocFile', () => {
     expect(file.layout).toBeUndefined();
   });
 
+  it('subjectId で subject を実体 id から解決する（同名ラベルを取り違えない。screen spec §2.5）', () => {
+    const file = buildKnowledgeGraphCoocFile(
+      makeResponse({
+        nodes: [
+          { id: 'e1', label: 'index.ts', type: 'File', frequency: 9 },
+          { id: 'e2', label: 'index.ts', type: 'Concept', frequency: 4 },
+        ],
+      }),
+      GENERATED_AT,
+      { subjectId: 'e2', subjectLabel: 'index.ts' },
+    );
+    expect(file.spec.subject).toBe(1);
+  });
+
+  it('subjectId が見つからない・id の無い旧サーバ応答では subjectLabel へ後方互換で倒す', () => {
+    const file = buildKnowledgeGraphCoocFile(
+      makeResponse({
+        nodes: [
+          { label: 'a', type: 'Concept', frequency: 2 },
+          { label: 'b', type: 'Concept', frequency: 1 },
+        ],
+      }),
+      GENERATED_AT,
+      { subjectId: 'missing', subjectLabel: 'b' },
+    );
+    expect(file.spec.subject).toBe(1);
+  });
+
   it('omits the layout when a coordinate is not finite', () => {
     const file = buildKnowledgeGraphCoocFile(
       makeResponse({

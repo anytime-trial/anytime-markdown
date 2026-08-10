@@ -691,6 +691,11 @@ export interface TrailI18n {
   /** ego 表示中の件数表示。{{label}} = 中心実体・{{shown}} = ノード数。 */
   'knowledgeGraph.egoShownCount': string;
   'knowledgeGraph.egoClear': string;
+  'knowledgeGraph.agentSearches': string;
+  'knowledgeGraph.agentSearchesEmpty': string;
+  'knowledgeGraph.agentSearchesFailed': string;
+  'knowledgeGraph.agentSearchHitCount': string;
+  'knowledgeGraph.entityNotFound': string;
   'flightRecord.filter.outcome': string;
   'flightRecord.filter.outcomeAll': string;
   'flightRecord.filter.since': string;

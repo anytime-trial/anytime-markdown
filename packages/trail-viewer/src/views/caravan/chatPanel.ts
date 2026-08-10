@@ -17,6 +17,11 @@ type RepoScope = 'all' | 'current';
 export interface ChatPanelProps {
   readonly t: (key: string) => string;
   readonly bridge: ChatBridge;
+  /**
+   * 回答中の引用チップ（entity タグ）のクリック通知。知識グラフタブの該当実体表示へ
+   * 遷移する（知識グラフ設計書 §3.6 (a)）。未指定ならチップは従来どおり非クリック。
+   */
+  readonly onCitationClick?: (tag: string) => void;
 }
 
 export function mountChatPanel(
@@ -90,6 +95,7 @@ export function mountChatPanel(
     chatPaneHandle = mountChatPane(chatCol, {
       t: props.t,
       bridge: props.bridge,
+      onCitationClick: props.onCitationClick,
       onSourcesChange: (srcs) => {
         sources = srcs;
         sourcesHandle?.update({ t: props.t, sources, onSelect: undefined });
@@ -121,7 +127,9 @@ export function mountChatPanel(
       if (!gridEl) renderGrid();
       else {
         filtersHandle?.update({ t: props.t, repoScope, onRepoScopeChange: (scope) => { repoScope = scope; } });
-        chatPaneHandle?.update({ t: props.t, bridge: props.bridge });
+        // onCitationClick を落とすと update のたびにチップが非クリックへ退行する
+        // （chatPane の update は props を丸ごと差し替えるため）
+        chatPaneHandle?.update({ t: props.t, bridge: props.bridge, onCitationClick: props.onCitationClick });
         sourcesHandle?.update({ t: props.t, sources });
       }
     }
