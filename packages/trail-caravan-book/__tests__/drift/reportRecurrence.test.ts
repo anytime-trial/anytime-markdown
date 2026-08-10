@@ -119,6 +119,129 @@ describe('reportDriftEvents: 解決済み drift の再発', () => {
     });
   });
 
+  it('reopen は値 3 列も今回の検出値へ更新する（進めた detected_at と中身を食い違わせない）', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db, 'ent-recur-values');
+    const { logger, errors } = makeLogger();
+
+    reportDriftEvents({ db, candidates: [makeCandidate(subjId)], recordedAt: TS1, logger });
+    reportDriftEvents({ db, candidates: [], recordedAt: TS2, logger });
+    reportDriftEvents({
+      db,
+      candidates: [{ ...makeCandidate(subjId), code_value: 'mobx', spec_value: 'jotai' }],
+      recordedAt: TS3,
+      logger,
+    });
+
+    expect(errors).toEqual([]);
+    const rows = db.exec(
+      "SELECT spec_value, code_value FROM caravan_drift_events WHERE drift_type = 'spec_vs_code'",
+    );
+    expect(rows[0]?.values[0]).toEqual(['jotai', 'mobx']);
+  });
+
+  it('再発が 11 回でも reopen_history は直近 10 件に丸められる', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db, 'ent-recur-limit');
+    const { logger, errors } = makeLogger();
+
+    // 1 サイクル = 検出 → auto-resolve。11 回目の検出で履歴は 11 件目を積もうとする。
+    for (let i = 0; i < 11; i++) {
+      reportDriftEvents({
+        db,
+        candidates: [makeCandidate(subjId)],
+        recordedAt: `2026-02-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
+        logger,
+      });
+      reportDriftEvents({
+        db,
+        candidates: [],
+        recordedAt: `2026-02-${String(i + 1).padStart(2, '0')}T12:00:00.000Z`,
+        logger,
+      });
+    }
+
+    expect(errors).toEqual([]);
+    const rows = db.exec(
+      "SELECT detail_json FROM caravan_drift_events WHERE drift_type = 'spec_vs_code'",
+    );
+    const detail = JSON.parse(String(rows[0]?.values[0]?.[0])) as {
+      reopen_history: Array<{ reopened_at: string }>;
+    };
+    // 初回は INSERT なので reopen は 10 回、うち保持は直近 10 件（最古 = 2 サイクル目）。
+    expect(detail.reopen_history).toHaveLength(10);
+    expect(detail.reopen_history[0]?.reopened_at).toBe('2026-02-02T00:00:00.000Z');
+    expect(detail.reopen_history[9]?.reopened_at).toBe('2026-02-11T00:00:00.000Z');
+  });
+
+  it('detail_json が json_valid だが非オブジェクトでも reopen 自体は成功する', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db, 'ent-recur-baddetail');
+    const { logger, errors } = makeLogger();
+
+    reportDriftEvents({ db, candidates: [makeCandidate(subjId)], recordedAt: TS1, logger });
+    reportDriftEvents({ db, candidates: [], recordedAt: TS2, logger });
+    // CHECK (json_valid) は通るがオブジェクトではない値。履歴の読み取りだけ諦める経路。
+    db.run("UPDATE caravan_drift_events SET detail_json = 'null'");
+
+    const second = reportDriftEvents({
+      db,
+      candidates: [makeCandidate(subjId)],
+      recordedAt: TS3,
+      logger,
+    });
+
+    expect(errors).toEqual([]);
+    expect(second.events_reopened).toBe(1);
+    const rows = db.exec(
+      "SELECT resolved_at, detail_json FROM caravan_drift_events WHERE drift_type = 'spec_vs_code'",
+    );
+    expect(rows[0]?.values[0]?.[0]).toBeNull();
+    const detail = JSON.parse(String(rows[0]?.values[0]?.[1])) as { reopen_history: unknown[] };
+    expect(detail.reopen_history).toHaveLength(1);
+  });
+
+  it('人手で解決された drift の再検出は、解決状態とメモを維持したまま記録される', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db, 'ent-recur-human');
+    const { logger, errors } = makeLogger();
+
+    reportDriftEvents({ db, candidates: [makeCandidate(subjId)], recordedAt: TS1, logger });
+    // 人が resolve_drift でメモ付きに解決した状態を作る。
+    db.run(
+      `UPDATE caravan_drift_events SET resolved_at = ?, resolution_note = ? WHERE resolved_at IS NULL`,
+      [TS2, '確認済み・チケット #123 で追跡'],
+    );
+
+    const second = reportDriftEvents({
+      db,
+      candidates: [makeCandidate(subjId)],
+      recordedAt: TS3,
+      logger,
+    });
+
+    expect(errors).toEqual([]);
+    expect(second.events_redetect_suppressed).toBe(1);
+    expect(second.events_reopened).toBe(0);
+
+    const rows = db.exec(
+      `SELECT resolved_at, resolution_note, detail_json
+         FROM caravan_drift_events WHERE drift_type = 'spec_vs_code'`,
+    );
+    const row = rows[0]?.values[0];
+    expect(row?.[0]).toBe(TS2);
+    expect(row?.[1]).toBe('確認済み・チケット #123 で追跡');
+
+    const detail = JSON.parse(String(row?.[2])) as {
+      redetection_history?: Array<Record<string, string>>;
+    };
+    expect(detail.redetection_history).toHaveLength(1);
+    expect(detail.redetection_history?.[0]).toMatchObject({
+      redetected_at: TS3,
+      resolution_note: '確認済み・チケット #123 で追跡',
+    });
+  });
+
   it('未解決のまま再検出された drift は reopen ではなく update として数える', () => {
     const db = makeDb();
     const subjId = insertEntity(db, 'ent-recur-3');

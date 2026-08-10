@@ -19,8 +19,10 @@ export type DriftDetectionResult = {
   events_inserted: number;
   events_updated: number;
   events_resolved: number;
-  /** 解決済みだった drift が再検出され、未解決へ戻された件数。 */
+  /** 自動解決されていた drift が再検出され、未解決へ戻された件数。 */
   events_reopened: number;
+  /** 人手で解決された drift が再検出されたが、解決状態を維持した件数。 */
+  events_redetect_suppressed: number;
   duration_ms: number;
 };
 
@@ -94,7 +96,13 @@ export async function runDriftDetection(input: {
     candidates.push(...results);
   }
 
-  let reportResult = { events_inserted: 0, events_updated: 0, events_resolved: 0, events_reopened: 0 };
+  let reportResult = {
+    events_inserted: 0,
+    events_updated: 0,
+    events_resolved: 0,
+    events_reopened: 0,
+    events_redetect_suppressed: 0,
+  };
   try {
     reportResult = reportDriftEvents({ db, candidates, recordedAt: startedAt, logger });
   } catch (err) {
@@ -115,6 +123,17 @@ export async function runDriftDetection(input: {
   const totalDrifts =
     reportResult.events_inserted + reportResult.events_updated + reportResult.events_reopened;
 
+  // 内訳をログへ残す。合算値だけだと「今回の実行で何件が再発だったか」が後から読めない。
+  // 台帳（caravan_pipeline_runs）側へ内訳列を足すにはスキーマ migration が要るため、
+  // ここでは PipelineRunTotals の既存列を崩さずログで観測できる状態にとどめる。
+  // SHORTCUT: 再発の内訳をログにだけ出す. ceiling: 集計や画面から件数を引けない.
+  // upgrade: 再発件数を継続して見たくなったら caravan_pipeline_runs へ内訳列を足す.
+  logger.info(
+    `[runDriftDetection] drifts detected=${totalDrifts} (inserted=${reportResult.events_inserted}, ` +
+      `updated=${reportResult.events_updated}, reopened=${reportResult.events_reopened}), ` +
+      `resolved=${reportResult.events_resolved}, redetect_suppressed=${reportResult.events_redetect_suppressed}`,
+  );
+
   ledger.finish(
     status,
     { drifts_detected: totalDrifts },
@@ -127,6 +146,7 @@ export async function runDriftDetection(input: {
     events_updated: reportResult.events_updated,
     events_resolved: reportResult.events_resolved,
     events_reopened: reportResult.events_reopened,
+    events_redetect_suppressed: reportResult.events_redetect_suppressed,
     duration_ms: durationMs,
   };
 }

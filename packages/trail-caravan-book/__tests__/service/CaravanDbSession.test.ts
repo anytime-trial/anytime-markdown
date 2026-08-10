@@ -818,6 +818,7 @@ describe('CaravanDbSession', () => {
         events_inserted: 3,
         events_updated: 2,
         events_reopened: 1,
+        events_redetect_suppressed: 0,
       });
 
       const result = await session.runDrift();
@@ -853,7 +854,7 @@ describe('CaravanDbSession', () => {
       const trailDb = makeTrailDb();
       const session = makeSession(memDb, trailDb);
 
-      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 0, events_updated: 0, events_reopened: 0 });
+      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 0, events_updated: 0, events_reopened: 0, events_redetect_suppressed: 0 });
 
       const result = await session.runDrift();
 
@@ -955,7 +956,7 @@ describe('CaravanDbSession', () => {
         statusWriter: statusWriter as unknown as import('../../src/status/PipelineStatusWriter').PipelineStatusWriter,
       });
 
-      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 1, events_updated: 0, events_reopened: 0 });
+      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 1, events_updated: 0, events_reopened: 0, events_redetect_suppressed: 0 });
 
       await session.runDrift();
 
