@@ -155,6 +155,128 @@ export class AgentStatusWorker {
     });
   }
 
+  private async postEdit(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = JSON.parse(await readBody(req)) as EditUpsertInput;
+    if (!body?.sessionId) {
+      sendJson(res, 400, { error: 'sessionId required' });
+      return;
+    }
+    this.store.upsertEditing(body);
+    sendJson(res, 200, { ok: true });
+  }
+
+  private async postCommit(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = JSON.parse(await readBody(req)) as CommitUpsertInput;
+    if (!body?.sessionId) {
+      sendJson(res, 400, { error: 'sessionId required' });
+      return;
+    }
+    this.store.upsertCommit(body);
+    sendJson(res, 200, { ok: true });
+  }
+
+  private async postSummary(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = JSON.parse(await readBody(req)) as SummaryUpsertInput;
+    if (!body?.sessionId) {
+      sendJson(res, 400, { error: 'sessionId required' });
+      return;
+    }
+    if (typeof body.summary !== 'string') {
+      sendJson(res, 400, { error: 'summary (JSON string) required' });
+      return;
+    }
+    this.store.upsertSummary(body);
+    sendJson(res, 200, { ok: true });
+  }
+
+  private async postHandoff(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = JSON.parse(await readBody(req)) as { sessionId?: string };
+    if (!body?.sessionId) {
+      sendJson(res, 400, { error: 'sessionId required' });
+      return;
+    }
+    // transcript 解決 → 圧縮ステート組成 → summary 保存（handoff_at 確定）→ レンダリング返却。
+    const result = generateHandoff(this.store, body.sessionId);
+    if (!result) {
+      sendJson(res, 404, { error: 'transcript not found' });
+      return;
+    }
+    sendJson(res, 200, { ok: true, ...result });
+  }
+
+  private async postGitActivity(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const input = JSON.parse(await readBody(req)) as unknown;
+    if (!isValidGitActivity(input)) {
+      sendJson(res, 400, { error: 'invalid git-activity payload' });
+      return;
+    }
+    this.store.insertGitActivity(input);
+    sendJson(res, 200, { ok: true });
+  }
+
+  /** POST ルートを振り分ける。該当パスが無ければ false（呼び出し側が後続の判定へ進む）。 */
+  private async handlePost(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    pathname: string,
+  ): Promise<boolean> {
+    switch (pathname) {
+      case '/api/agent-status/edit':
+        await this.postEdit(req, res);
+        return true;
+      case '/api/agent-status/commit':
+        await this.postCommit(req, res);
+        return true;
+      case '/api/agent-status/summary':
+        await this.postSummary(req, res);
+        return true;
+      case '/api/agent-status/handoff':
+        await this.postHandoff(req, res);
+        return true;
+      case '/api/agent-status/git-activity':
+        await this.postGitActivity(req, res);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /** GET（読み取り）と DELETE（行削除）を処理する。該当が無ければ false。 */
+  private handleReadOrDelete(res: http.ServerResponse, method: string, pathname: string): boolean {
+    if (method === 'GET' && pathname === '/api/agent-status/git-activity') {
+      sendJson(res, 200, {
+        version: AGENT_STATUS_API_VERSION,
+        data: this.store.queryGitActivity(GIT_ACTIVITY_PAGE_SIZE),
+      });
+      return true;
+    }
+
+    if (method === 'GET' && pathname === '/api/agent-status') {
+      sendJson(res, 200, {
+        version: AGENT_STATUS_API_VERSION,
+        data: this.store.queryAll(),
+      });
+      return true;
+    }
+
+    const oneMatch = /^\/api\/agent-status\/([^/]+)$/.exec(pathname);
+    if (oneMatch && method === 'GET') {
+      const sessionId = decodeURIComponent(oneMatch[1]);
+      sendJson(res, 200, {
+        version: AGENT_STATUS_API_VERSION,
+        data: this.store.queryOne(sessionId),
+      });
+      return true;
+    }
+    if (oneMatch && method === 'DELETE') {
+      const sessionId = decodeURIComponent(oneMatch[1]);
+      this.store.deleteSession(sessionId);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+    return false;
+  }
+
   private async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const parsed = new URL(req.url ?? '/', `http://${BIND_HOST}`);
     const pathname = parsed.pathname;
@@ -166,101 +288,8 @@ export class AgentStatusWorker {
       return;
     }
 
-    if (method === 'POST' && pathname === '/api/agent-status/edit') {
-      const body = JSON.parse(await readBody(req)) as EditUpsertInput;
-      if (!body?.sessionId) {
-        sendJson(res, 400, { error: 'sessionId required' });
-        return;
-      }
-      this.store.upsertEditing(body);
-      sendJson(res, 200, { ok: true });
-      return;
-    }
-
-    if (method === 'POST' && pathname === '/api/agent-status/commit') {
-      const body = JSON.parse(await readBody(req)) as CommitUpsertInput;
-      if (!body?.sessionId) {
-        sendJson(res, 400, { error: 'sessionId required' });
-        return;
-      }
-      this.store.upsertCommit(body);
-      sendJson(res, 200, { ok: true });
-      return;
-    }
-
-    if (method === 'POST' && pathname === '/api/agent-status/summary') {
-      const body = JSON.parse(await readBody(req)) as SummaryUpsertInput;
-      if (!body?.sessionId) {
-        sendJson(res, 400, { error: 'sessionId required' });
-        return;
-      }
-      if (typeof body.summary !== 'string') {
-        sendJson(res, 400, { error: 'summary (JSON string) required' });
-        return;
-      }
-      this.store.upsertSummary(body);
-      sendJson(res, 200, { ok: true });
-      return;
-    }
-
-    if (method === 'POST' && pathname === '/api/agent-status/handoff') {
-      const body = JSON.parse(await readBody(req)) as { sessionId?: string };
-      if (!body?.sessionId) {
-        sendJson(res, 400, { error: 'sessionId required' });
-        return;
-      }
-      // transcript 解決 → 圧縮ステート組成 → summary 保存（handoff_at 確定）→ レンダリング返却。
-      const result = generateHandoff(this.store, body.sessionId);
-      if (!result) {
-        sendJson(res, 404, { error: 'transcript not found' });
-        return;
-      }
-      sendJson(res, 200, { ok: true, ...result });
-      return;
-    }
-
-    if (method === 'POST' && pathname === '/api/agent-status/git-activity') {
-      const input = JSON.parse(await readBody(req)) as unknown;
-      if (!isValidGitActivity(input)) {
-        sendJson(res, 400, { error: 'invalid git-activity payload' });
-        return;
-      }
-      this.store.insertGitActivity(input);
-      sendJson(res, 200, { ok: true });
-      return;
-    }
-
-    if (method === 'GET' && pathname === '/api/agent-status/git-activity') {
-      sendJson(res, 200, {
-        version: AGENT_STATUS_API_VERSION,
-        data: this.store.queryGitActivity(GIT_ACTIVITY_PAGE_SIZE),
-      });
-      return;
-    }
-
-    if (method === 'GET' && pathname === '/api/agent-status') {
-      sendJson(res, 200, {
-        version: AGENT_STATUS_API_VERSION,
-        data: this.store.queryAll(),
-      });
-      return;
-    }
-
-    const oneMatch = /^\/api\/agent-status\/([^/]+)$/.exec(pathname);
-    if (oneMatch && method === 'GET') {
-      const sessionId = decodeURIComponent(oneMatch[1]);
-      sendJson(res, 200, {
-        version: AGENT_STATUS_API_VERSION,
-        data: this.store.queryOne(sessionId),
-      });
-      return;
-    }
-    if (oneMatch && method === 'DELETE') {
-      const sessionId = decodeURIComponent(oneMatch[1]);
-      this.store.deleteSession(sessionId);
-      sendJson(res, 200, { ok: true });
-      return;
-    }
+    if (method === 'POST' && (await this.handlePost(req, res, pathname))) return;
+    if (this.handleReadOrDelete(res, method, pathname)) return;
 
     sendJson(res, 404, { error: 'not found' });
   }

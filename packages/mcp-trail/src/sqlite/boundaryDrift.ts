@@ -88,6 +88,43 @@ interface WarningRow {
  * `package_fragmentation` は communityCount で尺度が違う）。そのため `minSeverity` は
  * `kind` を指定したときだけ受け付ける。
  */
+/** repoName / kind / minSeverity の絞り込み結果。repoName が台帳に無ければ unknown-repo。 */
+type BoundaryDriftFilter =
+  | {
+      kind: 'ok';
+      conditions: string[];
+      params: Array<string | number>;
+      repoId: number | undefined;
+    }
+  | { kind: 'unknown-repo' };
+
+/** 呼び出し側オプションを WHERE 条件とバインド値へ落とす。 */
+function buildBoundaryDriftFilter(
+  db: Database,
+  options: BoundaryDriftListOptions,
+): BoundaryDriftFilter {
+  const conditions: string[] = [];
+  const params: Array<string | number> = [];
+
+  let repoId: number | undefined;
+  if (options.repoName !== undefined) {
+    const found = lookupRepoId(db, options.repoName);
+    if (found === null) return { kind: 'unknown-repo' };
+    repoId = found;
+    conditions.push('w.repo_id = ?');
+    params.push(found);
+  }
+  if (options.kind !== undefined) {
+    conditions.push('w.kind = ?');
+    params.push(options.kind);
+  }
+  if (options.minSeverity !== undefined) {
+    conditions.push('w.severity >= ?');
+    params.push(options.minSeverity);
+  }
+  return { kind: 'ok', conditions, params, repoId };
+}
+
 export function listBoundaryDriftDirect(
   db: Database,
   options: BoundaryDriftListOptions = {},
@@ -102,25 +139,11 @@ export function listBoundaryDriftDirect(
     return { detectedAt: null, runs: [], warnings: [], reason: 'no-table' };
   }
 
-  const conditions: string[] = [];
-  const params: Array<string | number> = [];
-
-  let repoId: number | undefined;
-  if (options.repoName !== undefined) {
-    const found = lookupRepoId(db, options.repoName);
-    if (found === null) return { detectedAt: null, runs: [], warnings: [], reason: 'unknown-repo' };
-    repoId = found;
-    conditions.push('w.repo_id = ?');
-    params.push(found);
+  const filter = buildBoundaryDriftFilter(db, options);
+  if (filter.kind === 'unknown-repo') {
+    return { detectedAt: null, runs: [], warnings: [], reason: 'unknown-repo' };
   }
-  if (options.kind !== undefined) {
-    conditions.push('w.kind = ?');
-    params.push(options.kind);
-  }
-  if (options.minSeverity !== undefined) {
-    conditions.push('w.severity >= ?');
-    params.push(options.minSeverity);
-  }
+  const { conditions, params, repoId } = filter;
 
   const latestOnly = options.latestOnly ?? true;
   const runs = latestOnly ? latestRuns(db, repoId) : [];

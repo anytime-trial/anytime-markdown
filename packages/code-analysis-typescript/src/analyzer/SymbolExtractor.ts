@@ -66,84 +66,12 @@ export class SymbolExtractor {
     const line =
       sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 
-    if (ts.isClassDeclaration(node) && node.name) {
-      const name = node.name.text;
+    const declared = namedDeclarationOf(node);
+    if (declared) {
       return {
-        id: `${parentId}::${name}`,
-        label: name,
-        type: 'class',
-        filePath: relativePath,
-        line,
-        parent: parentId,
-      };
-    }
-
-    if (ts.isFunctionDeclaration(node) && node.name) {
-      const name = node.name.text;
-      return {
-        id: `${parentId}::${name}`,
-        label: name,
-        type: 'function',
-        filePath: relativePath,
-        line,
-        parent: parentId,
-      };
-    }
-
-    if (ts.isMethodDeclaration(node) && ts.isIdentifier(node.name)) {
-      const name = node.name.text;
-      return {
-        id: `${parentId}::${name}`,
-        label: name,
-        type: 'function',
-        filePath: relativePath,
-        line,
-        parent: parentId,
-      };
-    }
-
-    if (ts.isInterfaceDeclaration(node) && node.name) {
-      const name = node.name.text;
-      return {
-        id: `${parentId}::${name}`,
-        label: name,
-        type: 'interface',
-        filePath: relativePath,
-        line,
-        parent: parentId,
-      };
-    }
-
-    if (ts.isTypeAliasDeclaration(node) && node.name) {
-      const name = node.name.text;
-      return {
-        id: `${parentId}::${name}`,
-        label: name,
-        type: 'type',
-        filePath: relativePath,
-        line,
-        parent: parentId,
-      };
-    }
-
-    if (ts.isEnumDeclaration(node) && node.name) {
-      const name = node.name.text;
-      return {
-        id: `${parentId}::${name}`,
-        label: name,
-        type: 'enum',
-        filePath: relativePath,
-        line,
-        parent: parentId,
-      };
-    }
-
-    if (ts.isModuleDeclaration(node) && node.name) {
-      const name = node.name.text;
-      return {
-        id: `${parentId}::${name}`,
-        label: name,
-        type: 'namespace',
+        id: `${parentId}::${declared.name}`,
+        label: declared.name,
+        type: declared.type,
         filePath: relativePath,
         line,
         parent: parentId,
@@ -161,6 +89,37 @@ export class SymbolExtractor {
 
     return null;
   }
+}
+
+/**
+ * 名前付き宣言ノードから label と TrailNode 種別を決める（該当しなければ null）。
+ * 判定順は元の if 連鎖と同じ（先に一致した種別が勝つ）。
+ */
+function namedDeclarationOf(
+  node: ts.Node,
+): { name: string; type: TrailNode['type'] } | null {
+  if (ts.isClassDeclaration(node) && node.name) {
+    return { name: node.name.text, type: 'class' };
+  }
+  if (ts.isFunctionDeclaration(node) && node.name) {
+    return { name: node.name.text, type: 'function' };
+  }
+  if (ts.isMethodDeclaration(node) && ts.isIdentifier(node.name)) {
+    return { name: node.name.text, type: 'function' };
+  }
+  if (ts.isInterfaceDeclaration(node) && node.name) {
+    return { name: node.name.text, type: 'interface' };
+  }
+  if (ts.isTypeAliasDeclaration(node) && node.name) {
+    return { name: node.name.text, type: 'type' };
+  }
+  if (ts.isEnumDeclaration(node) && node.name) {
+    return { name: node.name.text, type: 'enum' };
+  }
+  if (ts.isModuleDeclaration(node) && node.name) {
+    return { name: node.name.text, type: 'namespace' };
+  }
+  return null;
 }
 
 function isContainerLikeInit(init: ts.Expression): boolean {

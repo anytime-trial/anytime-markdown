@@ -1,4 +1,5 @@
-import NextAuth from "next-auth";
+import NextAuth, { type Account } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Spotify from "next-auth/providers/spotify";
@@ -39,6 +40,51 @@ if (authEnvStatus.missingProviderVars.length > 0) {
   );
 }
 
+/** 新規サインイン時に、provider ごとの access token を JWT へ載せる。 */
+function applyAccountTokens(token: JWT, account: Account): void {
+  if (account.provider === "spotify") {
+    token.spotifyAccessToken = account.access_token;
+  } else if (account.provider === "google") {
+    token.youtubeAccessToken = account.access_token;
+    token.googleAccessToken = account.access_token;
+    token.googleRefreshToken = account.refresh_token;
+    token.googleTokenExpiresAt = account.expires_at
+      ? account.expires_at * 1000
+      : undefined;
+  } else {
+    token.accessToken = account.access_token;
+  }
+}
+
+/**
+ * 期限切れの Google access token を refresh token で更新する。
+ * 失敗は error ログのみで既存 token を保ったまま継続する（サインアウトさせない）。
+ */
+async function refreshGoogleAccessToken(token: JWT, refreshToken: string): Promise<void> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID ?? "",
+      client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+  if (res.ok) {
+    const payload = (await res.json()) as Record<string, unknown>;
+    const refreshed = parseRefreshedToken(payload, Date.now());
+    if (refreshed) {
+      token.googleAccessToken = refreshed.accessToken;
+      token.googleTokenExpiresAt = refreshed.expiresAt;
+    }
+  } else {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] Google token refresh failed: ${res.status} ${await res.text()}`,
+    );
+  }
+}
+
 const result = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   // Netlify は VERCEL/CF_PAGES 環境変数がないため @auth/core の自動検知が効かない。
@@ -77,18 +123,7 @@ const result = NextAuth({
   callbacks: {
     async jwt({ token, account }) {
       if (account?.access_token) {
-        if (account.provider === "spotify") {
-          token.spotifyAccessToken = account.access_token;
-        } else if (account.provider === "google") {
-          token.youtubeAccessToken = account.access_token;
-          token.googleAccessToken = account.access_token;
-          token.googleRefreshToken = account.refresh_token;
-          token.googleTokenExpiresAt = account.expires_at
-            ? account.expires_at * 1000
-            : undefined;
-        } else {
-          token.accessToken = account.access_token;
-        }
+        applyAccountTokens(token, account);
         return token;
       }
 
@@ -96,28 +131,7 @@ const result = NextAuth({
         token.googleRefreshToken &&
         isGoogleTokenExpired(token.googleTokenExpiresAt, Date.now())
       ) {
-        const res = await fetch("https://oauth2.googleapis.com/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_id: process.env.GOOGLE_CLIENT_ID ?? "",
-            client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-            grant_type: "refresh_token",
-            refresh_token: token.googleRefreshToken,
-          }),
-        });
-        if (res.ok) {
-          const payload = (await res.json()) as Record<string, unknown>;
-          const refreshed = parseRefreshedToken(payload, Date.now());
-          if (refreshed) {
-            token.googleAccessToken = refreshed.accessToken;
-            token.googleTokenExpiresAt = refreshed.expiresAt;
-          }
-        } else {
-          console.error(
-            `[${new Date().toISOString()}] [ERROR] Google token refresh failed: ${res.status} ${await res.text()}`,
-          );
-        }
+        await refreshGoogleAccessToken(token, token.googleRefreshToken);
       }
 
       return token;

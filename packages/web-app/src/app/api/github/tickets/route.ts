@@ -39,16 +39,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-/** 新規チケット作成（自動採番・テンプレート本文） */
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  const body = (await request.json()) as Record<string, unknown>;
-  const params = await resolveRepoParams(
-    typeof body.repo === "string" ? body.repo : null,
-    typeof body.branch === "string" ? body.branch : null,
-  );
-  if (params instanceof NextResponse) {
-    return params;
-  }
+interface TicketCreateFields {
+  title: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  assignee: TicketAssignee | undefined;
+  workspace: TicketWorkspace | undefined;
+}
+
+/**
+ * POST body から必須 3 項目と任意 enum を検証して取り出す。
+ * 不正な場合は 400 の NextResponse を返す（resolveRepoParams と同じ返し分け）。
+ */
+function parseTicketCreateFields(body: Record<string, unknown>): TicketCreateFields | NextResponse {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const status = body.status as TicketStatus;
   const priority = body.priority as TicketPriority;
@@ -64,6 +67,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (workspace !== undefined && !TICKET_WORKSPACES.includes(workspace)) {
     return NextResponse.json({ error: "workspace が不正です" }, { status: 400 });
   }
+  return { title, status, priority, assignee, workspace };
+}
+
+/** 新規チケット作成（自動採番・テンプレート本文） */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const body = (await request.json()) as Record<string, unknown>;
+  const params = await resolveRepoParams(
+    typeof body.repo === "string" ? body.repo : null,
+    typeof body.branch === "string" ? body.branch : null,
+  );
+  if (params instanceof NextResponse) {
+    return params;
+  }
+  const fields = parseTicketCreateFields(body);
+  if (fields instanceof NextResponse) {
+    return fields;
+  }
+  const { title, status, priority, assignee, workspace } = fields;
   try {
     const created = await createTicket({
       ...params,

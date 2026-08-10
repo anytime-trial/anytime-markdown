@@ -108,6 +108,22 @@ export function drainStopHookSpool(
   return drainJsonlSpool(path, isStopHookSpoolEvent, onError);
 }
 
+/** sessionId ごとに endedAt 最大の flight_review payload を選ぶ。 */
+function pickLatestFlightReviews(
+  events: readonly StopHookSpoolEvent[],
+): Map<string, FlightReviewSpoolPayload> {
+  const latestFlightReview = new Map<string, FlightReviewSpoolPayload>();
+  for (const ev of events) {
+    if (ev.kind !== 'flight_review') continue;
+    const prev = latestFlightReview.get(ev.payload.sessionId);
+    // 孤児 .draining 回収で行順が時系列と入れ替わり得るため、配列順でなく endedAt で比較する。
+    if (!prev || ev.payload.endedAt >= prev.endedAt) {
+      latestFlightReview.set(ev.payload.sessionId, ev.payload);
+    }
+  }
+  return latestFlightReview;
+}
+
 /**
  * drain 済みイベントを POST 前に縮約する。
  * - flight_review: sessionId ごとに endedAt 最大の 1 件のみ残す（Stop はターン毎に発火し、
@@ -119,15 +135,7 @@ export function drainStopHookSpool(
 export function consolidateStopHookSpoolEvents(
   events: StopHookSpoolEvent[],
 ): StopHookSpoolEvent[] {
-  const latestFlightReview = new Map<string, FlightReviewSpoolPayload>();
-  for (const ev of events) {
-    if (ev.kind !== 'flight_review') continue;
-    const prev = latestFlightReview.get(ev.payload.sessionId);
-    // 孤児 .draining 回収で行順が時系列と入れ替わり得るため、配列順でなく endedAt で比較する。
-    if (!prev || ev.payload.endedAt >= prev.endedAt) {
-      latestFlightReview.set(ev.payload.sessionId, ev.payload);
-    }
-  }
+  const latestFlightReview = pickLatestFlightReviews(events);
 
   const out: StopHookSpoolEvent[] = [];
   const emittedSessions = new Set<string>();

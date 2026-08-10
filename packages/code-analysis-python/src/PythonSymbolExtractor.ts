@@ -2,6 +2,13 @@ import path from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import type { TrailNode, TrailNodeType } from '@anytime-markdown/code-analysis-core/model';
 
+/** walk の再帰で不変な引き回し（走査対象ノードと parentId 以外）。 */
+type WalkContext = {
+  readonly relPath: string;
+  readonly fileId: string;
+  readonly out: TrailNode[];
+};
+
 /**
  * tree-sitter の Python ツリーから TrailNode[] を抽出する。
  * id 規約は code-analysis-typescript の SymbolExtractor と同一:
@@ -29,26 +36,37 @@ export class PythonSymbolExtractor {
     return node.type === 'decorated_definition' ? (node.childForFieldName('definition') ?? node) : node;
   }
 
+  /** class / function 定義を 1 件積み、その本体を子スコープとして再帰する。 */
+  private emitDefinition(def: Node, parentId: string, ctx: WalkContext): void {
+    const name = def.childForFieldName('name')?.text ?? '<anonymous>';
+    const line = def.startPosition.row + 1;
+    const type: TrailNodeType = def.type === 'class_definition' ? 'class' : 'function';
+    const id = `${parentId}::${name}`;
+    ctx.out.push({ id, label: name, type, filePath: ctx.relPath, line, parent: parentId, exported: !name.startsWith('_') });
+    const body = def.childForFieldName('body');
+    if (body) this.walk(body, ctx.relPath, ctx.fileId, id, ctx.out, false);
+  }
+
+  /** モジュール直下の単純代入（`x = ...`）を variable ノードとして積む。 */
+  private emitModuleVariable(stmt: Node, ctx: WalkContext): void {
+    const assign = stmt.namedChildren.find((c) => c?.type === 'assignment');
+    const lhs = assign?.childForFieldName('left');
+    if (lhs?.type === 'identifier') {
+      const name = lhs.text;
+      const line = stmt.startPosition.row + 1;
+      ctx.out.push({ id: `${ctx.fileId}::${name}`, label: name, type: 'variable', filePath: ctx.relPath, line, parent: ctx.fileId, exported: !name.startsWith('_') });
+    }
+  }
+
   private walk(node: Node, relPath: string, fileId: string, parentId: string, out: TrailNode[], moduleLevel: boolean): void {
+    const ctx: WalkContext = { relPath, fileId, out };
     for (const child of node.namedChildren) {
       if (!child) continue;
       const def = this.unwrap(child);
       if (def.type === 'class_definition' || def.type === 'function_definition') {
-        const name = def.childForFieldName('name')?.text ?? '<anonymous>';
-        const line = def.startPosition.row + 1;
-        const type: TrailNodeType = def.type === 'class_definition' ? 'class' : 'function';
-        const id = `${parentId}::${name}`;
-        out.push({ id, label: name, type, filePath: relPath, line, parent: parentId, exported: !name.startsWith('_') });
-        const body = def.childForFieldName('body');
-        if (body) this.walk(body, relPath, fileId, id, out, false);
+        this.emitDefinition(def, parentId, ctx);
       } else if (moduleLevel && child.type === 'expression_statement') {
-        const assign = child.namedChildren.find((c) => c?.type === 'assignment');
-        const lhs = assign?.childForFieldName('left');
-        if (lhs?.type === 'identifier') {
-          const name = lhs.text;
-          const line = child.startPosition.row + 1;
-          out.push({ id: `${fileId}::${name}`, label: name, type: 'variable', filePath: relPath, line, parent: fileId, exported: !name.startsWith('_') });
-        }
+        this.emitModuleVariable(child, ctx);
       }
     }
   }

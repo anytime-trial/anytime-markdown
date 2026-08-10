@@ -81,6 +81,18 @@ export class PythonNameResolver {
     return [`file::${this.relPath}`, ...names].join('::');
   }
 
+  /** from-import の name ノード 1 件を束縛表へ登録する（alias は剥がして元名を保持）。 */
+  private registerFromImportBinding(nameNode: Node, targetFile: string): void {
+    if (nameNode.type === 'aliased_import') {
+      const orig = nameNode.childForFieldName('name')?.text;
+      const alias = nameNode.childForFieldName('alias')?.text;
+      if (orig && alias) this.bindings.set(alias, { file: targetFile, name: orig });
+    } else if (nameNode.type === 'dotted_name') {
+      const nm = nameNode.text;
+      this.bindings.set(nm, { file: targetFile, name: nm });
+    }
+  }
+
   private collectBindings(root: Node): void {
     for (const child of root.namedChildren) {
       if (child?.type !== 'import_from_statement') continue;
@@ -89,14 +101,7 @@ export class PythonNameResolver {
       if (!target) continue;
       for (const nameNode of child.childrenForFieldName('name')) {
         if (!nameNode) continue;
-        if (nameNode.type === 'aliased_import') {
-          const orig = nameNode.childForFieldName('name')?.text;
-          const alias = nameNode.childForFieldName('alias')?.text;
-          if (orig && alias) this.bindings.set(alias, { file: target, name: orig });
-        } else if (nameNode.type === 'dotted_name') {
-          const nm = nameNode.text;
-          this.bindings.set(nm, { file: target, name: nm });
-        }
+        this.registerFromImportBinding(nameNode, target);
       }
     }
   }
