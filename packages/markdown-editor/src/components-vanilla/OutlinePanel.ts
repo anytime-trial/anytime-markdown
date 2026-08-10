@@ -125,6 +125,33 @@ function computeBlockPadding(idx: number, headings: HeadingItem[]): number {
   return 1;
 }
 
+/**
+ * 段階展開（旧 useOutline unfoldAll parity）: 折り畳み中の最小レベルのみ解除する。
+ * 折り畳み中の heading が 1 つも無ければ fold 集合を全消去する。
+ */
+function unfoldShallowestLevel(headings: HeadingItem[], foldedIndices: Set<number>): void {
+  const folded = headings.filter(
+    (h) => h.kind === "heading" && foldedIndices.has(h.headingIndex ?? -1),
+  );
+  if (folded.length > 0) {
+    const minLevel = Math.min(...folded.map((h) => h.level));
+    for (const h of folded) {
+      if (h.level === minLevel) foldedIndices.delete(h.headingIndex ?? -1);
+    }
+  } else {
+    foldedIndices.clear();
+  }
+}
+
+/** すべての heading を fold 集合へ入れる。 */
+function foldAllHeadings(headings: HeadingItem[], foldedIndices: Set<number>): void {
+  for (const h of headings) {
+    if (h.kind === "heading" && h.headingIndex !== undefined) {
+      foldedIndices.add(h.headingIndex);
+    }
+  }
+}
+
 /** {@link createOutlinePanel} のオプション（React `OutlinePanelProps` の vanilla 置換）。 */
 export interface CreateOutlinePanelOptions {
   /** TipTap エディタ。見出し集計と `update`/`transaction` 購読に使う。 */
@@ -338,24 +365,9 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     children: svgIcon(ICON_UNFOLD_LESS, 16),
     onClick: () => {
       if (foldedIndices.size > 0) {
-        // 段階展開（旧 useOutline unfoldAll parity）: 折り畳み中の最小レベルのみ解除する。
-        const folded = currentHeadings.filter(
-          (h) => h.kind === "heading" && foldedIndices.has(h.headingIndex ?? -1),
-        );
-        if (folded.length > 0) {
-          const minLevel = Math.min(...folded.map((h) => h.level));
-          for (const h of folded) {
-            if (h.level === minLevel) foldedIndices.delete(h.headingIndex ?? -1);
-          }
-        } else {
-          foldedIndices.clear();
-        }
+        unfoldShallowestLevel(currentHeadings, foldedIndices);
       } else {
-        for (const h of currentHeadings) {
-          if (h.kind === "heading" && h.headingIndex !== undefined) {
-            foldedIndices.add(h.headingIndex);
-          }
-        }
+        foldAllHeadings(currentHeadings, foldedIndices);
       }
       syncFoldToEditor();
       render();
@@ -452,22 +464,15 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     }
   };
 
-  /** 個別行（heading or block）を生成する。listHandles へ子ハンドルを登録。 */
-  const buildItem = (config: {
-    h: HeadingItem;
+  /** 行のルート要素を作る。draggable なら drag ハンドラを登録し、解除も同じ handle に閉じる。 */
+  const createItemRow = (config: {
     idx: number;
-    hoIdx: number;
-    hoCount: number;
-    isFolded: boolean;
+    isDraggable: boolean;
     isDragging: boolean;
     isDropTarget: boolean;
-    blockPl: number;
+    plValue: number;
   }): HTMLElement => {
-    const { h, idx, hoIdx, hoCount, isFolded, isDragging, isDropTarget, blockPl } = config;
-    const isHeading = h.kind === "heading";
-    const isDraggable = isHeading && !!opts.onHeadingDragEnd;
-    const plValue = isHeading ? (h.level - 1) * 1.5 * 8 : blockPl * 8;
-
+    const { idx, isDraggable, isDragging, isDropTarget, plValue } = config;
     const row = document.createElement("div");
     row.className = "am-outline-item";
     row.style.cssText =
@@ -495,41 +500,51 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
         },
       });
     }
+    return row;
+  };
 
-    // 左端: 折り畳みボタン（heading）or ブロックアイコン（非 heading）。
-    if (isHeading) {
-      const headingIndex = h.headingIndex ?? -1;
-      const arrow = svgIcon(ICON_KEYBOARD_ARROW_DOWN, 16);
-      arrow.style.transition = "transform 0.15s";
-      arrow.style.transform = isFolded ? "rotate(-90deg)" : "rotate(0deg)";
-      const foldBtn = createIconButton({
-        size: "compact",
-        ariaLabel: `${isFolded ? t("expandSection") : t("collapseSection")} ${h.text || "(empty)"}`,
-        children: arrow,
-        onClick: (e) => {
-          e.stopPropagation();
-          if (foldedIndices.has(headingIndex)) foldedIndices.delete(headingIndex);
-          else foldedIndices.add(headingIndex);
-          syncFoldToEditor();
-          render();
-        },
-      });
-      foldBtn.el.setAttribute("aria-expanded", String(!isFolded));
-      foldBtn.el.style.color = "var(--am-color-text-secondary)";
-      foldBtn.el.style.marginRight = "2px";
-      foldBtn.el.style.flexShrink = "0";
-      listHandles.push(foldBtn);
-      row.appendChild(foldBtn.el);
-    } else {
-      const iconWrap = document.createElement("div");
-      iconWrap.style.cssText =
-        "display:flex;align-items:center;margin-right:4px;flex-shrink:0;" +
-        "color:var(--am-color-text-disabled);";
-      iconWrap.appendChild(blockIconSvg(h.kind as Exclude<OutlineKind, "heading">));
-      row.appendChild(iconWrap);
-    }
+  /** heading 行の左端: 折り畳みボタンを row へ追加する。 */
+  const appendFoldButton = (row: HTMLElement, h: HeadingItem, isFolded: boolean): void => {
+    const headingIndex = h.headingIndex ?? -1;
+    const arrow = svgIcon(ICON_KEYBOARD_ARROW_DOWN, 16);
+    arrow.style.transition = "transform 0.15s";
+    arrow.style.transform = isFolded ? "rotate(-90deg)" : "rotate(0deg)";
+    const foldBtn = createIconButton({
+      size: "compact",
+      ariaLabel: `${isFolded ? t("expandSection") : t("collapseSection")} ${h.text || "(empty)"}`,
+      children: arrow,
+      onClick: (e) => {
+        e.stopPropagation();
+        if (foldedIndices.has(headingIndex)) foldedIndices.delete(headingIndex);
+        else foldedIndices.add(headingIndex);
+        syncFoldToEditor();
+        render();
+      },
+    });
+    foldBtn.el.setAttribute("aria-expanded", String(!isFolded));
+    foldBtn.el.style.color = "var(--am-color-text-secondary)";
+    foldBtn.el.style.marginRight = "2px";
+    foldBtn.el.style.flexShrink = "0";
+    listHandles.push(foldBtn);
+    row.appendChild(foldBtn.el);
+  };
 
-    // クリック可能ラベル（ButtonBase component="div" 相当）。
+  /** 非 heading 行の左端: ブロック種別アイコンを row へ追加する。 */
+  const appendBlockIcon = (row: HTMLElement, h: HeadingItem): void => {
+    const iconWrap = document.createElement("div");
+    iconWrap.style.cssText =
+      "display:flex;align-items:center;margin-right:4px;flex-shrink:0;" +
+      "color:var(--am-color-text-disabled);";
+    iconWrap.appendChild(blockIconSvg(h.kind as Exclude<OutlineKind, "heading">));
+    row.appendChild(iconWrap);
+  };
+
+  /** クリック可能ラベル（ButtonBase component="div" 相当）を row へ追加する。 */
+  const appendLabel = (
+    row: HTMLElement,
+    config: { h: HeadingItem; hoIdx: number; hoCount: number; isFolded: boolean; isDraggable: boolean },
+  ): void => {
+    const { h, hoIdx, hoCount, isFolded, isDraggable } = config;
     const label = document.createElement("div");
     label.setAttribute("role", "button");
     label.setAttribute("tabindex", "0");
@@ -559,6 +574,90 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
       },
     });
     row.appendChild(label);
+  };
+
+  /**
+   * 確定セクションロック（Phase 5 S4）ボタンを追加する。
+   * ロック中は row へ常時表示、未ロックは hover 群（moveBtns）へ置く。
+   * セクションロックの options が揃っていない場合は何もしない。
+   */
+  const appendSectionLockButton = (
+    targets: { row: HTMLElement; moveBtns: HTMLElement },
+    h: HeadingItem,
+  ): void => {
+    const getSectionLocks = opts.getSectionLocks;
+    const onToggleSectionLock = opts.onToggleSectionLock;
+    if (!getSectionLocks || !onToggleSectionLock) return;
+    const headingIndex = h.headingIndex ?? -1;
+    const lock = getSectionLocks().find((l) => l.headingIndex === headingIndex);
+    const lockLabel = lock
+      ? lock.tampered
+        ? t("sectionLockTampered")
+        : t("sectionUnlock")
+      : t("sectionLock");
+    const lockBtn = createIconButton({
+      size: "compact",
+      ariaLabel: `${lockLabel} ${h.text || "(empty)"}`,
+      children: svgIcon(lock ? ICON_LOCK : ICON_LOCK_OPEN, 14),
+      onClick: (e) => {
+        e.stopPropagation();
+        if (opts.canToggleSectionLock && !opts.canToggleSectionLock()) return;
+        onToggleSectionLock(headingIndex);
+      },
+    });
+    lockBtn.el.dataset.amOutlineLock = lock ? (lock.tampered ? "tampered" : "locked") : "unlocked";
+    const lockTip = createTooltip({ reference: lockBtn.el, title: lockLabel, placement: "top" });
+    listHandles.push(lockBtn, lockTip);
+    if (lock) {
+      lockBtn.el.style.flexShrink = "0";
+      targets.row.appendChild(lockBtn.el);
+    } else {
+      targets.moveBtns.appendChild(lockBtn.el);
+    }
+  };
+
+  /** 削除ボタンを hover 群（moveBtns）へ追加する。onOutlineDelete 未指定なら何もしない。 */
+  const appendDeleteButton = (moveBtns: HTMLElement, h: HeadingItem): void => {
+    const onOutlineDelete = opts.onOutlineDelete;
+    if (!onOutlineDelete) return;
+    const delBtn = createIconButton({
+      size: "compact",
+      ariaLabel: `${t("delete")} ${h.text || ""}`,
+      children: svgIcon(ICON_DELETE_OUTLINE, 14),
+      onClick: (e) => {
+        e.stopPropagation();
+        onOutlineDelete(h.pos, h.kind);
+      },
+    });
+    const delTip = createTooltip({ reference: delBtn.el, title: t("delete"), placement: "top" });
+    listHandles.push(delBtn, delTip);
+    moveBtns.appendChild(delBtn.el);
+  };
+
+  /** 個別行（heading or block）を生成する。listHandles へ子ハンドルを登録。 */
+  const buildItem = (config: {
+    h: HeadingItem;
+    idx: number;
+    hoIdx: number;
+    hoCount: number;
+    isFolded: boolean;
+    isDragging: boolean;
+    isDropTarget: boolean;
+    blockPl: number;
+  }): HTMLElement => {
+    const { h, idx, hoIdx, hoCount, isFolded, isDragging, isDropTarget, blockPl } = config;
+    const isHeading = h.kind === "heading";
+    const isDraggable = isHeading && !!opts.onHeadingDragEnd;
+    const plValue = isHeading ? (h.level - 1) * 1.5 * 8 : blockPl * 8;
+
+    const row = createItemRow({ idx, isDraggable, isDragging, isDropTarget, plValue });
+
+    // 左端: 折り畳みボタン（heading）or ブロックアイコン（非 heading）。
+    if (isHeading) appendFoldButton(row, h, isFolded);
+    else appendBlockIcon(row, h);
+
+    // クリック可能ラベル（ButtonBase component="div" 相当）。
+    appendLabel(row, { h, hoIdx, hoCount, isFolded, isDraggable });
 
     // 右端: 削除ボタン（hover/focus-within で表示・CSS 注入で制御）。
     const moveBtns = document.createElement("div");
@@ -568,50 +667,8 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     // （vanilla-ui-conventions §3。S4 受入で顕在化した既存の潜在バグ）。
     moveBtns.style.cssText = "display:flex;flex-shrink:0;";
     // 確定セクションロック（Phase 5 S4）: ロック中は常時表示、未ロックは hover 群に置く。
-    if (isHeading && opts.getSectionLocks && opts.onToggleSectionLock) {
-      const onToggleSectionLock = opts.onToggleSectionLock;
-      const headingIndex = h.headingIndex ?? -1;
-      const lock = opts.getSectionLocks().find((l) => l.headingIndex === headingIndex);
-      const lockLabel = lock
-        ? lock.tampered
-          ? t("sectionLockTampered")
-          : t("sectionUnlock")
-        : t("sectionLock");
-      const lockBtn = createIconButton({
-        size: "compact",
-        ariaLabel: `${lockLabel} ${h.text || "(empty)"}`,
-        children: svgIcon(lock ? ICON_LOCK : ICON_LOCK_OPEN, 14),
-        onClick: (e) => {
-          e.stopPropagation();
-          if (opts.canToggleSectionLock && !opts.canToggleSectionLock()) return;
-          onToggleSectionLock(headingIndex);
-        },
-      });
-      lockBtn.el.dataset.amOutlineLock = lock ? (lock.tampered ? "tampered" : "locked") : "unlocked";
-      const lockTip = createTooltip({ reference: lockBtn.el, title: lockLabel, placement: "top" });
-      listHandles.push(lockBtn, lockTip);
-      if (lock) {
-        lockBtn.el.style.flexShrink = "0";
-        row.appendChild(lockBtn.el);
-      } else {
-        moveBtns.appendChild(lockBtn.el);
-      }
-    }
-    if (opts.onOutlineDelete) {
-      const onOutlineDelete = opts.onOutlineDelete;
-      const delBtn = createIconButton({
-        size: "compact",
-        ariaLabel: `${t("delete")} ${h.text || ""}`,
-        children: svgIcon(ICON_DELETE_OUTLINE, 14),
-        onClick: (e) => {
-          e.stopPropagation();
-          onOutlineDelete(h.pos, h.kind);
-        },
-      });
-      const delTip = createTooltip({ reference: delBtn.el, title: t("delete"), placement: "top" });
-      listHandles.push(delBtn, delTip);
-      moveBtns.appendChild(delBtn.el);
-    }
+    if (isHeading) appendSectionLockButton({ row, moveBtns }, h);
+    appendDeleteButton(moveBtns, h);
     row.appendChild(moveBtns);
 
     return row;

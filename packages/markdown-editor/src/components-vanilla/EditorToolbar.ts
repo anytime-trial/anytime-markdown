@@ -616,10 +616,8 @@ export function createEditorToolbar(
     );
   }
 
-  // --- ビュー切替（explorer / outline / comments） — md 以上で表示 ---
-  const desktopViews = document.createElement("div");
-  desktopViews.dataset.desktopContents = "";
-  {
+  /** ビュー切替（explorer / outline / comments）の ToggleButtonGroup を container へ追加する。 */
+  function buildDesktopViewToggles(container: HTMLElement): void {
     const group = createToggleButtonGroup({ size: "small", ariaLabel: t("view") });
     group.el.style.height = "30px";
     toggleGroups.push(group);
@@ -669,8 +667,13 @@ export function createEditorToolbar(
       withTooltip(span, label);
       group.register(btn);
     }
-    desktopViews.appendChild(group.el);
+    container.appendChild(group.el);
   }
+
+  // --- ビュー切替（explorer / outline / comments） — md 以上で表示 ---
+  const desktopViews = document.createElement("div");
+  desktopViews.dataset.desktopContents = "";
+  buildDesktopViewToggles(desktopViews);
   root.appendChild(desktopViews);
 
   // --- spacer（右寄せ） ---

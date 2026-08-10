@@ -121,15 +121,79 @@ ${sel}::after { content: "${label}"; color: ${color}; }
 `;
 }
 
+/** isDark で切り替わるテーマ依存トークン（見出し装飾 + スクロールバー） */
+interface ThemeTokens {
+  headingLink: string;
+  h1Gradient: string;
+  h2Gradient: string;
+  h2Border: string;
+  h3Border: string;
+  scrollThumb: string;
+  scrollThumbHover: string;
+  scrollThumbActive: string;
+  scrollRadius: string;
+}
+
+/** isDark に応じた見出し装飾・スクロールバーのトークンを解決する */
+function resolveThemeTokens(isDark: boolean): ThemeTokens {
+  return {
+    headingLink: isDark ? DEFAULT_DARK_HEADING_LINK : DEFAULT_LIGHT_HEADING_LINK,
+    h1Gradient: isDark ? DEFAULT_DARK_H1_GRADIENT : DEFAULT_LIGHT_H1_GRADIENT,
+    h2Gradient: isDark ? DEFAULT_DARK_H2_GRADIENT : DEFAULT_LIGHT_H2_GRADIENT,
+    h2Border: isDark ? DEFAULT_DARK_H2_BORDER : DEFAULT_LIGHT_H2_BORDER,
+    h3Border: isDark ? DEFAULT_DARK_H3_BORDER : DEFAULT_LIGHT_H3_BORDER,
+    // スクロールバー: 仕様6章。ダーク=アンバーレール / ライト=墨線（border-radius 0）。
+    scrollThumb: isDark ? alpha(ACCENT_COLOR, 0.5) : "rgba(31,30,28,0.40)",
+    scrollThumbHover: isDark ? alpha(ACCENT_COLOR, 0.8) : "rgba(31,30,28,0.60)",
+    scrollThumbActive: isDark ? ACCENT_COLOR : "rgba(31,30,28,0.80)",
+    scrollRadius: isDark ? "2px" : "0",
+  };
+}
+
+/** コード（旧 codeStyles）セクションの CSS */
+function codeSectionCss(isDark: boolean, actionHover: string): string {
+  return `/* === コード（旧 codeStyles） ===================================================== */
+${tiptap("code")} {
+  background-color: ${isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG};
+  color: ${isDark ? getGrey(isDark, 300) : DEFAULT_LIGHT_INLINE_CODE};
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-family: monospace;
+  font-size: 0.875em;
+}
+${tiptap("pre")} {
+  background-color: ${isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG};
+  border: 1px solid ${isDark ? actionHover : "transparent"};
+  border-radius: 4px;
+  padding: 16px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  overflow: auto;
+}
+${tiptap("pre code")} {
+  background-color: transparent;
+  color: ${isDark ? getGrey(isDark, 300) : "inherit"};
+  padding: 0;
+  border-radius: 0;
+}
+${hljsTokenCss(isDark ? HLJS_DARK : HLJS_LIGHT)}`;
+}
+
 /**
  * `.tiptap` コンテンツ装飾 CSS を生成する（純粋関数）。
  */
 export function buildEditorContentCss(isDark: boolean): string {
-  const headingLink = isDark ? DEFAULT_DARK_HEADING_LINK : DEFAULT_LIGHT_HEADING_LINK;
-  const h1Gradient = isDark ? DEFAULT_DARK_H1_GRADIENT : DEFAULT_LIGHT_H1_GRADIENT;
-  const h2Gradient = isDark ? DEFAULT_DARK_H2_GRADIENT : DEFAULT_LIGHT_H2_GRADIENT;
-  const h2Border = isDark ? DEFAULT_DARK_H2_BORDER : DEFAULT_LIGHT_H2_BORDER;
-  const h3Border = isDark ? DEFAULT_DARK_H3_BORDER : DEFAULT_LIGHT_H3_BORDER;
+  const {
+    headingLink,
+    h1Gradient,
+    h2Gradient,
+    h2Border,
+    h3Border,
+    scrollThumb,
+    scrollThumbHover,
+    scrollThumbActive,
+    scrollRadius,
+  } = resolveThemeTokens(isDark);
   const actionHover = getActionHover(isDark);
   const actionSelected = getActionSelected(isDark);
   const divider = getDivider(isDark);
@@ -137,11 +201,6 @@ export function buildEditorContentCss(isDark: boolean): string {
   const textSecondary = getTextSecondary(isDark);
   const textDisabled = getTextDisabled(isDark);
   const primaryMain = getPrimaryMain(isDark);
-  // スクロールバー: 仕様6章。ダーク=アンバーレール / ライト=墨線（border-radius 0）。
-  const scrollThumb = isDark ? alpha(ACCENT_COLOR, 0.5) : "rgba(31,30,28,0.40)";
-  const scrollThumbHover = isDark ? alpha(ACCENT_COLOR, 0.8) : "rgba(31,30,28,0.60)";
-  const scrollThumbActive = isDark ? ACCENT_COLOR : "rgba(31,30,28,0.80)";
-  const scrollRadius = isDark ? "2px" : "0";
 
   const hoverShowSelectors = HOVER_LABEL_TARGETS.flatMap((target) => [
     `${SCOPE} .tiptap ${target}:hover::before`,
@@ -352,31 +411,7 @@ ${tiptap("li")} { margin-bottom: 2px; }
   ${tiptap("h3")} { font-size: 1.15em; }
 }
 
-/* === コード（旧 codeStyles） ===================================================== */
-${tiptap("code")} {
-  background-color: ${isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG};
-  color: ${isDark ? getGrey(isDark, 300) : DEFAULT_LIGHT_INLINE_CODE};
-  padding: 2px 4px;
-  border-radius: 2px;
-  font-family: monospace;
-  font-size: 0.875em;
-}
-${tiptap("pre")} {
-  background-color: ${isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG};
-  border: 1px solid ${isDark ? actionHover : "transparent"};
-  border-radius: 4px;
-  padding: 16px;
-  margin-top: 8px;
-  margin-bottom: 8px;
-  overflow: auto;
-}
-${tiptap("pre code")} {
-  background-color: transparent;
-  color: ${isDark ? getGrey(isDark, 300) : "inherit"};
-  padding: 0;
-  border-radius: 0;
-}
-${hljsTokenCss(isDark ? HLJS_DARK : HLJS_LIGHT)}
+${codeSectionCss(isDark, actionHover)}
 
 /* === ブロック要素（旧 blockStyles） ============================================== */
 ${tiptap("ul")}, ${tiptap("ol")} {

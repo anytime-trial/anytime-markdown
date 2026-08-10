@@ -476,6 +476,51 @@ function isLinkedMdToken(value: unknown): value is LinkedMdToken {
   return typeof record.mtimeMs === "number" && typeof record.size === "number";
 }
 
+/** webview / 同一オリジン以外からの message か（＝弾く対象か）を判定する。 */
+function isUntrustedMessageOrigin(origin: string): boolean {
+  return (
+    !origin ||
+    (!origin.startsWith("vscode-webview://") &&
+      origin !== globalThis.location?.origin)
+  );
+}
+
+/** linkedMdContent 応答で pending fetch を解決する（エラー・不正形状は reject）。 */
+function settleLinkedMdContent(
+  record: Record<string, unknown>,
+  pending: Extract<LinkedMdPending, { kind: "fetch" }>,
+): void {
+  const error = typeof record.error === "string" ? record.error : "";
+  if (error) {
+    pending.reject(new Error(error));
+    return;
+  }
+  if (
+    typeof record.content === "string" &&
+    typeof record.resolvedPath === "string" &&
+    isLinkedMdToken(record.token)
+  ) {
+    pending.resolve({
+      content: record.content,
+      resolvedPath: record.resolvedPath,
+      token: record.token,
+    });
+  } else {
+    pending.reject(new Error("invalid-linked-md-content"));
+  }
+}
+
+/** linkedMdSaved 応答で pending save を解決する。 */
+function settleLinkedMdSaved(
+  record: Record<string, unknown>,
+  pending: Extract<LinkedMdPending, { kind: "save" }>,
+): void {
+  const token = isLinkedMdToken(record.token) ? record.token : null;
+  const conflict = record.conflict === true;
+  const error = typeof record.error === "string" ? record.error : undefined;
+  pending.resolve({ token, conflict, error });
+}
+
 function nextLinkedMdRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `linked-md-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -525,11 +570,7 @@ function installLinkedMdProviderBridge(vscodeApi: VsCodeApi | null | undefined):
     });
 
   const onMessage = (event: MessageEvent): void => {
-    if (
-      !event.origin ||
-      (!event.origin.startsWith("vscode-webview://") &&
-        event.origin !== globalThis.location?.origin)
-    ) {
+    if (isUntrustedMessageOrigin(event.origin)) {
       return;
     }
     const data = event.data;
@@ -543,34 +584,14 @@ function installLinkedMdProviderBridge(vscodeApi: VsCodeApi | null | undefined):
     if (record.type === "linkedMdContent" && pending.kind === "fetch") {
       pendingRequests.delete(requestId);
       clearTimeout(pending.timer);
-      const error = typeof record.error === "string" ? record.error : "";
-      if (error) {
-        pending.reject(new Error(error));
-        return;
-      }
-      if (
-        typeof record.content === "string" &&
-        typeof record.resolvedPath === "string" &&
-        isLinkedMdToken(record.token)
-      ) {
-        pending.resolve({
-          content: record.content,
-          resolvedPath: record.resolvedPath,
-          token: record.token,
-        });
-      } else {
-        pending.reject(new Error("invalid-linked-md-content"));
-      }
+      settleLinkedMdContent(record, pending);
       return;
     }
 
     if (record.type === "linkedMdSaved" && pending.kind === "save") {
       pendingRequests.delete(requestId);
       clearTimeout(pending.timer);
-      const token = isLinkedMdToken(record.token) ? record.token : null;
-      const conflict = record.conflict === true;
-      const error = typeof record.error === "string" ? record.error : undefined;
-      pending.resolve({ token, conflict, error });
+      settleLinkedMdSaved(record, pending);
     }
   };
 

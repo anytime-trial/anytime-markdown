@@ -353,9 +353,8 @@ export function createSourceModeController(
     options.onSourceSave?.(sourceText);
   };
 
-  const applyMode = (next: VanillaEditorMode, persistNext = true): void => {
-    if (next === mode) return;
-    // 現モードの後始末
+  /** 現モードの後始末（source からの離脱同期 / review・readonly フラグの解除）。 */
+  const teardownCurrentMode = (next: VanillaEditorMode): void => {
     if (mode === "source") {
       if (next !== "source") {
         syncSourceToEditor();
@@ -364,7 +363,10 @@ export function createSourceModeController(
     } else if (mode === "review" || mode === "readonly") {
       clearReviewFlags();
     }
-    // 新モードの適用
+  };
+
+  /** 新モードの適用（textarea 表示・review/readonly の DOM フラグ・アナウンス）。 */
+  const enterMode = (next: VanillaEditorMode): void => {
     if (next === "source") {
       if (typeof editor.commands.closeSearch === "function") {
         editor.commands.closeSearch();
@@ -388,6 +390,12 @@ export function createSourceModeController(
     } else {
       options.announce?.(t("switchedToWysiwyg"));
     }
+  };
+
+  const applyMode = (next: VanillaEditorMode, persistNext = true): void => {
+    if (next === mode) return;
+    teardownCurrentMode(next);
+    enterMode(next);
     mode = next;
     if (persistNext) persist(next);
     options.onModeApplied(next);
