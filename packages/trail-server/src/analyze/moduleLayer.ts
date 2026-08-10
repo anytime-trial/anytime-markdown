@@ -158,14 +158,28 @@ function walkUntil(
   const entries = fs.readdirSync(root, { withFileTypes: true });
   for (const entry of entries) {
     if (budget.n <= 0) return false;
-    const full = path.join(root, entry.name);
-    if (entry.isDirectory()) {
-      if (MARKER_WALK_EXCLUDE.has(entry.name)) continue;
-      if (walkUntil(full, visit, budget)) return true;
-    } else if (entry.isFile()) {
-      budget.n--;
-      if (visit(full)) return true;
-    }
+    if (walkUntilEntry(path.join(root, entry.name), entry, { visit, budget })) return true;
+  }
+  return false;
+}
+
+/**
+ * `walkUntil` の 1 エントリ分。ディレクトリなら（除外対象でなければ）再帰し、
+ * ファイルなら予算を 1 消費して `visit` を適用する。true は「見つかったので打ち切り」を意味し、
+ * false は元の `continue` / 素通りと同じく次のエントリへ進むことを意味する。
+ */
+function walkUntilEntry(
+  full: string,
+  entry: fs.Dirent,
+  ctx: { visit: (fullPath: string) => boolean; budget: { n: number } },
+): boolean {
+  if (entry.isDirectory()) {
+    if (MARKER_WALK_EXCLUDE.has(entry.name)) return false;
+    return walkUntil(full, ctx.visit, ctx.budget);
+  }
+  if (entry.isFile()) {
+    ctx.budget.n--;
+    return ctx.visit(full);
   }
   return false;
 }

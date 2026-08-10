@@ -348,6 +348,86 @@ async function computeFileAnalysisStep(args: {
   }
 }
 
+/** best-effort な失敗を warnings / ログへ載せるためのメッセージ整形。 */
+function formatFailure(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** runAnalyzeCurrentCodePipeline の各ステップが共通で使う通知先。 */
+interface AnalyzeStepCtx {
+  readonly repoName: string;
+  readonly logger: Logger;
+  readonly warnings: string[];
+}
+
+/** `.anytime/trail/analyze-exclude` の初回シード。失敗は warnings へ退避して解析は継続する。 */
+function seedAnalyzeExcludeStep(analysisRoot: string, ctx: AnalyzeStepCtx): void {
+  try {
+    // seed は従来どおり解析対象リポ自身に対して行う（読み込み先は excludeRoot へ切替）。
+    const seeded = seedAnalyzeExclude(analysisRoot);
+    if (seeded) {
+      ctx.logger.info(`C4 analysis [${ctx.repoName}]: .anytime/trail/analyze-exclude created`);
+    }
+  } catch (err) {
+    ctx.warnings.push(`seedAnalyzeExclude failed: ${formatFailure(err)}`);
+  }
+}
+
+/** HEAD コミット ID を取得する。git 非リポでは警告のみで空文字を返す（両ブランチ共通）。 */
+function resolveHeadCommit(analysisRoot: string, ctx: AnalyzeStepCtx): string {
+  try {
+    return new ExecFileGitService(analysisRoot).getHeadCommit();
+  } catch (err) {
+    ctx.logger.warn(
+      `C4 analysis [${ctx.repoName}]: getHeadCommit failed (not a git repo?): ${formatFailure(err)}`,
+    );
+    return '';
+  }
+}
+
+/** activity_current_coverage の更新。失敗は warn + warnings で継続する。 */
+function importCurrentCoverageStep(
+  trailDb: TrailDatabase,
+  analysisRoot: string,
+  ctx: AnalyzeStepCtx,
+): void {
+  try {
+    const count = trailDb.importCurrentCoverage(analysisRoot, ctx.repoName);
+    ctx.logger.info(`C4 analysis [${ctx.repoName}]: activity_current_coverage updated (${count} entries)`);
+  } catch (err) {
+    const msg = `importCurrentCoverage failed: ${formatFailure(err)}`;
+    ctx.logger.warn(`C4 analysis [${ctx.repoName}]: ${msg}`);
+    ctx.warnings.push(msg);
+  }
+}
+
+/** `.anytime/dead-code-ignore` をシードする（初回のみ作成）。 */
+async function seedDeadCodeIgnoreStep(
+  analysisRoot: string,
+  ctx: AnalyzeStepCtx,
+  onProgress: AnalyzeCurrentOpts['onProgress'],
+): Promise<void> {
+  try {
+    onProgress?.('Seeding dead-code-ignore...');
+    const { seedDeadCodeIgnore } = await import('@anytime-markdown/trail-activity/deadCode');
+    const seeded = seedDeadCodeIgnore(analysisRoot);
+    if (seeded) {
+      ctx.logger.info(`C4 analysis [${ctx.repoName}]: .anytime/dead-code-ignore created`);
+    }
+  } catch (err) {
+    ctx.warnings.push(`seedDeadCodeIgnore failed: ${formatFailure(err)}`);
+  }
+}
+
+/**
+ * 解析結果グラフの規模をログへ出す。graph 未生成（両ブランチとも失敗）でも 0 件として記録する。
+ */
+function logAnalyzedGraphSize(graph: AnalyzeBranchResult['graph'], ctx: AnalyzeStepCtx): void {
+  ctx.logger.info(
+    `C4 analysis [${ctx.repoName}]: analyzed ${graph?.metadata.fileCount ?? 0} files, ${graph?.nodes.length ?? 0} nodes, ${graph?.edges.length ?? 0} edges`,
+  );
+}
+
 /**
  * C4 / コードグラフ解析の本体パイプライン。
  * VS Code コマンド (`anytime-trail.analyzeCurrentCode`) と HTTP エンドポイント
@@ -365,31 +445,17 @@ export async function runAnalyzeCurrentCodePipeline(
   const startedAt = Date.now();
   const repoName = path.basename(analysisRoot);
   const warnings: string[] = [];
+  const stepCtx: AnalyzeStepCtx = { repoName, logger, warnings };
 
   callbacks.notifyProgress('Loading project...', 0);
   onProgress?.('Loading project...', 0);
 
-  try {
-    // seed は従来どおり解析対象リポ自身に対して行う（読み込み先は excludeRoot へ切替）。
-    const seeded = seedAnalyzeExclude(analysisRoot);
-    if (seeded) {
-      logger.info(`C4 analysis [${repoName}]: .anytime/trail/analyze-exclude created`);
-    }
-  } catch (err) {
-    warnings.push(`seedAnalyzeExclude failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  seedAnalyzeExcludeStep(analysisRoot, stepCtx);
   // 除外パターンは開いているワークスペース (excludeRoot) から読む。省略時は analysisRoot。
   const exclude = loadAnalyzeExclude(opts.excludeRoot ?? analysisRoot);
 
   // commitId は両ブランチ共通（getHeadCommit は git 非リポでは警告のみ）。
-  let commitId = '';
-  try {
-    commitId = new ExecFileGitService(analysisRoot).getHeadCommit();
-  } catch (err) {
-    logger.warn(
-      `C4 analysis [${repoName}]: getHeadCommit failed (not a git repo?): ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+  const commitId = resolveHeadCommit(analysisRoot, stepCtx);
 
   // tsconfig があれば TS 経路、無ければ Python-only 経路。両者とも activity_current_graphs へ
   // TrailGraph を保存し、scored / lineCountByFile / categoryByFile を共通末尾へ渡す。
@@ -397,9 +463,7 @@ export async function runAnalyzeCurrentCodePipeline(
     ? await analyzeTypeScriptBranch(opts, opts.tsconfigPath, exclude, commitId, repoName, logger, warnings)
     : await analyzePythonOnlyBranch(opts, exclude, commitId, repoName, logger, warnings);
   const graph = branch.graph;
-  logger.info(
-    `C4 analysis [${repoName}]: analyzed ${graph?.metadata.fileCount ?? 0} files, ${graph?.nodes.length ?? 0} nodes, ${graph?.edges.length ?? 0} edges`,
-  );
+  logAnalyzedGraphSize(graph, stepCtx);
 
   // C4 モデル (activity_current_graphs → trailToC4) は branch 内の saveCurrentGraph で更新済み。
   // code graph 生成 (下記 try) の成否に依存せず viewer の C4 モデルを再 fetch させるため、
@@ -424,26 +488,9 @@ export async function runAnalyzeCurrentCodePipeline(
     logger.warn(`C4 analysis [${repoName}]: boundary drift skipped (code graph generation failed)`);
   }
 
-  try {
-    const count = trailDb.importCurrentCoverage(analysisRoot, repoName);
-    logger.info(`C4 analysis [${repoName}]: activity_current_coverage updated (${count} entries)`);
-  } catch (err) {
-    const msg = `importCurrentCoverage failed: ${err instanceof Error ? err.message : String(err)}`;
-    logger.warn(`C4 analysis [${repoName}]: ${msg}`);
-    warnings.push(msg);
-  }
+  importCurrentCoverageStep(trailDb, analysisRoot, stepCtx);
 
-  // .anytime/dead-code-ignore をシードする（初回のみ作成）
-  try {
-    onProgress?.('Seeding dead-code-ignore...');
-    const { seedDeadCodeIgnore } = await import('@anytime-markdown/trail-activity/deadCode');
-    const seeded = seedDeadCodeIgnore(analysisRoot);
-    if (seeded) {
-      logger.info(`C4 analysis [${repoName}]: .anytime/dead-code-ignore created`);
-    }
-  } catch (err) {
-    warnings.push(`seedDeadCodeIgnore failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  await seedDeadCodeIgnoreStep(analysisRoot, stepCtx, onProgress);
 
   // ファイル別・関数別デッドコード解析を activity_current_file_analysis / activity_current_function_analysis に保存。
   // scored / lineCountByFile / categoryByFile は実行したブランチ（TS / Python-only）の結果を使う。

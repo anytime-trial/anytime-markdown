@@ -524,72 +524,93 @@ function validateAnalyzersSection(
   return analyzers;
 }
 
+/** sources の各サブセクション検証で共有する警告出力先。 */
+interface SourceSectionCtx {
+  readonly sourceLabel: string;
+  readonly warnings: string[];
+}
+
+type PartialLepSources = NonNullable<PartialLepConfig['sources']>;
+
+/** `sources.github` を射影して代入する。未指定なら何もせず、非オブジェクトなら警告のみ残す。 */
+function applyGitHubSource(raw: unknown, sources: PartialLepSources, ctx: SourceSectionCtx): void {
+  if (raw === undefined) return;
+  if (!isPlainObject(raw)) {
+    ctx.warnings.push(`${ctx.sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
+    return;
+  }
+  const github: Partial<LepGitHubSourceConfig> = {};
+  if (typeof raw['enabled'] === 'boolean') github.enabled = raw['enabled'];
+  if (typeof raw['tokenEnv'] === 'string') github.tokenEnv = raw['tokenEnv'];
+  if (typeof raw['maxPrs'] === 'number' && Number.isFinite(raw['maxPrs'])) github.maxPrs = raw['maxPrs'];
+  if (typeof raw['since'] === 'string') github.since = raw['since'];
+  sources.github = github;
+}
+
+/** `sources.claude` を射影して代入する。未指定なら何もせず、非オブジェクトなら警告のみ残す。 */
+function applyClaudeSource(raw: unknown, sources: PartialLepSources, ctx: SourceSectionCtx): void {
+  if (raw === undefined) return;
+  if (!isPlainObject(raw)) {
+    ctx.warnings.push(`${ctx.sourceLabel}: sources.claude はオブジェクトである必要があります (無視)`);
+    return;
+  }
+  const claude: Partial<LepClaudeSourceConfig> = {};
+  if (typeof raw['projectsDir'] === 'string') claude.projectsDir = raw['projectsDir'];
+  sources.claude = claude;
+}
+
+/** `sources.codex` を射影して代入する。未指定なら何もせず、非オブジェクトなら警告のみ残す。 */
+function applyCodexSource(raw: unknown, sources: PartialLepSources, ctx: SourceSectionCtx): void {
+  if (raw === undefined) return;
+  if (!isPlainObject(raw)) {
+    ctx.warnings.push(`${ctx.sourceLabel}: sources.codex はオブジェクトである必要があります (無視)`);
+    return;
+  }
+  const codex: Partial<LepCodexSourceConfig> = {};
+  if (typeof raw['sessionsDir'] === 'string') codex.sessionsDir = raw['sessionsDir'];
+  sources.codex = codex;
+}
+
+/** `sources.docs` を射影して代入する。未指定なら何もせず、非オブジェクトなら警告のみ残す。 */
+function applyDocsSource(raw: unknown, sources: PartialLepSources, ctx: SourceSectionCtx): void {
+  if (raw === undefined) return;
+  if (!isPlainObject(raw)) {
+    ctx.warnings.push(`${ctx.sourceLabel}: sources.docs はオブジェクトである必要があります (無視)`);
+    return;
+  }
+  const docs: Partial<LepDocsSourceConfig> = {};
+  if (typeof raw['root'] === 'string') docs.root = raw['root'];
+  sources.docs = docs;
+}
+
+/** `sources.gitRoots` を射影して代入する。未指定なら何もせず、文字列配列でなければ警告のみ残す。 */
+function applyGitRootsSource(raw: unknown, sources: PartialLepSources, ctx: SourceSectionCtx): void {
+  if (raw === undefined) return;
+  if (Array.isArray(raw) && raw.every((r) => typeof r === 'string')) {
+    sources.gitRoots = raw as string[];
+  } else {
+    ctx.warnings.push(`${ctx.sourceLabel}: sources.gitRoots は文字列配列である必要があります (無視)`);
+  }
+}
+
 function validateSourcesSection(
   raw: unknown,
   sourceLabel: string,
   warnings: string[],
-): NonNullable<PartialLepConfig['sources']> | undefined {
+): PartialLepSources | undefined {
   if (raw === undefined) return undefined;
   if (!isPlainObject(raw)) {
     warnings.push(`${sourceLabel}: sources はオブジェクトである必要があります (無視)`);
     return undefined;
   }
-  const sources: NonNullable<PartialLepConfig['sources']> = {};
+  const sources: PartialLepSources = {};
+  const ctx: SourceSectionCtx = { sourceLabel, warnings };
 
-  if (raw['github'] !== undefined) {
-    if (isPlainObject(raw['github'])) {
-      const g = raw['github'];
-      const github: Partial<LepGitHubSourceConfig> = {};
-      if (typeof g['enabled'] === 'boolean') github.enabled = g['enabled'];
-      if (typeof g['tokenEnv'] === 'string') github.tokenEnv = g['tokenEnv'];
-      if (typeof g['maxPrs'] === 'number' && Number.isFinite(g['maxPrs'])) github.maxPrs = g['maxPrs'];
-      if (typeof g['since'] === 'string') github.since = g['since'];
-      sources.github = github;
-    } else {
-      warnings.push(`${sourceLabel}: sources.github はオブジェクトである必要があります (無視)`);
-    }
-  }
-
-  if (raw['claude'] !== undefined) {
-    if (isPlainObject(raw['claude'])) {
-      const c = raw['claude'];
-      const claude: Partial<LepClaudeSourceConfig> = {};
-      if (typeof c['projectsDir'] === 'string') claude.projectsDir = c['projectsDir'];
-      sources.claude = claude;
-    } else {
-      warnings.push(`${sourceLabel}: sources.claude はオブジェクトである必要があります (無視)`);
-    }
-  }
-
-  if (raw['codex'] !== undefined) {
-    if (isPlainObject(raw['codex'])) {
-      const cx = raw['codex'];
-      const codex: Partial<LepCodexSourceConfig> = {};
-      if (typeof cx['sessionsDir'] === 'string') codex.sessionsDir = cx['sessionsDir'];
-      sources.codex = codex;
-    } else {
-      warnings.push(`${sourceLabel}: sources.codex はオブジェクトである必要があります (無視)`);
-    }
-  }
-
-  if (raw['docs'] !== undefined) {
-    if (isPlainObject(raw['docs'])) {
-      const dc = raw['docs'];
-      const docs: Partial<LepDocsSourceConfig> = {};
-      if (typeof dc['root'] === 'string') docs.root = dc['root'];
-      sources.docs = docs;
-    } else {
-      warnings.push(`${sourceLabel}: sources.docs はオブジェクトである必要があります (無視)`);
-    }
-  }
-
-  if (raw['gitRoots'] !== undefined) {
-    if (Array.isArray(raw['gitRoots']) && raw['gitRoots'].every((r) => typeof r === 'string')) {
-      sources.gitRoots = raw['gitRoots'] as string[];
-    } else {
-      warnings.push(`${sourceLabel}: sources.gitRoots は文字列配列である必要があります (無視)`);
-    }
-  }
+  applyGitHubSource(raw['github'], sources, ctx);
+  applyClaudeSource(raw['claude'], sources, ctx);
+  applyCodexSource(raw['codex'], sources, ctx);
+  applyDocsSource(raw['docs'], sources, ctx);
+  applyGitRootsSource(raw['gitRoots'], sources, ctx);
 
   return Object.keys(sources).length > 0 ? sources : undefined;
 }
@@ -937,48 +958,64 @@ export function legacyFromConfigJson(raw: unknown): LegacyLepConfigInput {
   const out: LegacyLepConfigInput = {};
   if (!isPlainObject(raw)) return out;
 
-  if (isPlainObject(raw['analyzeAll'])) {
-    const a = raw['analyzeAll'];
-    const schedule: Partial<LepScheduleConfig> = {};
-    if (typeof a['intervalSec'] === 'number') schedule.intervalSec = a['intervalSec'];
-    if (typeof a['runOnStart'] === 'boolean') schedule.runOnStart = a['runOnStart'];
-    if (typeof a['startupDelaySec'] === 'number') schedule.startupDelaySec = a['startupDelaySec'];
-    if (Object.keys(schedule).length > 0) out.analyzeAll = schedule;
-  }
+  const analyzeAll = legacyAnalyzeAllSchedule(raw['analyzeAll']);
+  if (analyzeAll) out.analyzeAll = analyzeAll;
 
-  if (Array.isArray(raw['gitRoots']) && raw['gitRoots'].every((r) => typeof r === 'string')) {
-    out.gitRoots = raw['gitRoots'] as string[];
-  }
+  const gitRoots = legacyGitRoots(raw['gitRoots']);
+  if (gitRoots) out.gitRoots = gitRoots;
 
   const mem = isPlainObject(raw['memory']) ? raw['memory'] : undefined;
-  if (mem) {
-    if (isPlainObject(mem['ollama']) && typeof mem['ollama']['baseUrl'] === 'string') {
-      out.ollamaBaseUrl = mem['ollama']['baseUrl'];
-    }
-    if (isPlainObject(mem['chat']) && typeof mem['chat']['model'] === 'string') {
-      out.chatModel = mem['chat']['model'];
-    }
-    if (isPlainObject(mem['embedding']) && typeof mem['embedding']['model'] === 'string') {
-      out.embeddingModel = mem['embedding']['model'];
-    }
-    if (isPlainObject(mem['rag'])) {
-      const r = mem['rag'];
-      const rag: Partial<LepRagConfig> = {};
-      if (typeof r['bm25Limit'] === 'number') rag.bm25Limit = r['bm25Limit'];
-      if (typeof r['vecLimit'] === 'number') rag.vecLimit = r['vecLimit'];
-      if (typeof r['finalLimit'] === 'number') rag.finalLimit = r['finalLimit'];
-      if (typeof r['rrfK'] === 'number') rag.rrfK = r['rrfK'];
-      if (Object.keys(rag).length > 0) out.rag = rag;
-    }
-    if (isPlainObject(mem['fts']) && typeof mem['fts']['rebuildIntervalMinutes'] === 'number') {
-      out.fts = { rebuildIntervalMinutes: mem['fts']['rebuildIntervalMinutes'] };
-    }
-    if (isPlainObject(mem['conversation']) && typeof mem['conversation']['backfillDays'] === 'number') {
-      out.backfillDays = mem['conversation']['backfillDays'];
-    }
-  }
+  if (mem) applyLegacyMemorySection(mem, out);
 
   return out;
+}
+
+/** 旧 config.json の `analyzeAll` を schedule 形状へ写像する。採用項目が無ければ undefined。 */
+function legacyAnalyzeAllSchedule(raw: unknown): Partial<LepScheduleConfig> | undefined {
+  if (!isPlainObject(raw)) return undefined;
+  const schedule: Partial<LepScheduleConfig> = {};
+  if (typeof raw['intervalSec'] === 'number') schedule.intervalSec = raw['intervalSec'];
+  if (typeof raw['runOnStart'] === 'boolean') schedule.runOnStart = raw['runOnStart'];
+  if (typeof raw['startupDelaySec'] === 'number') schedule.startupDelaySec = raw['startupDelaySec'];
+  return Object.keys(schedule).length > 0 ? schedule : undefined;
+}
+
+/** 旧 config.json の `gitRoots`。文字列配列でなければ undefined（黙って無視する）。 */
+function legacyGitRoots(raw: unknown): string[] | undefined {
+  if (Array.isArray(raw) && raw.every((r) => typeof r === 'string')) return raw as string[];
+  return undefined;
+}
+
+/** 旧 config.json の `memory.rag` を写像する。採用項目が無ければ undefined。 */
+function legacyRagConfig(raw: unknown): Partial<LepRagConfig> | undefined {
+  if (!isPlainObject(raw)) return undefined;
+  const rag: Partial<LepRagConfig> = {};
+  if (typeof raw['bm25Limit'] === 'number') rag.bm25Limit = raw['bm25Limit'];
+  if (typeof raw['vecLimit'] === 'number') rag.vecLimit = raw['vecLimit'];
+  if (typeof raw['finalLimit'] === 'number') rag.finalLimit = raw['finalLimit'];
+  if (typeof raw['rrfK'] === 'number') rag.rrfK = raw['rrfK'];
+  return Object.keys(rag).length > 0 ? rag : undefined;
+}
+
+/** 旧 config.json の `memory` セクションを LegacyLepConfigInput へ写像する（型不一致は黙って無視）。 */
+function applyLegacyMemorySection(mem: Record<string, unknown>, out: LegacyLepConfigInput): void {
+  if (isPlainObject(mem['ollama']) && typeof mem['ollama']['baseUrl'] === 'string') {
+    out.ollamaBaseUrl = mem['ollama']['baseUrl'];
+  }
+  if (isPlainObject(mem['chat']) && typeof mem['chat']['model'] === 'string') {
+    out.chatModel = mem['chat']['model'];
+  }
+  if (isPlainObject(mem['embedding']) && typeof mem['embedding']['model'] === 'string') {
+    out.embeddingModel = mem['embedding']['model'];
+  }
+  const rag = legacyRagConfig(mem['rag']);
+  if (rag) out.rag = rag;
+  if (isPlainObject(mem['fts']) && typeof mem['fts']['rebuildIntervalMinutes'] === 'number') {
+    out.fts = { rebuildIntervalMinutes: mem['fts']['rebuildIntervalMinutes'] };
+  }
+  if (isPlainObject(mem['conversation']) && typeof mem['conversation']['backfillDays'] === 'number') {
+    out.backfillDays = mem['conversation']['backfillDays'];
+  }
 }
 
 export interface LoadLepConfigOptions {
@@ -1271,45 +1308,22 @@ export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): Mi
 
   if (!existsSync(configPath)) return { migrated: false, lepPath };
 
-  let configRaw: unknown;
-  try {
-    configRaw = JSON.parse(readFileSync(configPath, 'utf8'));
-  } catch (err) {
-    opts.logger?.warn(
-      `[LepConfig] config.json のパースに失敗したため移行をスキップ: ${configPath}: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    return { migrated: false, lepPath };
-  }
+  const parsedConfig = parseConfigJsonForMigration(configPath, opts.logger);
+  if (!parsedConfig) return { migrated: false, lepPath };
 
-  const legacy: LegacyLepConfigInput = { ...legacyFromConfigJson(configRaw) };
+  const legacy: LegacyLepConfigInput = { ...legacyFromConfigJson(parsedConfig.raw) };
   if (opts.analyzeAllEnabled !== undefined) legacy.analyzeAllEnabled = opts.analyzeAllEnabled;
   const migrated = migrateLegacyToLepConfig(legacy);
 
-  // existsSync(lepPath) → write/read の check-then-use は js/file-system-race (TOCTOU) を
-  // 生むため、readFileSync を直接試行し ENOENT を「不在」とみなす (チェックと読みを 1 操作に統合)。
-  let lepContent: string | null = null;
-  try {
-    lepContent = readFileSync(lepPath, 'utf8');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      opts.logger?.warn(
-        `[LepConfig] 既存 lep.json の読み取りに失敗したため config.json を残します: ${lepPath}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      return { migrated: false, lepPath };
-    }
-    // ENOENT → lep.json は不在。生成パスへ進む。
-  }
+  const existing = readExistingLepJson(lepPath, opts.logger);
+  if (existing.kind === 'failed') return { migrated: false, lepPath };
 
-  if (lepContent === null) {
+  if (existing.kind === 'absent') {
     const full = mergeLepConfig(DEFAULT_LEP_CONFIG, migrated);
     mkdirSync(dirname(lepPath), { recursive: true });
     writeFileSync(lepPath, serializeLepConfigWithComments(full), { encoding: 'utf-8' });
   } else {
-    const gapFilled = applyMigratedGapsToLepJson(lepContent, lepPath, migrated, opts.logger);
+    const gapFilled = applyMigratedGapsToLepJson(existing.content, lepPath, migrated, opts.logger);
     if (!gapFilled.ok) return { migrated: false, lepPath };
   }
 
@@ -1321,6 +1335,58 @@ export function migrateConfigJsonIntoLepJson(opts: MigrateConfigJsonOptions): Mi
     `[LepConfig] config.json を lep.json へ移行しました。config.json は ${renamedTo} に退避しました`,
   );
   return { migrated: true, lepPath, configRenamedTo: renamedTo };
+}
+
+/**
+ * 移行元 config.json をパースする。パース失敗は warn に留めて undefined を返す (移行スキップ)。
+ * `raw` は null にもなり得るため、有無の判別はラッパーオブジェクトの有無で行う。
+ */
+function parseConfigJsonForMigration(
+  configPath: string,
+  logger?: MigrateConfigJsonOptions['logger'],
+): { readonly raw: unknown } | undefined {
+  try {
+    return { raw: JSON.parse(readFileSync(configPath, 'utf8')) };
+  } catch (err) {
+    logger?.warn(
+      `[LepConfig] config.json のパースに失敗したため移行をスキップ: ${configPath}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return undefined;
+  }
+}
+
+/** 既存 lep.json の読み取り結果。'absent' は生成パスへ、'failed' は移行中止へ分岐する。 */
+type ExistingLepJsonRead =
+  | { readonly kind: 'found'; readonly content: string }
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'failed' };
+
+/**
+ * 既存 lep.json を読む。
+ *
+ * existsSync(lepPath) → write/read の check-then-use は js/file-system-race (TOCTOU) を
+ * 生むため、readFileSync を直接試行し ENOENT を「不在」とみなす (チェックと読みを 1 操作に統合)。
+ */
+function readExistingLepJson(
+  lepPath: string,
+  logger?: MigrateConfigJsonOptions['logger'],
+): ExistingLepJsonRead {
+  try {
+    return { kind: 'found', content: readFileSync(lepPath, 'utf8') };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger?.warn(
+        `[LepConfig] 既存 lep.json の読み取りに失敗したため config.json を残します: ${lepPath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return { kind: 'failed' };
+    }
+    // ENOENT → lep.json は不在。生成パスへ進む。
+    return { kind: 'absent' };
+  }
 }
 
 /**

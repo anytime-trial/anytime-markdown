@@ -237,6 +237,75 @@ export interface AnalyzeAllRunnerOptions {
  * Wave 2 完了後に `trailDb.save()` を呼んで sql.js の in-memory DB をディスクへ永続化する
  * (旧 importAll() 末尾の save() の役割を引き継ぐ)。
  */
+/** counter 集計用に保持する Layer 2 の核 analyzer 参照 (getLastImportResult で読む)。 */
+interface ImportPipelineCoreAnalyzers {
+  readonly sessionImporter: SessionImporter | null;
+  readonly commitResolver: CommitResolver | null;
+  readonly releaseResolver: ReleaseResolver | null;
+  readonly codeGraphBuilder: CodeGraphBuilder | null;
+  readonly coverageImporter: CoverageImporter | null;
+  readonly messageCommitMatcher: MessageCommitMatcher | null;
+}
+
+/** 取込パイプライン未構築時 (trailDb 無し / ingesters 無効) の核 analyzer 参照。 */
+const EMPTY_IMPORT_PIPELINE_CORE: ImportPipelineCoreAnalyzers = {
+  sessionImporter: null,
+  commitResolver: null,
+  releaseResolver: null,
+  codeGraphBuilder: null,
+  coverageImporter: null,
+  messageCommitMatcher: null,
+};
+
+/** toggle 可能な Layer 2 analyzer。無効化されたものは null。 */
+interface TogglePrimaryAnalyzers {
+  readonly releaseResolver: ReleaseResolver | null;
+  readonly coverageImporter: CoverageImporter | null;
+  readonly behaviorAnalyzer: BehaviorAnalyzer | null;
+  readonly commitFilesBackfiller: CommitFilesBackfiller | null;
+  readonly subagentTypeBackfiller: SubagentTypeBackfiller | null;
+  readonly messageCommitMatcher: MessageCommitMatcher | null;
+}
+
+/**
+ * toggle 可能 analyzer を構築する。lep.json `analyzers.<id>.enabled:false` で無効化できる。
+ * disabled の場合は構築せず null を返し、呼び出し側の filter で登録から外れる。対応 event の
+ * 後段 (例: release_resolved → codegraph) も連動して止まる。
+ * 核 analyzer は本セットに id があっても常時登録する (ここでは扱わない)。
+ */
+function buildTogglePrimaryAnalyzers(args: {
+  readonly disabledIds: readonly string[];
+  readonly trailDb: TrailDatabase;
+  readonly gitRoots: readonly string[];
+  readonly commitRoots: readonly string[];
+  readonly onPhase: AnalyzeAllRunnerOptions['onImportPhase'];
+  readonly onProgress: AnalyzeAllRunnerOptions['onImportProgress'];
+}): TogglePrimaryAnalyzers {
+  const { trailDb, gitRoots, commitRoots, onPhase, onProgress } = args;
+  const disabledPrimary = new Set(args.disabledIds);
+  const primaryEnabled = (id: string): boolean => !disabledPrimary.has(id);
+  return {
+    releaseResolver: primaryEnabled('ReleaseResolver')
+      ? new ReleaseResolver({ trailDb, gitRoots, onPhase, onProgress })
+      : null,
+    coverageImporter: primaryEnabled('CoverageImporter')
+      ? new CoverageImporter({ trailDb, gitRoots, onPhase, onProgress })
+      : null,
+    behaviorAnalyzer: primaryEnabled('BehaviorAnalyzer')
+      ? new BehaviorAnalyzer({ trailDb, onPhase, onProgress })
+      : null,
+    commitFilesBackfiller: primaryEnabled('CommitFilesBackfiller')
+      ? new CommitFilesBackfiller({ trailDb, gitRoots: commitRoots, onProgress })
+      : null,
+    subagentTypeBackfiller: primaryEnabled('SubagentTypeBackfiller')
+      ? new SubagentTypeBackfiller({ trailDb, onProgress })
+      : null,
+    messageCommitMatcher: primaryEnabled('MessageCommitMatcher')
+      ? new MessageCommitMatcher({ trailDb, onProgress })
+      : null,
+  };
+}
+
 export class AnalyzeAllRunner extends BaseRunner {
   private readonly orchestrator: LepOrchestrator;
   private readonly onAfterRun: (() => void) | undefined;
@@ -277,119 +346,19 @@ export class AnalyzeAllRunner extends BaseRunner {
     this.trailDb = opts.trailDb;
     this.importPipelineEnabled = Boolean(opts.trailDb) && ingestersEnabled;
 
-    let sessionImporter: SessionImporter | null = null;
-    let commitResolver: CommitResolver | null = null;
-    let releaseResolver: ReleaseResolver | null = null;
-    let codeGraphBuilder: CodeGraphBuilder | null = null;
-    let coverageImporter: CoverageImporter | null = null;
-    let messageCommitMatcher: MessageCommitMatcher | null = null;
-
+    let core: ImportPipelineCoreAnalyzers = EMPTY_IMPORT_PIPELINE_CORE;
     if (this.importPipelineEnabled && opts.trailDb) {
-      const trailDb = opts.trailDb;
-      const gitRoots = opts.gitRoots ?? [];
-      // コミット取込のみ対象の追加リポジトリを合成する (重複は先勝ちで排除)。
-      const commitRoots = mergeUnique(gitRoots, opts.commitWatchRoots ?? []);
-      const onPhase = opts.onImportPhase;
-      const onProgress = opts.onImportProgress;
-      const fallbackRepoName = gitRoots[0] ? basename(gitRoots[0]) : undefined;
-      const primaryRepoName = opts.gitRoot ? basename(opts.gitRoot) : fallbackRepoName;
-
-      // Layer 1 (sources)
-      const ingesters = this.buildIngesters(opts, gitRoots, primaryRepoName);
-      analyzers.push(...ingesters);
-
-      // Layer 2 (primary)
-      // toggle 可能 analyzer は lep.json `analyzers.<id>.enabled:false` で無効化できる。
-      // disabled の場合は構築・登録せず、対応 event の後段 (例: release_resolved → codegraph) も
-      // 連動して止まる。核 analyzer は本セットに id があっても常時登録する。
-      const disabledPrimary = new Set(opts.disabledPrimaryAnalyzers ?? []);
-      const primaryEnabled = (id: string): boolean => !disabledPrimary.has(id);
-
-      // 核 analyzer (toggle 不可)
-      sessionImporter = new SessionImporter({ trailDb, onProgress, onPhase });
-      commitResolver = new CommitResolver({ trailDb, gitRoots: commitRoots });
-      codeGraphBuilder = new CodeGraphBuilder({
-        trailDb,
-        gitRoots,
-        analyzeFn: opts.analyzeReleaseFn,
-        onPhase,
-        onProgress,
-      });
-      const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
-      const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
-      // Step 5: github_pr_review → caravan_reviews / caravan_review_findings (caravan-book.db)。
-      // GitHub source 未設定時は対応 event が来ないため no-op。caravanDbPath / caravanDb が
-      // 揃っていない場合は analyzer 自体を生成しない (silent skip を避けて info ログ)。
-      let prReviewImporter: PrReviewImporter | null = null;
-      let prReviewFindingAnalyzer: PrReviewFindingAnalyzer | null = null;
-      if (opts.caravanDbPath && opts.caravanDb) {
-        const caravanDb = opts.caravanDb;
-        prReviewImporter = new PrReviewImporter({
-          caravanDb: {
-            getReviewSourceHash: (sourceRef) => readPrReviewSourceHash(caravanDb, sourceRef),
-          },
-        });
-        prReviewFindingAnalyzer = new PrReviewFindingAnalyzer({ caravanDb });
-      } else if (opts.caravanDbPath && !opts.caravanDb) {
-        this.log(
-          `[PrReview] caravanDbPath is set (${opts.caravanDbPath}) but no caravanDb connection was provided — skipping PrReviewImporter / PrReviewFindingAnalyzer`,
-        );
-      } else {
-        this.log('[PrReview] caravanDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
-      }
-      // PersistAnalyzer は tier=2 の最後に置く (他全 analyzer の DB 書込後に save)
-      const persistAnalyzer = new PersistAnalyzer({ trailDb });
-
-      // toggle 可能 analyzer (無効時は null → 後続の filter で除外)
-      if (primaryEnabled('ReleaseResolver')) {
-        releaseResolver = new ReleaseResolver({ trailDb, gitRoots, onPhase, onProgress });
-      }
-      if (primaryEnabled('CoverageImporter')) {
-        coverageImporter = new CoverageImporter({ trailDb, gitRoots, onPhase, onProgress });
-      }
-      const behaviorAnalyzer = primaryEnabled('BehaviorAnalyzer')
-        ? new BehaviorAnalyzer({ trailDb, onPhase, onProgress })
-        : null;
-      const commitFilesBackfiller = primaryEnabled('CommitFilesBackfiller')
-        ? new CommitFilesBackfiller({ trailDb, gitRoots: commitRoots, onProgress })
-        : null;
-      const subagentTypeBackfiller = primaryEnabled('SubagentTypeBackfiller')
-        ? new SubagentTypeBackfiller({ trailDb, onProgress })
-        : null;
-      if (primaryEnabled('MessageCommitMatcher')) {
-        messageCommitMatcher = new MessageCommitMatcher({ trailDb, onProgress });
-      }
-
-      // 登録順は従来どおり (PersistAnalyzer は最後)。disabled な toggle analyzer は null で
-      // 除外する。core/PR は常時含める。
-      const primaryAnalyzers: Analyzer[] = ([
-        sessionImporter,
-        commitResolver,
-        releaseResolver,
-        codeGraphBuilder,
-        coverageImporter,
-        costRebuilder,
-        behaviorAnalyzer,
-        countsRebuilder,
-        commitFilesBackfiller,
-        subagentTypeBackfiller,
-        messageCommitMatcher,
-        prReviewImporter,
-        prReviewFindingAnalyzer,
-        persistAnalyzer,
-      ] as Array<Analyzer | null>).filter((a): a is Analyzer => a !== null);
-      // subscribes=[] の analyzer (CountsRebuilder / PersistAnalyzer) は EventBus.subscribe が
-      // no-op になる。一律 subscribe しても害はない。
-      for (const a of primaryAnalyzers) bus.subscribe(a);
-      analyzers.push(...primaryAnalyzers);
+      const built = this.buildImportPipeline(opts, opts.trailDb, bus);
+      analyzers.push(...built.analyzers);
+      core = built.core;
     }
 
-    this.sessionImporter = sessionImporter;
-    this.commitResolver = commitResolver;
-    this.releaseResolver = releaseResolver;
-    this.codeGraphBuilder = codeGraphBuilder;
-    this.coverageImporter = coverageImporter;
-    this.messageCommitMatcher = messageCommitMatcher;
+    this.sessionImporter = core.sessionImporter;
+    this.commitResolver = core.commitResolver;
+    this.releaseResolver = core.releaseResolver;
+    this.codeGraphBuilder = core.codeGraphBuilder;
+    this.coverageImporter = core.coverageImporter;
+    this.messageCommitMatcher = core.messageCommitMatcher;
 
     // Layer 3 (memory): 7 個の memory analyzer を dependsOn topo 順で subscribe
     // (EventBus は subscribe 順に配信するため Drift は content の後・Embedding は最後)。
@@ -442,6 +411,118 @@ export class AnalyzeAllRunner extends BaseRunner {
     );
 
     this.onAfterRun = opts.onAfterRun;
+  }
+
+  /**
+   * Layer 1 (sources) + Layer 2 (primary) の analyzer 群を構築し、Layer 2 を bus へ subscribe する。
+   * 戻り値の `analyzers` は登録順 (ingesters → primary) を保った配列。
+   */
+  private buildImportPipeline(
+    opts: AnalyzeAllRunnerOptions,
+    trailDb: TrailDatabase,
+    bus: EventBus,
+  ): { analyzers: Analyzer[]; core: ImportPipelineCoreAnalyzers } {
+    const gitRoots = opts.gitRoots ?? [];
+    // コミット取込のみ対象の追加リポジトリを合成する (重複は先勝ちで排除)。
+    const commitRoots = mergeUnique(gitRoots, opts.commitWatchRoots ?? []);
+    const onPhase = opts.onImportPhase;
+    const onProgress = opts.onImportProgress;
+    const fallbackRepoName = gitRoots[0] ? basename(gitRoots[0]) : undefined;
+    const primaryRepoName = opts.gitRoot ? basename(opts.gitRoot) : fallbackRepoName;
+
+    // Layer 1 (sources)
+    const analyzers: Analyzer[] = [...this.buildIngesters(opts, gitRoots, primaryRepoName)];
+
+    // Layer 2 (primary) の核 analyzer (toggle 不可)
+    const sessionImporter = new SessionImporter({ trailDb, onProgress, onPhase });
+    const commitResolver = new CommitResolver({ trailDb, gitRoots: commitRoots });
+    const codeGraphBuilder = new CodeGraphBuilder({
+      trailDb,
+      gitRoots,
+      analyzeFn: opts.analyzeReleaseFn,
+      onPhase,
+      onProgress,
+    });
+    const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
+    const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
+    const prReview = this.buildPrReviewAnalyzers(opts);
+    // PersistAnalyzer は tier=2 の最後に置く (他全 analyzer の DB 書込後に save)
+    const persistAnalyzer = new PersistAnalyzer({ trailDb });
+
+    // toggle 可能 analyzer (無効時は null → 後続の filter で除外)
+    const toggles = buildTogglePrimaryAnalyzers({
+      disabledIds: opts.disabledPrimaryAnalyzers ?? [],
+      trailDb,
+      gitRoots,
+      commitRoots,
+      onPhase,
+      onProgress,
+    });
+
+    // 登録順は従来どおり (PersistAnalyzer は最後)。disabled な toggle analyzer は null で
+    // 除外する。core/PR は常時含める。
+    const primaryAnalyzers: Analyzer[] = ([
+      sessionImporter,
+      commitResolver,
+      toggles.releaseResolver,
+      codeGraphBuilder,
+      toggles.coverageImporter,
+      costRebuilder,
+      toggles.behaviorAnalyzer,
+      countsRebuilder,
+      toggles.commitFilesBackfiller,
+      toggles.subagentTypeBackfiller,
+      toggles.messageCommitMatcher,
+      prReview.importer,
+      prReview.findingAnalyzer,
+      persistAnalyzer,
+    ] as Array<Analyzer | null>).filter((a): a is Analyzer => a !== null);
+    // subscribes=[] の analyzer (CountsRebuilder / PersistAnalyzer) は EventBus.subscribe が
+    // no-op になる。一律 subscribe しても害はない。
+    for (const a of primaryAnalyzers) bus.subscribe(a);
+    analyzers.push(...primaryAnalyzers);
+
+    return {
+      analyzers,
+      core: {
+        sessionImporter,
+        commitResolver,
+        releaseResolver: toggles.releaseResolver,
+        codeGraphBuilder,
+        coverageImporter: toggles.coverageImporter,
+        messageCommitMatcher: toggles.messageCommitMatcher,
+      },
+    };
+  }
+
+  /**
+   * Step 5: github_pr_review → caravan_reviews / caravan_review_findings (caravan-book.db)。
+   * GitHub source 未設定時は対応 event が来ないため no-op。caravanDbPath / caravanDb が
+   * 揃っていない場合は analyzer 自体を生成しない (silent skip を避けて info ログ)。
+   */
+  private buildPrReviewAnalyzers(opts: AnalyzeAllRunnerOptions): {
+    importer: PrReviewImporter | null;
+    findingAnalyzer: PrReviewFindingAnalyzer | null;
+  } {
+    if (opts.caravanDbPath && opts.caravanDb) {
+      const caravanDb = opts.caravanDb;
+      return {
+        importer: new PrReviewImporter({
+          caravanDb: {
+            getReviewSourceHash: (sourceRef) => readPrReviewSourceHash(caravanDb, sourceRef),
+          },
+        }),
+        findingAnalyzer: new PrReviewFindingAnalyzer({ caravanDb }),
+      };
+    }
+    if (opts.caravanDbPath && !opts.caravanDb) {
+      this.log(
+        `[PrReview] caravanDbPath is set (${opts.caravanDbPath}) but no caravanDb connection was provided — skipping PrReviewImporter / PrReviewFindingAnalyzer`,
+      );
+    } else {
+      this.log('[PrReview] caravanDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
+    }
+    return { importer: null, findingAnalyzer: null };
   }
 
   /** Layer 1 ingesters (sources) を生成する。GitHub PR source は opt-in。 */
