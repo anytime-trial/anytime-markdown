@@ -151,10 +151,320 @@ function buildHighlightHtml(code: string, language: string): string {
   return `<pre><code class="hljs">${buildHighlightInner(code, language)}</code></pre>`;
 }
 
+type SplitLayout = ReturnType<typeof createDraggableSplitLayout>;
+
+/** cleanup 関数を 1 つだけ保持し、run で実行してから破棄する（多重呼び出し防止）。 */
+interface CleanupSlot {
+  set: (next: (() => void) | void) => void;
+  run: () => void;
+}
+
+function createCleanupSlot(): CleanupSlot {
+  let cleanup: (() => void) | void;
+  return {
+    set(next) {
+      cleanup = next;
+    },
+    run() {
+      if (cleanup) {
+        cleanup();
+        cleanup = undefined;
+      }
+    },
+  };
+}
+
+/**
+ * 左コードペインの折りたたみ/展開ボタンを生成し、展開レールを split へ差し込む。
+ * 左ペイン・divider の表示は split.setLeftCollapsed（updateLayout）が単一の書き込み主体。
+ * 分割幅は helper 内部の splitPx が保持するため、展開時の幅復帰も updateLayout に任せる。
+ */
+function createCodePaneToggle(split: SplitLayout, t: (key: string) => string): {
+  collapseBtn: HTMLButtonElement;
+  expandRail: HTMLElement;
+} {
+  const collapseLabel = t("collapseCodePane");
+  const expandLabel = t("expandCodePane");
+  const collapseBtn = document.createElement("button");
+  collapseBtn.type = "button";
+  collapseBtn.className = "am-cbed-pane-toggle";
+  collapseBtn.setAttribute("aria-label", collapseLabel);
+  collapseBtn.setAttribute("aria-expanded", "true");
+  collapseBtn.title = collapseLabel;
+  collapseBtn.textContent = "◀";
+
+  const expandRail = document.createElement("div");
+  expandRail.className = "am-cbed-expand-rail";
+  const expandBtn = document.createElement("button");
+  expandBtn.type = "button";
+  expandBtn.className = "am-cbed-pane-toggle";
+  expandBtn.setAttribute("aria-label", expandLabel);
+  expandBtn.setAttribute("aria-expanded", "false");
+  expandBtn.title = expandLabel;
+  expandBtn.textContent = "▶";
+  expandRail.appendChild(expandBtn);
+  split.el.insertBefore(expandRail, split.right);
+
+  const notifyPreviewResize = (): void => {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+  };
+  const applyCodePaneCollapse = (collapsed: boolean): void => {
+    split.setLeftCollapsed(collapsed);
+    expandRail.style.display = collapsed ? "flex" : "none";
+    collapseBtn.setAttribute("aria-expanded", String(!collapsed));
+    expandBtn.setAttribute("aria-expanded", String(!collapsed));
+    notifyPreviewResize();
+  };
+  collapseBtn.addEventListener("click", () => applyCodePaneCollapse(true));
+  expandBtn.addEventListener("click", () => applyCodePaneCollapse(false));
+
+  return { collapseBtn, expandRail };
+}
+
+/** 左ペインのタブ切替で表示を入れ替える 3 要素 */
+interface AuxTabViews {
+  codeEl: HTMLElement;
+  samplePanelEl: HTMLElement | null;
+  auxContainer: HTMLElement;
+}
+
+/** 補助タブ選択時: スクリプト側を隠して補助エディタを mount する。 */
+function showAuxTab(views: AuxTabViews, mountAux: () => void): void {
+  views.codeEl.style.display = "none";
+  if (views.samplePanelEl) views.samplePanelEl.style.display = "none";
+  views.auxContainer.style.display = "block";
+  mountAux();
+}
+
+/** スクリプトタブ選択時: 補助エディタを破棄してスクリプト側を戻す。 */
+function showScriptTab(views: AuxTabViews, auxSlot: CleanupSlot): void {
+  auxSlot.run();
+  views.auxContainer.style.display = "none";
+  views.codeEl.style.display = "";
+  if (views.samplePanelEl) views.samplePanelEl.style.display = "";
+}
+
+interface LeftPaneParams {
+  opts: CreateCodeBlockEditDialogOptions;
+  split: SplitLayout;
+  /** 左ペインの構成要素（コード入力・サンプルパネル・折りたたみボタン） */
+  parts: { codeEl: HTMLElement; samplePanelEl: HTMLElement | null; collapseBtn: HTMLButtonElement };
+  auxSlot: CleanupSlot;
+}
+
+/** 左ペインを組み立てる（leftAuxTab 指定時はタブ付き、未指定なら見出しのみ）。 */
+function buildLeftPane(p: LeftPaneParams): void {
+  const { opts, split, auxSlot } = p;
+  const { codeEl, samplePanelEl, collapseBtn } = p.parts;
+  const { state, t, isDark } = opts;
+  // leftAuxTab 指定時はスクリプト ⇄ 補助エディタ（表など）のタブを出す。
+  if (opts.leftAuxTab) {
+    const auxTab = opts.leftAuxTab;
+    const auxContainer = document.createElement("div");
+    auxContainer.style.cssText = "flex:1 1 auto;display:none;min-height:0;overflow:hidden;";
+    const views: AuxTabViews = { codeEl, samplePanelEl, auxContainer };
+    const mountAux = (): void => {
+      auxSlot.run();
+      auxContainer.replaceChildren();
+      auxSlot.set(auxTab.mount(auxContainer, {
+        getCode: () => state.getFsCode(),
+        setCode: (s) => state.onFsTextChange(s),
+        isDark,
+      }));
+    };
+    const tabs = createTabs({
+      value: "script",
+      tabs: [
+        { value: "script", label: t("scriptTab") },
+        { value: "table", label: t(auxTab.labelKey) },
+      ],
+      onChange: (v) => {
+        tabs.update({ value: v }); // 選択状態（aria-selected / ハイライト）を反映
+        if (v === "table") showAuxTab(views, mountAux);
+        else showScriptTab(views, auxSlot);
+      },
+    });
+    const topbar = document.createElement("div");
+    topbar.className = "am-cbed-left-topbar";
+    topbar.appendChild(tabs.el);
+    topbar.appendChild(collapseBtn);
+    split.left.appendChild(topbar);
+    split.left.appendChild(codeEl);
+    split.left.appendChild(auxContainer);
+    if (samplePanelEl) split.left.appendChild(samplePanelEl);
+  } else {
+    const codeHeader = document.createElement("div");
+    codeHeader.className = "am-cbed-left-topbar";
+    codeHeader.style.borderBottomColor = getDivider(isDark);
+    const codeTitle = document.createElement("span");
+    codeTitle.className = "am-cbed-left-title";
+    codeTitle.textContent = t("codeTab");
+    codeHeader.appendChild(codeTitle);
+    codeHeader.appendChild(collapseBtn);
+    split.left.appendChild(codeHeader);
+    split.left.appendChild(codeEl);
+    if (samplePanelEl) split.left.appendChild(samplePanelEl);
+  }
+}
+
+interface ZoomFitButtonParams {
+  zp: ZoomPanController;
+  /** ビューポート側（表示枠）と内容側の要素 */
+  els: { outer: HTMLElement; inner: HTMLElement };
+  t: (key: string) => string;
+}
+
+/** ZoomToolbar の「全体表示」ボタン（内容が表示枠へ収まる倍率にする）。 */
+function createZoomFitButton(p: ZoomFitButtonParams): HTMLButtonElement {
+  const { zp, t } = p;
+  const fitButton = document.createElement("button");
+  fitButton.type = "button";
+  fitButton.className = "am-zt-btn";
+  fitButton.setAttribute("aria-label", t("zoomFit"));
+  fitButton.title = t("zoomFit");
+  fitButton.textContent = "□";
+  fitButton.addEventListener("click", () => {
+    const outerRect = p.els.outer.getBoundingClientRect();
+    const innerRect = p.els.inner.getBoundingClientRect();
+    const currentZoom = zp.getState().zoom || 1;
+    const contentWidth = innerRect.width / currentZoom;
+    const contentHeight = innerRect.height / currentZoom;
+    if (outerRect.width <= 0 || outerRect.height <= 0 || contentWidth <= 0 || contentHeight <= 0) {
+      zp.reset();
+      return;
+    }
+    const nextZoom = Math.min(1, (outerRect.width - 24) / contentWidth, (outerRect.height - 24) / contentHeight);
+    zp.reset();
+    zp.setZoom(nextZoom);
+  });
+  return fitButton;
+}
+
+interface SidePanelParams {
+  panel: NonNullable<CreateCodeBlockEditDialogOptions["previewSidePanel"]>;
+  split: SplitLayout;
+  ctx: { getCode: () => string; setCode: (s: string) => void; isDark: boolean };
+}
+
+/** プレビュー右側の固定幅補助パネルを mount し、cleanup を返す。 */
+function mountPreviewSidePanel(p: SidePanelParams): () => void {
+  const { split } = p;
+  split.right.classList.add("am-cbed-preview-with-panel");
+  // .am-split-right の flex-direction:column と同特異度でスタイル注入順に勝敗が依存するため、
+  // インラインで横並び（パネルはプレビュー本体の右側）を確定させる。
+  // 狭幅では split 本体の縦積み切替（dialogHelpers の 900px 境界）に合わせてパネルも下積みへ戻す。
+  const panelMq = createMediaQuery("(max-width:899.95px)");
+  const applyPanelDirection = (narrow: boolean): void => {
+    split.right.style.flexDirection = narrow ? "column" : "row";
+  };
+  applyPanelDirection(panelMq.matches);
+  panelMq.subscribe(applyPanelDirection);
+  const sidePanel = document.createElement("aside");
+  sidePanel.className = "am-cbed-preview-side-panel";
+  split.right.appendChild(sidePanel);
+  const mountCleanup = p.panel.mount(sidePanel, p.ctx);
+  return () => {
+    panelMq.destroy();
+    mountCleanup();
+  };
+}
+
+interface PreviewPaneParams {
+  opts: CreateCodeBlockEditDialogOptions;
+  split: SplitLayout;
+  zp: ZoomPanController;
+  /** 補助パネルの cleanup 置き場 */
+  sidePanelSlot: CleanupSlot;
+}
+
+/** 右ペイン（ZoomToolbar + プレビュー本体 + 補助パネル）を組み、プレビュー要素を返す。 */
+function mountPreviewPane(p: PreviewPaneParams): HTMLElement {
+  const { opts, split, zp } = p;
+  const { state, t, isDark } = opts;
+  const rightTarget = opts.previewSidePanel ? document.createElement("div") : split.right;
+  if (opts.previewSidePanel && rightTarget !== split.right) {
+    rightTarget.className = "am-cbed-preview-main";
+    split.right.appendChild(rightTarget);
+  }
+
+  const zt = createZoomToolbar({ zp, isDark, t });
+  rightTarget.appendChild(zt.el);
+  if (opts.previewToolbar) {
+    rightTarget.appendChild(opts.previewToolbar);
+  }
+
+  const zv = createZoomablePreview({ zp, isDark });
+  rightTarget.appendChild(zv.el);
+  zv.el.style.flex = "1 1 auto";
+
+  const previewInner = document.createElement("div");
+  previewInner.className = "am-cbed-preview";
+  // hljs トークン色は getHljsTokenCss(".am-cbed-preview") の var(--hljs-*) 参照ルールが消費する。
+  // NOTE: isDark はクロージャで固定。テーマ切替時の CSS 変数再設定は未対応（ダイアログ再生成で反映・既存制約）。
+  const cssVars = getHljsCssVars(isDark) as Record<string, string>;
+  for (const [k, v] of Object.entries(cssVars)) {
+    previewInner.style.setProperty(k, v);
+  }
+  zv.inner.appendChild(previewInner);
+
+  zt.el.appendChild(createZoomFitButton({ zp, els: { outer: zv.el, inner: previewInner }, t }));
+
+  if (opts.previewSidePanel) {
+    p.sidePanelSlot.set(mountPreviewSidePanel({
+      panel: opts.previewSidePanel,
+      split,
+      ctx: {
+        getCode: () => state.getFsCode(),
+        setCode: (s) => state.onFsTextChange(s),
+        isDark,
+      },
+    }));
+  }
+  return previewInner;
+}
+
+interface PreviewRenderParams {
+  opts: CreateCodeBlockEditDialogOptions;
+  previewEl: HTMLElement;
+  /** 描画で装着した操作層の cleanup 置き場 */
+  previewSlot: CleanupSlot;
+  /** 言語別プレビューが要求する再描画コールバック */
+  rerender: () => void;
+}
+
+/** プレビュー要素の内容を再描画する（前回装着した操作層は呼び出し側が破棄済み）。 */
+function renderPreviewContent(p: PreviewRenderParams): void {
+  const { opts, previewEl, previewSlot } = p;
+  const { state, t, isDark, fontSize, language } = opts;
+  const code = state.getFsCode();
+  if (opts.renderPreviewHtml) {
+    // 独自プレビュー HTML（図 SVG 等・呼び出し側 sanitize 済み）。
+    previewEl.classList.remove("am-cbed-preview--rendered");
+    previewEl.innerHTML = opts.renderPreviewHtml(code, isDark);
+    previewSlot.set(opts.onPreviewRendered?.(previewEl, isDark));
+  } else if (opts.renderLanguagePreview) {
+    // 言語別の実プレビュー（html 等）を本文と同じ共通レンダラで描画する。
+    previewEl.classList.add("am-cbed-preview--rendered");
+    const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize, t }, p.rerender);
+    const extra = opts.onPreviewRendered?.(previewEl, isDark);
+    previewSlot.set(() => {
+      cancel();
+      extra?.();
+    });
+  } else {
+    // regular コードは構文ハイライト（ソース表示）。
+    previewEl.classList.remove("am-cbed-preview--rendered");
+    previewEl.innerHTML = buildHighlightHtml(code, language);
+    previewSlot.set(opts.onPreviewRendered?.(previewEl, isDark));
+  }
+}
+
 export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions): CodeBlockEditDialogHandle {
   ensureDialogStyle();
 
-  const { state, t, isDark, fontSize, lineHeight, language, readOnly, renderPreview } = opts;
+  const { state, t, isDark, fontSize, lineHeight, readOnly, renderPreview } = opts;
 
   const zp: ZoomPanController = createZoomPanState();
 
@@ -185,44 +495,7 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     isDark,
     t,
   });
-  const collapseLabel = t("collapseCodePane");
-  const expandLabel = t("expandCodePane");
-  const collapseBtn = document.createElement("button");
-  collapseBtn.type = "button";
-  collapseBtn.className = "am-cbed-pane-toggle";
-  collapseBtn.setAttribute("aria-label", collapseLabel);
-  collapseBtn.setAttribute("aria-expanded", "true");
-  collapseBtn.title = collapseLabel;
-  collapseBtn.textContent = "◀";
-
-  const expandRail = document.createElement("div");
-  expandRail.className = "am-cbed-expand-rail";
-  const expandBtn = document.createElement("button");
-  expandBtn.type = "button";
-  expandBtn.className = "am-cbed-pane-toggle";
-  expandBtn.setAttribute("aria-label", expandLabel);
-  expandBtn.setAttribute("aria-expanded", "false");
-  expandBtn.title = expandLabel;
-  expandBtn.textContent = "▶";
-  expandRail.appendChild(expandBtn);
-  split.el.insertBefore(expandRail, split.right);
-
-  const notifyPreviewResize = (): void => {
-    requestAnimationFrame(() => {
-      window.dispatchEvent(new Event("resize"));
-    });
-  };
-  // 左ペイン・divider の表示は split.setLeftCollapsed（updateLayout）が単一の書き込み主体。
-  // 分割幅は helper 内部の splitPx が保持するため、展開時の幅復帰も updateLayout に任せる。
-  const applyCodePaneCollapse = (collapsed: boolean): void => {
-    split.setLeftCollapsed(collapsed);
-    expandRail.style.display = collapsed ? "flex" : "none";
-    collapseBtn.setAttribute("aria-expanded", String(!collapsed));
-    expandBtn.setAttribute("aria-expanded", String(!collapsed));
-    notifyPreviewResize();
-  };
-  collapseBtn.addEventListener("click", () => applyCodePaneCollapse(true));
-  expandBtn.addEventListener("click", () => applyCodePaneCollapse(false));
+  const { collapseBtn } = createCodePaneToggle(split, t);
 
   // ---- 左: コードエリア + サンプルパネル ----
   const lnt = createLineNumberTextarea({
@@ -252,180 +525,28 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     samplePanelEl = samplePanel.el;
   }
 
-  // leftAuxTab 指定時はスクリプト ⇄ 補助エディタ（表など）のタブを出す。
-  let auxCleanup: (() => void) | undefined;
-  if (opts.leftAuxTab) {
-    const auxTab = opts.leftAuxTab;
-    const auxContainer = document.createElement("div");
-    auxContainer.style.cssText = "flex:1 1 auto;display:none;min-height:0;overflow:hidden;";
-    const mountAux = (): void => {
-      auxCleanup?.();
-      auxCleanup = undefined;
-      auxContainer.replaceChildren();
-      auxCleanup = auxTab.mount(auxContainer, {
-        getCode: () => state.getFsCode(),
-        setCode: (s) => state.onFsTextChange(s),
-        isDark,
-      });
-    };
-    const tabs = createTabs({
-      value: "script",
-      tabs: [
-        { value: "script", label: t("scriptTab") },
-        { value: "table", label: t(auxTab.labelKey) },
-      ],
-      onChange: (v) => {
-        tabs.update({ value: v }); // 選択状態（aria-selected / ハイライト）を反映
-        if (v === "table") {
-          lnt.el.style.display = "none";
-          if (samplePanelEl) samplePanelEl.style.display = "none";
-          auxContainer.style.display = "block";
-          mountAux();
-        } else {
-          auxCleanup?.();
-          auxCleanup = undefined;
-          auxContainer.style.display = "none";
-          lnt.el.style.display = "";
-          if (samplePanelEl) samplePanelEl.style.display = "";
-        }
-      },
-    });
-    const topbar = document.createElement("div");
-    topbar.className = "am-cbed-left-topbar";
-    topbar.appendChild(tabs.el);
-    topbar.appendChild(collapseBtn);
-    split.left.appendChild(topbar);
-    split.left.appendChild(lnt.el);
-    split.left.appendChild(auxContainer);
-    if (samplePanelEl) split.left.appendChild(samplePanelEl);
-  } else {
-    const codeHeader = document.createElement("div");
-    codeHeader.className = "am-cbed-left-topbar";
-    codeHeader.style.borderBottomColor = getDivider(isDark);
-    const codeTitle = document.createElement("span");
-    codeTitle.className = "am-cbed-left-title";
-    codeTitle.textContent = t("codeTab");
-    codeHeader.appendChild(codeTitle);
-    codeHeader.appendChild(collapseBtn);
-    split.left.appendChild(codeHeader);
-    split.left.appendChild(lnt.el);
-    if (samplePanelEl) split.left.appendChild(samplePanelEl);
-  }
+  const auxSlot = createCleanupSlot();
+  buildLeftPane({ opts, split, parts: { codeEl: lnt.el, samplePanelEl, collapseBtn }, auxSlot });
 
   // ---- 右: ZoomToolbar + syntax preview ----
+  const sidePanelSlot = createCleanupSlot();
   let previewEl: HTMLElement | null = null;
-  let sidePanelCleanup: (() => void) | undefined;
   if (renderPreview) {
-    const rightTarget = opts.previewSidePanel ? document.createElement("div") : split.right;
-    if (opts.previewSidePanel && rightTarget !== split.right) {
-      rightTarget.className = "am-cbed-preview-main";
-      split.right.appendChild(rightTarget);
-    }
-
-    const zt = createZoomToolbar({ zp, isDark, t });
-    rightTarget.appendChild(zt.el);
-    if (opts.previewToolbar) {
-      rightTarget.appendChild(opts.previewToolbar);
-    }
-
-    const zv = createZoomablePreview({ zp, isDark });
-    rightTarget.appendChild(zv.el);
-    zv.el.style.flex = "1 1 auto";
-
-    const previewInner = document.createElement("div");
-    previewInner.className = "am-cbed-preview";
-    // hljs トークン色は getHljsTokenCss(".am-cbed-preview") の var(--hljs-*) 参照ルールが消費する。
-    // NOTE: isDark はクロージャで固定。テーマ切替時の CSS 変数再設定は未対応（ダイアログ再生成で反映・既存制約）。
-    const cssVars = getHljsCssVars(isDark) as Record<string, string>;
-    for (const [k, v] of Object.entries(cssVars)) {
-      previewInner.style.setProperty(k, v);
-    }
-    zv.inner.appendChild(previewInner);
-    previewEl = previewInner;
-
-    const fitButton = document.createElement("button");
-    fitButton.type = "button";
-    fitButton.className = "am-zt-btn";
-    fitButton.setAttribute("aria-label", t("zoomFit"));
-    fitButton.title = t("zoomFit");
-    fitButton.textContent = "□";
-    fitButton.addEventListener("click", () => {
-      const outerRect = zv.el.getBoundingClientRect();
-      const innerRect = previewInner.getBoundingClientRect();
-      const currentZoom = zp.getState().zoom || 1;
-      const contentWidth = innerRect.width / currentZoom;
-      const contentHeight = innerRect.height / currentZoom;
-      if (outerRect.width <= 0 || outerRect.height <= 0 || contentWidth <= 0 || contentHeight <= 0) {
-        zp.reset();
-        return;
-      }
-      const nextZoom = Math.min(1, (outerRect.width - 24) / contentWidth, (outerRect.height - 24) / contentHeight);
-      zp.reset();
-      zp.setZoom(nextZoom);
-    });
-    zt.el.appendChild(fitButton);
-
-    if (opts.previewSidePanel) {
-      split.right.classList.add("am-cbed-preview-with-panel");
-      // .am-split-right の flex-direction:column と同特異度でスタイル注入順に勝敗が依存するため、
-      // インラインで横並び（パネルはプレビュー本体の右側）を確定させる。
-      // 狭幅では split 本体の縦積み切替（dialogHelpers の 900px 境界）に合わせてパネルも下積みへ戻す。
-      const panelMq = createMediaQuery("(max-width:899.95px)");
-      const applyPanelDirection = (narrow: boolean): void => {
-        split.right.style.flexDirection = narrow ? "column" : "row";
-      };
-      applyPanelDirection(panelMq.matches);
-      panelMq.subscribe(applyPanelDirection);
-      const sidePanel = document.createElement("aside");
-      sidePanel.className = "am-cbed-preview-side-panel";
-      split.right.appendChild(sidePanel);
-      const mountCleanup = opts.previewSidePanel.mount(sidePanel, {
-        getCode: () => state.getFsCode(),
-        setCode: (s) => state.onFsTextChange(s),
-        isDark,
-      });
-      sidePanelCleanup = () => {
-        panelMq.destroy();
-        mountCleanup();
-      };
-    }
+    previewEl = mountPreviewPane({ opts, split, zp, sidePanelSlot });
   }
 
   dlg.paper.appendChild(split.el);
   split.el.style.flex = "1 1 auto";
 
   // ---- 状態同期 ----
-  let previewCleanup: (() => void) | void;
+  const previewSlot = createCleanupSlot();
   function render(): void {
     lnt.update({ value: state.getFsCode(), isDark, fontSize, lineHeight });
     header.update({ dirty: state.isFsDirty() });
     if (previewEl) {
       // 前回装着した操作層を破棄してから再描画する（ハンドラ・ポップオーバーの宙吊り防止）。
-      if (previewCleanup) {
-        previewCleanup();
-        previewCleanup = undefined;
-      }
-      const code = state.getFsCode();
-      if (opts.renderPreviewHtml) {
-        // 独自プレビュー HTML（図 SVG 等・呼び出し側 sanitize 済み）。
-        previewEl.classList.remove("am-cbed-preview--rendered");
-        previewEl.innerHTML = opts.renderPreviewHtml(code, isDark);
-        previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
-      } else if (opts.renderLanguagePreview) {
-        // 言語別の実プレビュー（html 等）を本文と同じ共通レンダラで描画する。
-        previewEl.classList.add("am-cbed-preview--rendered");
-        const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize, t }, render);
-        const extra = opts.onPreviewRendered?.(previewEl, isDark);
-        previewCleanup = () => {
-          cancel();
-          extra?.();
-        };
-      } else {
-        // regular コードは構文ハイライト（ソース表示）。
-        previewEl.classList.remove("am-cbed-preview--rendered");
-        previewEl.innerHTML = buildHighlightHtml(code, language);
-        previewCleanup = opts.onPreviewRendered?.(previewEl, isDark);
-      }
+      previewSlot.run();
+      renderPreviewContent({ opts, previewEl, previewSlot, rerender: render });
     }
   }
 
@@ -437,18 +558,9 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   return {
     el: dlg.el,
     destroy() {
-      if (auxCleanup) {
-        auxCleanup();
-        auxCleanup = undefined;
-      }
-      if (previewCleanup) {
-        previewCleanup();
-        previewCleanup = undefined;
-      }
-      if (sidePanelCleanup) {
-        sidePanelCleanup();
-        sidePanelCleanup = undefined;
-      }
+      auxSlot.run();
+      previewSlot.run();
+      sidePanelSlot.run();
       unsub();
       split.destroy();
       dlg.destroy();

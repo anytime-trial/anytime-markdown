@@ -130,50 +130,59 @@ export function parseScreenRanges(source: string): ScreenRange[] {
   return parseScreenBlocks(source).map(({ bodyStart, bodyEnd }) => ({ bodyStart, bodyEnd }));
 }
 
+/** 空行を読み飛ばし、次の非空行（または終端）の位置を返す。 */
+function skipBlankLines(lines: string[], from: number): number {
+  let cursor = from;
+  while (cursor < lines.length && lines[cursor].trim() === "") cursor += 1;
+  return cursor;
+}
+
+/** 区切り行に到達するまで読み進め、その位置（または終端）を返す。 */
+function seekDelimiter(lines: string[], from: number): number {
+  let cursor = from;
+  while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
+  return cursor;
+}
+
+/** front matter を持たない（区切り行が無い）本文だけのブロック。 */
+function plainScreenBlock(start: number, end: number): ScreenBlock {
+  return {
+    blockStart: start,
+    blockEnd: end,
+    frontmatterStart: null,
+    frontmatterEnd: null,
+    frontmatter: [],
+    bodyStart: start,
+    bodyEnd: end,
+  };
+}
+
 function parseScreenBlocks(source: string): ScreenBlock[] {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const firstContentIndex = lines.findIndex((line) => line.trim() !== "");
   if (firstContentIndex < 0) return [];
   if (!isDelimiter(lines[firstContentIndex])) {
-    return [
-      {
-        blockStart: 0,
-        blockEnd: lines.length,
-        frontmatterStart: null,
-        frontmatterEnd: null,
-        frontmatter: [],
-        bodyStart: 0,
-        bodyEnd: lines.length,
-      },
-    ];
+    return [plainScreenBlock(0, lines.length)];
   }
 
   const ranges: ScreenBlock[] = [];
   let cursor = firstContentIndex;
   while (cursor < lines.length) {
-    while (cursor < lines.length && lines[cursor].trim() === "") cursor += 1;
+    cursor = skipBlankLines(lines, cursor);
     if (cursor >= lines.length) break;
     if (!isDelimiter(lines[cursor])) {
-      ranges.push({
-        blockStart: cursor,
-        blockEnd: lines.length,
-        frontmatterStart: null,
-        frontmatterEnd: null,
-        frontmatter: [],
-        bodyStart: cursor,
-        bodyEnd: lines.length,
-      });
+      ranges.push(plainScreenBlock(cursor, lines.length));
       break;
     }
     const blockStart = cursor;
-    cursor += 1;
-    const fmStart = cursor;
-    while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
-    if (cursor >= lines.length) break;
-    const frontmatter = lines.slice(fmStart, cursor);
-    cursor += 1;
-    const bodyStart = cursor;
-    while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
+    // front matter は開始区切りの次行から、次の区切り行の手前まで。
+    const fmStart = cursor + 1;
+    const fmEnd = seekDelimiter(lines, fmStart);
+    if (fmEnd >= lines.length) break;
+    const frontmatter = lines.slice(fmStart, fmEnd);
+    // 本文は終了区切りの次行から、次の画面の開始区切り（または終端）まで。
+    const bodyStart = fmEnd + 1;
+    cursor = seekDelimiter(lines, bodyStart);
     if (parseFrontmatter(frontmatter)) {
       ranges.push({
         blockStart,
@@ -616,6 +625,56 @@ export interface ScreenmockElementAbsoluteOffset {
   topPx?: number;
 }
 
+/** 明示指定された軸の px 値。未指定の軸は null（既存宣言に触れない）。 */
+interface OffsetAxisInput {
+  left: number | null;
+  top: number | null;
+}
+
+/**
+ * left / top のオフセット指定を解決する。
+ * 0 は宣言を消して既定位置へ戻し、それ以外は px 宣言として next へ積む。
+ */
+function applyOffsetAxes(
+  style: string | null,
+  axes: OffsetAxisInput,
+): { style: string | null; next: Record<string, string> } {
+  let current = style;
+  const next: Record<string, string> = {};
+  for (const axis of ["left", "top"] as const) {
+    const px = axes[axis];
+    if (px === null) continue;
+    const rounded = Math.round(px);
+    if (rounded === 0) current = removeDeclarations(current, [axis]);
+    else next[axis] = `${rounded}px`;
+  }
+  return { style: current, next };
+}
+
+/** オフセット宣言を積む前に、位置指定が未指定 / static なら relative を補う。 */
+function ensurePositionedStyle(style: string | null, next: Record<string, string>): string {
+  const declared = readDeclaration(style, "position");
+  const position = !declared || declared.toLowerCase() === "static" ? "relative" : declared;
+  return mergeStyleAttribute(style, { position, ...next });
+}
+
+/** left / top の宣言が残らなかった場合に、自動付与した position:relative を取り除く。 */
+function dropAutoRelativePosition(style: string | null): string | null {
+  const hasLeftDeclaration = readDeclaration(style, "left") !== null;
+  const hasTopDeclaration = readDeclaration(style, "top") !== null;
+  if (!hasLeftDeclaration && !hasTopDeclaration) {
+    // 取り除くのは自動付与された relative だけ。ユーザー指定の absolute 等や
+    // right / bottom 基準の配置は尊重する（仕様 §4.1.2）。
+    const position = readDeclaration(style, "position");
+    const anchored =
+      readDeclaration(style, "right") !== null || readDeclaration(style, "bottom") !== null;
+    if (position !== null && position.toLowerCase() === "relative" && !anchored) {
+      return removeDeclarations(style, ["position"]);
+    }
+  }
+  return style;
+}
+
 export function setScreenmockElementOffset(
   source: string,
   screenIndex: number,
@@ -627,41 +686,21 @@ export function setScreenmockElementOffset(
     if (!target) return false;
 
     let style = target.getAttribute("style");
-    const next: Record<string, string> = {};
     const hasLeft = Object.prototype.hasOwnProperty.call(offset, "leftPx");
     const hasTop = Object.prototype.hasOwnProperty.call(offset, "topPx");
     if (!hasLeft && !hasTop) return false;
 
-    if (hasLeft) {
-      const left = Math.round(offset.leftPx ?? 0);
-      if (left === 0) style = removeDeclarations(style, ["left"]);
-      else next.left = `${left}px`;
-    }
-    if (hasTop) {
-      const top = Math.round(offset.topPx ?? 0);
-      if (top === 0) style = removeDeclarations(style, ["top"]);
-      else next.top = `${top}px`;
+    const applied = applyOffsetAxes(style, {
+      left: hasLeft ? (offset.leftPx ?? 0) : null,
+      top: hasTop ? (offset.topPx ?? 0) : null,
+    });
+    style = applied.style;
+
+    if (Object.keys(applied.next).length > 0) {
+      style = ensurePositionedStyle(style, applied.next);
     }
 
-    if (Object.keys(next).length > 0) {
-      const declared = readDeclaration(style, "position");
-      const position = !declared || declared.toLowerCase() === "static" ? "relative" : declared;
-      style = mergeStyleAttribute(style, { position, ...next });
-    }
-
-    const hasLeftDeclaration = readDeclaration(style, "left") !== null;
-    const hasTopDeclaration = readDeclaration(style, "top") !== null;
-    if (!hasLeftDeclaration && !hasTopDeclaration) {
-      // 取り除くのは自動付与された relative だけ。ユーザー指定の absolute 等や
-      // right / bottom 基準の配置は尊重する（仕様 §4.1.2）。
-      const position = readDeclaration(style, "position");
-      const anchored =
-        readDeclaration(style, "right") !== null || readDeclaration(style, "bottom") !== null;
-      if (position !== null && position.toLowerCase() === "relative" && !anchored) {
-        style = removeDeclarations(style, ["position"]);
-      }
-    }
-    setStyleAttribute(target, style ?? "");
+    setStyleAttribute(target, dropAutoRelativePosition(style) ?? "");
     return true;
   });
 }

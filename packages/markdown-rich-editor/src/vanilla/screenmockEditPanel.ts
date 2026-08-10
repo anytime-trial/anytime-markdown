@@ -310,6 +310,33 @@ function uniqueScreenIdFromPrefix(source: string, prefix: string): string {
   }
 }
 
+/** 空行を読み飛ばし、次の非空行（または終端）の位置を返す。 */
+function skipBlankLines(lines: string[], from: number): number {
+  let cursor = from;
+  while (cursor < lines.length && !lines[cursor].trim()) cursor += 1;
+  return cursor;
+}
+
+/** `---` 行に到達するまで読み進め、その位置（または終端）を返す。 */
+function seekFenceLine(lines: string[], from: number): number {
+  let cursor = from;
+  while (cursor < lines.length && lines[cursor].trim() !== "---") cursor += 1;
+  return cursor;
+}
+
+/** front matter 本体（開始 `---` の次行から）を読み、メタデータと終端 `---` の位置を返す。 */
+function readMetadataBlock(lines: string[], from: number): { meta: ScreenMetadata; end: number } {
+  const meta: ScreenMetadata = {};
+  let cursor = from;
+  while (cursor < lines.length && lines[cursor].trim() !== "---") {
+    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(lines[cursor]);
+    if (match?.[1] === "id") meta.id = match[2].trim();
+    if (match?.[1] === "title") meta.title = match[2].trim();
+    cursor += 1;
+  }
+  return { meta, end: cursor };
+}
+
 function readScreenMetadata(source: string): ScreenMetadata[] {
   if (!source.trim()) return [];
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
@@ -320,24 +347,17 @@ function readScreenMetadata(source: string): ScreenMetadata[] {
   const result: ScreenMetadata[] = [];
   let cursor = firstContentIndex;
   while (cursor < lines.length) {
-    while (cursor < lines.length && !lines[cursor].trim()) cursor += 1;
+    cursor = skipBlankLines(lines, cursor);
     if (cursor >= lines.length) break;
     if (lines[cursor].trim() !== "---") {
       result.push({});
       break;
     }
-    cursor += 1;
-    const meta: ScreenMetadata = {};
-    while (cursor < lines.length && lines[cursor].trim() !== "---") {
-      const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(lines[cursor]);
-      if (match?.[1] === "id") meta.id = match[2].trim();
-      if (match?.[1] === "title") meta.title = match[2].trim();
-      cursor += 1;
-    }
-    if (cursor >= lines.length) break;
-    result.push(meta);
-    cursor += 1;
-    while (cursor < lines.length && lines[cursor].trim() !== "---") cursor += 1;
+    const block = readMetadataBlock(lines, cursor + 1);
+    if (block.end >= lines.length) break;
+    result.push(block.meta);
+    // 終端 `---` の次行から、次の画面の front matter 開始 `---` まで本文を読み飛ばす。
+    cursor = seekFenceLine(lines, block.end + 1);
   }
   return result;
 }
@@ -387,6 +407,93 @@ function makeButton(label: string, className = "am-smep-action"): HTMLButtonElem
   button.className = className;
   button.textContent = label;
   return button;
+}
+
+interface HrefFieldParams {
+  content: HTMLElement;
+  el: HTMLElement;
+  /** リンク先候補を数え上げるための screenmock ソース */
+  source: string;
+  options: CreateScreenmockEditPanelOptions;
+  onChange: (value: string) => void;
+}
+
+/** <a> のリンク先（#画面ID）を選ぶセレクトを描画する。 */
+function renderHrefField(p: HrefFieldParams): void {
+  const { content, el, options } = p;
+  const hrefField = append(content, "div", "am-smep-field");
+  append(hrefField, "label").textContent = text("screenmockPanelHref", options);
+  const select = append(hrefField, "select");
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = text("screenmockPanelHrefNone", options);
+  select.appendChild(none);
+  for (const screen of parseScreenmock(p.source)) {
+    const option = document.createElement("option");
+    option.value = screen.id;
+    option.textContent = `${screen.id} ${screen.title}`;
+    select.appendChild(option);
+  }
+  select.value = (el.getAttribute("href") ?? "").startsWith("#") ? (el.getAttribute("href") ?? "").slice(1) : "";
+  select.addEventListener("change", () => p.onChange(select.value));
+}
+
+interface VariantFieldParams {
+  variantSelect: HTMLSelectElement;
+  el: HTMLElement;
+  options: CreateScreenmockEditPanelOptions;
+  onChange: (className: string, enabled: boolean) => void;
+}
+
+/** sm-btn のバリアント（standard / primary）選択肢を組む。 */
+function fillButtonVariantOptions(p: VariantFieldParams): void {
+  const { variantSelect: variant, el, options } = p;
+  const standard = document.createElement("option");
+  standard.value = "standard";
+  standard.textContent = text("screenmockPanelVariantStandard", options);
+  variant.appendChild(standard);
+  const primary = document.createElement("option");
+  primary.value = "primary";
+  primary.textContent = text("screenmockPanelVariantPrimary", options);
+  variant.appendChild(primary);
+  variant.value = el.classList.contains("sm-btn-primary") ? "primary" : "standard";
+  variant.addEventListener("change", () => p.onChange("sm-btn-primary", variant.value === "primary"));
+}
+
+/** sm-sidebar のバリアント（left / right）選択肢を組む。 */
+function fillSidebarVariantOptions(p: VariantFieldParams): void {
+  const { variantSelect: variant, el, options } = p;
+  const left = document.createElement("option");
+  left.value = "left";
+  left.textContent = text("screenmockPanelVariantLeft", options);
+  variant.appendChild(left);
+  const right = document.createElement("option");
+  right.value = "right";
+  right.textContent = text("screenmockPanelVariantRight", options);
+  variant.appendChild(right);
+  variant.value = el.classList.contains("sm-sidebar-right") ? "right" : "left";
+  variant.addEventListener("change", () => p.onChange("sm-sidebar-right", variant.value === "right"));
+}
+
+interface VariantSectionParams {
+  content: HTMLElement;
+  el: HTMLElement;
+  options: CreateScreenmockEditPanelOptions;
+  onChange: (className: string, enabled: boolean) => void;
+}
+
+/** sm-btn / sm-sidebar のバリアント選択フィールドを描画する。 */
+function renderVariantField(p: VariantSectionParams): void {
+  const { content, el, options } = p;
+  const variantField = append(content, "div", "am-smep-field");
+  append(variantField, "label").textContent = text("screenmockPanelVariant", options);
+  const variant = append(variantField, "select");
+  const params: VariantFieldParams = { variantSelect: variant, el, options, onChange: p.onChange };
+  if (el.classList.contains("sm-btn")) {
+    fillButtonVariantOptions(params);
+  } else {
+    fillSidebarVariantOptions(params);
+  }
 }
 
 export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOptions): ScreenmockEditPanelHandle {
@@ -896,50 +1003,11 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     textInput.addEventListener("change", () => applyText(textInput.value));
 
     if (el.tagName.toLowerCase() === "a") {
-      const hrefField = append(content, "div", "am-smep-field");
-      append(hrefField, "label").textContent = text("screenmockPanelHref", options);
-      const select = append(hrefField, "select");
-      const none = document.createElement("option");
-      none.value = "";
-      none.textContent = text("screenmockPanelHrefNone", options);
-      select.appendChild(none);
-      for (const screen of parseScreenmock(source)) {
-        const option = document.createElement("option");
-        option.value = screen.id;
-        option.textContent = `${screen.id} ${screen.title}`;
-        select.appendChild(option);
-      }
-      select.value = (el.getAttribute("href") ?? "").startsWith("#") ? (el.getAttribute("href") ?? "").slice(1) : "";
-      select.addEventListener("change", () => applyHref(select.value));
+      renderHrefField({ content, el, source, options, onChange: applyHref });
     }
 
     if (el.classList.contains("sm-btn") || el.classList.contains("sm-sidebar")) {
-      const variantField = append(content, "div", "am-smep-field");
-      append(variantField, "label").textContent = text("screenmockPanelVariant", options);
-      const variant = append(variantField, "select");
-      if (el.classList.contains("sm-btn")) {
-        const standard = document.createElement("option");
-        standard.value = "standard";
-        standard.textContent = text("screenmockPanelVariantStandard", options);
-        variant.appendChild(standard);
-        const primary = document.createElement("option");
-        primary.value = "primary";
-        primary.textContent = text("screenmockPanelVariantPrimary", options);
-        variant.appendChild(primary);
-        variant.value = el.classList.contains("sm-btn-primary") ? "primary" : "standard";
-        variant.addEventListener("change", () => applyVariant("sm-btn-primary", variant.value === "primary"));
-      } else {
-        const left = document.createElement("option");
-        left.value = "left";
-        left.textContent = text("screenmockPanelVariantLeft", options);
-        variant.appendChild(left);
-        const right = document.createElement("option");
-        right.value = "right";
-        right.textContent = text("screenmockPanelVariantRight", options);
-        variant.appendChild(right);
-        variant.value = el.classList.contains("sm-sidebar-right") ? "right" : "left";
-        variant.addEventListener("change", () => applyVariant("sm-sidebar-right", variant.value === "right"));
-      }
+      renderVariantField({ content, el, options, onChange: applyVariant });
     }
 
     renderSpacingPresets();
