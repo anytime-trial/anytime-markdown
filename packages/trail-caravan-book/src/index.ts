@@ -128,9 +128,12 @@ export {
   upsertDriftFts,
   deleteDriftFts,
   aliasesJsonToText,
+  buildEntityAliasesText,
 } from './rag/ftsSync';
 
 export { tokenizeForFts5 } from './rag/tokenizeForFts5';
+export { splitIdentifierSubtokens } from './rag/identifierTokens';
+export { isLowInformationEntity } from './canonical/entityQuality';
 export { reciprocalRankFusion } from './rag/reciprocalRankFusion';
 export type { RankedItem, FusedItem, RankSource } from './rag/reciprocalRankFusion';
 export { hybridSearchCaravanBook } from './rag/hybridSearchCaravanBook';

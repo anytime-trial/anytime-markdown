@@ -684,6 +684,13 @@ export interface TrailI18n {
   /** 初回描画に数秒かかる件数の注記。選択肢ラベルへ後置する。 */
   'knowledgeGraph.nodeLimitSlowSuffix': string;
   'knowledgeGraph.shownCount': string;
+  'knowledgeGraph.searchPlaceholder': string;
+  'knowledgeGraph.searchRun': string;
+  'knowledgeGraph.searchNoMatch': string;
+  'knowledgeGraph.searchFailed': string;
+  /** ego 表示中の件数表示。{{label}} = 中心実体・{{shown}} = ノード数。 */
+  'knowledgeGraph.egoShownCount': string;
+  'knowledgeGraph.egoClear': string;
   'flightRecord.filter.outcome': string;
   'flightRecord.filter.outcomeAll': string;
   'flightRecord.filter.since': string;

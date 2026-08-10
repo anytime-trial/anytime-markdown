@@ -21,6 +21,18 @@ import {
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type { TrailThemeTokens } from '../theme/designTokens';
 import { buildKnowledgeGraphCoocFile, type KnowledgeGraphResponse } from './knowledgeGraphCoocFile';
+
+interface KnowledgeGraphSearchHit {
+  readonly id: string;
+  readonly label: string;
+  readonly type: string;
+  readonly degree: number;
+}
+
+interface KnowledgeGraphSearchResponse {
+  readonly hits: readonly KnowledgeGraphSearchHit[];
+  readonly truncated: boolean;
+}
 import { formatBboxParam, shouldRefetchForViewport, type ViewportBox } from './knowledgeGraphViewport';
 
 export interface KnowledgeGraphPanelProps {
@@ -77,6 +89,34 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
 [data-am-kg-status] { font-size: 13px; color: ${c.textSecondary}; padding: 24px 4px; }
 [data-am-kg-status][data-kind="failed"] { color: ${c.error}; }
 [data-am-kg-viewer] { flex: 1 1 auto; min-height: 0; position: relative; }
+[data-am-kg-search-wrap] { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+[data-am-kg-search-wrap] input[data-am-kg-search-input] {
+  padding: 4px 8px; font-size: 12px; min-width: 220px; color: ${c.textPrimary};
+  background: transparent; border: 1px solid ${c.border}; border-radius: 4px;
+}
+[data-am-kg-search-wrap] button {
+  padding: 4px 12px; font-size: 12px; cursor: pointer; color: ${c.textPrimary};
+  background: transparent; border: 1px solid ${c.border}; border-radius: 4px;
+}
+[data-am-kg-search-results] {
+  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px;
+  min-width: 280px; max-height: 320px; overflow-y: auto;
+  background: ${c.charcoal}; border: 1px solid ${c.border}; border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+[data-am-kg-search-results] [data-am-kg-search-hit] {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 10px; font-size: 12px; cursor: pointer; color: ${c.textPrimary};
+  background: transparent; border: none; border-radius: 0;
+}
+[data-am-kg-search-results] [data-am-kg-search-hit]:hover { background: ${c.hoverBg}; }
+[data-am-kg-search-results] [data-am-kg-search-hit] .am-kg-hit-type { color: ${c.textSecondary}; flex: none; }
+[data-am-kg-search-results] [data-am-kg-search-hit] .am-kg-hit-label {
+  flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+[data-am-kg-search-results] [data-am-kg-search-empty] {
+  padding: 6px 10px; font-size: 12px; color: ${c.textSecondary};
+}
 `;
   doc.head.appendChild(style);
 }
@@ -121,6 +161,14 @@ export function mountKnowledgeGraphPanel(
    * （同じ全体グラフを何度も取り直すだけになるため）。
    */
   let viewportFetchEnabled = true;
+  /**
+   * ego 表示中の中心実体。null は通常の全体表示。検索結果の選択で入り、
+   * クリア・種別/件数の変更（取得条件の変更 = モード解除。設計書 §3.5）で戻る。
+   */
+  let egoSeed: { id: string; label: string } | null = null;
+  /** 検索結果ドロップダウンの表示状態。null は非表示。 */
+  let searchResults: KnowledgeGraphSearchResponse | 'failed' | null = null;
+  let searchController: AbortController | null = null;
 
   ensureStyle(container.ownerDocument, props.tokens);
 
@@ -135,6 +183,12 @@ export function mountKnowledgeGraphPanel(
     <label><span data-am-kg-label="nodeLimit"></span><span data-am-kg-limit-select></span></label>
     <label><span data-am-kg-label="cardRows"></span><span data-am-kg-card-rows-select></span></label>
     <button type="button" data-am-kg-reload></button>
+    <span data-am-kg-search-wrap>
+      <input type="search" data-am-kg-search-input />
+      <button type="button" data-am-kg-search-run></button>
+      <button type="button" data-am-kg-ego-clear hidden></button>
+      <span data-am-kg-search-results hidden></span>
+    </span>
     <span data-am-kg-count role="status"></span>
   `;
   root.appendChild(toolbar);
@@ -164,6 +218,8 @@ export function mountKnowledgeGraphPanel(
     onChange: (value) => {
       if (value === typeFilter) return;
       typeFilter = value;
+      // 取得条件の変更は ego 表示の解除（設計書 §3.5）
+      egoSeed = null;
       void refresh();
     },
   });
@@ -184,6 +240,8 @@ export function mountKnowledgeGraphPanel(
     onChange: (value) => {
       if (value === limit) return;
       limit = value;
+      // 取得条件の変更は ego 表示の解除（設計書 §3.5）
+      egoSeed = null;
       void refresh();
     },
   });
@@ -207,9 +265,126 @@ export function mountKnowledgeGraphPanel(
     void refresh();
   });
 
+  // ---- 検索（設計書 §3.5: 検索 → 結果リスト → ego 表示 → クリア）----
+
+  const searchInput = toolbar.querySelector<HTMLInputElement>('[data-am-kg-search-input]');
+  const searchRunBtn = toolbar.querySelector<HTMLButtonElement>('[data-am-kg-search-run]');
+  const egoClearBtn = toolbar.querySelector<HTMLButtonElement>('[data-am-kg-ego-clear]');
+  const searchResultsEl = toolbar.querySelector<HTMLElement>('[data-am-kg-search-results]');
+
+  /** 計測イベントの送信。失敗しても検索・表示を止めない（設計書 §2.4 fail-open）。 */
+  function postSearchEvent(
+    body: { kind: 'search' | 'ego_open' | 'clear'; query: string; resultCount?: number; entityId?: string },
+  ): void {
+    if (props.serverUrl === '') return;
+    void fetch(`${props.serverUrl}/api/caravan/knowledge-graph/search-events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch((err: unknown) => {
+      console.warn(`[knowledgeGraph] search event post failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
+
+  async function runSearch(): Promise<void> {
+    const q = searchInput?.value.trim() ?? '';
+    if (destroyed || props.serverUrl === '' || q === '') return;
+    searchController?.abort();
+    const ctrl = new AbortController();
+    searchController = ctrl;
+    try {
+      const res = await fetch(
+        `${props.serverUrl}/api/caravan/knowledge-graph/search?q=${encodeURIComponent(q)}`,
+        { signal: ctrl.signal },
+      );
+      // 200 + null は DB 未設定（取得系と同じ規約）。障害側の顔で表示する
+      const json = res.ok ? ((await res.json()) as KnowledgeGraphSearchResponse | null) : null;
+      if (destroyed || ctrl !== searchController) return;
+      searchResults = json ?? 'failed';
+      if (json) postSearchEvent({ kind: 'search', query: q, resultCount: json.hits.length });
+    } catch (err) {
+      if (destroyed || (err instanceof DOMException && err.name === 'AbortError')) return;
+      console.warn(`[knowledgeGraph] search failed: ${err instanceof Error ? err.message : String(err)}`);
+      searchResults = 'failed';
+    }
+    renderSearchResults();
+  }
+
+  function openEgo(hit: KnowledgeGraphSearchHit): void {
+    egoSeed = { id: hit.id, label: hit.label };
+    searchResults = null;
+    renderSearchResults();
+    postSearchEvent({ kind: 'ego_open', query: searchInput?.value.trim() ?? '', entityId: hit.id });
+    render();
+    void refresh();
+  }
+
+  function clearEgo(): void {
+    if (egoSeed === null) return;
+    postSearchEvent({ kind: 'clear', query: searchInput?.value.trim() ?? '' });
+    egoSeed = null;
+    render();
+    void refresh();
+  }
+
+  function renderSearchResults(): void {
+    if (!searchResultsEl) return;
+    searchResultsEl.textContent = '';
+    searchResultsEl.hidden = searchResults === null;
+    if (searchResults === null) return;
+    if (searchResults === 'failed' || searchResults.hits.length === 0) {
+      const div = document.createElement('div');
+      div.dataset['amKgSearchEmpty'] = '';
+      div.textContent = props.t(
+        searchResults === 'failed' ? 'knowledgeGraph.searchFailed' : 'knowledgeGraph.searchNoMatch',
+      );
+      searchResultsEl.appendChild(div);
+      return;
+    }
+    for (const hit of searchResults.hits) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset['amKgSearchHit'] = hit.id;
+      const typeSpan = document.createElement('span');
+      typeSpan.className = 'am-kg-hit-type';
+      typeSpan.textContent = hit.type;
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'am-kg-hit-label';
+      labelSpan.textContent = hit.label;
+      labelSpan.title = hit.label;
+      btn.append(typeSpan, labelSpan);
+      btn.addEventListener('click', () => openEgo(hit));
+      searchResultsEl.appendChild(btn);
+    }
+  }
+
+  searchRunBtn?.addEventListener('click', () => { void runSearch(); });
+  searchInput?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') void runSearch();
+    if (ev.key === 'Escape') {
+      searchResults = null;
+      renderSearchResults();
+    }
+  });
+  egoClearBtn?.addEventListener('click', clearEgo);
+  /** 外側クリックで結果リストを閉じる（設計書 §3.5）。 */
+  const onDocPointerDown = (ev: PointerEvent): void => {
+    if (searchResults === null) return;
+    const wrap = toolbar.querySelector('[data-am-kg-search-wrap]');
+    if (wrap && ev.target instanceof Node && wrap.contains(ev.target)) return;
+    searchResults = null;
+    renderSearchResults();
+  };
+  container.ownerDocument.addEventListener('pointerdown', onDocPointerDown);
+
   function buildQuery(bbox: ViewportBox | null): string {
     const params = new URLSearchParams();
     params.set('limit', limit);
+    if (egoSeed) {
+      // ego 表示は seed + limit のみ（種別・視野はサーバ側でも適用されない。設計書 §2.4）
+      params.set('seed', egoSeed.id);
+      return `?${params.toString()}`;
+    }
     if (typeFilter !== '') params.set('types', typeFilter);
     if (bbox) params.set('bbox', formatBboxParam(bbox));
     return `?${params.toString()}`;
@@ -299,7 +474,14 @@ export function mountKnowledgeGraphPanel(
     data = json;
     loadState = json.nodes.length === 0 ? 'empty' : 'ready';
     if (loadState !== 'ready') return;
-    syncViewer(buildKnowledgeGraphCoocFile(json, new Date().toISOString()), viewportDriven);
+    syncViewer(
+      buildKnowledgeGraphCoocFile(
+        json,
+        new Date().toISOString(),
+        egoSeed ? { subjectLabel: egoSeed.label } : undefined,
+      ),
+      viewportDriven,
+    );
   }
 
   /** 図を差し替える（初回だけ mount、以後は update）。 */
@@ -326,7 +508,8 @@ export function mountKnowledgeGraphPanel(
    * 記録だけして取得しない。
    */
   function handleViewportChange(bounds: ViewportBox): void {
-    if (destroyed || !viewportFetchEnabled || loadState !== 'ready') return;
+    // ego 表示中は視野駆動を止める（seed の周辺だけを見せる図で、視野の上位 N に意味がない）
+    if (destroyed || egoSeed !== null || !viewportFetchEnabled || loadState !== 'ready') return;
     if (fetchedBbox === null) {
       // 全体取得の直後。今の視野を基準として記録するだけ（同じ内容の取り直しを避ける）
       fetchedBbox = bounds;
@@ -347,14 +530,28 @@ export function mountKnowledgeGraphPanel(
     limitSelect.update({ options: limitOptions(t), ariaLabel: t('knowledgeGraph.nodeLimit'), value: limit });
     cardRowsSelect.update({ ariaLabel: t('knowledgeGraph.cardRows'), value: cardRows });
 
+    if (searchInput) searchInput.placeholder = t('knowledgeGraph.searchPlaceholder');
+    if (searchRunBtn) searchRunBtn.textContent = t('knowledgeGraph.searchRun');
+    if (egoClearBtn) {
+      egoClearBtn.textContent = t('knowledgeGraph.egoClear');
+      egoClearBtn.hidden = egoSeed === null;
+    }
+
     const count = toolbar.querySelector<HTMLElement>('[data-am-kg-count]');
     if (count) {
-      count.textContent = loadState === 'ready' && data
-        ? format(t('knowledgeGraph.shownCount'), {
+      if (loadState !== 'ready' || data === null) {
+        count.textContent = '';
+      } else if (egoSeed !== null) {
+        count.textContent = format(t('knowledgeGraph.egoShownCount'), {
+          label: egoSeed.label,
+          shown: String(data.nodes.length),
+        });
+      } else {
+        count.textContent = format(t('knowledgeGraph.shownCount'), {
           shown: String(data.nodes.length),
           total: String(data.totalEntityCount),
-        })
-        : '';
+        });
+      }
     }
 
     const statusKey: Partial<Record<LoadState, string>> = {
@@ -396,6 +593,8 @@ export function mountKnowledgeGraphPanel(
     destroy() {
       destroyed = true;
       controller?.abort();
+      searchController?.abort();
+      container.ownerDocument.removeEventListener('pointerdown', onDocPointerDown);
       typeSelect.destroy();
       limitSelect.destroy();
       cardRowsSelect.destroy();

@@ -70,9 +70,19 @@ function disambiguateLabels(nodes: readonly KnowledgeGraphNodeDto[]): string[] {
 export function buildKnowledgeGraphCoocFile(
   response: KnowledgeGraphResponse,
   generatedAt: string,
+  options?: {
+    /**
+     * 中心実体のラベル（ego 表示。画面設計書 §3.5）。応答ノードの元ラベルと一致した
+     * 最初のノードを `spec.subject` に立てる。見つからなければ subject なし（全体図と同じ）。
+     */
+    subjectLabel?: string;
+  },
 ): CooccurrenceFile {
   const labels = disambiguateLabels(response.nodes);
   const nodeCount = response.nodes.length;
+  const subjectIndex = options?.subjectLabel === undefined
+    ? -1
+    : response.nodes.findIndex((n) => n.label === options.subjectLabel);
 
   // 範囲外添字・自己ループは黙って捨てるのではなく図を壊さないために除外する。
   // サーバが正しければ空振りする防御で、除外がテスト対象（設計書 §3.3）。
@@ -90,6 +100,7 @@ export function buildKnowledgeGraphCoocFile(
     clusters: response.clusters
       .filter((cluster) => cluster.members.length > 0)
       .map((cluster) => ({ label: cluster.label, members: [...cluster.members] })),
+    ...(subjectIndex >= 0 ? { subject: subjectIndex } : {}),
   };
 
   return {
