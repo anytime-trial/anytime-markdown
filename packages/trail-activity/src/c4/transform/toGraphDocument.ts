@@ -116,6 +116,49 @@ function buildPhase1Frames(
   }
 }
 
+/** Phase 1 で作成済みのフレームへ c4Type / 色 / スタイルを補完する（groupId は 2b で設定）。 */
+function completeExistingFrame(frame: GraphNode, elem: C4Element): void {
+  const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+  const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+  const nodeColors = resolveNodeColors(serviceEntry, { fill: `${baseColors.fill}26`, stroke: baseColors.fill });
+  const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+  frame.metadata = {
+    ...frame.metadata,
+    c4Type: elem.type,
+    c4NodeFill: nodeColors.fill,
+    c4NodeStroke: nodeColors.stroke,
+    ...buildServiceIconMeta(serviceEntry),
+  };
+  frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
+  frame.text = buildNodeText(elem);
+}
+
+/** 境界要素のフレームノードを新規生成する。 */
+function createFrameNode(elem: C4Element, frameId: string): GraphNode {
+  const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
+  const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
+  const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
+  const nodeColors = resolveNodeColors(serviceEntry, { fill: `${baseColors.fill}26`, stroke: baseColors.fill });
+  return {
+    id: frameId,
+    type: 'frame',
+    x: 0,
+    y: 0,
+    width: 400,
+    height: 300,
+    text: buildNodeText(elem),
+    style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
+    metadata: {
+      c4Id: elem.id,
+      c4Type: elem.type,
+      c4NodeFill: nodeColors.fill,
+      c4NodeStroke: nodeColors.stroke,
+      ...(elem.manual ? { manual: 1 } : {}),
+      ...buildServiceIconMeta(serviceEntry),
+    },
+  };
+}
+
 /** Phase 2a: 境界要素のフレームノードを生成（または Phase 1 で作成済みのものを補完）する。 */
 function buildPhase2aFrames(
   model: C4Model,
@@ -128,49 +171,13 @@ function buildPhase2aFrames(
       // Phase 1 で作成済み → c4Type / 色 / スタイルを補完する（groupId は 2b で設定）
       const existingFrameId = boundaryIdMap.get(elem.id)!;
       const frame = doc.nodes.find(n => n.id === existingFrameId);
-      if (frame && !frame.metadata?.c4Type) {
-        const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
-        const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
-        const nodeColors = resolveNodeColors(serviceEntry, { fill: `${baseColors.fill}26`, stroke: baseColors.fill });
-        const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
-        frame.metadata = {
-          ...frame.metadata,
-          c4Type: elem.type,
-          c4NodeFill: nodeColors.fill,
-          c4NodeStroke: nodeColors.stroke,
-          ...buildServiceIconMeta(serviceEntry),
-        };
-        frame.style = { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke };
-        frame.text = buildNodeText(elem);
-      }
+      if (frame && !frame.metadata?.c4Type) completeExistingFrame(frame, elem);
       continue;
     }
 
     const frameId = nextId();
     boundaryIdMap.set(elem.id, frameId);
-    const serviceEntry = elem.serviceType ? findService(elem.serviceType) : undefined;
-    const colors = FRAME_COLORS[elem.type] ?? { fill: 'transparent', stroke: '#444444' };
-    const baseColors = C4_COLORS[elem.type] ?? EXTERNAL_COLOR;
-    const nodeColors = resolveNodeColors(serviceEntry, { fill: `${baseColors.fill}26`, stroke: baseColors.fill });
-    const node: GraphNode = {
-      id: frameId,
-      type: 'frame',
-      x: 0,
-      y: 0,
-      width: 400,
-      height: 300,
-      text: buildNodeText(elem),
-      style: { ...DEFAULT_STYLE, fill: colors.fill, stroke: colors.stroke },
-      metadata: {
-        c4Id: elem.id,
-        c4Type: elem.type,
-        c4NodeFill: nodeColors.fill,
-        c4NodeStroke: nodeColors.stroke,
-        ...(elem.manual ? { manual: 1 } : {}),
-        ...buildServiceIconMeta(serviceEntry),
-      },
-    };
-    doc.nodes.push(node);
+    doc.nodes.push(createFrameNode(elem, frameId));
   }
 }
 

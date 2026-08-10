@@ -51,6 +51,105 @@ function resolveTargetFilePaths(
   return out;
 }
 
+/** F = 対象ファイル配下の function ノード集合 */
+function collectInternalFunctions(
+  graph: TrailGraph,
+  targetFilePaths: ReadonlySet<string>,
+): { nodes: TrailNode[]; ids: Set<string> } {
+  const nodes: TrailNode[] = [];
+  const ids = new Set<string>();
+  for (const n of graph.nodes) {
+    if (n.type === 'function' && targetFilePaths.has(n.filePath)) {
+      nodes.push(n);
+      ids.add(n.id);
+    }
+  }
+  return { nodes, ids };
+}
+
+/** call エッジ走査で持ち回る可変状態（呼び出し先での更新を捨てないよう 1 オブジェクトに束ねる） */
+type CallEdgeScanState = {
+  internalFnIds: ReadonlySet<string>;
+  nodeById: ReadonlyMap<string, TrailNode>;
+  /** dedup は source+target で行う */
+  seen: Set<string>;
+  edges: FunctionGraphEdge[];
+  externalOut: Map<string, TrailNode>;
+  externalIn: Map<string, TrailNode>;
+};
+
+/**
+ * エッジ 1 本を走査結果へ反映する（call のみ・内部関数に接するもののみ）。
+ * 外部ノードは external (out 先) と external_caller (in 元) に分けて集める。
+ */
+function applyCallEdge(state: CallEdgeScanState, e: TrailGraph['edges'][number]): void {
+  if (e.type !== 'call') return;
+  const srcInternal = state.internalFnIds.has(e.source);
+  const dstInternal = state.internalFnIds.has(e.target);
+  if (!srcInternal && !dstInternal) return;
+
+  const key = `${e.source}\0${e.target}`;
+  if (state.seen.has(key)) return;
+  state.seen.add(key);
+  state.edges.push({ source: e.source, target: e.target });
+
+  if (srcInternal && !dstInternal) {
+    const ext = state.nodeById.get(e.target);
+    if (ext) state.externalOut.set(e.target, ext);
+  } else if (!srcInternal && dstInternal) {
+    const ext = state.nodeById.get(e.source);
+    if (ext) state.externalIn.set(e.source, ext);
+  }
+}
+
+/** エッジ収集 (call のみ) と外部ノード収集をまとめて行う。 */
+function scanCallEdges(
+  graph: TrailGraph,
+  internalFnIds: ReadonlySet<string>,
+): Pick<CallEdgeScanState, 'edges' | 'externalOut' | 'externalIn'> {
+  const nodeById = new Map<string, TrailNode>();
+  for (const n of graph.nodes) nodeById.set(n.id, n);
+
+  const state: CallEdgeScanState = {
+    internalFnIds,
+    nodeById,
+    seen: new Set<string>(),
+    edges: [],
+    externalOut: new Map<string, TrailNode>(),
+    externalIn: new Map<string, TrailNode>(),
+  };
+  for (const e of graph.edges) applyCallEdge(state, e);
+  return { edges: state.edges, externalOut: state.externalOut, externalIn: state.externalIn };
+}
+
+/** external 優先 dedup。external (out 先) を優先し、external_caller (in 元) は重複しない場合のみ */
+function buildExternalNodes(
+  externalOut: ReadonlyMap<string, TrailNode>,
+  externalIn: ReadonlyMap<string, TrailNode>,
+): FunctionGraphNode[] {
+  const externals: FunctionGraphNode[] = [];
+  for (const [id, n] of externalOut) {
+    externals.push({
+      id,
+      label: n.label,
+      filePath: n.filePath,
+      line: n.line,
+      kind: 'external',
+    });
+  }
+  for (const [id, n] of externalIn) {
+    if (externalOut.has(id)) continue;
+    externals.push({
+      id,
+      label: n.label,
+      filePath: n.filePath,
+      line: n.line,
+      kind: 'external_caller',
+    });
+  }
+  return externals;
+}
+
 /**
  * TrailGraph を C4 要素 (Phase 1: type='code', Phase 2: 'component' も対応) のファイル範囲でフィルタし、
  * 関数ノード + call エッジを返す。
@@ -73,15 +172,10 @@ export function filterTrailGraphByElement(
     return { elementId, nodes: [], edges: [] };
   }
 
-  // F = 対象ファイル配下の function ノード集合
-  const internalFnNodes: TrailNode[] = [];
-  const internalFnIds = new Set<string>();
-  for (const n of graph.nodes) {
-    if (n.type === 'function' && targetFilePaths.has(n.filePath)) {
-      internalFnNodes.push(n);
-      internalFnIds.add(n.id);
-    }
-  }
+  const { nodes: internalFnNodes, ids: internalFnIds } = collectInternalFunctions(
+    graph,
+    targetFilePaths,
+  );
 
   if (internalFnNodes.length === 0) {
     return { elementId, nodes: [], edges: [] };
@@ -95,57 +189,8 @@ export function filterTrailGraphByElement(
     kind: 'function' as const,
   }));
 
-  // エッジ収集 (call のみ)。dedup は source+target で行う。
-  const seen = new Set<string>();
-  const edges: FunctionGraphEdge[] = [];
-  // 外部ノード収集。external (out 先) を優先し、external_caller (in 元) は重複しない場合のみ
-  const externalOut = new Map<string, TrailNode>();
-  const externalIn = new Map<string, TrailNode>();
-
-  const nodeById = new Map<string, TrailNode>();
-  for (const n of graph.nodes) nodeById.set(n.id, n);
-
-  for (const e of graph.edges) {
-    if (e.type !== 'call') continue;
-    const srcInternal = internalFnIds.has(e.source);
-    const dstInternal = internalFnIds.has(e.target);
-    if (!srcInternal && !dstInternal) continue;
-
-    const key = `${e.source}\0${e.target}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    edges.push({ source: e.source, target: e.target });
-
-    if (srcInternal && !dstInternal) {
-      const ext = nodeById.get(e.target);
-      if (ext) externalOut.set(e.target, ext);
-    } else if (!srcInternal && dstInternal) {
-      const ext = nodeById.get(e.source);
-      if (ext) externalIn.set(e.source, ext);
-    }
-  }
-
-  // external 優先 dedup
-  const externals: FunctionGraphNode[] = [];
-  for (const [id, n] of externalOut) {
-    externals.push({
-      id,
-      label: n.label,
-      filePath: n.filePath,
-      line: n.line,
-      kind: 'external',
-    });
-  }
-  for (const [id, n] of externalIn) {
-    if (externalOut.has(id)) continue;
-    externals.push({
-      id,
-      label: n.label,
-      filePath: n.filePath,
-      line: n.line,
-      kind: 'external_caller',
-    });
-  }
+  const { edges, externalOut, externalIn } = scanCallEdges(graph, internalFnIds);
+  const externals = buildExternalNodes(externalOut, externalIn);
 
   return {
     elementId,

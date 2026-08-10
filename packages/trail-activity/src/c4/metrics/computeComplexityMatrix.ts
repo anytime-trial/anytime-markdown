@@ -78,6 +78,70 @@ function classifyHighest(features: {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+/** elementId → { counts per class, highest } */
+type ElementTally = { counts: Record<ComplexityClass, number>; highest: ComplexityClass };
+
+/** elementId のバケットを取り出す。無ければ 0 初期化して作る。 */
+function getOrCreateTally(
+  perElement: Map<string, ElementTally>,
+  elementId: string,
+): ElementTally {
+  let e = perElement.get(elementId);
+  if (!e) {
+    e = {
+      counts: { 'low-complexity': 0, 'search-only': 0, 'multi-file-edit': 0, 'high-complexity': 0 },
+      highest: 'low-complexity',
+    };
+    perElement.set(elementId, e);
+  }
+  return e;
+}
+
+/** メッセージ 1 件の分類を、触れた C4 要素へ加算する。 */
+function tallyMessage(
+  msg: MessageInput,
+  // c4Mapper 側の C4Element 定義（c4/types のものとは別宣言）に合わせる
+  elementById: ReturnType<typeof buildC4ElementById>,
+  perElement: Map<string, ElementTally>,
+): void {
+  const uniqueFileCount = msg.editedFilePaths.length;
+  const features = {
+    outputTokens: msg.outputTokens,
+    toolCallNames: msg.toolCallNames,
+    uniqueFileCount,
+  };
+
+  // mostFrequent 集計用: first-match による単一ラベル
+  const cls = toComplexityClass(classifyByFeatures(features).label);
+  // highest 計算用: 全ルール独立評価
+  const highestCls = classifyHighest(features);
+
+  // ファイルパス → C4要素へのマッピング (メッセージ内で elementId 重複排除)
+  const seenEl = new Set<string>();
+  for (const filePath of msg.editedFilePaths) {
+    for (const mapping of mapFileToC4Elements(filePath, elementById)) {
+      if (seenEl.has(mapping.elementId)) continue;
+      seenEl.add(mapping.elementId);
+      const e = getOrCreateTally(perElement, mapping.elementId);
+      e.counts[cls]++;
+      e.highest = higherClass(e.highest, highestCls);
+    }
+  }
+}
+
+/** 最多分類を求める（同率は高い方を優先） */
+function pickMostFrequent(counts: Record<ComplexityClass, number>): ComplexityClass {
+  let mostFrequent: ComplexityClass = 'low-complexity';
+  let maxCount = -1;
+  for (const [cls, count] of Object.entries(counts) as [ComplexityClass, number][]) {
+    if (count > maxCount || (count === maxCount && COMPLEXITY_ORDER[cls] > COMPLEXITY_ORDER[mostFrequent])) {
+      mostFrequent = cls;
+      maxCount = count;
+    }
+  }
+  return mostFrequent;
+}
+
 export function computeComplexityMatrix(
   messages: readonly MessageInput[],
   c4Elements: readonly C4Element[],
@@ -87,61 +151,16 @@ export function computeComplexityMatrix(
   // になるため、単一ファイル版を使い Map を引き回す。
   const elementById = buildC4ElementById(c4Elements);
 
-  // elementId → { counts per class, highest }
-  const perElement = new Map<string, { counts: Record<ComplexityClass, number>; highest: ComplexityClass }>();
-
-  function getOrCreate(elementId: string) {
-    let e = perElement.get(elementId);
-    if (!e) {
-      e = {
-        counts: { 'low-complexity': 0, 'search-only': 0, 'multi-file-edit': 0, 'high-complexity': 0 },
-        highest: 'low-complexity',
-      };
-      perElement.set(elementId, e);
-    }
-    return e;
-  }
-
+  const perElement = new Map<string, ElementTally>();
   for (const msg of messages) {
-    const uniqueFileCount = msg.editedFilePaths.length;
-    const features = {
-      outputTokens: msg.outputTokens,
-      toolCallNames: msg.toolCallNames,
-      uniqueFileCount,
-    };
-
-    // mostFrequent 集計用: first-match による単一ラベル
-    const cls = toComplexityClass(classifyByFeatures(features).label);
-    // highest 計算用: 全ルール独立評価
-    const highestCls = classifyHighest(features);
-
-    // ファイルパス → C4要素へのマッピング (メッセージ内で elementId 重複排除)
-    const seenEl = new Set<string>();
-    for (const filePath of msg.editedFilePaths) {
-      for (const mapping of mapFileToC4Elements(filePath, elementById)) {
-        if (seenEl.has(mapping.elementId)) continue;
-        seenEl.add(mapping.elementId);
-        const e = getOrCreate(mapping.elementId);
-        e.counts[cls]++;
-        e.highest = higherClass(e.highest, highestCls);
-      }
-    }
+    tallyMessage(msg, elementById, perElement);
   }
 
   const entries: ComplexityEntry[] = [];
   for (const [elementId, data] of perElement) {
-    // 最多分類を求める（同率は高い方を優先）
-    let mostFrequent: ComplexityClass = 'low-complexity';
-    let maxCount = -1;
-    for (const [cls, count] of Object.entries(data.counts) as [ComplexityClass, number][]) {
-      if (count > maxCount || (count === maxCount && COMPLEXITY_ORDER[cls] > COMPLEXITY_ORDER[mostFrequent])) {
-        mostFrequent = cls;
-        maxCount = count;
-      }
-    }
     entries.push({
       elementId,
-      mostFrequent,
+      mostFrequent: pickMostFrequent(data.counts),
       highest: data.highest,
       totalCount: Object.values(data.counts).reduce((a, b) => a + b, 0),
     });
