@@ -108,6 +108,207 @@ function recordAndCheckQuarantine(opts: {
   return false;
 }
 
+/** discoverChangedSpecs が返す 1 件（abs_path / rel_path / source_hash）。 */
+type ChangedSpec = Awaited<ReturnType<typeof discoverChangedSpecs>>[number];
+
+/**
+ * spec 1 件の処理結果。旧実装のループ内 `break` / `continue` を戻り値へ写したもの。
+ * 集計（items_* / consecutiveFailures / finalStatus）は呼び出し側だけが持つ。
+ */
+type SpecItemOutcome =
+  | { kind: 'processed'; entitiesInserted: number; edgesInserted: number }
+  | { kind: 'skipped' }
+  /** quarantined が true のとき呼び出し側は finalStatus='partial' で打ち切る。 */
+  | { kind: 'failed'; quarantined: boolean }
+  /** LLM 接続断。呼び出し側は finalStatus='error' で打ち切る。 */
+  | { kind: 'fatal'; detail: string };
+
+interface SpecItemContext {
+  db: CaravanDbConnection;
+  ollama: OllamaClient;
+  model: string;
+  logger: CaravanLogger;
+  /** 直前までの連続失敗数。quarantine 判定は「これ + 1」で行う（旧実装の ++ 後判定と同値）。 */
+  consecutiveFailures: number;
+}
+
+/** 失敗を記録し、quarantine 到達なら打ち切りを求める outcome を返す。 */
+function failSpecItem(
+  ctx: SpecItemContext,
+  args: { relPath: string; reason: string; detail: string; recordedAt: string },
+): SpecItemOutcome {
+  const quarantined = recordAndCheckQuarantine({
+    db: ctx.db,
+    scope: 'spec',
+    itemKey: args.relPath,
+    reason: args.reason,
+    detail: args.detail,
+    recordedAt: args.recordedAt,
+    consecutiveFailures: ctx.consecutiveFailures + 1,
+    maxConsecutive: MAX_CONSECUTIVE_FAILURES,
+    logger: ctx.logger,
+  });
+  return { kind: 'failed', quarantined };
+}
+
+/** parseFrontmatter が成功時に返す本体（frontmatter + body）。 */
+type ParsedSpec = Extract<ReturnType<typeof parseFrontmatter>, { ok: true }>['data'];
+
+type SpecLoad = { ok: true; parsed: ParsedSpec } | { ok: false; outcome: SpecItemOutcome };
+
+/** a. 本文読み込み ＋ b. フロントマター解析。 */
+function loadSpec(spec: ChangedSpec, ctx: SpecItemContext, recordedAt: string): SpecLoad {
+  let content: string;
+  try {
+    content = fs.readFileSync(spec.abs_path, 'utf-8');
+  } catch (readErr) {
+    const detail = readErr instanceof Error ? readErr.message : String(readErr);
+    ctx.logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: failed to read ${spec.rel_path}`, readErr);
+    return { ok: false, outcome: failSpecItem(ctx, { relPath: spec.rel_path, reason: 'read_error', detail, recordedAt }) };
+  }
+
+  const parseResult = parseFrontmatter({ rel_path: spec.rel_path, content });
+  if (parseResult.ok) return { ok: true, parsed: parseResult.data };
+
+  if (parseResult.reason === 'missing') {
+    // No --- block: legacy file without frontmatter — soft skip, not a transient failure
+    ctx.logger.warn?.(`[${recordedAt}] [WARN] [anytime-memory] runSpecIncremental: skipping ${spec.rel_path} (no frontmatter)`);
+    return { ok: false, outcome: { kind: 'skipped' } };
+  }
+  // reason === 'invalid': has --- block but zod validation failed — data quality issue
+  const detail = `parseFrontmatter invalid: ${parseResult.detail}`;
+  ctx.logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
+  return { ok: false, outcome: failSpecItem(ctx, { relPath: spec.rel_path, reason: 'parse_error', detail, recordedAt }) };
+}
+
+/** e〜h: spec ドキュメント・claim・C4 スコープの永続化。 */
+async function persistSpec(
+  spec: ChangedSpec,
+  ctx: SpecItemContext,
+  args: { parsed: ParsedSpec; extracted: ExtractResult; recordedAt: string },
+): Promise<SpecItemOutcome> {
+  const { parsed, extracted, recordedAt } = args;
+  const { specDocId, specEntityId } = upsertSpecDoc({
+    db: ctx.db,
+    parsed,
+    source_hash: spec.source_hash,
+    recordedAt,
+  });
+
+  // Update summary: 文書全体を読ませる専用要約を優先し、失敗時のみ
+  // claim 抽出の副産物 summary にフォールバックする（新規 doc で空要約を避ける）。
+  const docSummary = await summarizeSpecDoc({
+    title: parsed.frontmatter.title,
+    body: parsed.body,
+    ollama: ctx.ollama,
+    model: ctx.model,
+    logger: ctx.logger,
+  });
+  const summaryToPersist = docSummary ?? extracted.summary;
+  if (summaryToPersist) {
+    updateSpecDocSummary(ctx.db, specDocId, summaryToPersist);
+  }
+
+  // Ensure all predicates exist in caravan_relation_types before inserting edges
+  for (const claim of extracted.claims) {
+    ensurePredicateExists(ctx.db, claim.predicate);
+  }
+  const claimResult = upsertSpecClaims({
+    db: ctx.db,
+    specDocId,
+    specEntityId,
+    claims: extracted.claims,
+    recordedAt,
+  });
+
+  const c4Result = linkByC4Scope({
+    db: ctx.db,
+    specDocId,
+    specEntityId,
+    c4Scope: parsed.frontmatter.c4Scope ?? [],
+    recordedAt,
+    logger: ctx.logger,
+  });
+
+  ctx.logger.info(
+    `[${recordedAt}] [INFO] [anytime-memory] runSpecIncremental: processed ${spec.rel_path} ` +
+    `(entities_inserted=${claimResult.entities_inserted}, edges_inserted=${claimResult.edges_inserted + c4Result.edges_inserted})`,
+  );
+  return {
+    kind: 'processed',
+    entitiesInserted: claimResult.entities_inserted,
+    edgesInserted: claimResult.edges_inserted + c4Result.edges_inserted,
+  };
+}
+
+/** 想定外例外の振り分け。LLM 接続断だけは即時打ち切り（fatal）にする。 */
+function classifySpecError(
+  err: unknown,
+  spec: ChangedSpec,
+  ctx: SpecItemContext,
+  recordedAt: string,
+): SpecItemOutcome {
+  const isConnRefused =
+    err instanceof Error &&
+    (err.message.includes('ECONNREFUSED') || err.message.includes('fetch failed'));
+  const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
+
+  if (isConnRefused) {
+    ctx.logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: LLM connection refused — aborting`, err);
+    recordFailedItem(ctx.db, 'spec', spec.rel_path, 'llm_connection_error', detail, recordedAt);
+    return { kind: 'fatal', detail };
+  }
+
+  ctx.logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: unexpected error processing ${spec.rel_path}`, err);
+  return failSpecItem(ctx, { relPath: spec.rel_path, reason: 'unexpected_error', detail, recordedAt });
+}
+
+/** 変更された spec 1 件を読み・抽出し・永続化する（a〜h）。 */
+async function processChangedSpec(spec: ChangedSpec, ctx: SpecItemContext): Promise<SpecItemOutcome> {
+  const recordedAt = new Date().toISOString();
+  try {
+    const loaded = loadSpec(spec, ctx, recordedAt);
+    if (!loaded.ok) return loaded.outcome;
+
+    // c. Pre-filter claims
+    const { paragraphs } = preFilterClaims(loaded.parsed.body);
+
+    // d. Extract claims via Ollama (only if paragraphs found)
+    let extracted: ExtractResult = { summary: '', claims: [] };
+    if (paragraphs.length > 0) {
+      const extractResult = await extractClaims({
+        paragraphs,
+        c4Scope: loaded.parsed.frontmatter.c4Scope ?? [],
+        ollama: ctx.ollama,
+        model: ctx.model,
+        logger: ctx.logger,
+      });
+      if (!extractResult) {
+        // LLM failure — check if it's a connection error
+        const detail = 'extractClaims returned null (LLM failure)';
+        ctx.logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
+        return failSpecItem(ctx, { relPath: spec.rel_path, reason: 'llm_error', detail, recordedAt });
+      }
+      extracted = extractResult;
+    }
+
+    return await persistSpec(spec, ctx, { parsed: loaded.parsed, extracted, recordedAt });
+  } catch (err) {
+    return classifySpecError(err, spec, ctx, recordedAt);
+  }
+}
+
+/** specRoot 配下の .md 総数（変更なし件数＝items_skipped の算出に使う）。 */
+function countMarkdownFiles(specRoot: string): number {
+  try {
+    const allEntries = fs.readdirSync(specRoot, { recursive: true }) as string[];
+    return allEntries.filter((e) => typeof e === 'string' && e.endsWith('.md')).length;
+  } catch {
+    // specRoot が無い（テスト等）ときは 0 件扱い。走査不能は失敗ではない。
+    return 0;
+  }
+}
+
 // ── Main pipeline ─────────────────────────────────────────────────────────────
 
 /**
@@ -146,33 +347,9 @@ export async function runSpecIncremental(
     const total = changedSpecs.length;
     logger.info(`[${new Date().toISOString()}] [INFO] [anytime-memory] runSpecIncremental: discovered ${total} changed spec(s)`);
 
-    // items_skipped = all MD files that were not in changedSpecs (hash matched)
-    // We can't know the total without re-scanning, so we track skips from discoverChangedSpecs
-    // For now, items_skipped is reported as 0 from the pipeline (discoverChangedSpecs already filtered)
-    // The test verifies this via items_processed on the 2nd run being 0 and items_skipped being 1
-    // We need to count skips ourselves by tracking total discovered vs changed
-    // discoverChangedSpecs only returns changed files, so we compute skips separately
-    // This would require modifying discoverChangedSpecs — instead we count from DB
-    // For now we track items_skipped at a higher level using a separate query
-    // (the test expects items_skipped=1 on 2nd run where discoverChangedSpecs returns [])
-    // We set items_skipped = (total_md_files - changed_count) but that requires another scan
-    // Simplest approach: items_skipped += 1 for each file not in changedSpecs
-    // But we don't have that count here. We'll track via a helper count query.
-    // Actually the simplest: run discoverChangedSpecs with a count-all variant.
-    // For the test: 2nd run discoverChangedSpecs returns [] (0 changed), items_processed=0
-    // We need items_skipped to be 1. We'll compute it via DB query after discoverChangedSpecs.
-
-    // Count all md files currently tracked in caravan_spec_documents (as a proxy for skips)
-    // Actually the cleanest: count total_md_in_specRoot - changed_specs.length
-    // We do a quick file count here.
-    let totalMdCount = 0;
-    try {
-      const allEntries = fs.readdirSync(specRoot, { recursive: true }) as string[];
-      totalMdCount = allEntries.filter((e) => typeof e === 'string' && e.endsWith('.md')).length;
-    } catch {
-      // ignore — specRoot may not exist in tests
-    }
-    items_skipped = Math.max(0, totalMdCount - changedSpecs.length);
+    // discoverChangedSpecs は変更のあった spec だけを返すため、スキップ数はここで
+    // 「specRoot 配下の .md 総数 − 変更件数」として求める（DB 側に総数を持たないため）。
+    items_skipped = Math.max(0, countMarkdownFiles(specRoot) - changedSpecs.length);
 
     // 3. Process each changed spec
     logger.info(`[anytime-memory] spec incremental: ${changedSpecs.length} changed specs to process`);
@@ -185,152 +362,30 @@ export async function runSpecIncremental(
             `(failed=${items_failed})`
         );
       }
-      const recordedAt = new Date().toISOString();
-      try {
-        // a. Read content
-        let content: string;
-        try {
-          content = fs.readFileSync(spec.abs_path, 'utf-8');
-        } catch (readErr) {
-          const detail = readErr instanceof Error ? readErr.message : String(readErr);
-          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: failed to read ${spec.rel_path}`, readErr);
-          items_failed++;
-          consecutiveFailures++;
-          if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'read_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
-            finalStatus = 'partial';
-            break;
-          }
-          continue;
-        }
+      const outcome = await processChangedSpec(spec, { db, ollama, model, logger, consecutiveFailures });
 
-        // b. Parse frontmatter
-        const parseResult = parseFrontmatter({ rel_path: spec.rel_path, content });
-        if (!parseResult.ok) {
-          if (parseResult.reason === 'missing') {
-            // No --- block: legacy file without frontmatter — soft skip, not a transient failure
-            logger.warn?.(`[${recordedAt}] [WARN] [anytime-memory] runSpecIncremental: skipping ${spec.rel_path} (no frontmatter)`);
-            items_skipped++;
-            continue;
-          }
-          // reason === 'invalid': has --- block but zod validation failed — data quality issue
-          const detail = `parseFrontmatter invalid: ${parseResult.detail}`;
-          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
-          items_failed++;
-          consecutiveFailures++;
-          if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'parse_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
-            finalStatus = 'partial';
-            break;
-          }
-          continue;
-        }
-        const parsed = parseResult.data;
-
-        // c. Pre-filter claims
-        const { paragraphs } = preFilterClaims(parsed.body);
-
-        // d. Extract claims via Ollama (only if paragraphs found)
-        let extracted: ExtractResult = { summary: '', claims: [] };
-        if (paragraphs.length > 0) {
-          const extractResult = await extractClaims({
-            paragraphs,
-            c4Scope: parsed.frontmatter.c4Scope ?? [],
-            ollama,
-            model,
-            logger,
-          });
-          if (!extractResult) {
-            // LLM failure — check if it's a connection error
-            const detail = 'extractClaims returned null (LLM failure)';
-            logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: ${detail} for ${spec.rel_path}`);
-            items_failed++;
-            consecutiveFailures++;
-            if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'llm_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
-              finalStatus = 'partial';
-              break;
-            }
-            continue;
-          }
-          extracted = extractResult;
-        }
-
-        // e. Persist spec doc and entity
-        const { specDocId, specEntityId } = upsertSpecDoc({
-          db,
-          parsed,
-          source_hash: spec.source_hash,
-          recordedAt,
-        });
-
-        // Update summary: 文書全体を読ませる専用要約を優先し、失敗時のみ
-        // claim 抽出の副産物 summary にフォールバックする（新規 doc で空要約を避ける）。
-        const docSummary = await summarizeSpecDoc({
-          title: parsed.frontmatter.title,
-          body: parsed.body,
-          ollama,
-          model,
-          logger,
-        });
-        const summaryToPersist = docSummary ?? extracted.summary;
-        if (summaryToPersist) {
-          updateSpecDocSummary(db, specDocId, summaryToPersist);
-        }
-
-        // f. Persist claims as edges
-        // Ensure all predicates exist in caravan_relation_types before inserting edges
-        for (const claim of extracted.claims) {
-          ensurePredicateExists(db, claim.predicate);
-        }
-        const claimResult = upsertSpecClaims({
-          db,
-          specDocId,
-          specEntityId,
-          claims: extracted.claims,
-          recordedAt,
-        });
-        entities_inserted += claimResult.entities_inserted;
-        edges_inserted += claimResult.edges_inserted;
-
-        // g. Link C4 scope
-        const c4Result = linkByC4Scope({
-          db,
-          specDocId,
-          specEntityId,
-          c4Scope: parsed.frontmatter.c4Scope ?? [],
-          recordedAt,
-          logger,
-        });
-        edges_inserted += c4Result.edges_inserted;
-
-        // h. Count success
+      if (outcome.kind === 'processed') {
         items_processed++;
         consecutiveFailures = 0;
-
-        logger.info(
-          `[${recordedAt}] [INFO] [anytime-memory] runSpecIncremental: processed ${spec.rel_path} ` +
-          `(entities_inserted=${claimResult.entities_inserted}, edges_inserted=${claimResult.edges_inserted + c4Result.edges_inserted})`,
-        );
-      } catch (err) {
-        const isConnRefused =
-          err instanceof Error &&
-          (err.message.includes('ECONNREFUSED') || err.message.includes('fetch failed'));
-        const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
-
-        if (isConnRefused) {
-          logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: LLM connection refused — aborting`, err);
-          finalStatus = 'error';
-          errorDetail = detail;
-          recordFailedItem(db, 'spec', spec.rel_path, 'llm_connection_error', detail, recordedAt);
-          items_failed++;
-          break;
-        }
-
-        logger.error(`[${recordedAt}] [ERROR] [anytime-memory] runSpecIncremental: unexpected error processing ${spec.rel_path}`, err);
+        entities_inserted += outcome.entitiesInserted;
+        edges_inserted += outcome.edgesInserted;
+        continue;
+      }
+      if (outcome.kind === 'skipped') {
+        items_skipped++;
+        continue;
+      }
+      if (outcome.kind === 'fatal') {
+        finalStatus = 'error';
+        errorDetail = outcome.detail;
         items_failed++;
-        consecutiveFailures++;
-        if (recordAndCheckQuarantine({ db, scope: 'spec', itemKey: spec.rel_path, reason: 'unexpected_error', detail, recordedAt, consecutiveFailures, maxConsecutive: MAX_CONSECUTIVE_FAILURES, logger })) {
-          finalStatus = 'partial';
-          break;
-        }
+        break;
+      }
+      items_failed++;
+      consecutiveFailures++;
+      if (outcome.quarantined) {
+        finalStatus = 'partial';
+        break;
       }
     }
   } catch (err) {
