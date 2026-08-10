@@ -43,29 +43,14 @@ function codeEdgeId(subjectId: string, predicate: string, objectId: string): str
     .slice(0, 16);
 }
 
-/**
- * Reads `trail.activity_current_code_graphs` for a given repo and upserts
- * Package / File entities plus Package→relates_to→File edges into
- * the caravan-book DB.
- *
- * Idempotent: re-running with the same graph_json does not change row counts.
- */
-export function fromTrailGraph(opts: {
+/** trail.activity_current_code_graphs から graph_json を読み出してパースする。読めなければ null。 */
+function loadCodeGraph(args: {
   db: CaravanDbConnection;
   repoName: string;
-  recordedAt: string;
   logger: CaravanLogger;
-}): FromTrailGraphStats {
-  const { db, repoName, recordedAt, logger } = opts;
+}): CodeGraph | null {
+  const { db, repoName, logger } = args;
 
-  const stats: FromTrailGraphStats = {
-    packages_upserted: 0,
-    files_upserted: 0,
-    edges_inserted: 0,
-    repo_name: repoName,
-  };
-
-  // ── 1. Read graph_json from trail.activity_current_code_graphs ────────────────────
   // Use prepare/bind/step instead of parameterized exec() because the
   // installTrailReadonlyGuard wraps db.exec() but drops the params argument.
   let graphJson: string | null = null;
@@ -87,39 +72,41 @@ export function fromTrailGraph(opts: {
     logger.info(
       `[anytime-memory] fromTrailGraph: no graph found for repo_name="${repoName}"`
     );
-    return stats;
+    return null;
   }
 
-  let graph: CodeGraph;
   try {
-    graph = JSON.parse(graphJson) as CodeGraph;
+    return JSON.parse(graphJson) as CodeGraph;
   } catch (err) {
     logger.error(
       `[anytime-memory] fromTrailGraph: failed to parse graph_json for repo_name="${repoName}"`,
       err
     );
-    return stats;
+    return null;
   }
+}
 
-  const codeNodes = graph.nodes.filter(
-    (n: CodeGraphNode) => n.fileType === 'code'
-  );
-
-  if (codeNodes.length === 0) {
-    logger.info(
-      `[anytime-memory] fromTrailGraph: no code nodes found for repo_name="${repoName}"`
-    );
-    return stats;
-  }
-
-  // ── 2. Determine valid_from: graph.generatedAt if valid, else recordedAt ──
-  let validFrom = recordedAt;
+/** valid_from は graph.generatedAt が妥当な日時ならそれを、そうでなければ recordedAt を使う。 */
+function resolveValidFrom(graph: CodeGraph, recordedAt: string): string {
   if (typeof graph.generatedAt === 'string' && graph.generatedAt.length > 0) {
     const parsed = new Date(graph.generatedAt);
     if (!Number.isNaN(parsed.getTime())) {
-      validFrom = graph.generatedAt;
+      return graph.generatedAt;
     }
   }
+  return recordedAt;
+}
+
+/** code ノードに現れる一意な package を Package entity として upsert し、name → entity id を返す。 */
+function upsertPackageEntities(args: {
+  db: CaravanDbConnection;
+  codeNodes: readonly CodeGraphNode[];
+  repoName: string;
+  recordedAt: string;
+  logger: CaravanLogger;
+  stats: FromTrailGraphStats;
+}): Map<string, string> {
+  const { db, codeNodes, repoName, recordedAt, logger, stats } = args;
 
   // ── 3. Collect unique packages ───────────────────────────────────────────
   const packageNames = new Set<string>();
@@ -161,7 +148,21 @@ export function fromTrailGraph(opts: {
     }
   }
 
-  // ── 5. Upsert File entities and insert Package→relates_to→File edges ─────
+  return packageIdMap;
+}
+
+/** File entity を upsert し、Package→relates_to→File edge を張る。 */
+function upsertFileEntitiesAndEdges(args: {
+  db: CaravanDbConnection;
+  codeNodes: readonly CodeGraphNode[];
+  packageIdMap: ReadonlyMap<string, string>;
+  repoName: string;
+  validFrom: string;
+  recordedAt: string;
+  logger: CaravanLogger;
+  stats: FromTrailGraphStats;
+}): void {
+  const { db, codeNodes, packageIdMap, repoName, validFrom, recordedAt, logger, stats } = args;
   const sourceRef = `activity_current_code_graphs#${repoName}`;
 
   for (const node of codeNodes) {
@@ -214,6 +215,59 @@ export function fromTrailGraph(opts: {
       );
     }
   }
+}
+
+/**
+ * Reads `trail.activity_current_code_graphs` for a given repo and upserts
+ * Package / File entities plus Package→relates_to→File edges into
+ * the caravan-book DB.
+ *
+ * Idempotent: re-running with the same graph_json does not change row counts.
+ */
+export function fromTrailGraph(opts: {
+  db: CaravanDbConnection;
+  repoName: string;
+  recordedAt: string;
+  logger: CaravanLogger;
+}): FromTrailGraphStats {
+  const { db, repoName, recordedAt, logger } = opts;
+
+  const stats: FromTrailGraphStats = {
+    packages_upserted: 0,
+    files_upserted: 0,
+    edges_inserted: 0,
+    repo_name: repoName,
+  };
+
+  // ── 1. Read graph_json from trail.activity_current_code_graphs ────────────────────
+  const graph = loadCodeGraph({ db, repoName, logger });
+  if (graph === null) {
+    return stats;
+  }
+
+  const codeNodes = graph.nodes.filter(
+    (n: CodeGraphNode) => n.fileType === 'code'
+  );
+
+  if (codeNodes.length === 0) {
+    logger.info(
+      `[anytime-memory] fromTrailGraph: no code nodes found for repo_name="${repoName}"`
+    );
+    return stats;
+  }
+
+  // ── 2. Determine valid_from: graph.generatedAt if valid, else recordedAt ──
+  const validFrom = resolveValidFrom(graph, recordedAt);
+
+  // ── 3-4. Collect unique packages / upsert Package entities ───────────────
+  const packageIdMap = upsertPackageEntities({
+    db, codeNodes, repoName, recordedAt, logger, stats,
+  });
+
+  // ── 5. Upsert File entities and insert Package→relates_to→File edges ─────
+  upsertFileEntitiesAndEdges({
+    db, codeNodes, packageIdMap, repoName, validFrom, recordedAt, logger, stats,
+  });
 
   logger.info(
     `[anytime-memory] fromTrailGraph: repo="${repoName}" packages=${stats.packages_upserted} ` +

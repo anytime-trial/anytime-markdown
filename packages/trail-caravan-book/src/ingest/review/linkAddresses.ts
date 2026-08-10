@@ -1,4 +1,4 @@
-import type { CaravanDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection, SqlValue } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { normalizeTargetPath } from './normalizeTargetPath';
 import { escapeLike } from './resolveTargetRepo';
@@ -215,33 +215,51 @@ const SCORE_THRESHOLD_DIRECTORY = 3;
 
 // ── Per-finding helper ─────────────────────────────────────────────────────────
 
-/**
- * Attempt to link one finding to the oldest qualifying commit.
- * Returns { edgeInserted: boolean } on success, null if no commit matched.
- */
-function linkOneFinding(
-  db: CaravanDbConnection,
-  finding: FindingRow,
-  effectiveWindowDays: number,
-): { edgeInserted: boolean; signals: LinkSignal[] } | null {
-  // 対象がファイルかディレクトリかは、格納済みの正規化パスから判定する。
-  // 'unknown'（既知拡張子でも明らかなディレクトリでもない形）は両方式を試す。
-  const normalized = normalizeTargetPath(finding.target_file_path);
-  if (normalized === null) return null;
-  const predicates: ReadonlyArray<'exact' | 'prefix'> =
-    normalized.kind === 'file' ? ['exact'] : normalized.kind === 'directory' ? ['prefix'] : ['exact', 'prefix'];
+/** 受理したコミット 1 件（リンク先）。 */
+type AcceptedCommit = { commit_hash: string; committed_at: string; signals: LinkSignal[] };
 
-  // リポジトリは finding.target_repo で絞る。かつては呼び出し元の単一 repoName で
-  // 絞っており、他ワークスペースの指摘が永久にリンクできず、かつリポジトリ名を
-  // 含まない相対パスが別リポジトリの同名ファイルへ誤リンクし得た。
-  //
-  // Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。
-  // 窓の下限は `committed_at >= reviewed_at`（同時刻の即時修正＝同一セッション内の対処も拾う）。
-  // 兄弟 linkPrecedesBugs は後続バグを探すため `> reviewed_at`（厳密大なり）で、境界差は意図的。
-  //
-  // ディレクトリ指定は前方一致。`|| '/'` を挟んでセグメント境界を守る
-  // （`packages/markdown-viewer` が `packages/markdown-viewer-extra/...` に当たらないように）。
-  let acceptedCommit: { commit_hash: string; committed_at: string; signals: LinkSignal[] } | null = null;
+/** 候補行を古い順に走査し、最初に閾値を満たしたコミットを返す。 */
+function pickAcceptedCommitRow(args: {
+  rows: ReadonlyArray<ReadonlyArray<SqlValue>>;
+  finding: FindingRow;
+  threshold: number;
+}): AcceptedCommit | null {
+  const { rows, finding, threshold } = args;
+  for (const row of rows) {
+    const { score, signals } = scoreCandidate({
+      commitMessage: String(row[1]),
+      findingText: finding.finding_text,
+      sameSession:
+        finding.review_session_id !== null && String(row[3]) === finding.review_session_id,
+    });
+    if (score >= threshold) {
+      return { commit_hash: String(row[0]), committed_at: String(row[2]), signals };
+    }
+  }
+  return null;
+}
+
+/**
+ * predicate（完全一致 / 前方一致）の順に候補コミットを検索し、最初に受理した 1 件を返す。
+ *
+ * リポジトリは finding.target_repo で絞る。かつては呼び出し元の単一 repoName で
+ * 絞っており、他ワークスペースの指摘が永久にリンクできず、かつリポジトリ名を
+ * 含まない相対パスが別リポジトリの同名ファイルへ誤リンクし得た。
+ *
+ * Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。
+ * 窓の下限は `committed_at >= reviewed_at`（同時刻の即時修正＝同一セッション内の対処も拾う）。
+ * 兄弟 linkPrecedesBugs は後続バグを探すため `> reviewed_at`（厳密大なり）で、境界差は意図的。
+ *
+ * ディレクトリ指定は前方一致。`|| '/'` を挟んでセグメント境界を守る
+ * （`packages/markdown-viewer` が `packages/markdown-viewer-extra/...` に当たらないように）。
+ */
+function findAcceptedCommit(args: {
+  db: CaravanDbConnection;
+  finding: FindingRow;
+  predicates: ReadonlyArray<'exact' | 'prefix'>;
+  effectiveWindowDays: number;
+}): AcceptedCommit | null {
+  const { db, finding, predicates, effectiveWindowDays } = args;
 
   for (const predicate of predicates) {
     const isPrefix = predicate === 'prefix';
@@ -269,20 +287,29 @@ function linkOneFinding(
     if (!commitRows) continue;
 
     const threshold = isPrefix ? SCORE_THRESHOLD_DIRECTORY : SCORE_THRESHOLD_FILE;
-    for (const row of commitRows.values) {
-      const { score, signals } = scoreCandidate({
-        commitMessage: String(row[1]),
-        findingText: finding.finding_text,
-        sameSession:
-          finding.review_session_id !== null && String(row[3]) === finding.review_session_id,
-      });
-      if (score >= threshold) {
-        acceptedCommit = { commit_hash: String(row[0]), committed_at: String(row[2]), signals };
-        break;
-      }
-    }
-    if (acceptedCommit) break;
+    const accepted = pickAcceptedCommitRow({ rows: commitRows.values, finding, threshold });
+    if (accepted) return accepted;
   }
+  return null;
+}
+
+/**
+ * Attempt to link one finding to the oldest qualifying commit.
+ * Returns { edgeInserted: boolean } on success, null if no commit matched.
+ */
+function linkOneFinding(
+  db: CaravanDbConnection,
+  finding: FindingRow,
+  effectiveWindowDays: number,
+): { edgeInserted: boolean; signals: LinkSignal[] } | null {
+  // 対象がファイルかディレクトリかは、格納済みの正規化パスから判定する。
+  // 'unknown'（既知拡張子でも明らかなディレクトリでもない形）は両方式を試す。
+  const normalized = normalizeTargetPath(finding.target_file_path);
+  if (normalized === null) return null;
+  const predicates: ReadonlyArray<'exact' | 'prefix'> =
+    normalized.kind === 'file' ? ['exact'] : normalized.kind === 'directory' ? ['prefix'] : ['exact', 'prefix'];
+
+  const acceptedCommit = findAcceptedCommit({ db, finding, predicates, effectiveWindowDays });
   if (!acceptedCommit) return null;
 
   const now = new Date().toISOString();
@@ -354,24 +381,14 @@ function countSkips(
   }
 }
 
-export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
-  const { db, windowDays = 30, logger } = input;
-  const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 30;
-  const skipped = countSkips(db, logger);
-
-  /** 母集合を作れなかったときの戻り値。除外内訳だけは残す（調査の起点になる）。 */
-  const emptyResult: LinkAddressesResult = {
-    findings_linked: 0,
-    edges_inserted: 0,
-    candidates: 0,
-    no_matching_commit: 0,
-    skipped,
-    linked_with_same_session: 0,
-    linked_with_review_marker: 0,
-  };
-
-  let findings: FindingRow[];
-
+/**
+ * 未リンクの指摘（母集合）を読み出す。クエリに失敗したら null を返す
+ * （0 件と「読めなかった」を呼び出し側で区別するため）。
+ */
+function loadUnlinkedFindings(
+  db: CaravanDbConnection,
+  logger: { warn: (msg: string) => void },
+): FindingRow[] | null {
   try {
     // コミット窓のアンカーは caravan_reviews.reviewed_at（実レビュー時刻）を使う。
     // caravan_review_findings.recorded_at は ingest 時刻なので、一括 re-ingest 後に
@@ -396,10 +413,10 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
 
     const rows = result[0];
     if (!rows) {
-      return emptyResult;
+      return null;
     }
 
-    findings = rows.values.map((r) => ({
+    return rows.values.map((r) => ({
       id: String(r[0]),
       finding_entity_id: String(r[1]),
       target_file_path: String(r[2]),
@@ -412,22 +429,49 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     logger.warn(
       `[anytime-memory] linkAddresses: failed to query review findings: ${String(err)}`
     );
-    return emptyResult;
+    return null;
   }
+}
 
-  let findingsLinked = 0;
-  let edgesInserted = 0;
-  let linkedWithSameSession = 0;
-  let linkedWithReviewMarker = 0;
+/** リンク成立件数の集計。シグナル別の内訳もここに束ねる。 */
+type LinkTotals = {
+  findingsLinked: number;
+  edgesInserted: number;
+  linkedWithSameSession: number;
+  linkedWithReviewMarker: number;
+};
+
+/** 成立した 1 件のリンク結果を集計へ反映する。 */
+function accumulateLinkResult(
+  totals: LinkTotals,
+  result: { edgeInserted: boolean; signals: LinkSignal[] },
+): void {
+  totals.findingsLinked += 1;
+  if (result.edgeInserted) totals.edgesInserted += 1;
+  if (result.signals.includes('same_session')) totals.linkedWithSameSession += 1;
+  if (result.signals.includes('review_marker')) totals.linkedWithReviewMarker += 1;
+}
+
+/** 母集合の各指摘をコミットへリンクする。1 件の失敗は warn に留めて他を止めない。 */
+function linkAllFindings(args: {
+  db: CaravanDbConnection;
+  findings: FindingRow[];
+  effectiveWindowDays: number;
+  logger: { warn: (msg: string) => void };
+}): LinkTotals {
+  const { db, findings, effectiveWindowDays, logger } = args;
+  const totals: LinkTotals = {
+    findingsLinked: 0,
+    edgesInserted: 0,
+    linkedWithSameSession: 0,
+    linkedWithReviewMarker: 0,
+  };
 
   for (const finding of findings) {
     try {
       const result = linkOneFinding(db, finding, effectiveWindowDays);
       if (result !== null) {
-        findingsLinked += 1;
-        if (result.edgeInserted) edgesInserted += 1;
-        if (result.signals.includes('same_session')) linkedWithSameSession += 1;
-        if (result.signals.includes('review_marker')) linkedWithReviewMarker += 1;
+        accumulateLinkResult(totals, result);
       }
     } catch (err) {
       logger.warn(
@@ -435,6 +479,31 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
       );
     }
   }
+
+  return totals;
+}
+
+export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
+  const { db, windowDays = 30, logger } = input;
+  const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 30;
+  const skipped = countSkips(db, logger);
+
+  const findings = loadUnlinkedFindings(db, logger);
+  if (findings === null) {
+    /** 母集合を作れなかったときの戻り値。除外内訳だけは残す（調査の起点になる）。 */
+    return {
+      findings_linked: 0,
+      edges_inserted: 0,
+      candidates: 0,
+      no_matching_commit: 0,
+      skipped,
+      linked_with_same_session: 0,
+      linked_with_review_marker: 0,
+    };
+  }
+
+  const { findingsLinked, edgesInserted, linkedWithSameSession, linkedWithReviewMarker } =
+    linkAllFindings({ db, findings, effectiveWindowDays, logger });
 
   const skipText =
     skipped === null

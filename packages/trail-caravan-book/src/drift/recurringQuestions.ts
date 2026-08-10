@@ -35,6 +35,51 @@ type QuestionWithEmbedding = QuestionRow & {
   embedding32: Float32Array;
 };
 
+/**
+ * caravan_entities の 1 行を Question として解釈する。
+ * 対象が特定できない行（§6.4.3）と埋め込みが読めない行は null で落とす。
+ */
+function toQuestionWithEmbedding(row: ReadonlyArray<SqlValue>): QuestionWithEmbedding | null {
+  const id = row[0] as string;
+  const attrsJson = row[1] as string;
+  const embeddingRaw = toUint8ArrayOrNull(row[2]);
+
+  let attrs: Record<string, unknown> = {};
+  try {
+    attrs = JSON.parse(attrsJson);
+  } catch {
+    // malformed json — skip
+  }
+
+  const targetSpecPath = (attrs['target_spec_path'] as string | undefined) ?? null;
+  const targetSymbol = (attrs['target_symbol'] as string | undefined) ?? null;
+
+  // §6.4.3: target_spec_path IS NULL AND target_symbol IS NULL はスキップ
+  if (targetSpecPath === null && targetSymbol === null) return null;
+
+  const embedding32 = blobToFloat32Array(embeddingRaw);
+  if (!embedding32) return null;
+
+  return { id, attributes_json: attrsJson, embedding: embeddingRaw, targetSpecPath, embedding32 };
+}
+
+/** target_spec_path でグルーピングする（null の場合は target_symbol で代替）。 */
+function groupQuestions(
+  questions: QuestionWithEmbedding[],
+): Map<string, QuestionWithEmbedding[]> {
+  const groups = new Map<string, QuestionWithEmbedding[]>();
+  for (const q of questions) {
+    const key = q.targetSpecPath ?? `symbol:${JSON.parse(q.attributes_json)['target_symbol']}`;
+    const bucket = groups.get(key);
+    if (bucket === undefined) {
+      groups.set(key, [q]);
+    } else {
+      bucket.push(q);
+    }
+  }
+  return groups;
+}
+
 function buildRecurringQuestionEvent(
   groupKey: string,
   qs: QuestionWithEmbedding[],
@@ -107,40 +152,14 @@ export function detectRecurringQuestions(input: {
     return [];
   }
 
-  const questions: (QuestionRow & { targetSpecPath: string | null; embedding32: Float32Array })[] =
-    [];
+  const questions: QuestionWithEmbedding[] = [];
 
   for (const row of rows[0]?.values ?? []) {
-    const id = row[0] as string;
-    const attrsJson = row[1] as string;
-    const embeddingRaw = toUint8ArrayOrNull(row[2]);
-
-    let attrs: Record<string, unknown> = {};
-    try {
-      attrs = JSON.parse(attrsJson);
-    } catch {
-      // malformed json — skip
-    }
-
-    const targetSpecPath = (attrs['target_spec_path'] as string | undefined) ?? null;
-    const targetSymbol = (attrs['target_symbol'] as string | undefined) ?? null;
-
-    // §6.4.3: target_spec_path IS NULL AND target_symbol IS NULL はスキップ
-    if (targetSpecPath === null && targetSymbol === null) continue;
-
-    const embedding32 = blobToFloat32Array(embeddingRaw);
-    if (!embedding32) continue;
-
-    questions.push({ id, attributes_json: attrsJson, embedding: embeddingRaw, targetSpecPath, embedding32 });
+    const question = toQuestionWithEmbedding(row);
+    if (question !== null) questions.push(question);
   }
 
-  // target_spec_path でグルーピング（null の場合は target_symbol で代替）
-  const groups = new Map<string, typeof questions>();
-  for (const q of questions) {
-    const key = q.targetSpecPath ?? `symbol:${JSON.parse(q.attributes_json)['target_symbol']}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(q);
-  }
+  const groups = groupQuestions(questions);
 
   const results: DriftEventInput[] = [];
 

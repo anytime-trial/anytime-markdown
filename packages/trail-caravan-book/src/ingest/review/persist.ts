@@ -167,6 +167,78 @@ export function needsReviewRowReconcile(bodyExcerpt: string, workspace: string):
   return bodyExcerpt === '' || workspace === '';
 }
 
+/** review_doc の findings を upsert する。挿入 1 件につき flagged edge も 1 件増える。 */
+function insertReviewDocFindings(args: {
+  db: CaravanDbConnection;
+  reviewEntityId: string;
+  findings: ParsedReviewDoc['findings'];
+  recordedAt: string;
+  logger: CaravanLogger;
+}): { findingsInserted: number; edgesInserted: number } {
+  let findingsInserted = 0;
+  let edgesInserted = 0;
+  for (const finding of args.findings) {
+    const result = upsertReviewFinding(
+      args.db,
+      args.reviewEntityId,
+      finding,
+      args.recordedAt,
+      args.logger,
+      'parser:review_doc',
+    );
+    if (result.inserted) {
+      findingsInserted += 1;
+      edgesInserted += 1; // flagged edge
+    }
+  }
+  return { findingsInserted, edgesInserted };
+}
+
+/** targetRefs ごとに File entity を確保し reviewed_by edge を張る。挿入した edge 数を返す。 */
+function insertReviewedByEdges(args: {
+  db: CaravanDbConnection;
+  reviewEntityId: string;
+  targetRefs: ParsedReviewDoc['targetRefs'];
+  relPath: string;
+  recordedAt: string;
+}): number {
+  const { db, reviewEntityId, targetRefs, relPath, recordedAt } = args;
+  let edgesInserted = 0;
+  for (const targetRef of targetRefs) {
+    const targetEntityId = entityId('File', targetRef);
+    // Ensure File entity exists
+    db.run(
+      `INSERT OR IGNORE INTO caravan_entities
+         (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
+          first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'File', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
+      [targetEntityId, targetRef, targetRef, recordedAt, recordedAt, recordedAt],
+    );
+
+    const edgeId = entityId('edge', `reviewed_by:${targetEntityId}:${reviewEntityId}`);
+    db.run(
+      `INSERT OR IGNORE INTO caravan_edges
+         (id, subject_entity_id, predicate, object_entity_id,
+          valid_from, valid_to, recorded_at,
+          source_type, source_ref,
+          confidence, confidence_label, modality)
+       VALUES (?, ?, 'reviewed_by', ?, ?, NULL, ?, 'review', ?, 1.0, 'EXTRACTED', 'asserted')`,
+      [
+        edgeId,
+        targetEntityId,
+        reviewEntityId,
+        recordedAt,
+        recordedAt,
+        `review_doc#${relPath}`,
+      ],
+    );
+    if (db.getRowsModified() > 0) {
+      edgesInserted += 1;
+    }
+  }
+  return edgesInserted;
+}
+
 /**
  * Upsert a review document into caravan_reviews + caravan_entities + findings + edges.
  */
@@ -274,47 +346,24 @@ export function upsertReviewDoc(
     }
 
     // Insert findings
-    for (const finding of doc.findings) {
-      const result = upsertReviewFinding(db, reviewEntityId, finding, recordedAt, logger, 'parser:review_doc');
-      if (result.inserted) {
-        findingsInserted += 1;
-        edgesInserted += 1; // flagged edge
-      }
-    }
+    const findingStats = insertReviewDocFindings({
+      db,
+      reviewEntityId,
+      findings: doc.findings,
+      recordedAt,
+      logger,
+    });
+    findingsInserted += findingStats.findingsInserted;
+    edgesInserted += findingStats.edgesInserted;
 
     // Insert reviewed_by edges for target refs
-    for (const targetRef of doc.targetRefs) {
-      const targetEntityId = entityId('File', targetRef);
-      // Ensure File entity exists
-      db.run(
-        `INSERT OR IGNORE INTO caravan_entities
-           (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
-            first_seen_at, last_updated_at, recorded_at)
-         VALUES (?, 'File', ?, ?, '[]', '[]', '{}', ?, ?, ?)`,
-        [targetEntityId, targetRef, targetRef, recordedAt, recordedAt, recordedAt],
-      );
-
-      const edgeId = entityId('edge', `reviewed_by:${targetEntityId}:${reviewEntityId}`);
-      db.run(
-        `INSERT OR IGNORE INTO caravan_edges
-           (id, subject_entity_id, predicate, object_entity_id,
-            valid_from, valid_to, recorded_at,
-            source_type, source_ref,
-            confidence, confidence_label, modality)
-         VALUES (?, ?, 'reviewed_by', ?, ?, NULL, ?, 'review', ?, 1.0, 'EXTRACTED', 'asserted')`,
-        [
-          edgeId,
-          targetEntityId,
-          reviewEntityId,
-          recordedAt,
-          recordedAt,
-          `review_doc#${relPath}`,
-        ],
-      );
-      if (db.getRowsModified() > 0) {
-        edgesInserted += 1;
-      }
-    }
+    edgesInserted += insertReviewedByEdges({
+      db,
+      reviewEntityId,
+      targetRefs: doc.targetRefs,
+      relPath,
+      recordedAt,
+    });
 
     return { review_id: reviewEntityId, is_new: reviewInserted, findings_inserted: findingsInserted, edges_inserted: edgesInserted };
   } catch (err) {

@@ -83,6 +83,28 @@ function acquireRenameLock(
   }
 }
 
+/**
+ * 実施済みの rename を逆順で巻き戻す。巻き戻し自体の失敗は warn に留めて続行する
+ * （fail-open。ここで throw すると本来の失敗理由が握り潰される）。
+ */
+function rollbackRenames(args: {
+  done: ReadonlyArray<{ from: string; to: string }>;
+  rename: (from: string, to: string) => void;
+  warn: (message: string) => void;
+}): void {
+  for (const { from, to } of [...args.done].reverse()) {
+    try {
+      args.rename(to, from);
+    } catch (rollbackError) {
+      args.warn(
+        `[legacyDbRename] rollback failed for ${to} -> ${from}: ${String(
+          rollbackError instanceof Error ? rollbackError.message : rollbackError,
+        )}`,
+      );
+    }
+  }
+}
+
 function renameLegacyFiles(
   currentPath: string,
   legacyPath: string,
@@ -109,17 +131,7 @@ function renameLegacyFiles(
       );
       return { path: currentPath, renamed: false };
     }
-    for (const { from, to } of [...done].reverse()) {
-      try {
-        rename(to, from);
-      } catch (rollbackError) {
-        opts.warn(
-          `[legacyDbRename] rollback failed for ${to} -> ${from}: ${String(
-            rollbackError instanceof Error ? rollbackError.message : rollbackError,
-          )}`,
-        );
-      }
-    }
+    rollbackRenames({ done, rename, warn: opts.warn });
     opts.warn(
       `[legacyDbRename] failed to rename ${opts.legacy} -> ${opts.current} in ${opts.dir}: ${String(
         e instanceof Error ? e.message : e,
