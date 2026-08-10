@@ -845,6 +845,47 @@ describe('linkAddresses: セッションとマーカーのシグナル', () => {
     expect(JSON.parse(String(row[0]?.values?.[0]?.[0] ?? '[]'))).toEqual(['text']);
   });
 
+  // テキスト裏付け無しの受理が波及する範囲の境界。レビュー対処コミットであっても、
+  // **そのコミットが触っていないファイル**の指摘には決して届かない。この 1 点が、
+  // 「レビュー指摘対応」という汎用的な件名でレビュー全件が対処済みに化けるのを防いでいる。
+  it('レビュー対処コミットでも、触っていないファイルの指摘には波及しない', async () => {
+    setup = await buildSetup({
+      findingText: '別ファイルの問題',
+      severity: 'warn',
+      targetFilePath: 'src/untouched.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_1,
+      commitSessionId: 'sess-review',
+      reviewSourceKind: 'session',
+      reviewSessionId: 'sess-review',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+  });
+
+  // 窓の外なら、同一セッション・レビュー対処マーカーが揃っていても受理しない。
+  // 2 つのシグナルは既存の 2 段ゲート（ファイル一致・期間）を置き換えるものではない。
+  it('30 日窓の外のコミットは 2 シグナルが揃っても受理しない', async () => {
+    setup = await buildSetup({
+      findingText: '握りつぶしている箇所がある',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(x): レビュー指摘対応',
+      commitAt: TS_PLUS_31,
+      commitSessionId: 'sess-review',
+      reviewSourceKind: 'session',
+      reviewSessionId: 'sess-review',
+    });
+
+    const result = linkAddresses({ db: setup.db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+  });
+
   it('シグナル別のリンク件数を戻り値に含める', async () => {
     setup = await buildSetup({
       findingText: '握りつぶしている箇所がある',

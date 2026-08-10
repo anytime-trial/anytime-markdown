@@ -155,6 +155,16 @@ export function hasReviewFixMarker(commitMessage: string): boolean {
  * サンプルで確認済み）。誤リンクは無リンクより悪いので、片方だけでは閾値に届かせない。
  * 逆に 2 つ揃えば、テキストの裏付けが無くても「同じセッションでレビュー対処だと明記して
  * その対象ファイルを変更した」ことになり、根拠として十分と判断する。
+ *
+ * SHORTCUT: テキスト裏付け無しの受理を finding 単位で独立に判定する.
+ *   ceiling: 1 つの「レビュー指摘対応」コミットが、同じ対象ファイルを指す**未対処のまま
+ *   だった指摘**まで巻き込む。指摘 5 件中 3 件しか直していないケースを区別できない
+ *   （区別するにはコミットの diff hunk と指摘の行範囲を突き合わせる必要があり、
+ *   activity_commit_files は行情報を持たない）。境界はファイル一致で、コミットが触って
+ *   いないファイルの指摘には決して波及しない。実測の露出は 9 件で、うち 6 件は同じ
+ *   コミットにテキスト裏付けのリンクも成立している（＝実際に一括対処されたコミット）。
+ *   upgrade: 対処率の集計で weakLinked が tracked の 1 割を超えたら、コミットの変更行範囲と
+ *   指摘の target_line_start/end の重なりを受理条件へ足す.
  */
 export function scoreCandidate(input: {
   readonly commitMessage: string;
