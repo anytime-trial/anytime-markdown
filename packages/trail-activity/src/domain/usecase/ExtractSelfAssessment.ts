@@ -18,28 +18,42 @@ interface TranscriptLine {
   message?: { content?: unknown };
 }
 
+/** transcript の 1 行を JSON オブジェクトとして解釈する。壊れた行・非オブジェクトは null（読み飛ばす）。 */
+function parseTranscriptLine(raw: string): TranscriptLine | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    return parsed as TranscriptLine;
+  } catch {
+    // 壊れた JSON 行は走査対象から外すだけで、抽出全体は続行する
+    return null;
+  }
+}
+
+/** 1 エントリの text ブロック群から、最後に出現した debrief フェンス本文を返す（無ければ null）。 */
+function lastDebriefInEntry(entry: TranscriptLine): string | null {
+  const content = entry.message?.content;
+  if (!Array.isArray(content)) return null;
+  let last: string | null = null;
+  for (const block of content) {
+    if (typeof block !== 'object' || block === null) continue;
+    const { type, text } = block as { type?: string; text?: string };
+    if (type !== 'text' || typeof text !== 'string') continue;
+    for (const match of text.matchAll(DEBRIEF_FENCE)) {
+      last = match[1];
+    }
+  }
+  return last;
+}
+
 function lastDebriefJson(lines: Iterable<string>): string | null {
   let last: string | null = null;
   for (const raw of lines) {
-    let entry: TranscriptLine;
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed !== 'object' || parsed === null) continue;
-      entry = parsed as TranscriptLine;
-    } catch {
-      continue;
-    }
+    const entry = parseTranscriptLine(raw);
+    if (entry === null) continue;
     if (entry.type !== 'assistant' || entry.isSidechain === true) continue;
-    const content = entry.message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (typeof block !== 'object' || block === null) continue;
-      const { type, text } = block as { type?: string; text?: string };
-      if (type !== 'text' || typeof text !== 'string') continue;
-      for (const match of text.matchAll(DEBRIEF_FENCE)) {
-        last = match[1];
-      }
-    }
+    const found = lastDebriefInEntry(entry);
+    if (found !== null) last = found;
   }
   return last;
 }

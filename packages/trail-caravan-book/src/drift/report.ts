@@ -1,4 +1,4 @@
-import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection, SqlValue } from '../db/connection/types';
 import type { CaravanLogger } from '../logger';
 import type { DriftType, Severity } from './policy';
 import { entityId } from '../canonical/entityId';
@@ -282,6 +282,82 @@ function resolveSubjectEntity(db: CaravanDbConnection, subjectId: string, record
   return subject.id;
 }
 
+/** caravan_drift_events の 1 行を KnownEvent へ写す（NULL は既定値へ倒す）。 */
+function toKnownEvent(r: ReadonlyArray<SqlValue>): KnownEvent {
+  return {
+    id: r[0] as string,
+    subject_entity_id: r[1] as string,
+    predicate: r[2] as string,
+    drift_type: r[3] as string,
+    resolved_at: r[4] == null ? null : String(r[4]),
+    resolution_note: r[5] == null ? '' : String(r[5]),
+    detected_at: r[6] == null ? '' : String(r[6]),
+    detail_json: r[7] == null ? '{}' : String(r[7]),
+  };
+}
+
+/**
+ * 候補に含まれなくなった未解決イベントを解決する。
+ * 対象ファイル消滅による不在は note を分けて記録する（後から解決理由を監査できるように）。
+ */
+function autoResolveStaleEvents(args: {
+  db: CaravanDbConnection;
+  activeEvents: KnownEvent[];
+  keys: { candidate: ReadonlySet<string>; missingTarget: ReadonlySet<string> };
+  recordedAt: string;
+  result: ReportResult;
+  logger: CaravanLogger;
+}): void {
+  const { db, activeEvents, keys, recordedAt, result, logger } = args;
+  for (const ev of activeEvents) {
+    const key = driftKey(ev.subject_entity_id, ev.predicate, ev.drift_type);
+    if (!keys.candidate.has(key)) {
+      const note = keys.missingTarget.has(key)
+        ? MISSING_TARGET_RESOLUTION_NOTE
+        : 'auto: drift no longer present';
+      try {
+        db.run(
+          `UPDATE caravan_drift_events
+             SET resolved_at = ?, resolution_note = ?
+             WHERE id = ?`,
+          [recordedAt, note, ev.id],
+        );
+        result.events_resolved++;
+      } catch (err) {
+        logger.error(
+          `[reportDriftEvents] auto-resolve failed id=${ev.id}: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * upsert 後のスナップショット行を組み立てる。
+ *
+ * 同一実行に同じ key の候補が 2 件現れても二重計上しないよう、呼び出し側が
+ * knownByKey をこの値で進める。検出器が GROUP BY している限り重複は出ないが、
+ * resolveSubjectEntity が別々の生 ID を同じ正準 id へ畳む経路があるため構造上は起こり得る。
+ */
+function nextKnownEvent(args: {
+  existing: KnownEvent | undefined;
+  candidate: DriftEventInput & { subject_entity_id: string };
+  outcome: ApplyOutcome;
+  recordedAt: string;
+}): KnownEvent {
+  const { existing, candidate, outcome, recordedAt } = args;
+  return {
+    id: existing?.id ?? eventId(candidate.subject_entity_id, candidate.predicate, candidate.drift_type),
+    subject_entity_id: candidate.subject_entity_id,
+    predicate: candidate.predicate,
+    drift_type: candidate.drift_type,
+    resolved_at: outcome === 'events_redetect_suppressed' ? (existing?.resolved_at ?? null) : null,
+    resolution_note: outcome === 'events_redetect_suppressed' ? (existing?.resolution_note ?? '') : '',
+    detected_at: outcome === 'events_updated' ? (existing?.detected_at ?? recordedAt) : recordedAt,
+    detail_json: '{}',
+  };
+}
+
 export function reportDriftEvents(input: {
   db: CaravanDbConnection;
   candidates: DriftEventInput[];
@@ -322,16 +398,7 @@ export function reportDriftEvents(input: {
             detected_at, detail_json
        FROM caravan_drift_events`,
   );
-  const knownEvents: KnownEvent[] = (rows[0]?.values ?? []).map((r) => ({
-    id: r[0] as string,
-    subject_entity_id: r[1] as string,
-    predicate: r[2] as string,
-    drift_type: r[3] as string,
-    resolved_at: r[4] == null ? null : String(r[4]),
-    resolution_note: r[5] == null ? '' : String(r[5]),
-    detected_at: r[6] == null ? '' : String(r[6]),
-    detail_json: r[7] == null ? '{}' : String(r[7]),
-  }));
+  const knownEvents: KnownEvent[] = (rows[0]?.values ?? []).map(toKnownEvent);
   const activeEvents: KnownEvent[] = knownEvents.filter((ev) => ev.resolved_at === null);
 
   // 2. 候補を Set 化
@@ -349,29 +416,15 @@ export function reportDriftEvents(input: {
   );
 
   // 3. auto-resolve: 候補に含まれなくなった既存 event。
-  //    対象ファイル消滅による不在は note を分けて記録する（後から解決理由を監査できるように）。
   if (autoResolveStale) {
-    for (const ev of activeEvents) {
-      const key = driftKey(ev.subject_entity_id, ev.predicate, ev.drift_type);
-      if (!candidateKeys.has(key)) {
-        const note = missingTargetKeys.has(key)
-          ? MISSING_TARGET_RESOLUTION_NOTE
-          : 'auto: drift no longer present';
-        try {
-          db.run(
-            `UPDATE caravan_drift_events
-             SET resolved_at = ?, resolution_note = ?
-             WHERE id = ?`,
-            [recordedAt, note, ev.id],
-          );
-          result.events_resolved++;
-        } catch (err) {
-          logger.error(
-            `[reportDriftEvents] auto-resolve failed id=${ev.id}: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
-          );
-        }
-      }
-    }
+    autoResolveStaleEvents({
+      db,
+      activeEvents,
+      keys: { candidate: candidateKeys, missingTarget: missingTargetKeys },
+      recordedAt,
+      result,
+      logger,
+    });
   }
 
   // 4. 候補を upsert（SELECT → UPDATE / REOPEN / INSERT）
@@ -389,18 +442,7 @@ export function reportDriftEvents(input: {
     result[outcome]++;
 
     // 同一実行に同じ key の候補が 2 件現れても二重計上しないよう、スナップショットを進める。
-    // 検出器が GROUP BY している限り重複は出ないが、resolveSubjectEntity が別々の生 ID を
-    // 同じ正準 id へ畳む経路があるため構造上は起こり得る。
-    knownByKey.set(key, {
-      id: existing?.id ?? eventId(candidate.subject_entity_id, candidate.predicate, candidate.drift_type),
-      subject_entity_id: candidate.subject_entity_id,
-      predicate: candidate.predicate,
-      drift_type: candidate.drift_type,
-      resolved_at: outcome === 'events_redetect_suppressed' ? (existing?.resolved_at ?? null) : null,
-      resolution_note: outcome === 'events_redetect_suppressed' ? (existing?.resolution_note ?? '') : '',
-      detected_at: outcome === 'events_updated' ? (existing?.detected_at ?? recordedAt) : recordedAt,
-      detail_json: '{}',
-    });
+    knownByKey.set(key, nextKnownEvent({ existing, candidate, outcome, recordedAt }));
   }
 
   return result;

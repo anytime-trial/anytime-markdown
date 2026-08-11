@@ -583,6 +583,35 @@ function buildSurface3dData(
   return [{ type: "surface", x: xVals, y: yVals, z: zVals, colorscale: isDark ? "Viridis" : "RdBu" }];
 }
 
+/** 有限値ならそのまま、非有限（Infinity / NaN）なら NaN に丸める。 */
+function finiteOrNaN(value: number): number {
+  return isFinite(value) ? value : NaN;
+}
+
+/**
+ * parametric3d の 1 点を評価する。
+ * 評価が例外を投げた点・座標オブジェクト以外を返した点は NaN 三つ組として扱い、
+ * 描画から欠落させる（連続曲線の途切れとして表現される）。
+ */
+function evalParametricPoint(
+  evalFn: EvalFn,
+  args: Record<string, number>,
+): { x: number; y: number; z: number } {
+  try {
+    const res = evalFn(args);
+    if (typeof res === "object" && res !== null) {
+      return {
+        x: finiteOrNaN(res.x),
+        y: finiteOrNaN(res.y),
+        z: finiteOrNaN((res as any).z),
+      };
+    }
+  } catch {
+    // 評価不能な点は下の NaN 三つ組へフォールバックする（例外は打点の欠落として扱う）
+  }
+  return { x: NaN, y: NaN, z: NaN };
+}
+
 function buildParametric3dData(
   evalFn: EvalFn,
   vars: Record<string, number>,
@@ -593,18 +622,8 @@ function buildParametric3dData(
   const xs: number[] = [], ys: number[] = [], zs: number[] = [];
   for (const u of uVals) {
     for (const v of vVals) {
-      try {
-        const res = evalFn({ ...vars, u, v });
-        if (typeof res === "object" && res !== null) {
-          xs.push(isFinite(res.x) ? res.x : NaN);
-          ys.push(isFinite(res.y) ? res.y : NaN);
-          zs.push(isFinite((res as any).z) ? (res as any).z : NaN);
-        } else {
-          xs.push(NaN); ys.push(NaN); zs.push(NaN);
-        }
-      } catch {
-        xs.push(NaN); ys.push(NaN); zs.push(NaN);
-      }
+      const point = evalParametricPoint(evalFn, { ...vars, u, v });
+      xs.push(point.x); ys.push(point.y); zs.push(point.z);
     }
   }
   const color = isDark ? "#90caf9" : "#1976d2";

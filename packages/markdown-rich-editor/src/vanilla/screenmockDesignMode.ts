@@ -482,45 +482,72 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     feedbackEl = null;
   };
 
+  /** ステージ座標系（マーカーの位置計算に必要な基準矩形と拡大率）。 */
+  interface StageGeometry {
+    stage: HTMLElement;
+    rect: DOMRect;
+    scale: number;
+  }
+
+  /** 自由配置モード（Alt ドラッグ）を示すバッジマーカーを組む。 */
+  const buildFreePositionBadge = (event: PointerEvent, geometry: StageGeometry): HTMLElement => {
+    const { rect: stageRect, scale } = geometry;
+    const marker = document.createElement("div");
+    marker.className = "am-smdm-dragbadge";
+    marker.textContent = options.freePositionLabel ?? "";
+    marker.style.left = `${(event.clientX - stageRect.left) / scale + 12}px`;
+    marker.style.top = `${(event.clientY - stageRect.top) / scale + 12}px`;
+    return marker;
+  };
+
+  /** 並べ替えのドロップ位置を示す挿入線マーカーを組む。ドロップ先が無ければ null。 */
+  const buildInsertLineMarker = (
+    event: PointerEvent,
+    dragPath: string | null,
+    geometry: StageGeometry,
+  ): HTMLElement | null => {
+    const drop = resolveDropContext(event, dragPath);
+    if (!drop) return null;
+    const { stage, rect: stageRect, scale } = geometry;
+    const container =
+      drop.parentPath === "" ? stage : (findRenderedElementByPath(shadow, drop.parentPath) ?? stage);
+    const siblings = Array.from(container.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement && child.dataset.smPath !== undefined,
+    );
+    const sibling = siblings[drop.index];
+    const rect = (sibling ?? siblings.at(-1) ?? container).getBoundingClientRect();
+    const atEnd = !sibling;
+    const marker = document.createElement("div");
+    marker.className = "am-smdm-insertline";
+    if (drop.direction === "horizontal") {
+      marker.style.left = `${((atEnd ? rect.right : rect.left) - stageRect.left) / scale}px`;
+      marker.style.top = `${(rect.top - stageRect.top) / scale}px`;
+      marker.style.width = "2px";
+      marker.style.height = `${rect.height / scale}px`;
+    } else {
+      marker.style.left = `${(rect.left - stageRect.left) / scale}px`;
+      marker.style.top = `${((atEnd ? rect.bottom : rect.top) - stageRect.top) / scale}px`;
+      marker.style.width = `${rect.width / scale}px`;
+      marker.style.height = "2px";
+    }
+    return marker;
+  };
+
   /** 挿入位置の線（並べ替え）またはモードバッジ（自由配置）をステージ上へ描く。 */
   const renderDragFeedback = (event: PointerEvent): void => {
     clearDragFeedback();
     if (drag?.kind !== "element" && drag?.kind !== "palette") return;
     const stage = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
     if (!stage) return;
-    const stageRect = stage.getBoundingClientRect();
-    const scale = currentScale();
-    const marker = document.createElement("div");
+    const geometry: StageGeometry = { stage, rect: stage.getBoundingClientRect(), scale: currentScale() };
 
+    let marker: HTMLElement | null;
     if (drag.kind === "element" && drag.altKey) {
-      marker.className = "am-smdm-dragbadge";
-      marker.textContent = options.freePositionLabel ?? "";
-      marker.style.left = `${(event.clientX - stageRect.left) / scale + 12}px`;
-      marker.style.top = `${(event.clientY - stageRect.top) / scale + 12}px`;
+      marker = buildFreePositionBadge(event, geometry);
     } else {
-      const drop = resolveDropContext(event, drag.kind === "element" ? drag.path : null);
-      if (!drop) return;
-      const container =
-        drop.parentPath === "" ? stage : (findRenderedElementByPath(shadow, drop.parentPath) ?? stage);
-      const siblings = Array.from(container.children).filter(
-        (child): child is HTMLElement => child instanceof HTMLElement && child.dataset.smPath !== undefined,
-      );
-      const sibling = siblings[drop.index];
-      const rect = (sibling ?? siblings.at(-1) ?? container).getBoundingClientRect();
-      const atEnd = !sibling;
-      marker.className = "am-smdm-insertline";
-      if (drop.direction === "horizontal") {
-        marker.style.left = `${((atEnd ? rect.right : rect.left) - stageRect.left) / scale}px`;
-        marker.style.top = `${(rect.top - stageRect.top) / scale}px`;
-        marker.style.width = "2px";
-        marker.style.height = `${rect.height / scale}px`;
-      } else {
-        marker.style.left = `${(rect.left - stageRect.left) / scale}px`;
-        marker.style.top = `${((atEnd ? rect.bottom : rect.top) - stageRect.top) / scale}px`;
-        marker.style.width = `${rect.width / scale}px`;
-        marker.style.height = "2px";
-      }
+      marker = buildInsertLineMarker(event, drag.kind === "element" ? drag.path : null, geometry);
     }
+    if (!marker) return;
 
     stage.appendChild(marker);
     feedbackEl = marker;
@@ -560,6 +587,64 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     renderSelection();
   };
 
+  /** 書き戻し対象のソースと、対象画面の HTML 断片。 */
+  interface DropSourceContext {
+    sourceText: string;
+    screenHtml: string;
+  }
+
+  /** 要素ドラッグの確定: 自由配置なら座標オフセット、並べ替えなら DOM 位置の移動を書き戻す。 */
+  const finishElementDrag = (
+    event: PointerEvent,
+    current: Extract<DragState, { kind: "element" }>,
+    ctx: DropSourceContext,
+  ): void => {
+    if (!current.moved) {
+      clearDragGhost(current.path);
+      return;
+    }
+    // ドロップ先の解決は追従表示（pointer-events: none）を外す前に行う。先に外すと
+    // ヒットテストが掴んでいる要素自身を拾い、挿入位置がドラッグ中の表示とずれる。
+    const drop = current.altKey ? null : resolveDropContext(event, current.path);
+    clearDragGhost(current.path);
+    const nextScreenHtml = current.altKey
+      ? applyElementOffset(ctx.screenHtml, current.path, dragOffsetOf(event, current))
+      : drop
+        ? moveScreenmockElement(ctx.screenHtml, current.path, drop.parentPath, drop.index)
+        : ctx.screenHtml;
+    if (nextScreenHtml === ctx.screenHtml) return;
+    options.setSource(replaceScreenmockScreenHtml(ctx.sourceText, current.screenIndex, nextScreenHtml));
+  };
+
+  /** パレットからのドロップ確定: 新規要素を挿入し、選択を挿入先パスへ移す。 */
+  const finishPaletteDrag = (
+    event: PointerEvent,
+    current: Extract<DragState, { kind: "palette" }>,
+    sourceText: string,
+  ): void => {
+    if (!current.moved) return;
+    const drop = resolveDropContext(event, null);
+    if (!drop) return;
+    const next = insertScreenmockElement(sourceText, current.screenIndex, drop.parentPath, current.html, drop.index);
+    if (next === sourceText) return;
+    const newPath = drop.parentPath ? `${drop.parentPath}/${drop.index}` : String(drop.index);
+    selectedPath = newPath;
+    options.onSelectionChange?.(newPath);
+    options.setSource(next);
+  };
+
+  /** リサイズ確定: 幅（親比の %）と高さ（px）を書き戻す。 */
+  const finishResizeDrag = (
+    current: Extract<DragState, { kind: "resize" }>,
+    ctx: DropSourceContext,
+  ): void => {
+    const nextScreenHtml = applyElementSizeToScreenHtml(ctx.screenHtml, current.path, {
+      widthPercent: (current.width / current.parentWidth) * 100,
+      heightPx: current.height,
+    });
+    options.setSource(replaceScreenmockScreenHtml(ctx.sourceText, current.screenIndex, nextScreenHtml));
+  };
+
   const onPointerUp = (event: PointerEvent): void => {
     const eventPointerId = (event as PointerEvent & { pointerId?: number }).pointerId;
     if (!drag || (typeof eventPointerId === "number" && eventPointerId !== drag.pointerId)) return;
@@ -570,42 +655,16 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     const screenHtml = parseScreenmock(sourceText)[current.screenIndex]?.html ?? "";
 
     if (current.kind === "element") {
-      if (!current.moved) {
-        clearDragGhost(current.path);
-        return;
-      }
-      // ドロップ先の解決は追従表示（pointer-events: none）を外す前に行う。先に外すと
-      // ヒットテストが掴んでいる要素自身を拾い、挿入位置がドラッグ中の表示とずれる。
-      const drop = current.altKey ? null : resolveDropContext(event, current.path);
-      clearDragGhost(current.path);
-      const nextScreenHtml = current.altKey
-        ? applyElementOffset(screenHtml, current.path, dragOffsetOf(event, current))
-        : drop
-          ? moveScreenmockElement(screenHtml, current.path, drop.parentPath, drop.index)
-          : screenHtml;
-      if (nextScreenHtml === screenHtml) return;
-      options.setSource(replaceScreenmockScreenHtml(sourceText, current.screenIndex, nextScreenHtml));
+      finishElementDrag(event, current, { sourceText, screenHtml });
       return;
     }
 
     if (current.kind === "palette") {
-      if (!current.moved) return;
-      const drop = resolveDropContext(event, null);
-      if (!drop) return;
-      const next = insertScreenmockElement(sourceText, current.screenIndex, drop.parentPath, current.html, drop.index);
-      if (next === sourceText) return;
-      const newPath = drop.parentPath ? `${drop.parentPath}/${drop.index}` : String(drop.index);
-      selectedPath = newPath;
-      options.onSelectionChange?.(newPath);
-      options.setSource(next);
+      finishPaletteDrag(event, current, sourceText);
       return;
     }
 
-    const nextScreenHtml = applyElementSizeToScreenHtml(screenHtml, current.path, {
-      widthPercent: (current.width / current.parentWidth) * 100,
-      heightPx: current.height,
-    });
-    options.setSource(replaceScreenmockScreenHtml(sourceText, current.screenIndex, nextScreenHtml));
+    finishResizeDrag(current, { sourceText, screenHtml });
   };
 
   /**

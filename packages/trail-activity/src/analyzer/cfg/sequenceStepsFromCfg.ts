@@ -115,8 +115,9 @@ export function sequenceStepsFromCfg(block: CfgBlock, opts: SeqWalkOptions): Seq
     }
   };
 
-  const visitCall = (call: CfgCall, out: SequenceStep[]): void => {
-    // iterator メソッド（forEach 等・第1引数がコールバック）を loop fragment 化
+  // iterator メソッド（forEach 等・第1引数がコールバック）を loop fragment 化。
+  // 該当して射影したときだけ true を返し、呼び出し側はそこで打ち切る。
+  const tryVisitIteratorCall = (call: CfgCall, out: SequenceStep[]): boolean => {
     if (call.isPropertyAccess && call.calleeName && ITERATOR_METHODS.has(call.calleeName)) {
       const first = call.args[0];
       if (first?.kind === 'functionBody') {
@@ -126,9 +127,24 @@ export function sequenceStepsFromCfg(block: CfgBlock, opts: SeqWalkOptions): Seq
           const cond = truncate(`${call.calleeName} ${call.receiverText ?? ''}`);
           out.push({ kind: 'fragment', fragment: { kind: 'loop', condition: cond, steps: bodySteps } });
         }
-        return;
+        return true;
       }
     }
+    return false;
+  };
+
+  // 引数を順に降下（コールバック内・ネスト呼び出し）
+  const visitCallArgs = (call: CfgCall, out: SequenceStep[]): void => {
+    for (const arg of call.args) {
+      if (atLimit()) return;
+      if (arg.kind === 'call') visitCall(arg.call, out);
+      else if (arg.kind === 'functionBody') visitBlock(arg.body, out);
+      else visitCalls(arg.calls, out);
+    }
+  };
+
+  const visitCall = (call: CfgCall, out: SequenceStep[]): void => {
+    if (tryVisitIteratorCall(call, out)) return;
 
     if (call.calleeName && opts.calleeNames.has(call.calleeName)) {
       out.push({
@@ -143,13 +159,7 @@ export function sequenceStepsFromCfg(block: CfgBlock, opts: SeqWalkOptions): Seq
       count += 1;
     }
 
-    // 引数を順に降下（コールバック内・ネスト呼び出し）
-    for (const arg of call.args) {
-      if (atLimit()) return;
-      if (arg.kind === 'call') visitCall(arg.call, out);
-      else if (arg.kind === 'functionBody') visitBlock(arg.body, out);
-      else visitCalls(arg.calls, out);
-    }
+    visitCallArgs(call, out);
   };
 
   const steps: SequenceStep[] = [];

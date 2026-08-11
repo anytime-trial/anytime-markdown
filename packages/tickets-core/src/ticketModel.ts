@@ -186,8 +186,8 @@ function checkNoControlChars(raw: Record<string, unknown>, key: string, errors: 
   }
 }
 
-/** frontmatter を検証し、型付きの値と未知キー（extras）に分離する。 */
-export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketValidationResult {
+/** frontmatter の検証エラーを列挙する（空配列なら妥当）。 */
+function collectFrontmatterErrors(raw: Record<string, unknown>): string[] {
   const errors: string[] = [];
   checkRequiredString(raw, 'id', errors);
   checkRequiredString(raw, 'title', errors);
@@ -218,17 +218,25 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
   for (const key of ['id', 'title', 'assignee', 'creator', 'dependencies']) {
     checkNoControlChars(raw, key, errors);
   }
-  if (errors.length > 0) {
-    return { ok: false, errors };
-  }
-  // 未知キーはそのまま書き戻すため、`__proto__` を含めて自身のプロパティとして保持する
-  // （オブジェクトリテラルだとプロトタイプ差し替えになり、書き戻し時にキーが失われる）。
+  return errors;
+}
+
+/**
+ * 未知キーを抽出する。そのまま書き戻すため、`__proto__` を含めて自身のプロパティとして保持する
+ * （オブジェクトリテラルだとプロトタイプ差し替えになり、書き戻し時にキーが失われる）。
+ */
+function collectFrontmatterExtras(raw: Record<string, unknown>): Record<string, FrontmatterValue> {
   const extras: Record<string, FrontmatterValue> = Object.create(null);
   for (const [key, value] of Object.entries(raw)) {
     if (!KNOWN_KEYS.has(key) && value !== undefined) {
       extras[key] = value as FrontmatterValue;
     }
   }
+  return extras;
+}
+
+/** 検証済みの raw から型付き frontmatter を組み立てる（未設定の任意キーは省略する）。 */
+function buildTicketFrontmatter(raw: Record<string, unknown>): TicketFrontmatter {
   const value: TicketFrontmatter = {
     id: raw.id as string,
     title: raw.title as string,
@@ -244,6 +252,17 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
   if (raw.estimate !== undefined) value.estimate = raw.estimate as number;
   if (raw.actual !== undefined) value.actual = raw.actual as number;
   if (raw.ai_confidence !== undefined) value.ai_confidence = raw.ai_confidence as number;
+  return value;
+}
+
+/** frontmatter を検証し、型付きの値と未知キー（extras）に分離する。 */
+export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketValidationResult {
+  const errors = collectFrontmatterErrors(raw);
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+  const extras = collectFrontmatterExtras(raw);
+  const value = buildTicketFrontmatter(raw);
   return { ok: true, value, extras };
 }
 

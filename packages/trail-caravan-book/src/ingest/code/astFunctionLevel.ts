@@ -373,6 +373,136 @@ function resolveEdgeMeta(edgeType: string, target: string, internalFilePaths: Se
 }
 
 /**
+ * edge の対象 entity を解決する。
+ * 外部モジュール（depends_on）は Library、内部ファイル・シンボル（それ以外）は File。
+ */
+function resolveEdgeTargetEntityId(args: {
+  db: CaravanDbConnection;
+  edge: TrailEdge;
+  predicate: EdgeMeta['predicate'];
+  nodeById: ReadonlyMap<string, TrailNode>;
+  recordedAt: string;
+  logger: CaravanLogger;
+}): string {
+  const { db, edge, predicate, nodeById, recordedAt, logger } = args;
+  if (predicate === 'depends_on') {
+    // External module → Library entity
+    return upsertLibraryEntity(db, edge.target, recordedAt, logger);
+  }
+  // Internal file or symbol → resolve to a file path for the entity
+  const targetNode = nodeById.get(edge.target);
+  const targetFilePath = targetNode?.filePath ?? edge.target;
+  return upsertFileEntity(db, targetFilePath, recordedAt, logger);
+}
+
+/** edge 1 本を caravan_code_facts と caravan_edges へ取り込み、stats を更新する。 */
+function ingestAstEdge(args: {
+  db: CaravanDbConnection;
+  repoName: string;
+  edge: TrailEdge;
+  nodeById: ReadonlyMap<string, TrailNode>;
+  internalFilePaths: Set<string>;
+  commitSha: string | null;
+  recordedAt: string;
+  logger: CaravanLogger;
+  stats: AstFactStats;
+}): void {
+  const { db, repoName, edge, nodeById, internalFilePaths, commitSha, recordedAt, logger, stats } =
+    args;
+
+  // Map TrailEdgeType → fact_type and predicate
+  const edgeMeta = resolveEdgeMeta(edge.type, edge.target, internalFilePaths);
+  if (edgeMeta === null) return; // skip type_use, implementation, override
+  const { factType, predicate } = edgeMeta;
+
+  // ── Resolve file_path from source node ───────────────────────────────
+  const sourceNode = nodeById.get(edge.source);
+  // For symbol nodes, id is "filePath#symbolName"; for file nodes, id == filePath
+  const filePath = sourceNode?.filePath ?? edge.source;
+
+  // symbol_path: if source is a symbol node, use its id; otherwise null
+  const symbolPath = sourceNode && sourceNode.type !== 'file' ? sourceNode.id : null;
+
+  // fact_value: use the target as the value (module name or symbol path)
+  const factValue = edge.target;
+
+  // ── Insert fact ───────────────────────────────────────────────────────
+  const fId = factId(filePath, symbolPath, factType, factValue, commitSha);
+  try {
+    db.run(
+      `INSERT OR IGNORE INTO caravan_code_facts
+         (id, repo_name, file_path, symbol_path, fact_type, fact_value,
+          line_start, commit_sha, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        fId,
+        repoName,
+        filePath,
+        symbolPath ?? null,
+        factType,
+        factValue,
+        sourceNode?.line ?? null,
+        commitSha ?? null,
+        recordedAt,
+      ]
+    );
+    if (db.getRowsModified() > 0) stats.facts_inserted += 1;
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] astFunctionLevel: failed to insert fact type="${factType}" ` +
+        `file="${filePath}" value="${factValue}"`,
+      err
+    );
+    return;
+  }
+
+  // ── Upsert source entity (File) ───────────────────────────────────────
+  const sourceEntityId = upsertFileEntity(db, filePath, recordedAt, logger);
+
+  // ── Upsert target entity (File or Library) and insert edge ───────────
+  const targetEntityId = resolveEdgeTargetEntityId({
+    db, edge, predicate, nodeById, recordedAt, logger,
+  });
+
+  // ── Insert edge (idempotent via ON CONFLICT) ──────────────────────────
+  //
+  // 衝突時は DO NOTHING ではなく valid_to を剥がす。migration 029 が述語の付け替えのために
+  // 既存の code 由来 relates_to を無効化しており、剥がす経路が無いと再取込しても
+  // valid_to が残ったまま（＝辺は在るのに検索から見えない）ゴーストになるため。
+  // 既に有効な辺は WHERE で弾き、rows_modified を 0 に保って再取込が冪等に見えるようにする。
+  //
+  // source_ref も張り替える。029 が無効化するのは「source_ref が calls / extends fact を
+  // 指す relates_to」で、それが復活するのは同じ File 対に内部 import fact が在るとき
+  // だけなので、据え置くと「述語は import なのに来歴は calls」という嘘が残り、同じ
+  // WHERE 条件を使う将来のバックフィルが正当な辺を再無効化する。
+  // valid_from は据え置く（辺は元から有効で、無効化は移行の副産物だったと読むため）。
+  const eId = astEdgeId(sourceEntityId, predicate, targetEntityId);
+  try {
+    db.run(
+      `INSERT INTO caravan_edges
+         (id, subject_entity_id, predicate, object_entity_id,
+          valid_from, recorded_at, source_type, source_ref,
+          confidence, confidence_label, modality)
+       VALUES (?, ?, ?, ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+       ON CONFLICT(id) DO UPDATE SET
+         valid_to    = NULL,
+         source_ref  = excluded.source_ref,
+         recorded_at = excluded.recorded_at
+         WHERE caravan_edges.valid_to IS NOT NULL`,
+      [eId, sourceEntityId, predicate, targetEntityId, recordedAt, recordedAt, `code_fact:${fId}`]
+    );
+    if (db.getRowsModified() > 0) stats.edges_inserted += 1;
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] astFunctionLevel: failed to insert edge pred="${predicate}" ` +
+        `src="${filePath}" tgt="${edge.target}" ` +
+        `(caravan_relation_types に '${predicate}' が無い＝migration 029 未適用の可能性)`,
+      err
+    );
+  }
+}
+
+/**
  * Ingests AST-level facts from a TrailGraph into caravan_code_facts and
  * caravan_edges.
  *
@@ -417,103 +547,9 @@ export function ingestAstFacts(input: AstFactInput): AstFactStats & { current_en
 
   // ── Process edges ─────────────────────────────────────────────────────────
   for (const edge of graph.edges) {
-    // Map TrailEdgeType → fact_type and predicate
-    const edgeMeta = resolveEdgeMeta(edge.type, edge.target, internalFilePaths);
-    if (edgeMeta === null) continue; // skip type_use, implementation, override
-    const { factType, predicate } = edgeMeta;
-
-    // ── Resolve file_path from source node ───────────────────────────────
-    const sourceNode = nodeById.get(edge.source);
-    // For symbol nodes, id is "filePath#symbolName"; for file nodes, id == filePath
-    const filePath = sourceNode?.filePath ?? edge.source;
-
-    // symbol_path: if source is a symbol node, use its id; otherwise null
-    const symbolPath = sourceNode && sourceNode.type !== 'file' ? sourceNode.id : null;
-
-    // fact_value: use the target as the value (module name or symbol path)
-    const factValue = edge.target;
-
-    // ── Insert fact ───────────────────────────────────────────────────────
-    const fId = factId(filePath, symbolPath, factType, factValue, commitSha);
-    try {
-      db.run(
-        `INSERT OR IGNORE INTO caravan_code_facts
-           (id, repo_name, file_path, symbol_path, fact_type, fact_value,
-            line_start, commit_sha, recorded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          fId,
-          repoName,
-          filePath,
-          symbolPath ?? null,
-          factType,
-          factValue,
-          sourceNode?.line ?? null,
-          commitSha ?? null,
-          recordedAt,
-        ]
-      );
-      if (db.getRowsModified() > 0) stats.facts_inserted += 1;
-    } catch (err) {
-      logger.error(
-        `[anytime-memory] astFunctionLevel: failed to insert fact type="${factType}" ` +
-          `file="${filePath}" value="${factValue}"`,
-        err
-      );
-      continue;
-    }
-
-    // ── Upsert source entity (File) ───────────────────────────────────────
-    const sourceEntityId = upsertFileEntity(db, filePath, recordedAt, logger);
-
-    // ── Upsert target entity (File or Library) and insert edge ───────────
-    let targetEntityId: string;
-    if (predicate === 'depends_on') {
-      // External module → Library entity
-      targetEntityId = upsertLibraryEntity(db, edge.target, recordedAt, logger);
-    } else {
-      // Internal file or symbol → resolve to a file path for the entity
-      const targetNode = nodeById.get(edge.target);
-      const targetFilePath = targetNode?.filePath ?? edge.target;
-      targetEntityId = upsertFileEntity(db, targetFilePath, recordedAt, logger);
-    }
-
-    // ── Insert edge (idempotent via ON CONFLICT) ──────────────────────────
-    //
-    // 衝突時は DO NOTHING ではなく valid_to を剥がす。migration 029 が述語の付け替えのために
-    // 既存の code 由来 relates_to を無効化しており、剥がす経路が無いと再取込しても
-    // valid_to が残ったまま（＝辺は在るのに検索から見えない）ゴーストになるため。
-    // 既に有効な辺は WHERE で弾き、rows_modified を 0 に保って再取込が冪等に見えるようにする。
-    //
-    // source_ref も張り替える。029 が無効化するのは「source_ref が calls / extends fact を
-    // 指す relates_to」で、それが復活するのは同じ File 対に内部 import fact が在るとき
-    // だけなので、据え置くと「述語は import なのに来歴は calls」という嘘が残り、同じ
-    // WHERE 条件を使う将来のバックフィルが正当な辺を再無効化する。
-    // valid_from は据え置く（辺は元から有効で、無効化は移行の副産物だったと読むため）。
-    const eId = astEdgeId(sourceEntityId, predicate, targetEntityId);
-    try {
-      db.run(
-        `INSERT INTO caravan_edges
-           (id, subject_entity_id, predicate, object_entity_id,
-            valid_from, recorded_at, source_type, source_ref,
-            confidence, confidence_label, modality)
-         VALUES (?, ?, ?, ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
-         ON CONFLICT(id) DO UPDATE SET
-           valid_to    = NULL,
-           source_ref  = excluded.source_ref,
-           recorded_at = excluded.recorded_at
-           WHERE caravan_edges.valid_to IS NOT NULL`,
-        [eId, sourceEntityId, predicate, targetEntityId, recordedAt, recordedAt, `code_fact:${fId}`]
-      );
-      if (db.getRowsModified() > 0) stats.edges_inserted += 1;
-    } catch (err) {
-      logger.error(
-        `[anytime-memory] astFunctionLevel: failed to insert edge pred="${predicate}" ` +
-          `src="${filePath}" tgt="${edge.target}" ` +
-          `(caravan_relation_types に '${predicate}' が無い＝migration 029 未適用の可能性)`,
-        err
-      );
-    }
+    ingestAstEdge({
+      db, repoName, edge, nodeById, internalFilePaths, commitSha, recordedAt, logger, stats,
+    });
   }
 
   // ── Track File entities for reconciliation ───────────────────────────────

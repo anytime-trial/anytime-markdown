@@ -54,19 +54,31 @@ function importsUi(root: Node): boolean {
   for (const child of root.namedChildren) {
     if (!child) continue;
     if (child.type === 'import_statement') {
-      for (const nameNode of child.childrenForFieldName('name')) {
-        if (nameNode && UI_FRAMEWORKS.has(topPackage(moduleText(nameNode)))) return true;
-      }
+      if (plainImportIsUi(child)) return true;
     } else if (child.type === 'import_from_statement') {
-      const module = child.childForFieldName('module_name')?.text ?? '';
-      if (UI_FRAMEWORKS.has(topPackage(module))) return true;
-      // flask render_template / django.shortcuts render の特例
-      if (module === 'flask' || module === 'django.shortcuts') {
-        const wanted = module === 'flask' ? 'render_template' : 'render';
-        for (const nameNode of child.childrenForFieldName('name')) {
-          if (nameNode && importedName(nameNode) === wanted) return true;
-        }
-      }
+      if (fromImportIsUi(child)) return true;
+    }
+  }
+  return false;
+}
+
+/** `import a` / `import a as b` の対象が UI フレームワークか。 */
+function plainImportIsUi(stmt: Node): boolean {
+  for (const nameNode of stmt.childrenForFieldName('name')) {
+    if (nameNode && UI_FRAMEWORKS.has(topPackage(moduleText(nameNode)))) return true;
+  }
+  return false;
+}
+
+/** `from m import ...` が UI フレームワーク由来か（flask / django のレンダリング特例を含む）。 */
+function fromImportIsUi(stmt: Node): boolean {
+  const module = stmt.childForFieldName('module_name')?.text ?? '';
+  if (UI_FRAMEWORKS.has(topPackage(module))) return true;
+  // flask render_template / django.shortcuts render の特例
+  if (module === 'flask' || module === 'django.shortcuts') {
+    const wanted = module === 'flask' ? 'render_template' : 'render';
+    for (const nameNode of stmt.childrenForFieldName('name')) {
+      if (nameNode && importedName(nameNode) === wanted) return true;
     }
   }
   return false;

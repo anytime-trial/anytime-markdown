@@ -70,47 +70,73 @@ export class MetaJsonIngester implements Analyzer {
 
     let emitted = 0;
     for (const sessionEntry of sessionEntries) {
-      const subagentDir = path.join(projectPath, sessionEntry, 'subagents');
-      let metaFiles: string[];
-      try {
-        metaFiles = fs.readdirSync(subagentDir).filter((f) => f.endsWith('.meta.json'));
-      } catch {
-        continue;
-      }
-
-      for (const metaFile of metaFiles) {
-        const match = AGENT_META_RE.exec(metaFile);
-        if (!match) continue;
-        const agentId = match[1];
-        const fullPath = path.join(subagentDir, metaFile);
-
-        let agentType: string | null = null;
-        try {
-          const raw = fs.readFileSync(fullPath, 'utf-8');
-          const parsed = JSON.parse(raw) as { agentType?: unknown };
-          if (typeof parsed.agentType === 'string' && parsed.agentType.length > 0) {
-            agentType = parsed.agentType;
-          }
-        } catch (err) {
-          ctx.logger.error(
-            `[MetaJsonIngester] failed to read ${fullPath}: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-          continue;
-        }
-        if (!agentType) continue;
-
-        await ctx.bus.publish({
-          kind: 'meta_json',
-          sessionId: sessionEntry,
-          agentId,
-          agentType,
-          filePath: fullPath,
-        });
-        emitted++;
-      }
+      emitted += await this.emitMetaJsonForSession(
+        path.join(projectPath, sessionEntry, 'subagents'),
+        sessionEntry,
+        ctx,
+      );
     }
     return emitted;
+  }
+
+  /**
+   * 1 セッションの `subagents/` 配下の meta.json を emit する。
+   * ディレクトリ不在（readdir 失敗）は 0 件として skip する。
+   */
+  private async emitMetaJsonForSession(
+    subagentDir: string,
+    sessionEntry: string,
+    ctx: AnalyzerContext,
+  ): Promise<number> {
+    let metaFiles: string[];
+    try {
+      metaFiles = fs.readdirSync(subagentDir).filter((f) => f.endsWith('.meta.json'));
+    } catch {
+      return 0;
+    }
+
+    let emitted = 0;
+    for (const metaFile of metaFiles) {
+      const match = AGENT_META_RE.exec(metaFile);
+      if (!match) continue;
+      const agentId = match[1];
+      const fullPath = path.join(subagentDir, metaFile);
+
+      const agentType = readAgentType(fullPath, ctx);
+      if (!agentType) continue;
+
+      await ctx.bus.publish({
+        kind: 'meta_json',
+        sessionId: sessionEntry,
+        agentId,
+        agentType,
+        filePath: fullPath,
+      });
+      emitted++;
+    }
+    return emitted;
+  }
+}
+
+/**
+ * meta.json から `agentType` を読む。読み取り・パース失敗は error ログを残して null を返す。
+ * `agentType` が文字列でない場合や空文字の場合も null を返す
+ * （既存 `backfillSubagentType()` の skip 挙動と整合させる）。
+ */
+function readAgentType(fullPath: string, ctx: AnalyzerContext): string | null {
+  try {
+    const raw = fs.readFileSync(fullPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { agentType?: unknown };
+    if (typeof parsed.agentType === 'string' && parsed.agentType.length > 0) {
+      return parsed.agentType;
+    }
+    return null;
+  } catch (err) {
+    ctx.logger.error(
+      `[MetaJsonIngester] failed to read ${fullPath}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return null;
   }
 }

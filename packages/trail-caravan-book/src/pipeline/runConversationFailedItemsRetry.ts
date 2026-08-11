@@ -231,6 +231,206 @@ export interface FailedItemsRetryResult {
   items_failed: number;
 }
 
+/** 再試行の進行状態。集計と quarantine 判定の入力を 1 つに束ねる。 */
+type RetryState = {
+  totals: PersistStats & { items_processed: number; items_failed: number };
+  recoveredCount: number;
+  /** 取込対象から外れて台帳から落としたキーの数（失敗ではないが黙って消さない）。 */
+  droppedCount: number;
+  consecutiveFailures: number;
+};
+
+type ExtractedFacts = Awaited<ReturnType<typeof extractFactsFromEpisode>> | null;
+
+/** 台帳項目 1 件の処理結果。呼び出し側のループ制御へ返すのは quarantine 到達のみ。 */
+type RetryItemSignal =
+  | { kind: 'continue' }
+  | { kind: 'quarantine'; errorDetail: string };
+
+/** バッチ内の item_key から episode を再構築する（同期・DB のみ）。 */
+function reconstructBatch(db: CaravanDbConnection, batch: FailedItemRow[]): ReconstructOutcome[] {
+  return batch.map((item) => {
+    const parsed = parseItemKey(item.item_key);
+    if (!parsed) return { kind: 'not_found' };
+    return reconstructEpisode(db, parsed.session_id, parsed.message_uuid_start);
+  });
+}
+
+/** バッチ内の episode を並行に LLM 抽出する。1 件の失敗は null にして他を止めない。 */
+async function extractBatchFacts(args: {
+  ollama: OllamaClient;
+  model: string | undefined;
+  batch: FailedItemRow[];
+  outcomes: ReconstructOutcome[];
+  logger: CaravanLogger;
+}): Promise<ExtractedFacts[]> {
+  const { ollama, model, batch, outcomes, logger } = args;
+  return Promise.all(
+    batch.map(async (item, i) => {
+      const outcome = outcomes[i];
+      if (outcome.kind !== 'ok') return null;
+      const ep = outcome.episode;
+      try {
+        return await extractFactsFromEpisode({
+          ollama,
+          episode: ep,
+          model,
+          logger,
+        });
+      } catch (err) {
+        logger.error(
+          `[anytime-memory] failed-items retry: extractFactsFromEpisode error for ${item.item_key}`,
+          err
+        );
+        return null;
+      }
+    })
+  );
+}
+
+/**
+ * 台帳項目 1 件を再試行し、集計へ反映する。
+ * quarantine 到達時のみ signal で返す（pipeline_state 更新と ledger 確定は呼び出し側）。
+ */
+function retryOneItem(args: {
+  db: CaravanDbConnection;
+  item: FailedItemRow;
+  reconstructed: { outcome: ReconstructOutcome; ex: ExtractedFacts };
+  state: RetryState;
+  logger: CaravanLogger;
+}): RetryItemSignal {
+  const { db, item, state, logger } = args;
+  const { outcome, ex } = args.reconstructed;
+  const { totals } = state;
+
+  // Case 0: 取込対象から外れたキー (sidechain / 本文ゼロ)。失敗ではないので
+  // 台帳から落とすだけにし、連続失敗カウンタを進めない。ここを失敗として
+  // 数えると、取込条件を狭めた直後に retry スコープが quarantine で止まる。
+  if (outcome.kind === 'out_of_scope') {
+    state.droppedCount += 1;
+    deleteFailedItem(db, item.scope, item.item_key);
+    state.consecutiveFailures = 0;
+    return { kind: 'continue' };
+  }
+
+  // Case 1: episode could not be reconstructed (activity.db missing data, malformed key)
+  if (outcome.kind === 'not_found') {
+    totals.items_failed += 1;
+    state.consecutiveFailures += 1;
+    recordFailedItem(db, item.scope, item.item_key, 'episode_not_found',
+      `episode not reconstructed from activity.db for ${item.item_key}`);
+    if (state.consecutiveFailures >= QUARANTINE_THRESHOLD) {
+      return { kind: 'quarantine', errorDetail: `${QUARANTINE_THRESHOLD} consecutive failures` };
+    }
+    return { kind: 'continue' };
+  }
+
+  // Case 2: extraction returned null (LLM failure, schema violation)
+  if (ex === null) {
+    totals.items_failed += 1;
+    state.consecutiveFailures += 1;
+    recordFailedItem(db, item.scope, item.item_key, 'extraction_failed',
+      `retry attempt ${item.attempt_count + 1} failed`);
+    if (state.consecutiveFailures >= QUARANTINE_THRESHOLD) {
+      return {
+        kind: 'quarantine',
+        errorDetail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
+      };
+    }
+    return { kind: 'continue' };
+  }
+
+  // Case 3: extraction succeeded → persist + remove from failed_items
+  state.consecutiveFailures = 0;
+  const recordedAt = new Date().toISOString();
+  try {
+    const persisted = persistEpisodeFacts({
+      db,
+      episode: outcome.episode,
+      extracted: ex,
+      recordedAt,
+      logger,
+    });
+    totals.entities_inserted += persisted.entities_inserted;
+    totals.entities_updated += persisted.entities_updated;
+    totals.entities_suppressed += persisted.entities_suppressed;
+    totals.edges_inserted += persisted.edges_inserted;
+    totals.edges_invalidated += persisted.edges_invalidated;
+    totals.edges_suppressed += persisted.edges_suppressed;
+    deleteFailedItem(db, item.scope, item.item_key);
+    state.recoveredCount += 1;
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] failed-items retry: persist failed for ${item.item_key}`,
+      err
+    );
+    totals.items_failed += 1;
+    recordFailedItem(
+      db,
+      item.scope,
+      item.item_key,
+      'persist_failed',
+      err instanceof Error ? (err.stack ?? err.message) : String(err)
+    );
+  }
+  return { kind: 'continue' };
+}
+
+/**
+ * 台帳項目をバッチ単位で再試行する。
+ *
+ * 抽出は LLM I/O バウンドのため並行、永続化は sql.js が単一スレッドの WASM で
+ * スレッドセーフでないため直列（バッチ内は 1 件ずつ）。quarantine 到達時のみ
+ * partial の戻り値を返し、それ以外は null（＝全件処理完了）。
+ */
+async function retryFailedItemBatches(args: {
+  db: CaravanDbConnection;
+  ollama: OllamaClient;
+  model: string | undefined;
+  items: FailedItemRow[];
+  extractConcurrency: number;
+  ledger: PipelineRunLedger;
+  state: RetryState;
+  save: (() => void) | undefined;
+  logger: CaravanLogger;
+}): Promise<PartialReturnPayload | null> {
+  const { db, ollama, model, items, extractConcurrency, ledger, state, save, logger } = args;
+  const { totals } = state;
+
+  for (let batchStart = 0; batchStart < items.length; batchStart += extractConcurrency) {
+    const batch = items.slice(batchStart, batchStart + extractConcurrency);
+
+    const outcomes = reconstructBatch(db, batch);
+    const extracted = await extractBatchFacts({ ollama, model, batch, outcomes, logger });
+
+    for (let j = 0; j < batch.length; j++) {
+      totals.items_processed += 1;
+
+      if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
+        logger.info(
+          `[anytime-memory] failed-items retry progress: ${totals.items_processed}/${items.length}`
+        );
+        ledger.heartbeat(totals);
+        save?.();
+      }
+
+      const signal = retryOneItem({
+        db,
+        item: batch[j],
+        reconstructed: { outcome: outcomes[j], ex: extracted[j] },
+        state,
+        logger,
+      });
+      if (signal.kind === 'quarantine') {
+        return enterQuarantine(
+          db, ledger, signal.errorDetail, totals, state.recoveredCount, logger,
+        );
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Re-runs LLM extraction on previously failed episodes recorded in
  * caravan_failed_items. Each item_key is split into (session_id, message_uuid_start),
@@ -287,10 +487,12 @@ export async function runConversationFailedItemsRetry(opts: {
     edges_suppressed: 0,
     items_failed: 0,
   };
-  let recoveredCount = 0;
-  /** 取込対象から外れて台帳から落としたキーの数（失敗ではないが黙って消さない）。 */
-  let droppedCount = 0;
-  let consecutiveFailures = 0;
+  const state: RetryState = {
+    totals,
+    recoveredCount: 0,
+    droppedCount: 0,
+    consecutiveFailures: 0,
+  };
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
 
   if (items.length === 0) {
@@ -307,123 +509,10 @@ export async function runConversationFailedItemsRetry(opts: {
   );
 
   try {
-    for (let batchStart = 0; batchStart < items.length; batchStart += extractConcurrency) {
-      const batch = items.slice(batchStart, batchStart + extractConcurrency);
-
-      const outcomes: ReconstructOutcome[] = batch.map((item) => {
-        const parsed = parseItemKey(item.item_key);
-        if (!parsed) return { kind: 'not_found' };
-        return reconstructEpisode(db, parsed.session_id, parsed.message_uuid_start);
-      });
-
-      const extracted = await Promise.all(
-        batch.map(async (item, i) => {
-          const outcome = outcomes[i];
-          if (outcome.kind !== 'ok') return null;
-          const ep = outcome.episode;
-          try {
-            return await extractFactsFromEpisode({
-              ollama,
-              episode: ep,
-              model,
-              logger,
-            });
-          } catch (err) {
-            logger.error(
-              `[anytime-memory] failed-items retry: extractFactsFromEpisode error for ${item.item_key}`,
-              err
-            );
-            return null;
-          }
-        })
-      );
-
-      for (let j = 0; j < batch.length; j++) {
-        const item = batch[j];
-        const outcome = outcomes[j];
-        const ex = extracted[j];
-
-        totals.items_processed += 1;
-
-        if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
-          logger.info(
-            `[anytime-memory] failed-items retry progress: ${totals.items_processed}/${items.length}`
-          );
-          ledger.heartbeat(totals);
-          save?.();
-        }
-
-        // Case 0: 取込対象から外れたキー (sidechain / 本文ゼロ)。失敗ではないので
-        // 台帳から落とすだけにし、連続失敗カウンタを進めない。ここを失敗として
-        // 数えると、取込条件を狭めた直後に retry スコープが quarantine で止まる。
-        if (outcome.kind === 'out_of_scope') {
-          droppedCount += 1;
-          deleteFailedItem(db, item.scope, item.item_key);
-          consecutiveFailures = 0;
-          continue;
-        }
-
-        // Case 1: episode could not be reconstructed (activity.db missing data, malformed key)
-        if (outcome.kind === 'not_found') {
-          totals.items_failed += 1;
-          consecutiveFailures += 1;
-          recordFailedItem(db, item.scope, item.item_key, 'episode_not_found',
-            `episode not reconstructed from activity.db for ${item.item_key}`);
-          if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            return enterQuarantine(db, ledger,
-              `${QUARANTINE_THRESHOLD} consecutive failures`, totals, recoveredCount, logger);
-          }
-          continue;
-        }
-
-        // Case 2: extraction returned null (LLM failure, schema violation)
-        if (ex === null) {
-          totals.items_failed += 1;
-          consecutiveFailures += 1;
-          recordFailedItem(db, item.scope, item.item_key, 'extraction_failed',
-            `retry attempt ${item.attempt_count + 1} failed`);
-          if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            return enterQuarantine(db, ledger,
-              `${QUARANTINE_THRESHOLD} consecutive extraction failures`, totals, recoveredCount, logger);
-          }
-          continue;
-        }
-
-        // Case 3: extraction succeeded → persist + remove from failed_items
-        consecutiveFailures = 0;
-        const recordedAt = new Date().toISOString();
-        try {
-          const persisted = persistEpisodeFacts({
-            db,
-            episode: outcome.episode,
-            extracted: ex,
-            recordedAt,
-            logger,
-          });
-          totals.entities_inserted += persisted.entities_inserted;
-          totals.entities_updated += persisted.entities_updated;
-          totals.entities_suppressed += persisted.entities_suppressed;
-          totals.edges_inserted += persisted.edges_inserted;
-          totals.edges_invalidated += persisted.edges_invalidated;
-          totals.edges_suppressed += persisted.edges_suppressed;
-          deleteFailedItem(db, item.scope, item.item_key);
-          recoveredCount += 1;
-        } catch (err) {
-          logger.error(
-            `[anytime-memory] failed-items retry: persist failed for ${item.item_key}`,
-            err
-          );
-          totals.items_failed += 1;
-          recordFailedItem(
-            db,
-            item.scope,
-            item.item_key,
-            'persist_failed',
-            err instanceof Error ? (err.stack ?? err.message) : String(err)
-          );
-        }
-      }
-    }
+    const quarantined = await retryFailedItemBatches({
+      db, ollama, model, items, extractConcurrency, ledger, state, save, logger,
+    });
+    if (quarantined !== null) return quarantined;
   } catch (err) {
     logger.error(`[anytime-memory] failed-items retry: fatal error during iteration`, err);
     finalStatus = 'error';
@@ -435,7 +524,7 @@ export async function runConversationFailedItemsRetry(opts: {
     return {
       status: finalStatus,
       items_retried: totals.items_processed,
-      items_recovered: recoveredCount,
+      items_recovered: state.recoveredCount,
       items_failed: totals.items_failed,
     };
   }
@@ -445,14 +534,14 @@ export async function runConversationFailedItemsRetry(opts: {
 
   logger.info(
     `[anytime-memory] failed-items retry: retried=${totals.items_processed} ` +
-      `recovered=${recoveredCount} failed=${totals.items_failed} ` +
-      `dropped_out_of_scope=${droppedCount}`
+      `recovered=${state.recoveredCount} failed=${totals.items_failed} ` +
+      `dropped_out_of_scope=${state.droppedCount}`
   );
 
   return {
     status: finalStatus,
     items_retried: totals.items_processed,
-    items_recovered: recoveredCount,
+    items_recovered: state.recoveredCount,
     items_failed: totals.items_failed,
   };
 }

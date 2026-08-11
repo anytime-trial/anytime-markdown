@@ -180,9 +180,318 @@ function requireValue(value: string | undefined, field: string, type: string): s
   return value;
 }
 
+/** 図種 `K` に対応する spec だけを取り出す（各図種パーサの戻り値型）。 */
+type SpecOf<K extends ThinkingDiagramType> = Extract<ThinkingDiagramSpec, { type: K }>;
+
+function parseFishbone(lines: string[]): SpecOf<'fishbone'> {
+  const problem = requireValue(headerValue(lines, 'problem'), 'problem', 'fishbone');
+  const categories = labeledBullets(lines)
+    .filter((b) => b.label.length > 0)
+    .map((b) => ({ label: b.label, causes: b.items }));
+  if (categories.length === 0) {
+    throw new GraphDslError('fishbone には "- カテゴリ: 要因, 要因" を1つ以上記述してください');
+  }
+  return { type: 'fishbone', problem, categories };
+}
+
+function parseCausalLoop(lines: string[]): SpecOf<'causal-loop'> {
+  const title = headerValue(lines, 'title');
+  const links = [];
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t.includes('->')) continue;
+    const link = parseCausalLink(t);
+    if (!link) {
+      throw new GraphDslError(`リンク行を解釈できません: "${t}"（例: "在庫 -> 出荷: +"）`);
+    }
+    if (link.from === link.to) {
+      throw new GraphDslError(`自己参照リンクは未対応です: "${t}"（異なる変数を指定してください）`);
+    }
+    links.push(link);
+  }
+  if (links.length === 0) {
+    throw new GraphDslError('causal-loop には "A -> B: +" 形式のリンクを1つ以上記述してください');
+  }
+  return { type: 'causal-loop', title, links };
+}
+
+function parsePyramid(lines: string[]): SpecOf<'pyramid'> {
+  const title = headerValue(lines, 'title');
+  const tiers = labeledBullets(lines)
+    .filter((b) => b.label.length > 0)
+    .map((b) => ({ label: b.label, desc: b.items[0] }));
+  if (tiers.length === 0) {
+    throw new GraphDslError('pyramid には "- 段ラベル" を上から順に1つ以上記述してください');
+  }
+  return { type: 'pyramid', title, tiers };
+}
+
+function parseMindmap(lines: string[]): SpecOf<'mindmap'> {
+  const root = requireValue(headerValue(lines, 'root'), 'root', 'mindmap');
+  const branches = parseIndentTree(lines);
+  if (branches.length === 0) {
+    throw new GraphDslError('mindmap には "- ブランチ" を1つ以上記述してください');
+  }
+  return { type: 'mindmap', root, branches };
+}
+
+function parseLogicTree(lines: string[]): SpecOf<'logic-tree'> {
+  const root = requireValue(headerValue(lines, 'root'), 'root', 'logic-tree');
+  const children = parseIndentTree(lines);
+  if (children.length === 0) {
+    throw new GraphDslError('logic-tree には "- 要素" を1つ以上記述してください');
+  }
+  return { type: 'logic-tree', root, children };
+}
+
+function parseWhyChain(lines: string[]): SpecOf<'why-chain'> {
+  const problem = requireValue(headerValue(lines, 'problem'), 'problem', 'why-chain');
+  const steps = labeledBullets(lines)
+    .map((b) => b.label)
+    .filter((s) => s.length > 0);
+  if (steps.length === 0) {
+    throw new GraphDslError('why-chain には "- なぜ..." を1つ以上記述してください');
+  }
+  return { type: 'why-chain', problem, steps };
+}
+
+function parseDoubleDiamond(lines: string[]): SpecOf<'double-diamond'> {
+  return {
+    type: 'double-diamond',
+    discover: splitItems(headerValue(lines, 'discover') ?? ''),
+    define: splitItems(headerValue(lines, 'define') ?? ''),
+    develop: splitItems(headerValue(lines, 'develop') ?? ''),
+    deliver: splitItems(headerValue(lines, 'deliver') ?? ''),
+  };
+}
+
+function parseSwot(lines: string[]): SpecOf<'swot'> {
+  return {
+    type: 'swot',
+    strengths: splitItems(headerValue(lines, 'strengths') ?? ''),
+    weaknesses: splitItems(headerValue(lines, 'weaknesses') ?? ''),
+    opportunities: splitItems(headerValue(lines, 'opportunities') ?? ''),
+    threats: splitItems(headerValue(lines, 'threats') ?? ''),
+  };
+}
+
+function parseMorphBox(lines: string[]): SpecOf<'morph-box'> {
+  const title = headerValue(lines, 'title');
+  const parameters = labeledBullets(lines)
+    .filter((b) => b.label.length > 0)
+    .map((b) => ({ label: b.label, options: b.items }));
+  if (parameters.length === 0) {
+    throw new GraphDslError('morph-box には "- パラメータ: 選択肢, 選択肢" を1つ以上記述してください');
+  }
+  return { type: 'morph-box', title, parameters };
+}
+
+function parseAffinity(lines: string[]): SpecOf<'affinity'> {
+  const title = headerValue(lines, 'title');
+  const groups = labeledBullets(lines)
+    .filter((b) => b.label.length > 0)
+    .map((b) => ({ label: b.label, notes: b.items }));
+  if (groups.length === 0) {
+    throw new GraphDslError('affinity には "- グループ: 付箋, 付箋" を1つ以上記述してください');
+  }
+  return { type: 'affinity', title, groups };
+}
+
+/** structure-map の関係行（`A -> B`）。先頭の `- ` は任意。端点は部分ラベルで実在検証する。 */
+function parseStructureRelations(
+  lines: string[],
+  partLabels: ReadonlySet<string>,
+): Array<{ from: string; to: string }> {
+  const relations: Array<{ from: string; to: string }> = [];
+  for (const raw of lines) {
+    const t = raw.trim().replace(/^-\s+/, '');
+    if (!t.includes('->')) continue;
+    const m = /^(.+?)->(.+)$/.exec(t);
+    if (!m) {
+      throw new GraphDslError(`関係行を解釈できません: "${t}"（例: "入力 -> ランキング"）`);
+    }
+    const from = m[1].trim();
+    const to = m[2].trim();
+    if (!from || !to) {
+      throw new GraphDslError(`関係行を解釈できません: "${t}"（例: "入力 -> ランキング"）`);
+    }
+    if (!partLabels.has(from) || !partLabels.has(to)) {
+      const missing = partLabels.has(from) ? to : from;
+      throw new GraphDslError(`関係の端点 "${missing}" が部分に存在しません（"- ${missing}: …" を定義してください）`);
+    }
+    relations.push({ from, to });
+  }
+  return relations;
+}
+
+function parseStructureMap(lines: string[]): SpecOf<'structure-map'> {
+  const whole = requireValue(headerValue(lines, 'whole'), 'whole', 'structure-map');
+  // 部分（`- ラベル: 要素…`）。関係行（`->` を含む）は除外する。
+  const parts = labeledBullets(lines)
+    .filter((b) => b.label.length > 0 && !b.label.includes('->'))
+    .map((b) => ({ label: b.label, items: b.items }));
+  if (parts.length === 0) {
+    throw new GraphDslError('structure-map には "- 部分: 要素, 要素" を1つ以上記述してください');
+  }
+  const partLabels = new Set(parts.map((p) => p.label));
+  const relations = parseStructureRelations(lines, partLabels);
+  const domains = splitItems(headerValue(lines, 'domains') ?? '');
+  return { type: 'structure-map', whole, parts, relations, domains };
+}
+
+/** cooccurrence の bullet 1 行が表すもの（語 or 共起）。対象外の行は `null` で返る。 */
+type CooccurrenceEntry =
+  | { kind: 'node'; label: string; frequency: number }
+  | { kind: 'link'; link: CooccurrenceLink };
+
+function cooccurrenceDirection(left: boolean, right: boolean): CooccurrenceLink['direction'] {
+  if (left && right) return 'both';
+  if (left) return 'backward';
+  if (right) return 'forward';
+  return undefined;
+}
+
+function buildCooccurrenceLink(pair: RegExpExecArray, value: number, line: string): CooccurrenceLink {
+  const a = pair[1].trim();
+  const b = pair[4].trim();
+  if (!a || !b) {
+    throw new GraphDslError(`共起行を解釈できません: "${line}"（例: "- 納期遅延 -- 仕様変更: 0.8"）`);
+  }
+  // 自己共起は長さ 0 の線になるうえ強度の正規化も歪めるため拒否する
+  // （causal-loop の自己参照リンクと同方針）。
+  if (a === b) {
+    throw new GraphDslError(`自己共起 "${a} -- ${b}" は未対応です（異なる語どうしを書いてください）`);
+  }
+  if (value < 0) {
+    throw new GraphDslError(`共起強度に負の値は指定できません: "${line}"`);
+  }
+  const direction = cooccurrenceDirection(pair[2] === '<', pair[3] === '>');
+  return direction === undefined ? { a, b, strength: value } : { a, b, strength: value, direction };
+}
+
+/**
+ * 語（`- ラベル: 頻度`）と共起（`- A -- B: 強度`）は同じ bullet 記法なので、
+ * `--` の有無で振り分ける。数値が読めない場合は黙って 0 に落とさずエラーにする。
+ * 向きは `-->` / `<--` / `<-->` で書く。いずれも `--` を含むため、この振り分けは変わらない。
+ */
+function parseCooccurrenceEntry(t: string): CooccurrenceEntry | null {
+  if (!t.startsWith('-')) return null;
+  const rest = t.replace(/^-\s*/, '');
+  const ci = firstColonIndex(rest);
+  if (ci === -1) {
+    throw new GraphDslError(
+      `cooccurrence の行に値がありません: "${t}"（例: "- 納期遅延: 40" / "- A -- B: 0.8"）`,
+    );
+  }
+  const head = rest.slice(0, ci).trim();
+  const valueText = rest.slice(ci + 1).trim();
+  const value = Number(valueText);
+  if (!Number.isFinite(value)) {
+    throw new GraphDslError(
+      `数値として解釈できません: "${valueText}"（"${head}" の行。頻度・共起強度は数値で書いてください）`,
+    );
+  }
+  // 矢印として読むのは `--` に隣接する `<` `>` だけ。語名に `<` `>` を含められる状態を
+  // 保つ（設計書 §2.5）。`(.+?)` が非貪欲なので、`<A> -- B` は a="<A>" として読める。
+  const pair = /^(.+?)\s*(<?)--(>?)\s*(.+)$/.exec(head);
+  if (pair) return { kind: 'link', link: buildCooccurrenceLink(pair, value, t) };
+  if (!head) {
+    throw new GraphDslError(`語のラベルが空です: "${t}"`);
+  }
+  if (value < 0) {
+    throw new GraphDslError(`出現頻度に負の値は指定できません: "${t}"`);
+  }
+  return { kind: 'node', label: head, frequency: value };
+}
+
+function collectCooccurrenceEntries(lines: string[]): {
+  nodes: Array<{ label: string; frequency: number }>;
+  links: CooccurrenceLink[];
+} {
+  const nodes: Array<{ label: string; frequency: number }> = [];
+  const links: CooccurrenceLink[] = [];
+  for (const raw of lines) {
+    const t = raw.trim();
+    const entry = parseCooccurrenceEntry(t);
+    if (!entry) continue;
+    if (entry.kind === 'link') {
+      links.push(entry.link);
+      continue;
+    }
+    if (nodes.some((n) => n.label === entry.label)) {
+      throw new GraphDslError(`語 "${entry.label}" が複数回定義されています（"- ${entry.label}: 頻度" は1回だけ書いてください）`);
+    }
+    nodes.push({ label: entry.label, frequency: entry.frequency });
+  }
+  return { nodes, links };
+}
+
+function assertCooccurrenceEndpoints(links: readonly CooccurrenceLink[], labels: ReadonlySet<string>): void {
+  for (const link of links) {
+    for (const endpoint of [link.a, link.b]) {
+      if (!labels.has(endpoint)) {
+        throw new GraphDslError(
+          `共起の端点 "${endpoint}" が語に存在しません（"- ${endpoint}: 頻度" を定義してください）`,
+        );
+      }
+    }
+  }
+}
+
+/** クラスタは `cluster <名前>: 語, 語` 行。bullet ではないので別途拾う。 */
+function parseCooccurrenceClusters(
+  lines: string[],
+  labels: ReadonlySet<string>,
+): Array<{ label: string; members: string[] }> {
+  const clusters: Array<{ label: string; members: string[] }> = [];
+  for (const raw of lines) {
+    const t = raw.trim();
+    const m = /^cluster\s+(.+)$/i.exec(t);
+    if (!m) continue;
+    const body = m[1];
+    const ci = firstColonIndex(body);
+    if (ci === -1) {
+      throw new GraphDslError(`cluster 行を解釈できません: "${t}"（例: "cluster 工程: 納期遅延, レビュー待ち"）`);
+    }
+    const label = body.slice(0, ci).trim();
+    const members = splitItems(body.slice(ci + 1));
+    for (const member of members) {
+      if (!labels.has(member)) {
+        throw new GraphDslError(
+          `cluster "${label}" の "${member}" が語に存在しません（"- ${member}: 頻度" を定義してください）`,
+        );
+      }
+    }
+    clusters.push({ label, members });
+  }
+  return clusters;
+}
+
+function parseCooccurrence(lines: string[]): SpecOf<'cooccurrence'> {
+  const title = headerValue(lines, 'title');
+  const { nodes, links } = collectCooccurrenceEntries(lines);
+  if (nodes.length === 0) {
+    throw new GraphDslError('cooccurrence には "- 語: 頻度" を1つ以上記述してください');
+  }
+  const labels = new Set(nodes.map((n) => n.label));
+  assertCooccurrenceEndpoints(links, labels);
+  const clusters = parseCooccurrenceClusters(lines, labels);
+  const subject = headerValue(lines, 'subject');
+  if (subject !== undefined && !labels.has(subject)) {
+    throw new GraphDslError(`subject "${subject}" が語に存在しません（"- ${subject}: 頻度" を定義してください）`);
+  }
+  return {
+    type: 'cooccurrence',
+    ...(title !== undefined ? { title } : {}),
+    ...(subject !== undefined ? { subject } : {}),
+    nodes,
+    links,
+    clusters,
+  };
+}
+
 export function parseGraphDsl(text: string): ThinkingDiagramSpec {
-  const allLines = text.split(/\r?\n/);
-  const lines = allLines.filter((l) => l.trim() !== '');
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
   if (lines.length === 0) {
     throw new GraphDslError('内容が空です。先頭に "type: <図種>" を記述してください');
   }
@@ -193,270 +502,32 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
   const rawType = typeLine.slice(firstColonIndex(typeLine) + 1).trim();
   const type = normalizeType(rawType);
 
+  // 図種ごとの解析は個別関数へ委ねる（本体は「どの図種か」の振り分けだけを担う）。
   switch (type) {
-    case 'fishbone': {
-      const problem = requireValue(headerValue(lines, 'problem'), 'problem', 'fishbone');
-      const categories = labeledBullets(lines)
-        .filter((b) => b.label.length > 0)
-        .map((b) => ({ label: b.label, causes: b.items }));
-      if (categories.length === 0) {
-        throw new GraphDslError('fishbone には "- カテゴリ: 要因, 要因" を1つ以上記述してください');
-      }
-      return { type, problem, categories };
-    }
-
-    case 'causal-loop': {
-      const title = headerValue(lines, 'title');
-      const links = [];
-      for (const raw of lines) {
-        const t = raw.trim();
-        if (!t.includes('->')) continue;
-        const link = parseCausalLink(t);
-        if (!link) {
-          throw new GraphDslError(`リンク行を解釈できません: "${t}"（例: "在庫 -> 出荷: +"）`);
-        }
-        if (link.from === link.to) {
-          throw new GraphDslError(`自己参照リンクは未対応です: "${t}"（異なる変数を指定してください）`);
-        }
-        links.push(link);
-      }
-      if (links.length === 0) {
-        throw new GraphDslError('causal-loop には "A -> B: +" 形式のリンクを1つ以上記述してください');
-      }
-      return { type, title, links };
-    }
-
-    case 'pyramid': {
-      const title = headerValue(lines, 'title');
-      const tiers = labeledBullets(lines)
-        .filter((b) => b.label.length > 0)
-        .map((b) => ({ label: b.label, desc: b.items[0] }));
-      if (tiers.length === 0) {
-        throw new GraphDslError('pyramid には "- 段ラベル" を上から順に1つ以上記述してください');
-      }
-      return { type, title, tiers };
-    }
-
-    case 'mindmap': {
-      const root = requireValue(headerValue(lines, 'root'), 'root', 'mindmap');
-      const branches = parseIndentTree(lines);
-      if (branches.length === 0) {
-        throw new GraphDslError('mindmap には "- ブランチ" を1つ以上記述してください');
-      }
-      return { type, root, branches };
-    }
-
-    case 'logic-tree': {
-      const root = requireValue(headerValue(lines, 'root'), 'root', 'logic-tree');
-      const children = parseIndentTree(lines);
-      if (children.length === 0) {
-        throw new GraphDslError('logic-tree には "- 要素" を1つ以上記述してください');
-      }
-      return { type, root, children };
-    }
-
-    case 'why-chain': {
-      const problem = requireValue(headerValue(lines, 'problem'), 'problem', 'why-chain');
-      const steps = labeledBullets(lines)
-        .map((b) => b.label)
-        .filter((s) => s.length > 0);
-      if (steps.length === 0) {
-        throw new GraphDslError('why-chain には "- なぜ..." を1つ以上記述してください');
-      }
-      return { type, problem, steps };
-    }
-
-    case 'double-diamond': {
-      return {
-        type,
-        discover: splitItems(headerValue(lines, 'discover') ?? ''),
-        define: splitItems(headerValue(lines, 'define') ?? ''),
-        develop: splitItems(headerValue(lines, 'develop') ?? ''),
-        deliver: splitItems(headerValue(lines, 'deliver') ?? ''),
-      };
-    }
-
-    case 'swot': {
-      return {
-        type,
-        strengths: splitItems(headerValue(lines, 'strengths') ?? ''),
-        weaknesses: splitItems(headerValue(lines, 'weaknesses') ?? ''),
-        opportunities: splitItems(headerValue(lines, 'opportunities') ?? ''),
-        threats: splitItems(headerValue(lines, 'threats') ?? ''),
-      };
-    }
-
-    case 'morph-box': {
-      const title = headerValue(lines, 'title');
-      const parameters = labeledBullets(lines)
-        .filter((b) => b.label.length > 0)
-        .map((b) => ({ label: b.label, options: b.items }));
-      if (parameters.length === 0) {
-        throw new GraphDslError('morph-box には "- パラメータ: 選択肢, 選択肢" を1つ以上記述してください');
-      }
-      return { type, title, parameters };
-    }
-
-    case 'affinity': {
-      const title = headerValue(lines, 'title');
-      const groups = labeledBullets(lines)
-        .filter((b) => b.label.length > 0)
-        .map((b) => ({ label: b.label, notes: b.items }));
-      if (groups.length === 0) {
-        throw new GraphDslError('affinity には "- グループ: 付箋, 付箋" を1つ以上記述してください');
-      }
-      return { type, title, groups };
-    }
-
-    case 'structure-map': {
-      const whole = requireValue(headerValue(lines, 'whole'), 'whole', 'structure-map');
-      // 部分（`- ラベル: 要素…`）。関係行（`->` を含む）は除外する。
-      const parts = labeledBullets(lines)
-        .filter((b) => b.label.length > 0 && !b.label.includes('->'))
-        .map((b) => ({ label: b.label, items: b.items }));
-      if (parts.length === 0) {
-        throw new GraphDslError('structure-map には "- 部分: 要素, 要素" を1つ以上記述してください');
-      }
-      const partLabels = new Set(parts.map((p) => p.label));
-      // 関係（`A -> B`）。先頭の `- ` は任意。端点は部分ラベルで実在検証する。
-      const relations: Array<{ from: string; to: string }> = [];
-      for (const raw of lines) {
-        const t = raw.trim().replace(/^-\s+/, '');
-        if (!t.includes('->')) continue;
-        const m = /^(.+?)->(.+)$/.exec(t);
-        if (!m) {
-          throw new GraphDslError(`関係行を解釈できません: "${t}"（例: "入力 -> ランキング"）`);
-        }
-        const from = m[1].trim();
-        const to = m[2].trim();
-        if (!from || !to) {
-          throw new GraphDslError(`関係行を解釈できません: "${t}"（例: "入力 -> ランキング"）`);
-        }
-        if (!partLabels.has(from) || !partLabels.has(to)) {
-          const missing = partLabels.has(from) ? to : from;
-          throw new GraphDslError(`関係の端点 "${missing}" が部分に存在しません（"- ${missing}: …" を定義してください）`);
-        }
-        relations.push({ from, to });
-      }
-      const domains = splitItems(headerValue(lines, 'domains') ?? '');
-      return { type, whole, parts, relations, domains };
-    }
-
-    case 'cooccurrence': {
-      // 語（`- ラベル: 頻度`）と共起（`- A -- B: 強度`）は同じ bullet 記法なので、
-      // `--` の有無で振り分ける。数値が読めない場合は黙って 0 に落とさずエラーにする。
-      // 向きは `-->` / `<--` / `<-->` で書く。いずれも `--` を含むため、この振り分けは変わらない。
-      const title = headerValue(lines, 'title');
-      const nodes: Array<{ label: string; frequency: number }> = [];
-      const links: CooccurrenceLink[] = [];
-      for (const raw of lines) {
-        const t = raw.trim();
-        if (!t.startsWith('-')) continue;
-        const rest = t.replace(/^-\s*/, '');
-        const ci = firstColonIndex(rest);
-        if (ci === -1) {
-          throw new GraphDslError(
-            `cooccurrence の行に値がありません: "${t}"（例: "- 納期遅延: 40" / "- A -- B: 0.8"）`,
-          );
-        }
-        const head = rest.slice(0, ci).trim();
-        const valueText = rest.slice(ci + 1).trim();
-        const value = Number(valueText);
-        if (!Number.isFinite(value)) {
-          throw new GraphDslError(
-            `数値として解釈できません: "${valueText}"（"${head}" の行。頻度・共起強度は数値で書いてください）`,
-          );
-        }
-        // 矢印として読むのは `--` に隣接する `<` `>` だけ。語名に `<` `>` を含められる状態を
-        // 保つ（設計書 §2.5）。`(.+?)` が非貪欲なので、`<A> -- B` は a="<A>" として読める。
-        const pair = /^(.+?)\s*(<?)--(>?)\s*(.+)$/.exec(head);
-        if (pair) {
-          const a = pair[1].trim();
-          const b = pair[4].trim();
-          const hasLeftArrow = pair[2] === '<';
-          const hasRightArrow = pair[3] === '>';
-          const direction: CooccurrenceLink['direction'] =
-            hasLeftArrow && hasRightArrow
-              ? 'both'
-              : hasLeftArrow
-                ? 'backward'
-                : hasRightArrow
-                  ? 'forward'
-                  : undefined;
-          if (!a || !b) {
-            throw new GraphDslError(`共起行を解釈できません: "${t}"（例: "- 納期遅延 -- 仕様変更: 0.8"）`);
-          }
-          // 自己共起は長さ 0 の線になるうえ強度の正規化も歪めるため拒否する
-          // （causal-loop の自己参照リンクと同方針）。
-          if (a === b) {
-            throw new GraphDslError(`自己共起 "${a} -- ${b}" は未対応です（異なる語どうしを書いてください）`);
-          }
-          if (value < 0) {
-            throw new GraphDslError(`共起強度に負の値は指定できません: "${t}"`);
-          }
-          links.push(direction === undefined ? { a, b, strength: value } : { a, b, strength: value, direction });
-        } else {
-          if (!head) {
-            throw new GraphDslError(`語のラベルが空です: "${t}"`);
-          }
-          if (value < 0) {
-            throw new GraphDslError(`出現頻度に負の値は指定できません: "${t}"`);
-          }
-          if (nodes.some((n) => n.label === head)) {
-            throw new GraphDslError(`語 "${head}" が複数回定義されています（"- ${head}: 頻度" は1回だけ書いてください）`);
-          }
-          nodes.push({ label: head, frequency: value });
-        }
-      }
-      if (nodes.length === 0) {
-        throw new GraphDslError('cooccurrence には "- 語: 頻度" を1つ以上記述してください');
-      }
-      const labels = new Set(nodes.map((n) => n.label));
-      for (const link of links) {
-        for (const endpoint of [link.a, link.b]) {
-          if (!labels.has(endpoint)) {
-            throw new GraphDslError(
-              `共起の端点 "${endpoint}" が語に存在しません（"- ${endpoint}: 頻度" を定義してください）`,
-            );
-          }
-        }
-      }
-      // クラスタは `cluster <名前>: 語, 語` 行。bullet ではないので別途拾う。
-      const clusters: Array<{ label: string; members: string[] }> = [];
-      for (const raw of lines) {
-        const t = raw.trim();
-        const m = /^cluster\s+(.+)$/i.exec(t);
-        if (!m) continue;
-        const body = m[1];
-        const ci = firstColonIndex(body);
-        if (ci === -1) {
-          throw new GraphDslError(`cluster 行を解釈できません: "${t}"（例: "cluster 工程: 納期遅延, レビュー待ち"）`);
-        }
-        const label = body.slice(0, ci).trim();
-        const members = splitItems(body.slice(ci + 1));
-        for (const member of members) {
-          if (!labels.has(member)) {
-            throw new GraphDslError(
-              `cluster "${label}" の "${member}" が語に存在しません（"- ${member}: 頻度" を定義してください）`,
-            );
-          }
-        }
-        clusters.push({ label, members });
-      }
-      const subject = headerValue(lines, 'subject');
-      if (subject !== undefined && !labels.has(subject)) {
-        throw new GraphDslError(`subject "${subject}" が語に存在しません（"- ${subject}: 頻度" を定義してください）`);
-      }
-      return {
-        type,
-        ...(title !== undefined ? { title } : {}),
-        ...(subject !== undefined ? { subject } : {}),
-        nodes,
-        links,
-        clusters,
-      };
-    }
-
+    case 'fishbone':
+      return parseFishbone(lines);
+    case 'causal-loop':
+      return parseCausalLoop(lines);
+    case 'pyramid':
+      return parsePyramid(lines);
+    case 'mindmap':
+      return parseMindmap(lines);
+    case 'logic-tree':
+      return parseLogicTree(lines);
+    case 'why-chain':
+      return parseWhyChain(lines);
+    case 'double-diamond':
+      return parseDoubleDiamond(lines);
+    case 'swot':
+      return parseSwot(lines);
+    case 'morph-box':
+      return parseMorphBox(lines);
+    case 'affinity':
+      return parseAffinity(lines);
+    case 'structure-map':
+      return parseStructureMap(lines);
+    case 'cooccurrence':
+      return parseCooccurrence(lines);
     default: {
       const _exhaustive: never = type;
       throw new GraphDslError(`未対応の図種: ${String(_exhaustive)}`);

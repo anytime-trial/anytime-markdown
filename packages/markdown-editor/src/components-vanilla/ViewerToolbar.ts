@@ -44,7 +44,7 @@ function themeIconFor(mode: "light" | "dark"): SVGSVGElement {
 
 export function createViewerToolbar(opts: ViewerToolbarOptions): ViewerToolbarHandle {
   const root = document.createElement("div");
-  root.setAttribute("data-am-viewer-toolbar", "");
+  root.dataset.amViewerToolbar = "";
   root.setAttribute("role", "toolbar");
   root.setAttribute("aria-label", opts.t("viewerToolbar"));
   root.style.cssText =

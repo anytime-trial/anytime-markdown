@@ -412,7 +412,54 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
 
   // ---- 付属オブジェクトの構築と wire ----
 
-  // LogService
+  await wireLogService(server, opts);
+  wireOptionalDaemonServices(server, opts);
+  wireVsCodeBridgeCallbacks(server);
+  wireAnalyzeCallbacks(server, opts);
+
+  // ---- 初期設定の適用 ----
+  if (opts.tokenBudgetConfig) {
+    server.setTokenBudgetConfig(opts.tokenBudgetConfig);
+  }
+  if (opts.docsPath !== undefined) {
+    server.setDocsPath(opts.docsPath);
+  }
+
+  // ---- AnalyzeAllRunner を wire (configure 済みの場合) ----
+  if (analyzeAllRunner) {
+    server.setAnalyzeAllRunner(analyzeAllRunner);
+  }
+
+  const startedPort = await bindHttpPort(server, opts.preferredPort);
+
+  // 成功 — モジュールスコープに保持し dispose で後始末できるようにする。
+  httpServer = server;
+  httpCodeGraphService = codeGraphService;
+  httpTrailDb = trailDb;
+  httpPort = startedPort;
+
+  // import パイプラインの trailDb を確定する。configure() は startHttpServer() より前に
+  // 呼ばれ、その時点では httpTrailDb が未構築のため runner は trailDb=undefined で作られている
+  // (= 取込スキップ)。ここで同一 TrailDatabase インスタンスを共有させて runner を再構築し、
+  // Layer 1/2 (取込・primary 解析) を有効化する。
+  if (lastAnalyzeAllCfg) {
+    await rebuildAnalyzeAllRunner(httpTrailDb);
+    if (analyzeAllRunner) {
+      server.setAnalyzeAllRunner(analyzeAllRunner);
+    }
+  }
+
+  sendEvent('httpReady', { port: startedPort, url: `http://localhost:${startedPort}` });
+}
+
+/**
+ * LogService と Wave 1/2/4 の実行台帳 (PipelineRunLedger) を wire する。
+ * opts.logService 未指定なら何もしない。
+ */
+async function wireLogService(
+  server: TrailDataServer,
+  opts: SerializableHttpServerOptions,
+): Promise<void> {
   if (opts.logService) {
     const lsCfg = opts.logService;
     if (!opts.caravanDbPath) {
@@ -453,7 +500,13 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     });
     daemonLogger.info(`[daemon] LogService wired: ${opts.caravanDbPath}`);
   }
+}
 
+/** ChatBridge / RebuildScheduler / 知識グラフレイアウト job を、指定があるものだけ wire する。 */
+function wireOptionalDaemonServices(
+  server: TrailDataServer,
+  opts: SerializableHttpServerOptions,
+): void {
   // ChatBridge
   if (opts.chatBridge) {
     const cbCfg = opts.chatBridge;
@@ -497,10 +550,14 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     httpKnowledgeGraphLayout = { scheduler, job: layoutJob };
     daemonLogger.info('[daemon] knowledge graph layout job wired');
   }
+}
 
-  // ---- VS Code API 非依存コールバックの wire ----
-  // onOpenDocLink / onOpenFile は VS Code API を使えないため IPC イベントとして返す。
-  // extension (host) 側 (M2 で実装) がこのイベントを受けて VS Code API を呼び出す。
+/**
+ * VS Code API 非依存コールバックの wire。
+ * onOpenDocLink / onOpenFile は VS Code API を使えないため IPC イベントとして返す。
+ * extension (host) 側 (M2 で実装) がこのイベントを受けて VS Code API を呼び出す。
+ */
+function wireVsCodeBridgeCallbacks(server: TrailDataServer): void {
   server.onOpenDocLink = (docPath: string) => {
     sendEvent('openDocLink', { docPath });
   };
@@ -524,18 +581,38 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       messageCount: status.messageCount,
     });
   };
+}
 
-  // ---- analyze コールバックの wire ----
-  // onAnalyzeCurrentCode / onAnalyzeReleaseCode は daemon 内部の pipeline 関数で処理する。
-  // onAnalyzeAll は daemon 内部の AnalyzeAllRunner 経由。
+/** analyze 系ハンドラの前提。HTTP サーバの状態が揃っていなければ throw する。 */
+function requireHttpAnalyzeState(): { trailDb: TrailDatabase; codeGraphService: CodeGraphService } {
+  if (httpTrailDb === null || httpCodeGraphService === null) {
+    throw new Error('http server state not ready');
+  }
+  return { trailDb: httpTrailDb, codeGraphService: httpCodeGraphService };
+}
 
+/** startHttpServer に gitRoot が渡されていることを要求する。 */
+function requireStartHttpServerGitRoot(opts: SerializableHttpServerOptions): string {
+  if (!opts.gitRoot) {
+    throw new Error('gitRoot not configured; pass gitRoot to startHttpServer first');
+  }
+  return opts.gitRoot;
+}
+
+/**
+ * analyze コールバックの wire。
+ * onAnalyzeCurrentCode / onAnalyzeReleaseCode は daemon 内部の pipeline 関数で処理する。
+ * onAnalyzeAll は daemon 内部の AnalyzeAllRunner 経由。
+ */
+function wireAnalyzeCallbacks(
+  server: TrailDataServer,
+  opts: SerializableHttpServerOptions,
+): void {
   // HTTP request shape (webview → TrailDataServer): workspacePath / tsconfigPath のみ。
   // IPC dispatch 'analyzeCurrentCode' arm は SerializableAnalyzeCurrentCodeRequest を受け
   // analysisRoot / excludeRoot / analyzeChildPath まで渡す。意図的に異なるシグネチャ。
   server.onAnalyzeCurrentCode = async (req) => {
-    if (httpTrailDb === null || httpCodeGraphService === null) {
-      throw new Error('http server state not ready');
-    }
+    const state = requireHttpAnalyzeState();
     // gitRoot は startHttpServer の opts から取得 (lastCfg 非依存)。opts.gitRoot は optional のため
     // workspacePath も未指定なら解決不能としてエラーにする。
     const analysisRoot = req.workspacePath ?? opts.gitRoot;
@@ -548,8 +625,8 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       // daemon はバンドル出力 (trail-daemon.js) で動くため常に解析子プロセスへ隔離する。
       // HTTP request shape には analyzeChildPath が無く、module const の dist/analyze-child.js を使う。
       compute: { kind: 'child', analyzeChildPath },
-      trailDb: httpTrailDb,
-      codeGraphService: httpCodeGraphService,
+      trailDb: state.trailDb,
+      codeGraphService: state.codeGraphService,
       callbacks: server,
       logger: daemonLoggerAsLogger,
       onProgress: emitAnalyzeCurrentProgress,
@@ -560,16 +637,11 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   // HTTP request shape (webview → TrailDataServer): tags のみ (gitRoot は opts から取得)。
   // IPC dispatch 'analyzeReleaseCode' arm は SerializableAnalyzeReleaseCodeRequest で gitRoot を受ける。
   server.onAnalyzeReleaseCode = async (req) => {
-    if (httpTrailDb === null || httpCodeGraphService === null) {
-      throw new Error('http server state not ready');
-    }
-    if (!opts.gitRoot) {
-      throw new Error('gitRoot not configured; pass gitRoot to startHttpServer first');
-    }
+    const state = requireHttpAnalyzeState();
     const opts3: AnalyzeReleaseOpts = {
-      trailDb: httpTrailDb,
-      codeGraphService: httpCodeGraphService,
-      gitRoot: opts.gitRoot,
+      trailDb: state.trailDb,
+      codeGraphService: state.codeGraphService,
+      gitRoot: requireStartHttpServerGitRoot(opts),
       // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
       compute: { kind: 'child', analyzeChildPath },
       scope: toAnalyzeReleaseScope(req.tags),
@@ -581,19 +653,15 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
 
   // Snapshot per Commit: 1 コミット分のみ生成する。release と違い全量ループは持たない。
   server.onAnalyzeCommitCode = async (req) => {
-    if (httpTrailDb === null || httpCodeGraphService === null) {
-      throw new Error('http server state not ready');
-    }
-    if (!opts.gitRoot) {
-      throw new Error('gitRoot not configured; pass gitRoot to startHttpServer first');
-    }
+    const state = requireHttpAnalyzeState();
+    const primaryGitRoot = requireStartHttpServerGitRoot(opts);
     // 保存先は req.repo が決めるので、解析対象の git root も req.repo から引く。
     // primary をそのまま渡すと、別リポジトリ名で primary の断面を保存し得る。
-    const gitRoot = resolveGitRootForRepo([opts.gitRoot], req.repo);
+    const gitRoot = resolveGitRootForRepo([primaryGitRoot], req.repo);
     if (!gitRoot) throw new UnknownRepoError(req.repo);
     return runAnalyzeCommitCodePipeline({
-      trailDb: httpTrailDb,
-      codeGraphService: httpCodeGraphService,
+      trailDb: state.trailDb,
+      codeGraphService: state.codeGraphService,
       gitRoot,
       sha: req.sha,
       repoName: req.repo,
@@ -616,22 +684,17 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     }
     return { ...result, durationMs: Date.now() - startedAt };
   };
+}
 
-  // ---- 初期設定の適用 ----
-  if (opts.tokenBudgetConfig) {
-    server.setTokenBudgetConfig(opts.tokenBudgetConfig);
-  }
-  if (opts.docsPath !== undefined) {
-    server.setDocsPath(opts.docsPath);
-  }
-
-  // ---- AnalyzeAllRunner を wire (configure 済みの場合) ----
-  if (analyzeAllRunner) {
-    server.setAnalyzeAllRunner(analyzeAllRunner);
-  }
-
-  // ポートを試みる: preferredPort → preferred+1..+9 → 0 (OS 任意)。
-  const preferred = opts.preferredPort ?? 19841;
+/**
+ * ポートを試みる: preferredPort → preferred+1..+9 → 0 (OS 任意)。
+ * 'already in use' 以外の失敗は即 throw し、全候補が塞がっていれば最後のエラーを throw する。
+ */
+async function bindHttpPort(
+  server: TrailDataServer,
+  preferredPort: number | undefined,
+): Promise<number> {
+  const preferred = preferredPort ?? 19841;
   const portCandidates: number[] =
     preferred === 0
       ? [0]
@@ -657,25 +720,28 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   if (startedPort === null) {
     throw lastErr ?? new Error('Failed to bind HTTP server on any port');
   }
+  return startedPort;
+}
 
-  // 成功 — モジュールスコープに保持し dispose で後始末できるようにする。
-  httpServer = server;
-  httpCodeGraphService = codeGraphService;
-  httpTrailDb = trailDb;
-  httpPort = startedPort;
-
-  // import パイプラインの trailDb を確定する。configure() は startHttpServer() より前に
-  // 呼ばれ、その時点では httpTrailDb が未構築のため runner は trailDb=undefined で作られている
-  // (= 取込スキップ)。ここで同一 TrailDatabase インスタンスを共有させて runner を再構築し、
-  // Layer 1/2 (取込・primary 解析) を有効化する。
-  if (lastAnalyzeAllCfg) {
-    await rebuildAnalyzeAllRunner(httpTrailDb);
-    if (analyzeAllRunner) {
-      server.setAnalyzeAllRunner(analyzeAllRunner);
-    }
+/**
+ * 非同期の後始末を実行する。失敗はログのみ残して次へ進む (1 件の失敗で以降の解放を止めない)。
+ * 呼び出し側で await しないと try/catch が reject を捕捉できない (S4822) ため必ず await する。
+ */
+async function disposeQuietly(label: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    daemonLogger.error(`[daemon] ${label} error: ${formatError(err)}`);
   }
+}
 
-  sendEvent('httpReady', { port: startedPort, url: `http://localhost:${startedPort}` });
+/** 同期の後始末。失敗はログのみ残して次へ進む。 */
+function disposeQuietlySync(label: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    daemonLogger.error(`[daemon] ${label} error: ${formatError(err)}`);
+  }
 }
 
 async function disposeAll(): Promise<void> {
@@ -695,29 +761,19 @@ async function disposeAll(): Promise<void> {
   }
   if (httpKnowledgeGraphLayout) {
     // scheduler を先に止めてから接続を閉じる（逆順だと実行中の run が閉じた接続を触る）。
-    try {
-      await httpKnowledgeGraphLayout.scheduler.stop();
-    } catch (err) {
-      daemonLogger.error(`[daemon] knowledge graph layout scheduler stop error: ${formatError(err)}`);
-    }
-    httpKnowledgeGraphLayout.job.dispose();
+    const layout = httpKnowledgeGraphLayout;
+    await disposeQuietly('knowledge graph layout scheduler stop', () => layout.scheduler.stop());
+    layout.job.dispose();
     httpKnowledgeGraphLayout = null;
   }
   if (httpChatBridge) {
-    try {
-      // dispose() は async。await しないと try/catch が reject を捕捉できない (S4822)。
-      await httpChatBridge.dispose();
-    } catch (err) {
-      daemonLogger.error(`[daemon] ChatBridge dispose error: ${formatError(err)}`);
-    }
+    const chatBridge = httpChatBridge;
+    await disposeQuietly('ChatBridge dispose', () => chatBridge.dispose());
     httpChatBridge = null;
   }
   if (httpServer) {
-    try {
-      await httpServer.stop();
-    } catch (err) {
-      daemonLogger.error(`[daemon] HTTP server stop error: ${formatError(err)}`);
-    }
+    const server = httpServer;
+    await disposeQuietly('HTTP server stop', () => server.stop());
     httpServer = null;
   }
   if (httpSystemRunHeartbeatTimer) {
@@ -727,19 +783,13 @@ async function disposeAll(): Promise<void> {
   if (httpSystemRunLedger) {
     // system run を正常終了として閉じる。閉じずに死んだ場合は heartbeat の停止を
     // pipelineWatchdog (systemTimeoutMinutes) が検知して回収する。
-    try {
-      httpSystemRunLedger.finish('success');
-    } catch (err) {
-      daemonLogger.error(`[daemon] system run finish error: ${formatError(err)}`);
-    }
+    const systemRunLedger = httpSystemRunLedger;
+    disposeQuietlySync('system run finish', () => systemRunLedger.finish('success'));
     httpSystemRunLedger = null;
   }
   if (httpLogLedgerDb) {
-    try {
-      httpLogLedgerDb.close();
-    } catch (err) {
-      daemonLogger.error(`[daemon] log ledger db close error: ${formatError(err)}`);
-    }
+    const logLedgerDb = httpLogLedgerDb;
+    disposeQuietlySync('log ledger db close', () => logLedgerDb.close());
     httpLogLedgerDb = null;
   }
   // ファクトリは上の接続をクロージャで掴んでいるため、接続と同時に手放す。残すと次の

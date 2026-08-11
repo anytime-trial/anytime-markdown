@@ -308,6 +308,167 @@ function groundFindings(
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+/** 再抽出の対象 review 行。 */
+type ExtractionTarget = { id: string; source_kind: string; source_ref: string };
+
+/** 「本文があるのに finding が 0 件」の review 行を読む。 */
+function loadExtractionTargets(args: {
+  db: CaravanDbConnection;
+  sourceKinds: readonly string[];
+  limit?: number;
+}): ExtractionTarget[] {
+  const { db, sourceKinds, limit } = args;
+  const placeholders = sourceKinds.map(() => '?').join(',');
+  const stmt = db.prepare(
+    `SELECT id, source_kind, source_ref FROM caravan_reviews r
+      WHERE r.body_excerpt <> ''
+        AND r.source_kind IN (${placeholders})
+        AND NOT EXISTS (SELECT 1 FROM caravan_review_findings f WHERE f.review_id = r.id)
+      ORDER BY r.reviewed_at DESC` + (limit ? ` LIMIT ${Number(limit)}` : ''),
+  );
+  try {
+    return stmt.all(...sourceKinds).map((row) => ({
+      id: String(row['id']),
+      source_kind: String(row['source_kind']),
+      source_ref: String(row['source_ref']),
+    }));
+  } finally {
+    stmt.free?.();
+  }
+}
+
+/**
+ * 本文から LLM で指摘候補を得る。
+ * LLM 失敗・パース不能はどちらも reviews_failed を進めたうえで null を返す
+ * （呼び出し側は null なら当該 review を飛ばす）。
+ */
+async function extractRawFindings(args: {
+  ollama: OllamaClient;
+  model: string;
+  target: ExtractionTarget;
+  body: string;
+  result: ReviewFindingExtractionResult;
+  logger: CaravanLogger;
+}): Promise<RawFinding[] | null> {
+  const { ollama, model, target, body, result, logger } = args;
+
+  let raws: RawFinding[] | null;
+  try {
+    const prompt = PROMPT_TEMPLATE.replace('{{BODY}}', body.slice(0, MAX_BODY_CHARS));
+    const response = await ollama.generate({ model, prompt, format: 'json' });
+    raws = parseFindings(response.response ?? '', target.id, logger);
+  } catch (err) {
+    result.reviews_failed += 1;
+    logger.warn?.(
+      `[anytime-memory] runReviewFindingExtraction: LLM 失敗 review=${target.id} — ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return null;
+  }
+  if (raws === null) {
+    result.reviews_failed += 1;
+    return null;
+  }
+  return raws;
+}
+
+/**
+ * findings を review 単位のトランザクションで登録し、挿入件数を返す。
+ *
+ * review 単位でトランザクションを張るのは、途中で落ちたときに
+ * entity だけ作られて finding が無い中途半端な行を残さないため。失敗時は null。
+ */
+function insertFindingsForReview(args: {
+  db: CaravanDbConnection;
+  target: ExtractionTarget;
+  findings: ParsedFinding[];
+  meta: { recordedAt: string; model: string };
+  result: ReviewFindingExtractionResult;
+  logger: CaravanLogger;
+}): number | null {
+  const { db, target, findings, meta, result, logger } = args;
+
+  let insertedForReview = 0;
+  db.run('BEGIN');
+  try {
+    for (const finding of findings) {
+      const upserted = upsertReviewFinding(
+        db, target.id, finding, meta.recordedAt, logger, `llm:${meta.model}`,
+      );
+      if (upserted.inserted) insertedForReview += 1;
+    }
+    db.run('COMMIT');
+    return insertedForReview;
+  } catch (err) {
+    try {
+      db.run('ROLLBACK');
+    } catch (rollbackErr) {
+      logger.error(
+        `[anytime-memory] runReviewFindingExtraction: ROLLBACK 自体が失敗 review=${target.id}`,
+        rollbackErr,
+      );
+    }
+    result.reviews_failed += 1;
+    logger.error(
+      `[anytime-memory] runReviewFindingExtraction: 登録に失敗 review=${target.id}`,
+      err,
+    );
+    return null;
+  }
+}
+
+/** review 1 件を処理する（本文復元 → LLM 抽出 → 接地 → 登録）。集計は result へ反映する。 */
+async function processReviewTarget(args: {
+  db: CaravanDbConnection;
+  ollama: OllamaClient;
+  target: ExtractionTarget;
+  resolveBody: ReviewFindingExtractionInput['resolveBody'];
+  options: { model: string; dryRun: boolean; recordedAt: string };
+  result: ReviewFindingExtractionResult;
+  logger: CaravanLogger;
+}): Promise<void> {
+  const { db, ollama, target, resolveBody, options, result, logger } = args;
+
+  const body = resolveBody(target);
+  if (body === null || body.trim().length === 0) {
+    // 本文を復元できない行（元メッセージが無い等）。失敗ではないので数えない
+    return;
+  }
+
+  const raws = await extractRawFindings({
+    ollama, model: options.model, target, body, result, logger,
+  });
+  if (raws === null) return;
+
+  const { findings, rejected } = groundFindings(raws, body);
+  result.rejected.ungrounded += rejected.ungrounded;
+  result.rejected.malformed += rejected.malformed;
+  result.rejected.overflow += rejected.overflow;
+  if (findings.length === 0) return;
+
+  if (options.dryRun) {
+    result.reviews_with_findings += 1;
+    result.findings_inserted += findings.length;
+    return;
+  }
+
+  const insertedForReview = insertFindingsForReview({
+    db,
+    target,
+    findings,
+    meta: { recordedAt: options.recordedAt, model: options.model },
+    result,
+    logger,
+  });
+  if (insertedForReview === null) return;
+
+  if (insertedForReview > 0) {
+    result.reviews_with_findings += 1;
+    result.findings_inserted += insertedForReview;
+  }
+}
+
 /**
  * 書式非準拠で finding を抽出できなかった review 行について、本文から LLM で
  * 指摘を再抽出して登録する救済経路。
@@ -344,25 +505,9 @@ export async function runReviewFindingExtraction(
     error_detail: '',
   };
 
-  let targets: Array<{ id: string; source_kind: string; source_ref: string }>;
+  let targets: ExtractionTarget[];
   try {
-    const placeholders = sourceKinds.map(() => '?').join(',');
-    const stmt = db.prepare(
-      `SELECT id, source_kind, source_ref FROM caravan_reviews r
-        WHERE r.body_excerpt <> ''
-          AND r.source_kind IN (${placeholders})
-          AND NOT EXISTS (SELECT 1 FROM caravan_review_findings f WHERE f.review_id = r.id)
-        ORDER BY r.reviewed_at DESC` + (input.limit ? ` LIMIT ${Number(input.limit)}` : ''),
-    );
-    try {
-      targets = stmt.all(...sourceKinds).map((row) => ({
-        id: String(row['id']),
-        source_kind: String(row['source_kind']),
-        source_ref: String(row['source_ref']),
-      }));
-    } finally {
-      stmt.free?.();
-    }
+    targets = loadExtractionTargets({ db, sourceKinds, limit: input.limit });
   } catch (err) {
     return {
       ...result,
@@ -373,76 +518,15 @@ export async function runReviewFindingExtraction(
 
   for (const target of targets) {
     result.reviews_scanned += 1;
-    const body = resolveBody(target);
-    if (body === null || body.trim().length === 0) {
-      // 本文を復元できない行（元メッセージが無い等）。失敗ではないので数えない
-      continue;
-    }
-
-    let raws: RawFinding[] | null;
-    try {
-      const prompt = PROMPT_TEMPLATE.replace('{{BODY}}', body.slice(0, MAX_BODY_CHARS));
-      const response = await ollama.generate({ model, prompt, format: 'json' });
-      raws = parseFindings(response.response ?? '', target.id, logger);
-    } catch (err) {
-      result.reviews_failed += 1;
-      logger.warn?.(
-        `[anytime-memory] runReviewFindingExtraction: LLM 失敗 review=${target.id} — ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      continue;
-    }
-    if (raws === null) {
-      result.reviews_failed += 1;
-      continue;
-    }
-
-    const { findings, rejected } = groundFindings(raws, body);
-    result.rejected.ungrounded += rejected.ungrounded;
-    result.rejected.malformed += rejected.malformed;
-    result.rejected.overflow += rejected.overflow;
-    if (findings.length === 0) continue;
-
-    if (dryRun) {
-      result.reviews_with_findings += 1;
-      result.findings_inserted += findings.length;
-      continue;
-    }
-
-    // review 単位でトランザクションを張る。途中で落ちたときに
-    // entity だけ作られて finding が無い中途半端な行を残さない。
-    let insertedForReview = 0;
-    db.run('BEGIN');
-    try {
-      for (const finding of findings) {
-        const upserted = upsertReviewFinding(
-          db, target.id, finding, recordedAt, logger, `llm:${model}`,
-        );
-        if (upserted.inserted) insertedForReview += 1;
-      }
-      db.run('COMMIT');
-    } catch (err) {
-      try {
-        db.run('ROLLBACK');
-      } catch (rollbackErr) {
-        logger.error(
-          `[anytime-memory] runReviewFindingExtraction: ROLLBACK 自体が失敗 review=${target.id}`,
-          rollbackErr,
-        );
-      }
-      result.reviews_failed += 1;
-      logger.error(
-        `[anytime-memory] runReviewFindingExtraction: 登録に失敗 review=${target.id}`,
-        err,
-      );
-      continue;
-    }
-
-    if (insertedForReview > 0) {
-      result.reviews_with_findings += 1;
-      result.findings_inserted += insertedForReview;
-    }
+    await processReviewTarget({
+      db,
+      ollama,
+      target,
+      resolveBody,
+      options: { model, dryRun, recordedAt },
+      result,
+      logger,
+    });
   }
 
   if (result.reviews_failed > 0) {

@@ -47,6 +47,34 @@ export function appendJsonlSpool<T>(
 }
 
 /**
+ * 退避ファイル本文を 1 行ずつ検証して積む。
+ * 壊れた行・型不一致の行は捨てるが `onError` へ渡して黙って消さない。
+ */
+function parseSpoolLines<T>(
+  raw: string,
+  isValid: (value: unknown) => value is T,
+  onError: SpoolErrorReporter,
+): T[] {
+  const rows: T[] = [];
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (isValid(parsed)) {
+        rows.push(parsed);
+      } else {
+        onError(`spool の行を破棄した (型不一致): ${trimmed.slice(0, 200)}`);
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      onError(`spool の行を破棄した (${reason}): ${trimmed.slice(0, 200)}`);
+    }
+  }
+  return rows;
+}
+
+/**
  * 退避ファイル 1 本を読み出し、成功時のみ削除する。
  * 読取自体の失敗（EIO・権限等）ではファイルを**残置**して null を返す（次回 drain で再試行。
  * 読めていないイベントを削除すると記録が消失する）。
@@ -64,22 +92,7 @@ function readDrainingFile<T>(
     onError(`退避 spool の読取に失敗した (${reason})。残置して次回再試行する: ${file}`);
     return null;
   }
-  const rows: T[] = [];
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed === '') continue;
-    try {
-      const parsed: unknown = JSON.parse(trimmed);
-      if (isValid(parsed)) {
-        rows.push(parsed);
-      } else {
-        onError(`spool の行を破棄した (型不一致): ${trimmed.slice(0, 200)}`);
-      }
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      onError(`spool の行を破棄した (${reason}): ${trimmed.slice(0, 200)}`);
-    }
-  }
+  const rows = parseSpoolLines(raw, isValid, onError);
   try {
     rmSync(file, { force: true });
   } catch (err) {

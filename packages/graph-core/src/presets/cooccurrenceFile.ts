@@ -427,12 +427,12 @@ function validateTimelineStructure(timeline: Record<string, unknown>, schemaVers
   return errors;
 }
 
-function validateStructure(file: unknown): ValidationError[] {
+/** meta セクションを検査し、以降の版数判定に使う schemaVersion を取り出す。 */
+function validateMetaStructure(file: Record<string, unknown>): {
+  errors: ValidationError[];
+  schemaVersion: unknown;
+} {
   const errors: ValidationError[] = [];
-  if (!isRecord(file)) {
-    return [error('invalid-schema', '', 'file must be an object')];
-  }
-
   let schemaVersion: unknown;
   const meta = prop(file, 'meta');
   if (!isRecord(meta)) {
@@ -450,13 +450,12 @@ function validateStructure(file: unknown): ValidationError[] {
       errors.push(error('invalid-schema', 'meta.origin', 'origin must be "manual" or "mcp"'));
     }
   }
+  return { errors, schemaVersion };
+}
 
-  const spec = prop(file, 'spec');
-  if (!isRecord(spec)) {
-    errors.push(error('invalid-schema', 'spec', 'spec must be an object'));
-    return errors;
-  }
-
+/** spec 直下の任意フィールド（title / subject）を検査する。 */
+function validateSpecHeaderStructure(spec: Record<string, unknown>): ValidationError[] {
+  const errors: ValidationError[] = [];
   const title = prop(spec, 'title');
   if (title !== undefined && typeof title !== 'string') {
     errors.push(error('invalid-schema', 'spec.title', 'title must be a string'));
@@ -465,7 +464,12 @@ function validateStructure(file: unknown): ValidationError[] {
   if (subject !== undefined && !Number.isInteger(subject)) {
     errors.push(error('invalid-schema', 'spec.subject', 'subject must be an integer'));
   }
+  return errors;
+}
 
+/** spec.nodes を検査する。 */
+function validateNodesStructure(spec: Record<string, unknown>): ValidationError[] {
+  const errors: ValidationError[] = [];
   const nodes = prop(spec, 'nodes');
   if (!Array.isArray(nodes)) {
     errors.push(error('invalid-schema', 'spec.nodes', 'nodes must be an array'));
@@ -483,106 +487,154 @@ function validateStructure(file: unknown): ValidationError[] {
       }
     });
   }
+  return errors;
+}
 
+/** spec.links の 1 本を検査する。 */
+function validateLinkStructure(
+  link: unknown,
+  ctx: { index: number; schemaVersion: unknown },
+): ValidationError[] {
+  const { index: i, schemaVersion } = ctx;
+  const errors: ValidationError[] = [];
+  if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) {
+    errors.push(
+      error(
+        'invalid-schema',
+        `spec.links.${i}`,
+        'link must be [source, target, strength] or [source, target, strength, direction]',
+      ),
+    );
+    return errors;
+  }
+  for (let j = 0; j < 2; j++) {
+    if (!Number.isInteger(link[j])) {
+      errors.push(error('invalid-schema', `spec.links.${i}.${j}`, 'link endpoint must be an integer'));
+    }
+  }
+  if (!isFiniteNumber(link[2])) {
+    errors.push(error('invalid-schema', `spec.links.${i}.2`, 'link strength must be a finite number'));
+  }
+  if (link.length === 4) {
+    // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。読めてしまうと、旧実装が
+    // 拒否するファイルを新実装だけが受理する状態になり、どちらが正しいのか判断できなくなる。
+    if (!atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.direction)) {
+      errors.push(error('invalid-schema', `spec.links.${i}`, 'link with direction requires schemaVersion 2 or later'));
+    }
+    if (!Number.isInteger(link[3]) || link[3] < 0 || link[3] > 3) {
+      errors.push(error('invalid-schema', `spec.links.${i}.3`, 'link direction must be an integer in 0..3'));
+    }
+  }
+  return errors;
+}
+
+/** spec.links を検査する。 */
+function validateLinksStructure(spec: Record<string, unknown>, schemaVersion: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
   const links = prop(spec, 'links');
   if (!Array.isArray(links)) {
     errors.push(error('invalid-schema', 'spec.links', 'links must be an array'));
   } else {
     links.forEach((link, i) => {
-      if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) {
-        errors.push(
-          error(
-            'invalid-schema',
-            `spec.links.${i}`,
-            'link must be [source, target, strength] or [source, target, strength, direction]',
-          ),
-        );
-        return;
-      }
-      for (let j = 0; j < 2; j++) {
-        if (!Number.isInteger(link[j])) {
-          errors.push(error('invalid-schema', `spec.links.${i}.${j}`, 'link endpoint must be an integer'));
-        }
-      }
-      if (!isFiniteNumber(link[2])) {
-        errors.push(error('invalid-schema', `spec.links.${i}.2`, 'link strength must be a finite number'));
-      }
-      if (link.length === 4) {
-        // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。読めてしまうと、旧実装が
-        // 拒否するファイルを新実装だけが受理する状態になり、どちらが正しいのか判断できなくなる。
-        if (!atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.direction)) {
-          errors.push(error('invalid-schema', `spec.links.${i}`, 'link with direction requires schemaVersion 2 or later'));
-        }
-        if (!Number.isInteger(link[3]) || link[3] < 0 || link[3] > 3) {
-          errors.push(error('invalid-schema', `spec.links.${i}.3`, 'link direction must be an integer in 0..3'));
-        }
-      }
+      errors.push(...validateLinkStructure(link, { index: i, schemaVersion }));
     });
   }
+  return errors;
+}
 
+/** spec.clusters の 1 件（ラベル・メンバー・サブクラスタ）を検査する。 */
+function validateClusterStructure(
+  cluster: unknown,
+  ctx: { index: number; schemaVersion: unknown },
+): ValidationError[] {
+  const { index: i, schemaVersion } = ctx;
+  const errors: ValidationError[] = [];
+  if (!isRecord(cluster)) {
+    errors.push(error('invalid-schema', `spec.clusters.${i}`, 'cluster must be an object'));
+    return errors;
+  }
+  if (typeof prop(cluster, 'label') !== 'string') {
+    errors.push(error('invalid-schema', `spec.clusters.${i}.label`, 'cluster label must be a string'));
+  }
+  const members = prop(cluster, 'members');
+  if (!Array.isArray(members)) {
+    errors.push(error('invalid-schema', `spec.clusters.${i}.members`, 'cluster members must be an array'));
+    return errors;
+  }
+  members.forEach((member, j) => {
+    if (!Number.isInteger(member)) {
+      errors.push(
+        error('invalid-schema', `spec.clusters.${i}.members.${j}`, 'cluster member must be an integer'),
+      );
+    }
+  });
+  errors.push(...validateSubclusterStructure(cluster, i, schemaVersion));
+  return errors;
+}
+
+/** spec.clusters（任意）を検査する。 */
+function validateClustersStructure(spec: Record<string, unknown>, schemaVersion: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
   const clusters = prop(spec, 'clusters');
   if (clusters !== undefined) {
     if (!Array.isArray(clusters)) {
       errors.push(error('invalid-schema', 'spec.clusters', 'clusters must be an array'));
     } else {
       clusters.forEach((cluster, i) => {
-        if (!isRecord(cluster)) {
-          errors.push(error('invalid-schema', `spec.clusters.${i}`, 'cluster must be an object'));
-          return;
-        }
-        if (typeof prop(cluster, 'label') !== 'string') {
-          errors.push(error('invalid-schema', `spec.clusters.${i}.label`, 'cluster label must be a string'));
-        }
-        const members = prop(cluster, 'members');
-        if (!Array.isArray(members)) {
-          errors.push(error('invalid-schema', `spec.clusters.${i}.members`, 'cluster members must be an array'));
-          return;
-        }
-        members.forEach((member, j) => {
-          if (!Number.isInteger(member)) {
-            errors.push(
-              error('invalid-schema', `spec.clusters.${i}.members.${j}`, 'cluster member must be an integer'),
-            );
-          }
-        });
-        errors.push(...validateSubclusterStructure(cluster, i, schemaVersion));
+        errors.push(...validateClusterStructure(cluster, { index: i, schemaVersion }));
       });
     }
   }
+  return errors;
+}
 
-  const notes = prop(spec, 'notes');
-  if (notes !== undefined) {
-    if (!isRecord(notes)) {
-      errors.push(error('invalid-schema', 'spec.notes', 'notes must be an object'));
-    } else {
-      // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。向きのときと同じ理由で、
-      // 旧実装が拒否するファイルを新実装だけが受理する状態を作らない。
-      if (!atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.notes)) {
-        errors.push(error('invalid-schema', 'spec.notes', 'notes require schemaVersion 3 or later'));
-      }
-      for (const target of COOCCURRENCE_NOTE_TARGETS) {
-        const entries = prop(notes, target);
-        if (entries === undefined) continue;
-        if (!Array.isArray(entries)) {
-          errors.push(error('invalid-schema', `spec.notes.${target}`, 'notes entries must be an array'));
-          continue;
-        }
-        entries.forEach((entry, i) => {
-          if (!Array.isArray(entry) || entry.length !== 2) {
-            errors.push(error('invalid-schema', `spec.notes.${target}.${i}`, 'note must be [index, text]'));
-            return;
-          }
-          if (!Number.isInteger(entry[0])) {
-            errors.push(error('invalid-schema', `spec.notes.${target}.${i}.0`, 'note target must be an integer'));
-          }
-          if (typeof entry[1] !== 'string') {
-            errors.push(error('invalid-schema', `spec.notes.${target}.${i}.1`, 'note text must be a string'));
-          }
-        });
-      }
-    }
+/** spec.notes の 1 対象ぶんの entries を検査する。 */
+function validateNoteEntries(entries: unknown, target: string): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (!Array.isArray(entries)) {
+    errors.push(error('invalid-schema', `spec.notes.${target}`, 'notes entries must be an array'));
+    return errors;
   }
+  entries.forEach((entry, i) => {
+    if (!Array.isArray(entry) || entry.length !== 2) {
+      errors.push(error('invalid-schema', `spec.notes.${target}.${i}`, 'note must be [index, text]'));
+      return;
+    }
+    if (!Number.isInteger(entry[0])) {
+      errors.push(error('invalid-schema', `spec.notes.${target}.${i}.0`, 'note target must be an integer'));
+    }
+    if (typeof entry[1] !== 'string') {
+      errors.push(error('invalid-schema', `spec.notes.${target}.${i}.1`, 'note text must be a string'));
+    }
+  });
+  return errors;
+}
 
+/** spec.notes（任意）を検査する。 */
+function validateNotesStructure(spec: Record<string, unknown>, schemaVersion: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const notes = prop(spec, 'notes');
+  if (notes === undefined) return errors;
+  if (!isRecord(notes)) {
+    errors.push(error('invalid-schema', 'spec.notes', 'notes must be an object'));
+    return errors;
+  }
+  // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。向きのときと同じ理由で、
+  // 旧実装が拒否するファイルを新実装だけが受理する状態を作らない。
+  if (!atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.notes)) {
+    errors.push(error('invalid-schema', 'spec.notes', 'notes require schemaVersion 3 or later'));
+  }
+  for (const target of COOCCURRENCE_NOTE_TARGETS) {
+    const entries = prop(notes, target);
+    if (entries === undefined) continue;
+    errors.push(...validateNoteEntries(entries, target));
+  }
+  return errors;
+}
+
+/** spec.timeline（任意）を検査する。 */
+function validateTimelineSection(spec: Record<string, unknown>, schemaVersion: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
   const timeline = prop(spec, 'timeline');
   if (timeline !== undefined) {
     if (!isRecord(timeline)) {
@@ -591,7 +643,30 @@ function validateStructure(file: unknown): ValidationError[] {
       errors.push(...validateTimelineStructure(timeline, schemaVersion));
     }
   }
+  return errors;
+}
 
+function validateStructure(file: unknown): ValidationError[] {
+  if (!isRecord(file)) {
+    return [error('invalid-schema', '', 'file must be an object')];
+  }
+
+  const meta = validateMetaStructure(file);
+  const schemaVersion = meta.schemaVersion;
+  const errors: ValidationError[] = [...meta.errors];
+
+  const spec = prop(file, 'spec');
+  if (!isRecord(spec)) {
+    errors.push(error('invalid-schema', 'spec', 'spec must be an object'));
+    return errors;
+  }
+
+  errors.push(...validateSpecHeaderStructure(spec));
+  errors.push(...validateNodesStructure(spec));
+  errors.push(...validateLinksStructure(spec, schemaVersion));
+  errors.push(...validateClustersStructure(spec, schemaVersion));
+  errors.push(...validateNotesStructure(spec, schemaVersion));
+  errors.push(...validateTimelineSection(spec, schemaVersion));
   errors.push(...validateLayoutStructure(prop(file, 'layout')));
 
   return errors;
@@ -746,168 +821,215 @@ function rawSliceTotals(timeline: Record<string, unknown>, target: CooccurrenceS
   return totals.map(roundCooccurrenceTotal);
 }
 
-export function validateCooccurrenceFile(file: unknown): ValidationError[] {
-  const errors = validateStructure(file);
-  if (!isRecord(file)) return errors;
-  const spec = prop(file, 'spec');
-  if (!isRecord(spec)) return errors;
+/** 配列なら要素数、そうでなければ 0（内容検査の範囲計算に使う）。 */
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
 
-  const nodes = prop(spec, 'nodes');
-  const nodeCount = Array.isArray(nodes) ? nodes.length : 0;
+/** ノード内容（ラベル重複・負の頻度）を検査する。 */
+function validateNodeContent(nodes: readonly unknown[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const firstIndexByLabel = new Map<string, number>();
+  nodes.forEach((node, i) => {
+    if (!isRecord(node)) return;
+    const label = prop(node, 'label');
+    if (typeof label === 'string') {
+      const firstIndex = firstIndexByLabel.get(label);
+      if (firstIndex === undefined) {
+        firstIndexByLabel.set(label, i);
+      } else {
+        errors.push(
+          error('duplicate-node-label', `spec.nodes.${i}.label`, `node label "${label}" duplicates spec.nodes.${firstIndex}`),
+        );
+      }
+    }
+    const frequency = prop(node, 'frequency');
+    if (isFiniteNumber(frequency) && frequency < 0) {
+      errors.push(error('negative-frequency', `spec.nodes.${i}.frequency`, 'node frequency must not be negative'));
+    }
+  });
+  return errors;
+}
+
+/** 共起 1 本の内容（自己共起・端点の範囲・負の強度）を検査する。 */
+function validateLinkContentEntry(
+  link: unknown,
+  ctx: { index: number; nodeCount: number },
+): ValidationError[] {
+  const { index: i, nodeCount } = ctx;
+  const errors: ValidationError[] = [];
+  // 長さで早期 return すると、向き付き（4 要素）の共起だけが自己共起・端点の範囲・負の強度の
+  // 検証を素通りする。構造の検証（validateStructure）と内容の検証はループが別なので、
+  // 受け入れる長さを両方で揃える。
+  if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) return errors;
+  const a = link[0];
+  const b = link[1];
+  const strength = link[2];
+  if (Number.isInteger(a) && Number.isInteger(b)) {
+    if (a === b) {
+      errors.push(error('self-cooccurrence', `spec.links.${i}`, 'cooccurrence endpoints must be different'));
+    }
+    if (!isIndex(a, nodeCount)) {
+      errors.push(error('link-endpoint-out-of-range', `spec.links.${i}.0`, 'link source is outside nodes'));
+    }
+    if (!isIndex(b, nodeCount)) {
+      errors.push(error('link-endpoint-out-of-range', `spec.links.${i}.1`, 'link target is outside nodes'));
+    }
+  }
+  if (isFiniteNumber(strength) && strength < 0) {
+    errors.push(error('negative-link-strength', `spec.links.${i}.2`, 'link strength must not be negative'));
+  }
+  return errors;
+}
+
+/** 共起の内容を全件検査する。 */
+function validateLinkContent(links: readonly unknown[], nodeCount: number): ValidationError[] {
+  const errors: ValidationError[] = [];
+  links.forEach((link, i) => {
+    errors.push(...validateLinkContentEntry(link, { index: i, nodeCount }));
+  });
+  return errors;
+}
+
+/** クラスタ内容（メンバー添字の範囲・サブクラスタ参照）を検査する。 */
+function validateClusterContent(clusters: readonly unknown[], nodeCount: number): ValidationError[] {
+  const errors: ValidationError[] = [];
+  clusters.forEach((cluster, i) => {
+    if (!isRecord(cluster)) return;
+    const members = prop(cluster, 'members');
+    if (!Array.isArray(members)) return;
+    members.forEach((member, j) => {
+      if (Number.isInteger(member) && !isIndex(member, nodeCount)) {
+        errors.push(
+          error('node-reference-out-of-range', `spec.clusters.${i}.members.${j}`, 'cluster member is outside nodes'),
+        );
+      }
+    });
+    errors.push(...validateSubclusterReferences(cluster, i, members));
+  });
+  return errors;
+}
+
+/** メモ 1 件の内容（対象の範囲・重複・本文の長さ）を検査する。`seen` は呼び出し側で対象ごとに持つ。 */
+function validateNoteEntryContent(
+  entry: unknown,
+  ctx: { path: string; target: CooccurrenceNoteTarget; count: number; seen: Set<number> },
+): ValidationError[] {
+  const { path, target, count, seen } = ctx;
+  const errors: ValidationError[] = [];
+  if (!Array.isArray(entry) || entry.length !== 2) return errors;
+  const index = entry[0];
+  const text = entry[1];
+  if (Number.isInteger(index)) {
+    if (!isIndex(index, count)) {
+      errors.push(error('note-target-out-of-range', `${path}.0`, `note target is outside ${target}`));
+    }
+    if (seen.has(index)) {
+      errors.push(error('duplicate-note-target', `${path}.0`, `note target ${index} is already noted`));
+    }
+    seen.add(index);
+  }
+  if (typeof text === 'string') {
+    // 空文字を許すと「メモが無い」状態に 2 通りの表現ができ、往復一致と版数の導出が揺れる。
+    if (text === '') errors.push(error('empty-note', `${path}.1`, 'note text must not be empty'));
+    if (text.length > COOCCURRENCE_NOTE_MAX_LENGTH) {
+      errors.push(
+        error('note-too-long', `${path}.1`, `note text must not exceed ${COOCCURRENCE_NOTE_MAX_LENGTH} characters`),
+      );
+    }
+  }
+  return errors;
+}
+
+/** メモの内容を対象（nodes / links / clusters）ごとに検査する。 */
+function validateNoteContent(
+  notes: Record<string, unknown>,
+  countByTarget: Record<CooccurrenceNoteTarget, number>,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  for (const target of COOCCURRENCE_NOTE_TARGETS) {
+    const entries = prop(notes, target);
+    if (!Array.isArray(entries)) continue;
+    const seen = new Set<number>();
+    entries.forEach((entry, i) => {
+      errors.push(
+        ...validateNoteEntryContent(entry, {
+          path: `spec.notes.${target}.${i}`,
+          target,
+          count: countByTarget[target],
+          seen,
+        }),
+      );
+    });
+  }
+  return errors;
+}
+
+/** ノードの頻度がスライス値の合計と一致するかを検査する。 */
+function validateNodeTotals(nodes: unknown, nodeTotals: readonly number[]): ValidationError[] {
+  const errors: ValidationError[] = [];
   if (Array.isArray(nodes)) {
-    const firstIndexByLabel = new Map<string, number>();
     nodes.forEach((node, i) => {
       if (!isRecord(node)) return;
-      const label = prop(node, 'label');
-      if (typeof label === 'string') {
-        const firstIndex = firstIndexByLabel.get(label);
-        if (firstIndex === undefined) {
-          firstIndexByLabel.set(label, i);
-        } else {
-          errors.push(
-            error('duplicate-node-label', `spec.nodes.${i}.label`, `node label "${label}" duplicates spec.nodes.${firstIndex}`),
-          );
-        }
-      }
       const frequency = prop(node, 'frequency');
-      if (isFiniteNumber(frequency) && frequency < 0) {
-        errors.push(error('negative-frequency', `spec.nodes.${i}.frequency`, 'node frequency must not be negative'));
+      if (isFiniteNumber(frequency) && roundCooccurrenceTotal(frequency) !== nodeTotals[i]) {
+        errors.push(
+          error(
+            'total-not-derived',
+            `spec.nodes.${i}.frequency`,
+            `frequency must equal the sum of slice values (${nodeTotals[i]})`,
+          ),
+        );
       }
     });
   }
+  return errors;
+}
 
-  const links = prop(spec, 'links');
+/** 共起の強度がスライス値の合計と一致するかを検査する。 */
+function validateLinkTotals(links: unknown, linkTotals: readonly number[]): ValidationError[] {
+  const errors: ValidationError[] = [];
   if (Array.isArray(links)) {
     links.forEach((link, i) => {
-      // 長さで早期 return すると、向き付き（4 要素）の共起だけが自己共起・端点の範囲・負の強度の
-      // 検証を素通りする。構造の検証（validateStructure）と内容の検証はループが別なので、
-      // 受け入れる長さを両方で揃える。
       if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) return;
-      const a = link[0];
-      const b = link[1];
       const strength = link[2];
-      if (Number.isInteger(a) && Number.isInteger(b)) {
-        if (a === b) {
-          errors.push(error('self-cooccurrence', `spec.links.${i}`, 'cooccurrence endpoints must be different'));
-        }
-        if (!isIndex(a, nodeCount)) {
-          errors.push(error('link-endpoint-out-of-range', `spec.links.${i}.0`, 'link source is outside nodes'));
-        }
-        if (!isIndex(b, nodeCount)) {
-          errors.push(error('link-endpoint-out-of-range', `spec.links.${i}.1`, 'link target is outside nodes'));
-        }
-      }
-      if (isFiniteNumber(strength) && strength < 0) {
-        errors.push(error('negative-link-strength', `spec.links.${i}.2`, 'link strength must not be negative'));
+      if (isFiniteNumber(strength) && roundCooccurrenceTotal(strength) !== linkTotals[i]) {
+        errors.push(
+          error(
+            'total-not-derived',
+            `spec.links.${i}.2`,
+            `strength must equal the sum of slice values (${linkTotals[i]})`,
+          ),
+        );
       }
     });
   }
+  return errors;
+}
 
-  const subject = prop(spec, 'subject');
-  if (subject !== undefined && Number.isInteger(subject) && !isIndex(subject, nodeCount)) {
-    errors.push(error('node-reference-out-of-range', 'spec.subject', 'subject is outside nodes'));
+/** 全体値がスライス値の合計として導出されているかを検査する。 */
+function validateDerivedTotals(
+  timeline: Record<string, unknown>,
+  ctx: { nodes: unknown; links: unknown; nodeCount: number; linkCount: number },
+): ValidationError[] {
+  const { nodes, links, nodeCount, linkCount } = ctx;
+  const errors: ValidationError[] = [];
+  const slices = prop(timeline, 'slices');
+  if (Array.isArray(slices) && slices.length > 0) {
+    // 全体値はスライス値の合計として導出される（設計書 §2.2）。取り残された全体値を受理すると、
+    // 単一表示とレイヤー表示で別の大きさの円が描かれる。
+    errors.push(...validateNodeTotals(nodes, rawSliceTotals(timeline, 'nodes', nodeCount)));
+    errors.push(...validateLinkTotals(links, rawSliceTotals(timeline, 'links', linkCount)));
   }
+  return errors;
+}
 
-  const clusters = prop(spec, 'clusters');
-  if (Array.isArray(clusters)) {
-    clusters.forEach((cluster, i) => {
-      if (!isRecord(cluster)) return;
-      const members = prop(cluster, 'members');
-      if (!Array.isArray(members)) return;
-      members.forEach((member, j) => {
-        if (Number.isInteger(member) && !isIndex(member, nodeCount)) {
-          errors.push(
-            error('node-reference-out-of-range', `spec.clusters.${i}.members.${j}`, 'cluster member is outside nodes'),
-          );
-        }
-      });
-      errors.push(...validateSubclusterReferences(cluster, i, members));
-    });
-  }
-
-  const notes = prop(spec, 'notes');
-  if (isRecord(notes)) {
-    const countByTarget: Record<CooccurrenceNoteTarget, number> = {
-      nodes: nodeCount,
-      links: Array.isArray(links) ? links.length : 0,
-      clusters: Array.isArray(clusters) ? clusters.length : 0,
-    };
-    for (const target of COOCCURRENCE_NOTE_TARGETS) {
-      const entries = prop(notes, target);
-      if (!Array.isArray(entries)) continue;
-      const seen = new Set<number>();
-      entries.forEach((entry, i) => {
-        if (!Array.isArray(entry) || entry.length !== 2) return;
-        const index = entry[0];
-        const text = entry[1];
-        const path = `spec.notes.${target}.${i}`;
-        if (Number.isInteger(index)) {
-          if (!isIndex(index, countByTarget[target])) {
-            errors.push(error('note-target-out-of-range', `${path}.0`, `note target is outside ${target}`));
-          }
-          if (seen.has(index)) {
-            errors.push(error('duplicate-note-target', `${path}.0`, `note target ${index} is already noted`));
-          }
-          seen.add(index);
-        }
-        if (typeof text === 'string') {
-          // 空文字を許すと「メモが無い」状態に 2 通りの表現ができ、往復一致と版数の導出が揺れる。
-          if (text === '') errors.push(error('empty-note', `${path}.1`, 'note text must not be empty'));
-          if (text.length > COOCCURRENCE_NOTE_MAX_LENGTH) {
-            errors.push(
-              error('note-too-long', `${path}.1`, `note text must not exceed ${COOCCURRENCE_NOTE_MAX_LENGTH} characters`),
-            );
-          }
-        }
-      });
-    }
-  }
-
-  const timeline = prop(spec, 'timeline');
-  if (isRecord(timeline)) {
-    const linkCount = Array.isArray(links) ? links.length : 0;
-    errors.push(...validateTimelineContent(timeline, { nodes: nodeCount, links: linkCount }));
-
-    const slices = prop(timeline, 'slices');
-    if (Array.isArray(slices) && slices.length > 0) {
-      // 全体値はスライス値の合計として導出される（設計書 §2.2）。取り残された全体値を受理すると、
-      // 単一表示とレイヤー表示で別の大きさの円が描かれる。
-      const nodeTotals = rawSliceTotals(timeline, 'nodes', nodeCount);
-      if (Array.isArray(nodes)) {
-        nodes.forEach((node, i) => {
-          if (!isRecord(node)) return;
-          const frequency = prop(node, 'frequency');
-          if (isFiniteNumber(frequency) && roundCooccurrenceTotal(frequency) !== nodeTotals[i]) {
-            errors.push(
-              error(
-                'total-not-derived',
-                `spec.nodes.${i}.frequency`,
-                `frequency must equal the sum of slice values (${nodeTotals[i]})`,
-              ),
-            );
-          }
-        });
-      }
-
-      const linkTotals = rawSliceTotals(timeline, 'links', linkCount);
-      if (Array.isArray(links)) {
-        links.forEach((link, i) => {
-          if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) return;
-          const strength = link[2];
-          if (isFiniteNumber(strength) && roundCooccurrenceTotal(strength) !== linkTotals[i]) {
-            errors.push(
-              error(
-                'total-not-derived',
-                `spec.links.${i}.2`,
-                `strength must equal the sum of slice values (${linkTotals[i]})`,
-              ),
-            );
-          }
-        });
-      }
-    }
-  }
-
+/** layout.positions の要素数が nodes の件数と一致するかを検査する。 */
+function validateLayoutPositionCount(
+  file: Record<string, unknown>,
+  spec: Record<string, unknown>,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
   const fileLayout = prop(file, 'layout');
   if (isRecord(fileLayout)) {
     const positions = prop(fileLayout, 'positions');
@@ -917,6 +1039,52 @@ export function validateCooccurrenceFile(file: unknown): ValidationError[] {
       );
     }
   }
+  return errors;
+}
+
+export function validateCooccurrenceFile(file: unknown): ValidationError[] {
+  const errors = validateStructure(file);
+  if (!isRecord(file)) return errors;
+  const spec = prop(file, 'spec');
+  if (!isRecord(spec)) return errors;
+
+  const nodes = prop(spec, 'nodes');
+  const links = prop(spec, 'links');
+  const clusters = prop(spec, 'clusters');
+  const nodeCount = arrayLength(nodes);
+  const linkCount = arrayLength(links);
+
+  if (Array.isArray(nodes)) {
+    errors.push(...validateNodeContent(nodes));
+  }
+
+  if (Array.isArray(links)) {
+    errors.push(...validateLinkContent(links, nodeCount));
+  }
+
+  const subject = prop(spec, 'subject');
+  if (subject !== undefined && Number.isInteger(subject) && !isIndex(subject, nodeCount)) {
+    errors.push(error('node-reference-out-of-range', 'spec.subject', 'subject is outside nodes'));
+  }
+
+  if (Array.isArray(clusters)) {
+    errors.push(...validateClusterContent(clusters, nodeCount));
+  }
+
+  const notes = prop(spec, 'notes');
+  if (isRecord(notes)) {
+    errors.push(
+      ...validateNoteContent(notes, { nodes: nodeCount, links: linkCount, clusters: arrayLength(clusters) }),
+    );
+  }
+
+  const timeline = prop(spec, 'timeline');
+  if (isRecord(timeline)) {
+    errors.push(...validateTimelineContent(timeline, { nodes: nodeCount, links: linkCount }));
+    errors.push(...validateDerivedTotals(timeline, { nodes, links, nodeCount, linkCount }));
+  }
+
+  errors.push(...validateLayoutPositionCount(file, spec));
 
   return errors;
 }

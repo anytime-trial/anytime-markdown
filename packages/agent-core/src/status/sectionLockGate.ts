@@ -199,6 +199,60 @@ function touchesLockKey(input: Record<string, unknown>): boolean {
 }
 
 /**
+ * update_frontmatter の自己保護: lockedSections はエディタ（人間）だけが管理する。
+ * lockedSections に触れない変更は pass。
+ */
+function denyLockKeyFrontmatterChange(
+  toolName: string,
+  input: Record<string, unknown>,
+  cwd: string,
+): SectionLockVerdict {
+  if (!touchesLockKey(input)) return PASS;
+  const raw = asString(input['path']);
+  const filePath = raw === null ? '(unknown)' : resolveTargetPath(raw, cwd);
+  return {
+    kind: 'deny',
+    reason:
+      `[Section Lock] frontmatter の lockedSections は人間が管理する領域です。` +
+      `AI からの変更（${filePath}）は拒否します。${UNLOCK_GUIDANCE}`,
+    spoolEvents: [
+      {
+        event: 'section_lock_denied',
+        reason: `lockedSections frontmatter change denied (${toolName})`,
+        detailJson: JSON.stringify({
+          kind: 'section_lock_denied',
+          tool: toolName,
+          file: filePath,
+          violations: [{ kind: 'lock_entry_altered' }],
+        }),
+      },
+    ],
+  };
+}
+
+/** after 合成の結果。合成対象外のツールは 'unsupported'（呼び出し側は pass）。 */
+type AfterSynthesis = { kind: 'synthesized'; after: string | null } | { kind: 'unsupported' };
+
+/** ツールごとに after（変更後の本文）を合成する。 */
+function synthesizeAfter(
+  toolName: string,
+  before: string,
+  input: Record<string, unknown>,
+): AfterSynthesis {
+  if (toolName === 'Edit') {
+    return { kind: 'synthesized', after: simulateEdit(before, input) };
+  } else if (toolName === 'MultiEdit') {
+    return { kind: 'synthesized', after: simulateMultiEdit(before, input) };
+  } else if (toolName === 'Write' || toolName === 'mcp__mcp-markdown__write_markdown') {
+    return { kind: 'synthesized', after: asString(input['content']) };
+  } else if (toolName === 'mcp__mcp-markdown__update_section') {
+    return { kind: 'synthesized', after: simulateUpdateSection(before, input) };
+  } else {
+    return { kind: 'unsupported' }; // format_markdown / sanitize_markdown 等は合成不能 → 第 2 層が担保（要件 §22.3）
+  }
+}
+
+/**
  * PreToolUse gate の Section Lock 判定。deny = ロック節への変更 / ロックエントリの削除・改変、
  * warn = ロック外経路の逸脱検知（tamper）。判定不能はすべて pass（fail-open）。
  */
@@ -213,27 +267,7 @@ export function evaluateSectionLockGate(
 
     // update_frontmatter の自己保護: lockedSections はエディタ（人間）だけが管理する。
     if (toolName === 'mcp__mcp-markdown__update_frontmatter') {
-      if (!touchesLockKey(input)) return PASS;
-      const raw = asString(input['path']);
-      const filePath = raw === null ? '(unknown)' : resolveTargetPath(raw, cwd);
-      return {
-        kind: 'deny',
-        reason:
-          `[Section Lock] frontmatter の lockedSections は人間が管理する領域です。` +
-          `AI からの変更（${filePath}）は拒否します。${UNLOCK_GUIDANCE}`,
-        spoolEvents: [
-          {
-            event: 'section_lock_denied',
-            reason: `lockedSections frontmatter change denied (${toolName})`,
-            detailJson: JSON.stringify({
-              kind: 'section_lock_denied',
-              tool: toolName,
-              file: filePath,
-              violations: [{ kind: 'lock_entry_altered' }],
-            }),
-          },
-        ],
-      };
+      return denyLockKeyFrontmatterChange(toolName, input, cwd);
     }
 
     const rawPath =
@@ -266,18 +300,9 @@ export function evaluateSectionLockGate(
       };
     }
 
-    let after: string | null = null;
-    if (toolName === 'Edit') {
-      after = simulateEdit(before, input);
-    } else if (toolName === 'MultiEdit') {
-      after = simulateMultiEdit(before, input);
-    } else if (toolName === 'Write' || toolName === 'mcp__mcp-markdown__write_markdown') {
-      after = asString(input['content']);
-    } else if (toolName === 'mcp__mcp-markdown__update_section') {
-      after = simulateUpdateSection(before, input);
-    } else {
-      return PASS; // format_markdown / sanitize_markdown 等は合成不能 → 第 2 層が担保（要件 §22.3）
-    }
+    const synthesis = synthesizeAfter(toolName, before, input);
+    if (synthesis.kind === 'unsupported') return PASS;
+    const after = synthesis.after;
     if (after === null) return PASS;
     return evaluateBeforeAfter(toolName, filePath, before, after);
   } catch {

@@ -169,6 +169,49 @@ function gatherReviewSource(
   return null;
 }
 
+/**
+ * 5 ソース（conversation / spec / code / bug history / review）の根拠行を集め、
+ * DB 行が無くても値が入っているソースは値だけの項目で補う。
+ */
+function collectDriftSources(args: {
+  db: CaravanDbConnection;
+  subjectEntityId: string;
+  values: { conv: string | null; spec: string | null; code: string | null };
+  logger: CaravanLogger;
+}): DriftSourceEvidence[] {
+  const { db, subjectEntityId, values, logger } = args;
+  const sources: DriftSourceEvidence[] = [];
+
+  const convSrc = gatherConversationSource(db, subjectEntityId, values.conv, logger);
+  if (convSrc) sources.push(convSrc);
+
+  const specSrc = gatherSpecSource(db, subjectEntityId, values.spec, logger);
+  if (specSrc) sources.push(specSrc);
+
+  const codeSrc = gatherCodeSource(db, subjectEntityId, values.code, logger);
+  if (codeSrc) sources.push(codeSrc);
+
+  const bugSrc = gatherBugHistorySource(db, subjectEntityId, logger);
+  if (bugSrc) sources.push(bugSrc);
+
+  const reviewSrc = gatherReviewSource(db, subjectEntityId, logger);
+  if (reviewSrc) sources.push(reviewSrc);
+
+  // Always include non-empty values even if no DB rows
+  const presentSources = new Set(sources.map((s) => s.source));
+  if (!presentSources.has('conversation') && values.conv) {
+    sources.push({ source: 'conversation', items: [{ value: values.conv }] });
+  }
+  if (!presentSources.has('spec') && values.spec) {
+    sources.push({ source: 'spec', items: [{ value: values.spec }] });
+  }
+  if (!presentSources.has('code') && values.code) {
+    sources.push({ source: 'code', items: [{ value: values.code }] });
+  }
+
+  return sources;
+}
+
 export function explainDrift(input: {
   db: CaravanDbConnection;
   event_id: string;
@@ -207,34 +250,12 @@ export function explainDrift(input: {
     detail = {};
   }
 
-  const sources: DriftSourceEvidence[] = [];
-
-  const convSrc = gatherConversationSource(db, subjectEntityId, convValue, logger);
-  if (convSrc) sources.push(convSrc);
-
-  const specSrc = gatherSpecSource(db, subjectEntityId, specValue, logger);
-  if (specSrc) sources.push(specSrc);
-
-  const codeSrc = gatherCodeSource(db, subjectEntityId, codeValue, logger);
-  if (codeSrc) sources.push(codeSrc);
-
-  const bugSrc = gatherBugHistorySource(db, subjectEntityId, logger);
-  if (bugSrc) sources.push(bugSrc);
-
-  const reviewSrc = gatherReviewSource(db, subjectEntityId, logger);
-  if (reviewSrc) sources.push(reviewSrc);
-
-  // Always include non-empty values even if no DB rows
-  const presentSources = new Set(sources.map((s) => s.source));
-  if (!presentSources.has('conversation') && convValue) {
-    sources.push({ source: 'conversation', items: [{ value: convValue }] });
-  }
-  if (!presentSources.has('spec') && specValue) {
-    sources.push({ source: 'spec', items: [{ value: specValue }] });
-  }
-  if (!presentSources.has('code') && codeValue) {
-    sources.push({ source: 'code', items: [{ value: codeValue }] });
-  }
+  const sources = collectDriftSources({
+    db,
+    subjectEntityId,
+    values: { conv: convValue, spec: specValue, code: codeValue },
+    logger,
+  });
 
   return {
     event_id,

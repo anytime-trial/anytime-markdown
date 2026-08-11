@@ -13,27 +13,40 @@ export type LinkPrecedesBugsResult = {
   edges_inserted: number;
 };
 
-// ── Main function ─────────────────────────────────────────────────────────────
+// ── Private helpers ───────────────────────────────────────────────────────────
 
-export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugsResult {
-  const { db, windowDays, logger } = input;
-  const effectiveWindowDays =
-    Number.isFinite(windowDays ?? 60) && (windowDays ?? 60) > 0
-      ? (windowDays ?? 60)
-      : 60;
+/** レビュー指摘 1 件（bug との突合対象）。 */
+type Finding = {
+  id: string;
+  finding_entity_id: string;
+  target_file_path: string | null;
+  target_symbol: string | null;
+  reviewed_at: string;
+};
 
-  let findings: Array<{
-    id: string;
-    finding_entity_id: string;
-    target_file_path: string | null;
-    target_symbol: string | null;
-    reviewed_at: string;
-  }>;
+/** 突合候補の bug 修正 1 件。 */
+type BugFix = {
+  id: string;
+  entityId: string;
+  committedAt: string;
+  affectedFilePathsJson: string;
+  subjectSummary: string;
+};
 
+function resolveWindowDays(windowDays: number | undefined): number {
+  const requested = windowDays ?? 60;
+  return Number.isFinite(requested) && requested > 0 ? requested : 60;
+}
+
+/**
+ * 突合対象の指摘を読み出す。取得できなければ空配列（呼び出し側は 0 件で終わる）。
+ *
+ * 「いつレビューが行われたか」は caravan_reviews.reviewed_at を使う。
+ * caravan_review_findings.recorded_at は ingest 時刻なので、re-ingest 後に
+ * 全 finding が「今日」付けとなり、過去の bug が future として検索されないため誤り。
+ */
+function loadFindings(db: CaravanDbConnection, logger: LinkPrecedesBugsInput['logger']): Finding[] {
   try {
-    // 「いつレビューが行われたか」は caravan_reviews.reviewed_at を使う。
-    // caravan_review_findings.recorded_at は ingest 時刻なので、re-ingest 後に
-    // 全 finding が「今日」付けとなり、過去の bug が future として検索されないため誤り。
     const result = db.exec(`
       SELECT rf.id, rf.finding_entity_id, rf.target_file_path, rf.target_symbol, r.reviewed_at
       FROM caravan_review_findings rf
@@ -43,11 +56,9 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
     `);
 
     const rows = result[0];
-    if (!rows) {
-      return { edges_inserted: 0 };
-    }
+    if (!rows) return [];
 
-    findings = rows.values.map((r) => ({
+    return rows.values.map((r) => ({
       id: String(r[0]),
       finding_entity_id: String(r[1]),
       target_file_path: r[2] == null ? null : String(r[2]),
@@ -58,67 +69,97 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
     logger.warn(
       `[anytime-memory] linkPrecedesBugs: failed to query review findings: ${String(err)}`
     );
-    return { edges_inserted: 0 };
+    return [];
   }
+}
 
-  let edgesInserted = 0;
+/** reviewed_at 後 windowDays 日以内に commit された bug 修正。 */
+function loadCandidateBugs(db: CaravanDbConnection, finding: Finding, windowDays: number): BugFix[] {
+  const bugResult = db.exec(
+    `SELECT bf.id, bf.bug_entity_id, bf.committed_at, bf.affected_file_paths_json, bf.subject_summary
+     FROM caravan_bug_fixes bf
+     WHERE bf.committed_at > ?
+       AND bf.committed_at <= datetime(?, '+' || ? || ' days')`,
+    [finding.reviewed_at, finding.reviewed_at, windowDays]
+  );
 
-  for (const finding of findings) {
+  const bugRows = bugResult[0];
+  if (!bugRows) return [];
+  return bugRows.values.map((row) => ({
+    id: String(row[0]),
+    entityId: String(row[1]),
+    committedAt: String(row[2]),
+    affectedFilePathsJson: String(row[3]),
+    subjectSummary: String(row[4]),
+  }));
+}
+
+/** 指摘対象のファイルが bug 修正の変更ファイルに含まれるか。 */
+function matchesFilePath(finding: Finding, bug: BugFix): boolean {
+  if (finding.target_file_path == null) return false;
+  try {
+    const affectedPaths: unknown = JSON.parse(bug.affectedFilePathsJson);
+    return Array.isArray(affectedPaths) && affectedPaths.includes(finding.target_file_path);
+  } catch {
+    // invalid JSON — skip file path match
+    return false;
+  }
+}
+
+/** 指摘対象のシンボル名が bug 修正の要約に現れるか。 */
+function matchesSymbol(finding: Finding, bug: BugFix): boolean {
+  const symbol = finding.target_symbol;
+  if (symbol == null || symbol.length === 0) return false;
+  return bug.subjectSummary.toLowerCase().includes(symbol.toLowerCase());
+}
+
+function insertPrecedesEdge(db: CaravanDbConnection, finding: Finding, bug: BugFix, now: string): boolean {
+  const edgeId = entityId('edge', `precedes:${finding.finding_entity_id}:${bug.entityId}`);
+  db.run(
+    `INSERT OR IGNORE INTO caravan_edges
+        (id, subject_entity_id, predicate, object_entity_id,
+         valid_from, valid_to, recorded_at,
+         source_type, source_ref,
+         confidence, confidence_label, modality)
+      VALUES (?, ?, 'precedes', ?, ?, NULL, ?, 'review', ?, 0.7, 'INFERRED', 'asserted')`,
+    [edgeId, finding.finding_entity_id, bug.entityId, bug.committedAt, now, `review_finding#${finding.id}=>bug#${bug.id}`]
+  );
+  return db.getRowsModified() > 0;
+}
+
+/**
+ * 指摘 1 件について、突合した bug へ precedes エッジを張る。
+ *
+ * 件数は**挿入した直後に `counter` へ加算する**。戻り値で返して呼び出し側で足すと、
+ * 途中の挿入が throw したときに、既に書き込み済みのエッジ数が報告から消える
+ * （呼び出し側は finding 単位で例外を握って次へ進むため、書き込み自体は残る）。
+ */
+function linkFinding(
+  db: CaravanDbConnection,
+  args: { finding: Finding; windowDays: number },
+  counter: { edgesInserted: number },
+): void {
+  const { finding, windowDays } = args;
+  const bugs = loadCandidateBugs(db, finding, windowDays);
+  if (bugs.length === 0) return;
+
+  const now = new Date().toISOString();
+  for (const bug of bugs) {
+    if (!matchesFilePath(finding, bug) && !matchesSymbol(finding, bug)) continue;
+    if (insertPrecedesEdge(db, finding, bug, now)) counter.edgesInserted += 1;
+  }
+}
+
+// ── Main function ─────────────────────────────────────────────────────────────
+
+export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugsResult {
+  const { db, windowDays, logger } = input;
+  const effectiveWindowDays = resolveWindowDays(windowDays);
+
+  const counter = { edgesInserted: 0 };
+  for (const finding of loadFindings(db, logger)) {
     try {
-      // Query candidate bugs within the window (reviewed_at 後 windowDays 日以内に commit された bug)
-      const bugResult = db.exec(
-        `SELECT bf.id, bf.bug_entity_id, bf.committed_at, bf.affected_file_paths_json, bf.subject_summary
-         FROM caravan_bug_fixes bf
-         WHERE bf.committed_at > ?
-           AND bf.committed_at <= datetime(?, '+' || ? || ' days')`,
-        [finding.reviewed_at, finding.reviewed_at, effectiveWindowDays]
-      );
-
-      const bugRows = bugResult[0];
-      if (!bugRows) continue;
-
-      const now = new Date().toISOString();
-      for (const row of bugRows.values) {
-        const bugId = String(row[0]);
-        const bugEntityId = String(row[1]);
-        const committedAt = String(row[2]);
-        const affectedFilePathsJson = String(row[3]);
-        const subjectSummary = String(row[4]);
-
-        // File path match
-        let matches = false;
-        if (finding.target_file_path != null) {
-          try {
-            const affectedPaths: unknown = JSON.parse(affectedFilePathsJson);
-            if (Array.isArray(affectedPaths) && affectedPaths.includes(finding.target_file_path)) {
-              matches = true;
-            }
-          } catch {
-            // invalid JSON — skip file path match
-          }
-        }
-
-        // Symbol match
-        if (!matches && finding.target_symbol != null && finding.target_symbol.length > 0) {
-          if (subjectSummary.toLowerCase().includes(finding.target_symbol.toLowerCase())) {
-            matches = true;
-          }
-        }
-
-        if (!matches) continue;
-
-        const edgeId = entityId('edge', `precedes:${finding.finding_entity_id}:${bugEntityId}`);
-        db.run(
-          `INSERT OR IGNORE INTO caravan_edges
-              (id, subject_entity_id, predicate, object_entity_id,
-               valid_from, valid_to, recorded_at,
-               source_type, source_ref,
-               confidence, confidence_label, modality)
-            VALUES (?, ?, 'precedes', ?, ?, NULL, ?, 'review', ?, 0.7, 'INFERRED', 'asserted')`,
-          [edgeId, finding.finding_entity_id, bugEntityId, committedAt, now, `review_finding#${finding.id}=>bug#${bugId}`]
-        );
-        if (db.getRowsModified() > 0) edgesInserted += 1;
-      }
+      linkFinding(db, { finding, windowDays: effectiveWindowDays }, counter);
     } catch (err) {
       logger.warn(
         `[anytime-memory] linkPrecedesBugs: failed to process finding id=${finding.id}: ${String(err)}`
@@ -126,5 +167,5 @@ export function linkPrecedesBugs(input: LinkPrecedesBugsInput): LinkPrecedesBugs
     }
   }
 
-  return { edges_inserted: edgesInserted };
+  return { edges_inserted: counter.edgesInserted };
 }

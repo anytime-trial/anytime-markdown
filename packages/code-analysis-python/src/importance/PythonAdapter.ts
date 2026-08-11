@@ -9,6 +9,19 @@ import { PythonMetrics } from './PythonMetrics';
 
 type ResolveModule = (module: string, fromRel: string) => string | undefined;
 
+/** collect の再帰で不変な引き回し（走査対象と親 id 以外）。 */
+type CollectContext = {
+  readonly rel: string;
+  readonly out: FunctionInfo[];
+};
+
+/** collect が 1 件処理する定義ノードとその名前・親 id。 */
+type DefinitionTarget = {
+  readonly def: Node;
+  readonly name: string;
+  readonly parentId: string;
+};
+
 /**
  * ILanguageAdapter の Python 実装。tree-sitter ツリーから関数情報・メトリクス・
  * fanIn/fanOut を算出し、言語非依存の ImportanceAnalyzer / ImportanceScorer に供給する。
@@ -41,8 +54,31 @@ export class PythonAdapter implements ILanguageAdapter {
     return out;
   }
 
+  /** class は本体を子スコープとして再帰し、function は 1 件積んでから本体を再帰する。 */
+  private collectDefinition(target: DefinitionTarget, ctx: CollectContext): void {
+    const { def, name, parentId } = target;
+    if (def.type === 'class_definition') {
+      const body = def.childForFieldName('body');
+      if (body) this.collect(body, ctx.rel, `${parentId}::${name}`, ctx.out);
+    } else if (def.type === 'function_definition') {
+      const id = `${parentId}::${name}`;
+      ctx.out.push({
+        id,
+        name,
+        filePath: ctx.rel,
+        startLine: def.startPosition.row + 1,
+        endLine: def.endPosition.row + 1,
+        language: this.language,
+      });
+      this.nodeCache.set(id, def);
+      const body = def.childForFieldName('body');
+      if (body) this.collect(body, ctx.rel, id, ctx.out);
+    }
+  }
+
   /** SymbolExtractor と同じ親 id 連結で関数/メソッド/ネスト関数を収集する。 */
   private collect(node: Node, rel: string, parentId: string, out: FunctionInfo[]): void {
+    const ctx: CollectContext = { rel, out };
     for (const child of node.namedChildren) {
       if (!child) continue;
       const def =
@@ -50,23 +86,7 @@ export class PythonAdapter implements ILanguageAdapter {
       if (!def) continue;
       const name = def.childForFieldName('name')?.text;
       if (!name) continue;
-      if (def.type === 'class_definition') {
-        const body = def.childForFieldName('body');
-        if (body) this.collect(body, rel, `${parentId}::${name}`, out);
-      } else if (def.type === 'function_definition') {
-        const id = `${parentId}::${name}`;
-        out.push({
-          id,
-          name,
-          filePath: rel,
-          startLine: def.startPosition.row + 1,
-          endLine: def.endPosition.row + 1,
-          language: this.language,
-        });
-        this.nodeCache.set(id, def);
-        const body = def.childForFieldName('body');
-        if (body) this.collect(body, rel, id, out);
-      }
+      this.collectDefinition({ def, name, parentId }, ctx);
     }
   }
 

@@ -44,6 +44,298 @@ export function episodeId(sessionId: string, messageUuidStart: string): string {
     .slice(0, 16);
 }
 
+/** 永続化 5 段が共有する入力。`epId` は episode の派生キー。 */
+interface PersistContext {
+  db: CaravanDbConnection;
+  episode: Episode;
+  recordedAt: string;
+  logger: CaravanLogger;
+  epId: string;
+}
+
+/** ── 1. Upsert caravan_episodes ─────────────────────────────────────────── */
+function upsertEpisodeRow(ctx: PersistContext, summary: string): void {
+  ctx.db.run(
+    `INSERT INTO caravan_episodes
+       (id, session_id, message_uuid_start, message_uuid_end,
+        agent_runtime, model, valid_from, recorded_at, raw_excerpt, summary)
+     VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       message_uuid_end = excluded.message_uuid_end,
+       raw_excerpt      = excluded.raw_excerpt,
+       -- 空要約（LLM が summary を省略した再 ingest 等）で既存の要約を破壊しない。
+       -- 非空のときのみ上書きする。
+       summary          = CASE WHEN excluded.summary != '' THEN excluded.summary
+                               ELSE caravan_episodes.summary END`,
+    [
+      ctx.epId,
+      ctx.episode.session_id,
+      ctx.episode.message_uuid_start,
+      ctx.episode.message_uuid_end,
+      ctx.episode.valid_from,
+      ctx.recordedAt,
+      ctx.episode.raw_excerpt,
+      summary,
+    ]
+  );
+}
+
+/**
+ * ── 2. Upsert entities ────────────────────────────────────────────────────
+ * canonical_name → entity id の対応（キーは "type:canonicalName"）を返す。
+ * エッジ構築とセクション 4 がこの map を使う。
+ */
+function upsertExtractedEntities(
+  ctx: PersistContext,
+  entities: ExtractionResult['entities'],
+  stats: PersistStats,
+): Map<string, string> {
+  const entityIdMap = new Map<string, string>();
+
+  for (const ent of entities) {
+    if (isSuppressedName(ent.name)) {
+      stats.entities_suppressed += 1;
+      continue;
+    }
+    const canonName = canonicalize(ent.name);
+    const eId = entityId(ent.type, canonName);
+    entityIdMap.set(`${ent.type}:${canonName}`, eId);
+
+    // Detect whether the row exists before upsert to track inserted vs updated
+    const existsStmt = ctx.db.prepare(
+      `SELECT id FROM caravan_entities WHERE type = ? AND canonical_name = ?`
+    );
+    const exists = existsStmt.get(ent.type, canonName) !== undefined;
+    existsStmt.free?.();
+
+    try {
+      ctx.db.run(
+        `INSERT INTO caravan_entities
+           (id, type, canonical_name, display_name,
+            aliases_json, tags_json, attributes_json,
+            first_seen_at, last_updated_at, recorded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(type, canonical_name) DO UPDATE SET
+           display_name    = excluded.display_name,
+           last_updated_at = excluded.last_updated_at`,
+        [
+          eId,
+          ent.type,
+          canonName,
+          ent.name,
+          JSON.stringify(ent.aliases ?? []),
+          JSON.stringify(ent.tags ?? []),
+          JSON.stringify(ent.attributes ?? {}),
+          ctx.recordedAt,
+          ctx.recordedAt,
+          ctx.recordedAt,
+        ]
+      );
+
+      if (exists) stats.entities_updated += 1;
+      else stats.entities_inserted += 1;
+    } catch (err) {
+      ctx.logger.error(
+        `[anytime-memory] persist: failed to upsert entity type=${ent.type} name=${ent.name}`,
+        err
+      );
+    }
+  }
+
+  return entityIdMap;
+}
+
+/** モデルが relations で参照したが entities[] に挙げなかった端点を auto-upsert する。 */
+function ensureRelationEndpoints(
+  ctx: PersistContext,
+  endpoints: ReadonlyArray<{ mapKey: string; endpoint: { type: string; name: string } }>,
+  entityIdMap: Map<string, string>,
+): void {
+  for (const { mapKey, endpoint } of endpoints) {
+    if (entityIdMap.get(mapKey) !== undefined) continue;
+    const canon = canonicalize(endpoint.name);
+    const eId = entityId(endpoint.type, canon);
+    try {
+      ctx.db.run(
+        `INSERT INTO caravan_entities
+           (id, type, canonical_name, display_name,
+            aliases_json, tags_json, attributes_json,
+            first_seen_at, last_updated_at, recorded_at)
+         VALUES (?, ?, ?, ?, '[]', '[]', '{}', ?, ?, ?)
+         ON CONFLICT(type, canonical_name) DO UPDATE SET
+           last_updated_at = excluded.last_updated_at`,
+        [eId, endpoint.type, canon, endpoint.name, ctx.recordedAt, ctx.recordedAt, ctx.recordedAt],
+      );
+      entityIdMap.set(mapKey, eId);
+    } catch {
+      ctx.logger.warn?.(
+        `[anytime-memory] persist: failed to auto-upsert endpoint ${mapKey}`,
+      );
+    }
+  }
+}
+
+/** relation 1 件をエッジとして永続化する（端点の auto-upsert を含む）。 */
+function persistRelation(
+  ctx: PersistContext,
+  rel: ExtractionResult['relations'][number],
+  entityIdMap: Map<string, string>,
+  stats: PersistStats,
+): void {
+  // 端点のどちらかが低情報なら、端点の auto-upsert ごとエッジを捨てる
+  // （片端だけ残すとどの実体とも接続しない孤立ノードを生む）。
+  if (isSuppressedName(rel.subject.name) || isSuppressedName(rel.object.name)) {
+    stats.edges_suppressed += 1;
+    return;
+  }
+  const subjectMapKey = `${rel.subject.type}:${canonicalize(rel.subject.name)}`;
+  const objectMapKey = `${rel.object.type}:${canonicalize(rel.object.name)}`;
+
+  ensureRelationEndpoints(
+    ctx,
+    [
+      { mapKey: subjectMapKey, endpoint: rel.subject },
+      { mapKey: objectMapKey, endpoint: rel.object },
+    ],
+    entityIdMap,
+  );
+
+  const subjectId = entityIdMap.get(subjectMapKey);
+  const objectId = entityIdMap.get(objectMapKey);
+  if (subjectId === undefined || objectId === undefined) {
+    ctx.logger.warn?.(
+      `[anytime-memory] persist: skipping edge "${rel.predicate}" — endpoint upsert failed ` +
+        `(subject=${subjectMapKey}, object=${objectMapKey})`,
+    );
+    return;
+  }
+
+  const eId = edgeId(subjectId, rel.predicate, objectId, ctx.episode.message_uuid_start);
+
+  // Insert the new edge first so the FK in caravan_edge_invalidations.superseding_edge_id resolves.
+  try {
+    ctx.db.run(
+      `INSERT INTO caravan_edges
+         (id, subject_entity_id, predicate, object_entity_id,
+          valid_from, recorded_at, source_type, source_ref,
+          confidence, confidence_label, modality)
+       VALUES (?, ?, ?, ?, ?, ?, 'conversation', ?, 1.0, 'EXTRACTED', 'asserted')
+       ON CONFLICT(id) DO NOTHING`,
+      [eId, subjectId, rel.predicate, objectId, ctx.episode.valid_from, ctx.recordedAt, ctx.epId]
+    );
+    stats.edges_inserted += 1;
+  } catch (err) {
+    ctx.logger.error(
+      `[anytime-memory] persist: failed to insert edge id=${eId} predicate=${rel.predicate}`,
+      err
+    );
+    return;
+  }
+
+  // Apply single_active rule after insert so superseding_edge_id FK is satisfied.
+  const { invalidated_edge_ids } = applySingleActiveRule(ctx.db, {
+    id: eId,
+    subject_entity_id: subjectId,
+    predicate: rel.predicate,
+    object_entity_id: objectId,
+    recorded_at: ctx.recordedAt,
+  });
+  stats.edges_invalidated += invalidated_edge_ids.length;
+}
+
+/** ── 4. Insert episode_entities ─────────────────────────────────────────── */
+function insertEpisodeEntities(ctx: PersistContext, entityIdMap: ReadonlyMap<string, string>): void {
+  for (const [mapKey, eId] of entityIdMap) {
+    try {
+      ctx.db.run(
+        `INSERT INTO caravan_episode_entities (episode_id, entity_id, mention_text)
+         VALUES (?, ?, '')
+         ON CONFLICT(episode_id, entity_id) DO NOTHING`,
+        [ctx.epId, eId]
+      );
+    } catch (err) {
+      ctx.logger.error(
+        `[anytime-memory] persist: failed to insert episode_entity epId=${ctx.epId} entityId=${eId} mapKey=${mapKey}`,
+        err
+      );
+    }
+  }
+}
+
+/**
+ * ── 5. Handle questions ───────────────────────────────────────────────────
+ * Question エンティティと asked_by エッジを張る。
+ *
+ * answered_in エッジは書かない。取込対象が人間の発言だけになり、回答が episode
+ * 内に存在しなくなったため、この述語は構造上ぜったいに真にならない（2026-08-06）。
+ */
+function persistQuestion(
+  ctx: PersistContext,
+  text: string,
+  entityIdMap: Map<string, string>,
+  stats: PersistStats,
+): void {
+  if (isSuppressedName(text)) {
+    stats.entities_suppressed += 1;
+    return;
+  }
+  const qCanon = canonicalize(text);
+  const qId = entityId('Question', qCanon);
+  entityIdMap.set(`Question:${qCanon}`, qId);
+
+  try {
+    ctx.db.run(
+      `INSERT INTO caravan_entities
+         (id, type, canonical_name, display_name,
+          aliases_json, tags_json, attributes_json,
+          first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'Question', ?, ?, '[]', '[]', '{}', ?, ?, ?)
+       ON CONFLICT(type, canonical_name) DO UPDATE SET
+         last_updated_at = excluded.last_updated_at`,
+      [qId, qCanon, text, ctx.recordedAt, ctx.recordedAt, ctx.recordedAt]
+    );
+  } catch (err) {
+    ctx.logger.error(`[anytime-memory] persist: failed to upsert Question entity text="${text}"`, err);
+    return;
+  }
+
+  // episode_entities for question entity
+  try {
+    ctx.db.run(
+      `INSERT INTO caravan_episode_entities (episode_id, entity_id, mention_text)
+       VALUES (?, ?, '')
+       ON CONFLICT(episode_id, entity_id) DO NOTHING`,
+      [ctx.epId, qId]
+    );
+  } catch (err) {
+    ctx.logger.error(`[anytime-memory] persist: failed episode_entity for question entity qId=${qId}`, err);
+  }
+
+  const sessionId = ctx.episode.session_id;
+
+  // asked_by edge: Question → session_id (object_literal)
+  const askedById = edgeId(qId, 'asked_by', sessionId, ctx.episode.message_uuid_start);
+  try {
+    ctx.db.run(
+      `INSERT INTO caravan_edges
+         (id, subject_entity_id, predicate, object_literal,
+          valid_from, recorded_at, source_type, source_ref,
+          confidence, confidence_label, modality)
+       VALUES (?, ?, 'asked_by', ?, ?, ?, 'conversation', ?, 1.0, 'EXTRACTED', 'asserted')
+       ON CONFLICT(id) DO NOTHING`,
+      [askedById, qId, sessionId, ctx.episode.valid_from, ctx.recordedAt, ctx.epId]
+    );
+    stats.edges_inserted += 1;
+  } catch (err) {
+    ctx.logger.error(`[anytime-memory] persist: failed to insert asked_by edge for question qId=${qId}`, err);
+  }
+  const { invalidated_edge_ids: invAsked } = applySingleActiveRule(ctx.db, {
+    id: askedById, subject_entity_id: qId, predicate: 'asked_by',
+    object_literal: sessionId, recorded_at: ctx.recordedAt,
+  });
+  stats.edges_invalidated += invAsked.length;
+}
+
 /**
  * Persists a single episode's extracted facts into the caravan-book DB.
  * Returns counts of rows affected.
@@ -65,275 +357,22 @@ export function persistEpisodeFacts(opts: {
     edges_suppressed: 0,
   };
 
-  const epId = episodeId(episode.session_id, episode.message_uuid_start);
+  const ctx: PersistContext = {
+    db,
+    episode,
+    recordedAt,
+    logger,
+    epId: episodeId(episode.session_id, episode.message_uuid_start),
+  };
 
-  // ── 1. Upsert caravan_episodes ────────────────────────────────────────────
-  db.run(
-    `INSERT INTO caravan_episodes
-       (id, session_id, message_uuid_start, message_uuid_end,
-        agent_runtime, model, valid_from, recorded_at, raw_excerpt, summary)
-     VALUES (?, ?, ?, ?, 'claude_code', 'unknown', ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       message_uuid_end = excluded.message_uuid_end,
-       raw_excerpt      = excluded.raw_excerpt,
-       -- 空要約（LLM が summary を省略した再 ingest 等）で既存の要約を破壊しない。
-       -- 非空のときのみ上書きする。
-       summary          = CASE WHEN excluded.summary != '' THEN excluded.summary
-                               ELSE caravan_episodes.summary END`,
-    [
-      epId,
-      episode.session_id,
-      episode.message_uuid_start,
-      episode.message_uuid_end,
-      episode.valid_from,
-      recordedAt,
-      episode.raw_excerpt,
-      extracted.summary ?? '',
-    ]
-  );
-
-  // ── 2. Upsert entities ───────────────────────────────────────────────────
-  // Map canonical_name → entity id so we can build edges
-  const entityIdMap = new Map<string, string>(); // key = "type:canonicalName" → entityId
-
-  for (const ent of extracted.entities) {
-    if (isSuppressedName(ent.name)) {
-      stats.entities_suppressed += 1;
-      continue;
-    }
-    const canonName = canonicalize(ent.name);
-    const eId = entityId(ent.type, canonName);
-    const mapKey = `${ent.type}:${canonName}`;
-    entityIdMap.set(mapKey, eId);
-
-    const aliases = JSON.stringify(ent.aliases ?? []);
-    const tags = JSON.stringify(ent.tags ?? []);
-    const attributes = JSON.stringify(ent.attributes ?? {});
-
-    // Detect whether the row exists before upsert to track inserted vs updated
-    const existsStmt = db.prepare(
-      `SELECT id FROM caravan_entities WHERE type = ? AND canonical_name = ?`
-    );
-    const exists = existsStmt.get(ent.type, canonName) !== undefined;
-    existsStmt.free?.();
-
-    try {
-      db.run(
-        `INSERT INTO caravan_entities
-           (id, type, canonical_name, display_name,
-            aliases_json, tags_json, attributes_json,
-            first_seen_at, last_updated_at, recorded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(type, canonical_name) DO UPDATE SET
-           display_name    = excluded.display_name,
-           last_updated_at = excluded.last_updated_at`,
-        [
-          eId,
-          ent.type,
-          canonName,
-          ent.name,
-          aliases,
-          tags,
-          attributes,
-          recordedAt,
-          recordedAt,
-          recordedAt,
-        ]
-      );
-
-      if (exists) {
-        stats.entities_updated += 1;
-      } else {
-        stats.entities_inserted += 1;
-      }
-    } catch (err) {
-      logger.error(
-        `[anytime-memory] persist: failed to upsert entity type=${ent.type} name=${ent.name}`,
-        err
-      );
-    }
-  }
-
-  // ── 3. Insert edges for relations ────────────────────────────────────────
+  upsertEpisodeRow(ctx, extracted.summary ?? '');
+  const entityIdMap = upsertExtractedEntities(ctx, extracted.entities, stats);
   for (const rel of extracted.relations) {
-    // 端点のどちらかが低情報なら、端点の auto-upsert ごとエッジを捨てる
-    // （片端だけ残すとどの実体とも接続しない孤立ノードを生む）。
-    if (isSuppressedName(rel.subject.name) || isSuppressedName(rel.object.name)) {
-      stats.edges_suppressed += 1;
-      continue;
-    }
-    const subjectCanon = canonicalize(rel.subject.name);
-    const objectCanon = canonicalize(rel.object.name);
-    const subjectMapKey = `${rel.subject.type}:${subjectCanon}`;
-    const objectMapKey = `${rel.object.type}:${objectCanon}`;
-
-    let subjectId = entityIdMap.get(subjectMapKey);
-    let objectId = entityIdMap.get(objectMapKey);
-
-    // Auto-upsert relation endpoints that the model referenced but omitted from entities[]
-    for (const [mapKey, endpoint, idVar] of [
-      [subjectMapKey, rel.subject, subjectId] as const,
-      [objectMapKey, rel.object, objectId] as const,
-    ]) {
-      if (idVar !== undefined) continue;
-      const canon = canonicalize(endpoint.name);
-      const eId = entityId(endpoint.type, canon);
-      try {
-        db.run(
-          `INSERT INTO caravan_entities
-             (id, type, canonical_name, display_name,
-              aliases_json, tags_json, attributes_json,
-              first_seen_at, last_updated_at, recorded_at)
-           VALUES (?, ?, ?, ?, '[]', '[]', '{}', ?, ?, ?)
-           ON CONFLICT(type, canonical_name) DO UPDATE SET
-             last_updated_at = excluded.last_updated_at`,
-          [eId, endpoint.type, canon, endpoint.name, recordedAt, recordedAt, recordedAt],
-        );
-        entityIdMap.set(mapKey, eId);
-      } catch (err) {
-        logger.warn?.(
-          `[anytime-memory] persist: failed to auto-upsert endpoint ${mapKey}`,
-        );
-      }
-    }
-
-    subjectId = entityIdMap.get(subjectMapKey);
-    objectId = entityIdMap.get(objectMapKey);
-
-    if (subjectId === undefined || objectId === undefined) {
-      logger.warn?.(
-        `[anytime-memory] persist: skipping edge "${rel.predicate}" — endpoint upsert failed ` +
-          `(subject=${subjectMapKey}, object=${objectMapKey})`,
-      );
-      continue;
-    }
-
-    const eId = edgeId(subjectId, rel.predicate, objectId, episode.message_uuid_start);
-    const edgeRecordedAt = recordedAt;
-
-    // Insert the new edge first so the FK in caravan_edge_invalidations.superseding_edge_id resolves.
-    try {
-      db.run(
-        `INSERT INTO caravan_edges
-           (id, subject_entity_id, predicate, object_entity_id,
-            valid_from, recorded_at, source_type, source_ref,
-            confidence, confidence_label, modality)
-         VALUES (?, ?, ?, ?, ?, ?, 'conversation', ?, 1.0, 'EXTRACTED', 'asserted')
-         ON CONFLICT(id) DO NOTHING`,
-        [
-          eId,
-          subjectId,
-          rel.predicate,
-          objectId,
-          episode.valid_from,
-          edgeRecordedAt,
-          epId,
-        ]
-      );
-      stats.edges_inserted += 1;
-    } catch (err) {
-      logger.error(
-        `[anytime-memory] persist: failed to insert edge id=${eId} predicate=${rel.predicate}`,
-        err
-      );
-      continue;
-    }
-
-    // Apply single_active rule after insert so superseding_edge_id FK is satisfied.
-    const { invalidated_edge_ids } = applySingleActiveRule(db, {
-      id: eId,
-      subject_entity_id: subjectId,
-      predicate: rel.predicate,
-      object_entity_id: objectId,
-      recorded_at: edgeRecordedAt,
-    });
-    stats.edges_invalidated += invalidated_edge_ids.length;
+    persistRelation(ctx, rel, entityIdMap, stats);
   }
-
-  // ── 4. Insert episode_entities ───────────────────────────────────────────
-  for (const [mapKey, eId] of entityIdMap) {
-    try {
-      db.run(
-        `INSERT INTO caravan_episode_entities (episode_id, entity_id, mention_text)
-         VALUES (?, ?, '')
-         ON CONFLICT(episode_id, entity_id) DO NOTHING`,
-        [epId, eId]
-      );
-    } catch (err) {
-      logger.error(
-        `[anytime-memory] persist: failed to insert episode_entity epId=${epId} entityId=${eId} mapKey=${mapKey}`,
-        err
-      );
-    }
-  }
-
-  // ── 5. Handle questions ──────────────────────────────────────────────────
+  insertEpisodeEntities(ctx, entityIdMap);
   for (const q of extracted.questions ?? []) {
-    if (isSuppressedName(q.text)) {
-      stats.entities_suppressed += 1;
-      continue;
-    }
-    const qCanon = canonicalize(q.text);
-    const qId = entityId('Question', qCanon);
-    const qMapKey = `Question:${qCanon}`;
-    entityIdMap.set(qMapKey, qId);
-
-    try {
-      db.run(
-        `INSERT INTO caravan_entities
-           (id, type, canonical_name, display_name,
-            aliases_json, tags_json, attributes_json,
-            first_seen_at, last_updated_at, recorded_at)
-         VALUES (?, 'Question', ?, ?, '[]', '[]', '{}', ?, ?, ?)
-         ON CONFLICT(type, canonical_name) DO UPDATE SET
-           last_updated_at = excluded.last_updated_at`,
-        [qId, qCanon, q.text, recordedAt, recordedAt, recordedAt]
-      );
-    } catch (err) {
-      logger.error(`[anytime-memory] persist: failed to upsert Question entity text="${q.text}"`, err);
-      continue;
-    }
-
-    // episode_entities for question entity
-    try {
-      db.run(
-        `INSERT INTO caravan_episode_entities (episode_id, entity_id, mention_text)
-         VALUES (?, ?, '')
-         ON CONFLICT(episode_id, entity_id) DO NOTHING`,
-        [epId, qId]
-      );
-    } catch (err) {
-      logger.error(`[anytime-memory] persist: failed episode_entity for question entity qId=${qId}`, err);
-    }
-
-    const sessionId = episode.session_id;
-    const validFrom = episode.valid_from;
-    const msgStart = episode.message_uuid_start;
-
-    // asked_by edge: Question → session_id (object_literal)
-    const askedById = edgeId(qId, 'asked_by', sessionId, msgStart);
-    try {
-      db.run(
-        `INSERT INTO caravan_edges
-           (id, subject_entity_id, predicate, object_literal,
-            valid_from, recorded_at, source_type, source_ref,
-            confidence, confidence_label, modality)
-         VALUES (?, ?, 'asked_by', ?, ?, ?, 'conversation', ?, 1.0, 'EXTRACTED', 'asserted')
-         ON CONFLICT(id) DO NOTHING`,
-        [askedById, qId, sessionId, validFrom, recordedAt, epId]
-      );
-      stats.edges_inserted += 1;
-    } catch (err) {
-      logger.error(`[anytime-memory] persist: failed to insert asked_by edge for question qId=${qId}`, err);
-    }
-    const { invalidated_edge_ids: invAsked } = applySingleActiveRule(db, {
-      id: askedById, subject_entity_id: qId, predicate: 'asked_by',
-      object_literal: sessionId, recorded_at: recordedAt,
-    });
-    stats.edges_invalidated += invAsked.length;
-
-    // answered_in エッジは書かない。取込対象が人間の発言だけになり、回答が episode
-    // 内に存在しなくなったため、この述語は構造上ぜったいに真にならない（2026-08-06）。
+    persistQuestion(ctx, q.text, entityIdMap, stats);
   }
 
   return stats;

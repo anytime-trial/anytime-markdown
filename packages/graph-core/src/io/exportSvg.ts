@@ -16,24 +16,39 @@ function wrapSvgText(text: string, width: number, fontSize: number): string[] {
   const maxChars = Math.max(1, Math.floor((width - 16) / (fontSize * 0.62)));
   const out: string[] = [];
   for (const seg of explicit) {
-    if (seg.length <= maxChars) { out.push(seg); continue; }
-    const hasSpaces = /\s/.test(seg.trim());
-    if (hasSpaces) {
-      let line = '';
-      for (const word of seg.split(/(\s+)/)) {
-        if ((line + word).trim().length > maxChars && line.trim()) {
-          out.push(line.trim());
-          line = word;
-        } else {
-          line += word;
-        }
-      }
-      if (line.trim()) out.push(line.trim());
-    } else {
-      for (let i = 0; i < seg.length; i += maxChars) out.push(seg.slice(i, i + maxChars));
-    }
+    out.push(...wrapSvgSegment(seg, maxChars));
   }
   return out.length ? out : [''];
+}
+
+/** 明示的な改行で切った 1 セグメントを、行数分の文字列へ折り返す。 */
+function wrapSvgSegment(seg: string, maxChars: number): string[] {
+  if (seg.length <= maxChars) { return [seg]; }
+  const hasSpaces = /\s/.test(seg.trim());
+  return hasSpaces ? wrapSvgByWords(seg, maxChars) : wrapSvgByChars(seg, maxChars);
+}
+
+/** 空白を含む英文などを単語単位で折り返す。 */
+function wrapSvgByWords(seg: string, maxChars: number): string[] {
+  const out: string[] = [];
+  let line = '';
+  for (const word of seg.split(/(\s+)/)) {
+    if ((line + word).trim().length > maxChars && line.trim()) {
+      out.push(line.trim());
+      line = word;
+    } else {
+      line += word;
+    }
+  }
+  if (line.trim()) out.push(line.trim());
+  return out;
+}
+
+/** CJK 等、空白の無い文字列を文字単位で折り返す。 */
+function wrapSvgByChars(seg: string, maxChars: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < seg.length; i += maxChars) out.push(seg.slice(i, i + maxChars));
+  return out;
 }
 
 function renderNodeSvg(node: GraphNode, gradFill?: string, textColor: string = COLOR_TEXT_PRIMARY): string {
@@ -229,15 +244,11 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = 
   return lines.join('\n');
 }
 
-export function exportToSvg(
-  doc: GraphDocument,
-  opts: { background?: string; textColor?: string } = {},
-): string {
-  const background = opts.background ?? CANVAS_BG;
-  const textColor = opts.textColor ?? COLOR_TEXT_PRIMARY;
-  const nodes = doc.nodes;
-  const edges = doc.edges;
-
+/** ノードと（ノードを跨がない）線分エッジを囲む viewBox を求める。 */
+function computeSvgViewBox(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): { vx: number; vy: number; vw: number; vh: number } {
   // バウンディングボックス計算
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const n of nodes) {
@@ -256,12 +267,18 @@ export function exportToSvg(
   }
   if (!Number.isFinite(minX)) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
   const pad = 40;
-  const vx = minX - pad;
-  const vy = minY - pad;
-  const vw = maxX - minX + pad * 2;
-  const vh = maxY - minY + pad * 2;
+  return {
+    vx: minX - pad,
+    vy: minY - pad,
+    vw: maxX - minX + pad * 2,
+    vh: maxY - minY + pad * 2,
+  };
+}
 
-  // グラデーション定義を収集
+/** グラデーション付きノードの `<linearGradient>` 定義と、ノード ID → fill 参照の対応を作る。 */
+function collectGradientDefs(
+  nodes: GraphNode[],
+): { defs: string[]; gradFills: Map<string, string> } {
   const defs: string[] = [];
   const gradFills = new Map<string, string>();
   for (const n of nodes) {
@@ -275,6 +292,22 @@ export function exportToSvg(
       gradFills.set(n.id, `url(#${gradId})`);
     }
   }
+  return { defs, gradFills };
+}
+
+export function exportToSvg(
+  doc: GraphDocument,
+  opts: { background?: string; textColor?: string } = {},
+): string {
+  const background = opts.background ?? CANVAS_BG;
+  const textColor = opts.textColor ?? COLOR_TEXT_PRIMARY;
+  const nodes = doc.nodes;
+  const edges = doc.edges;
+
+  const { vx, vy, vw, vh } = computeSvgViewBox(nodes, edges);
+
+  // グラデーション定義を収集
+  const { defs, gradFills } = collectGradientDefs(nodes);
 
   // シャドウフィルター定義
   const hasShadow = nodes.some(n => n.style.shadow);

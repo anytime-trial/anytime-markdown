@@ -187,51 +187,35 @@ function extractPlantUmlNames(code: string): string[] {
   return unique(names);
 }
 
-/**
- * Extract a descriptive alt text from diagram source code.
- * Used for aria-label on diagram preview elements.
- */
-export function extractDiagramAltText(
-  code: string,
-  language: "mermaid" | "plantuml" | "html" | "math" | "anytime-thinking-model" | "anytime-chart"
-): string {
-  if (!code.trim()) return "Diagram";
+/** anytime-thinking-model の type 宣言から alt テキストを組み立てる */
+function buildThinkingModelAltText(safeCode: string): string {
+  const m = /type\s*[:：]\s*([\w-]+)/.exec(safeCode);
+  return m ? `Thinking diagram: ${m[1]}` : "Thinking diagram";
+}
 
-  // ReDoS protection: limit input length
-  const safeCode = code.slice(0, MAX_INPUT_LENGTH);
-
-  if (language === "html") return "HTML block";
-
-  if (language === "anytime-thinking-model") {
-    const m = /type\s*[:：]\s*([\w-]+)/.exec(safeCode);
-    return m ? `Thinking diagram: ${m[1]}` : "Thinking diagram";
-  }
-
-  if (language === "anytime-chart") {
-    try {
-      const parsed: unknown = JSON.parse(code.trim());
-      if (parsed !== null && typeof parsed === "object" && "title" in parsed) {
-        const title = (parsed as { title?: unknown }).title;
-        if (typeof title === "string" && title.length > 0) return title;
-      }
-    } catch {
-      // JSON パース失敗時はフォールバック
+/** anytime-chart の JSON から title を取り出す */
+function buildChartAltText(code: string): string {
+  try {
+    const parsed: unknown = JSON.parse(code.trim());
+    if (parsed !== null && typeof parsed === "object" && "title" in parsed) {
+      const title = (parsed as { title?: unknown }).title;
+      if (typeof title === "string" && title.length > 0) return title;
     }
-    return "Chart";
+  } catch {
+    // JSON パース失敗時はフォールバック
   }
+  return "Chart";
+}
 
-  if (language === "math") {
-    const trimmed = code.trim();
-    if (trimmed.length <= 30) return `Math: ${trimmed}`;
-    return `Math: ${trimmed.slice(0, 30)}...`;
-  }
+/** math の数式から alt テキストを組み立てる（30 文字で切り詰め） */
+function buildMathAltText(code: string): string {
+  const trimmed = code.trim();
+  if (trimmed.length <= 30) return `Math: ${trimmed}`;
+  return `Math: ${trimmed.slice(0, 30)}...`;
+}
 
-  if (language === "plantuml") {
-    const names = extractPlantUmlNames(safeCode);
-    return formatList("PlantUML", names);
-  }
-
-  // Mermaid
+/** Mermaid の種別ラベルと要素名から alt テキストを組み立てる */
+function buildMermaidAltText(safeCode: string): string {
   const mermaidType = detectMermaidType(safeCode);
   const typeLabel = TYPE_LABELS[mermaidType] || "Diagram";
 
@@ -247,4 +231,34 @@ export function extractDiagramAltText(
 
   // For other mermaid types, just return the type label
   return typeLabel;
+}
+
+/**
+ * Extract a descriptive alt text from diagram source code.
+ * Used for aria-label on diagram preview elements.
+ */
+export function extractDiagramAltText(
+  code: string,
+  language: "mermaid" | "plantuml" | "html" | "math" | "anytime-thinking-model" | "anytime-chart"
+): string {
+  if (!code.trim()) return "Diagram";
+
+  // ReDoS protection: limit input length
+  const safeCode = code.slice(0, MAX_INPUT_LENGTH);
+
+  if (language === "html") return "HTML block";
+
+  if (language === "anytime-thinking-model") return buildThinkingModelAltText(safeCode);
+
+  if (language === "anytime-chart") return buildChartAltText(code);
+
+  if (language === "math") return buildMathAltText(code);
+
+  if (language === "plantuml") {
+    const names = extractPlantUmlNames(safeCode);
+    return formatList("PlantUML", names);
+  }
+
+  // Mermaid
+  return buildMermaidAltText(safeCode);
 }

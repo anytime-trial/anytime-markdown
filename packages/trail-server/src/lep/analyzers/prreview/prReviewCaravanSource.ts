@@ -32,6 +32,16 @@ export function readPrReviewSourceHash(caravanDb: CaravanDbConnection, sourceRef
   return row?.[0] == null ? null : String(row[0]);
 }
 
+/** sql.js のセル値を文字列へ正規化する（NULL / undefined は空文字）。 */
+function asText(v: unknown): string {
+  return v == null ? '' : String(v);
+}
+
+/** sql.js のセル値を文字列へ正規化する（NULL / undefined は null のまま残す）。 */
+function asTextOrNull(v: unknown): string | null {
+  return v == null ? null : String(v);
+}
+
 /** `CrossSourceCorrelator` が必要とする最小データソース (テストで fake 注入)。 */
 export interface PrReviewCaravanSource {
   getPrReviews(): PrReviewRow[];
@@ -55,16 +65,16 @@ export function createPrReviewCaravanSource(caravanDb: CaravanDbConnection): PrR
       const rows = result[0]?.values ?? [];
       const out: PrReviewRow[] = [];
       for (const row of rows) {
-        const parsed = parsePrReviewSourceRef(row[0] == null ? '' : String(row[0]));
+        const parsed = parsePrReviewSourceRef(asText(row[0]));
         if (!parsed) continue; // 想定外の source_ref 形式は fail-closed で除外
         out.push({
           reviewId: parsed.reviewId,
           repoName: parsed.repoName,
           prNumber: parsed.prNumber,
-          author: row[1] == null ? '' : String(row[1]),
+          author: asText(row[1]),
           state: '',
-          submittedAt: row[2] == null ? '' : String(row[2]),
-          bodyHash: row[3] == null ? '' : String(row[3]),
+          submittedAt: asText(row[2]),
+          bodyHash: asText(row[3]),
         });
       }
       return out;
@@ -82,17 +92,17 @@ export function createPrReviewCaravanSource(caravanDb: CaravanDbConnection): PrR
       const rows = result[0]?.values ?? [];
       const out: PrReviewFindingRow[] = [];
       for (const row of rows) {
-        const parsed = parsePrReviewSourceRef(row[1] == null ? '' : String(row[1]));
+        const parsed = parsePrReviewSourceRef(asText(row[1]));
         if (!parsed) continue;
         out.push({
-          findingId: row[0] == null ? '' : String(row[0]),
+          findingId: asText(row[0]),
           reviewId: parsed.reviewId,
-          filePath: row[2] == null ? '' : String(row[2]),
+          filePath: asText(row[2]),
           lineNumber: row[3] == null ? null : Number(row[3]),
           severity: row[4] == null ? null : (String(row[4]) as 'error' | 'warn' | 'info'),
-          category: row[5] == null ? null : String(row[5]),
-          body: row[6] == null ? '' : String(row[6]),
-          createdAt: row[7] == null ? '' : String(row[7]),
+          category: asTextOrNull(row[5]),
+          body: asText(row[6]),
+          createdAt: asText(row[7]),
         });
       }
       return out;

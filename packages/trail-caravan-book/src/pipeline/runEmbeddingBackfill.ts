@@ -86,6 +86,61 @@ function recordFailedItem(db: CaravanDbConnection, itemKey: string, reason: stri
   );
 }
 
+/** 3 テーブル合算の「未生成」「生成済み」件数を数える。 */
+function countBackfillTotals(db: CaravanDbConnection): { totalNull: number; totalSkip: number } {
+  const countOf = (sql: string): number => (db.exec(sql)[0]?.values[0]?.[0] as number) ?? 0;
+  let totalNull = 0;
+  let totalSkip = 0;
+  for (const target of EMBEDDING_TARGETS) {
+    totalNull += countOf(`SELECT COUNT(*) FROM (${target.selectSql})`);
+    totalSkip += countOf(`SELECT COUNT(*) FROM ${target.table} WHERE embedding IS NOT NULL`);
+  }
+  return { totalNull, totalSkip };
+}
+
+/** 失敗 0 なら success、1 件でも処理できていれば partial、皆無なら error。 */
+function resolveBackfillStatus(counters: {
+  processed: number;
+  failed: number;
+}): EmbeddingBackfillResult['status'] {
+  const partialOrError: EmbeddingBackfillResult['status'] =
+    counters.processed > 0 ? 'partial' : 'error';
+  return counters.failed === 0 ? 'success' : partialOrError;
+}
+
+/** 1 行分の embedding を生成して格納する。失敗は failed_items へ記録し counters を進める。 */
+async function embedOneRow(args: {
+  db: CaravanDbConnection;
+  ollama: OllamaClient;
+  embedModel: string;
+  target: EmbeddingTarget;
+  row: { id: string; rawText: string };
+  counters: { processed: number; failed: number };
+  processedByTarget: Record<EmbeddingTargetName, number>;
+  logger: CaravanLogger;
+}): Promise<void> {
+  const { db, ollama, embedModel, target, row, counters, processedByTarget, logger } = args;
+
+  // item_key はテーブル名で修飾する。id は sha1 の先頭 16 桁で、
+  // テーブルをまたぐと衝突しうるため（caravan_failed_items の主キーは scope+item_key）。
+  const itemKey = `${target.name}:${row.id}`;
+  const text = (row.rawText ?? '').slice(0, MAX_EMBED_CHARS);
+
+  try {
+    const { embedding } = await ollama.embeddings({ model: embedModel, prompt: text });
+    const blob = encodeEmbedding(embedding);
+    db.run(`UPDATE ${target.table} SET embedding = ? WHERE id = ?`, [blob, row.id]);
+    db.run('DELETE FROM caravan_failed_items WHERE scope = ? AND item_key = ?', [SCOPE, itemKey]);
+    counters.processed++;
+    processedByTarget[target.name]++;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    recordFailedItem(db, itemKey, 'embedding_failed', detail);
+    counters.failed++;
+    logger.warn?.(`[anytime-memory] embedding backfill: failed ${itemKey} — ${detail}`);
+  }
+}
+
 /**
  * Generates and stores embeddings for every row with `embedding IS NULL` across
  * {@link EMBEDDING_TARGETS}（entities / episodes / spec_documents）.
@@ -108,13 +163,7 @@ export async function runEmbeddingBackfill(opts: {
   const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
 
   // Count totals for logging（3 テーブル合算）
-  const countOf = (sql: string): number => (db.exec(sql)[0]?.values[0]?.[0] as number) ?? 0;
-  let totalNull = 0;
-  let totalSkip = 0;
-  for (const target of EMBEDDING_TARGETS) {
-    totalNull += countOf(`SELECT COUNT(*) FROM (${target.selectSql})`);
-    totalSkip += countOf(`SELECT COUNT(*) FROM ${target.table} WHERE embedding IS NOT NULL`);
-  }
+  const { totalNull, totalSkip } = countBackfillTotals(db);
 
   logger.info(
     `[anytime-memory] embedding backfill: ${totalNull} to process, ${totalSkip} already embedded`
@@ -142,24 +191,16 @@ export async function runEmbeddingBackfill(opts: {
     logger.info(`[anytime-memory] embedding backfill: ${target.table} — ${rows.length} rows`);
 
     for (const [rowId, rawText] of rows) {
-      // item_key はテーブル名で修飾する。id は sha1 の先頭 16 桁で、
-      // テーブルをまたぐと衝突しうるため（caravan_failed_items の主キーは scope+item_key）。
-      const itemKey = `${target.name}:${rowId}`;
-      const text = (rawText ?? '').slice(0, MAX_EMBED_CHARS);
-
-      try {
-        const { embedding } = await ollama.embeddings({ model: embedModel, prompt: text });
-        const blob = encodeEmbedding(embedding);
-        db.run(`UPDATE ${target.table} SET embedding = ? WHERE id = ?`, [blob, rowId]);
-        db.run('DELETE FROM caravan_failed_items WHERE scope = ? AND item_key = ?', [SCOPE, itemKey]);
-        counters.processed++;
-        processedByTarget[target.name]++;
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        recordFailedItem(db, itemKey, 'embedding_failed', detail);
-        counters.failed++;
-        logger.warn?.(`[anytime-memory] embedding backfill: failed ${itemKey} — ${detail}`);
-      }
+      await embedOneRow({
+        db,
+        ollama,
+        embedModel,
+        target,
+        row: { id: rowId, rawText },
+        counters,
+        processedByTarget,
+        logger,
+      });
 
       const done = counters.processed + counters.failed;
       if (done % PROGRESS_LOG_INTERVAL === 0) {
@@ -171,9 +212,7 @@ export async function runEmbeddingBackfill(opts: {
 
   const finishedAt = new Date().toISOString();
   const durationMs = Date.parse(finishedAt) - Date.parse(startedAt);
-  const partialOrError: EmbeddingBackfillResult['status'] = counters.processed > 0 ? 'partial' : 'error';
-  const status: EmbeddingBackfillResult['status'] =
-    counters.failed === 0 ? 'success' : partialOrError;
+  const status = resolveBackfillStatus(counters);
 
   ledger.finish(
     status,

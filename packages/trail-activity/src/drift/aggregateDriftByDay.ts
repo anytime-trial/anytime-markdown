@@ -40,30 +40,51 @@ function enumerateDates(startDate: string, endDate: string): string[] {
   return out;
 }
 
+/** イベント走査の結果（日次カウントと、範囲開始前からの繰り越し件数） */
+type DriftTally = {
+  detectedByDate: Map<string, number>;
+  resolvedByDate: Map<string, number>;
+  /** 検知日・解決日として出現したすべての日付（範囲省略時の端日決定に使う） */
+  allDates: string[];
+  /** 範囲開始時点で既に未解決だった件数 */
+  carriedUnresolved: number;
+};
+
+/** ISO 文字列をローカル日付へ写す。未設定（空文字・undefined）は null。 */
+function localDateOrNull(iso: string | null | undefined, timeZone: string): string | null {
+  return iso ? toLocalDateString(iso, timeZone) : null;
+}
+
+/** 日付配列の最小日。空なら null。 */
+function minDate(dates: readonly string[]): string | null {
+  return dates.length ? dates.reduce((a, b) => (a < b ? a : b), dates[0]) : null;
+}
+
+/** 日付配列の最大日。空なら null。 */
+function maxDate(dates: readonly string[]): string | null {
+  return dates.length ? dates.reduce((a, b) => (a > b ? a : b), dates[0]) : null;
+}
+
 /**
- * ドリフト件数の日次推移を集計する（Phase 6 S5-C）。
+ * イベントを検知日・解決日の日次カウントへ畳み込む。
  *
- * 日次境界はローカル TZ（既定 JST）。保存値は UTC のままで、境界だけを TZ 変換する。
- * データが 0 件の日も 0 で埋める（欠測と 0 件を折れ線上で区別できるようにするため）。
- * unresolvedCumulative はその日までの検知累計 - 解決累計で、範囲外で検知され範囲内で
- * 解決されたイベントも解決として数える（負にはならないよう 0 で下限を切る）。
+ * 範囲開始前に検知され、開始時点でまだ解決していないものは carriedUnresolved へ繰り越す。
+ * これを累計の初期値にしないと、開始日より前から残っているバックログが 0 件として描画される
+ * （範囲内の増減しか見えない）。
  */
-export function aggregateDriftByDay(
+function tallyDriftEvents(
   events: readonly DriftEventTimes[],
-  options: AggregateDriftByDayOptions = {},
-): DriftHistoryPoint[] {
-  const timeZone = options.timeZone ?? DEFAULT_TIMEZONE;
+  timeZone: string,
+  startBoundary: string | null,
+): DriftTally {
   const detectedByDate = new Map<string, number>();
   const resolvedByDate = new Map<string, number>();
   const allDates: string[] = [];
-  const startBoundary = options.sinceIso ? toLocalDateString(options.sinceIso, timeZone) : null;
-  // 範囲開始時点で既に未解決だった件数。これを累計の初期値にしないと、開始日より前から
-  // 残っているバックログが 0 件として描画される（範囲内の増減しか見えない）。
   let carriedUnresolved = 0;
 
   for (const ev of events) {
-    const detectedDate = ev.detectedAt ? toLocalDateString(ev.detectedAt, timeZone) : null;
-    const resolvedDate = ev.resolvedAt ? toLocalDateString(ev.resolvedAt, timeZone) : null;
+    const detectedDate = localDateOrNull(ev.detectedAt, timeZone);
+    const resolvedDate = localDateOrNull(ev.resolvedAt, timeZone);
 
     // 範囲開始前に検知され、開始時点でまだ解決していないものを繰り越す
     if (
@@ -85,16 +106,36 @@ export function aggregateDriftByDay(
     }
   }
 
+  return { detectedByDate, resolvedByDate, allDates, carriedUnresolved };
+}
+
+/**
+ * ドリフト件数の日次推移を集計する（Phase 6 S5-C）。
+ *
+ * 日次境界はローカル TZ（既定 JST）。保存値は UTC のままで、境界だけを TZ 変換する。
+ * データが 0 件の日も 0 で埋める（欠測と 0 件を折れ線上で区別できるようにするため）。
+ * unresolvedCumulative はその日までの検知累計 - 解決累計で、範囲外で検知され範囲内で
+ * 解決されたイベントも解決として数える（負にはならないよう 0 で下限を切る）。
+ */
+export function aggregateDriftByDay(
+  events: readonly DriftEventTimes[],
+  options: AggregateDriftByDayOptions = {},
+): DriftHistoryPoint[] {
+  const timeZone = options.timeZone ?? DEFAULT_TIMEZONE;
+  const startBoundary = localDateOrNull(options.sinceIso, timeZone);
+
+  const { detectedByDate, resolvedByDate, allDates, carriedUnresolved } = tallyDriftEvents(
+    events,
+    timeZone,
+    startBoundary,
+  );
+
   const startDate = options.sinceIso
     ? toLocalDateString(options.sinceIso, timeZone)
-    : allDates.length
-      ? allDates.reduce((a, b) => (a < b ? a : b), allDates[0])
-      : null;
+    : minDate(allDates);
   const endDate = options.untilIso
     ? toLocalDateString(options.untilIso, timeZone)
-    : allDates.length
-      ? allDates.reduce((a, b) => (a > b ? a : b), allDates[0])
-      : null;
+    : maxDate(allDates);
   if (!startDate || !endDate || startDate > endDate) return [];
 
   let cumulative = carriedUnresolved;

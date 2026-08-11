@@ -68,7 +68,7 @@ export function createFrontmatterBlock(
 
   // root: 枠線付きコンテナ。
   const root = document.createElement("div");
-  root.setAttribute("data-am-frontmatter", "");
+  root.dataset.amFrontmatter = "";
   root.style.cssText =
     "flex-shrink:0;margin:0 0 8px;border:1px solid var(--am-color-divider);" +
     "border-radius:4px;overflow:hidden;";
@@ -127,7 +127,7 @@ export function createFrontmatterBlock(
 
   const buildTextarea = (): HTMLTextAreaElement => {
     const ta = document.createElement("textarea");
-    ta.setAttribute("data-frontmatter-editor", "");
+    ta.dataset.frontmatterEditor = "";
     ta.spellcheck = false;
     ta.value = value ?? "";
     ta.rows = (value?.split("\n").length ?? 1) + 1;

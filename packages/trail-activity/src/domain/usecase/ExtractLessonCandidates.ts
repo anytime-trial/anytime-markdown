@@ -31,48 +31,69 @@ function blocks(entry: TranscriptLine): ContentBlock[] {
   return content.filter((b): b is ContentBlock => typeof b === 'object' && b !== null);
 }
 
-function extractFailureChains(lines: Iterable<string>): LessonCandidate[] {
-  const nameByToolUseId = new Map<string, string>();
-  const chains: LessonCandidate[] = [];
-  let chainTools: string[] = [];
+/** 失敗連鎖の走査中に持ち回る可変状態（呼び出し先での更新を捨てないよう 1 オブジェクトに束ねる） */
+interface FailureChainState {
+  nameByToolUseId: Map<string, string>;
+  chains: LessonCandidate[];
+  chainTools: string[];
+}
 
-  const flush = (): void => {
-    if (chainTools.length >= MIN_CHAIN_LENGTH) {
-      const uniqueTools = [...new Set(chainTools)];
-      chains.push({
-        kind: 'tool_failure_chain',
-        summary: `ツール失敗が ${chainTools.length} 回連続した`,
-        evidence: uniqueTools.join(', '),
-      });
+/** transcript の 1 行を JSON オブジェクトとして解釈する。壊れた行・非オブジェクトは null（読み飛ばす）。 */
+function parseTranscriptLine(raw: string): TranscriptLine | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    return parsed as TranscriptLine;
+  } catch {
+    // 壊れた JSON 行は走査対象から外すだけで、抽出全体は続行する
+    return null;
+  }
+}
+
+/** 連続失敗が閾値以上なら候補を確定させ、連鎖バッファを空に戻す。 */
+function flushChain(state: FailureChainState): void {
+  if (state.chainTools.length >= MIN_CHAIN_LENGTH) {
+    const uniqueTools = [...new Set(state.chainTools)];
+    state.chains.push({
+      kind: 'tool_failure_chain',
+      summary: `ツール失敗が ${state.chainTools.length} 回連続した`,
+      evidence: uniqueTools.join(', '),
+    });
+  }
+  state.chainTools = [];
+}
+
+/** tool_use / tool_result ブロック 1 個を連鎖状態へ反映する。成功した tool_result は連鎖を切る。 */
+function applyBlockToChain(state: FailureChainState, block: ContentBlock): void {
+  if (block.type === 'tool_use' && typeof block.id === 'string') {
+    state.nameByToolUseId.set(block.id, block.name ?? '(unknown)');
+  } else if (block.type === 'tool_result') {
+    if (block.is_error === true) {
+      const toolUseId = block.tool_use_id ?? '';
+      state.chainTools.push(state.nameByToolUseId.get(toolUseId) ?? '(unknown)');
+    } else {
+      flushChain(state);
     }
-    chainTools = [];
+  }
+}
+
+function extractFailureChains(lines: Iterable<string>): LessonCandidate[] {
+  const state: FailureChainState = {
+    nameByToolUseId: new Map<string, string>(),
+    chains: [],
+    chainTools: [],
   };
 
   for (const raw of lines) {
-    let entry: TranscriptLine;
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed !== 'object' || parsed === null) continue;
-      entry = parsed as TranscriptLine;
-    } catch {
-      continue;
-    }
+    const entry = parseTranscriptLine(raw);
+    if (entry === null) continue;
     if (entry.isSidechain === true) continue;
     for (const block of blocks(entry)) {
-      if (block.type === 'tool_use' && typeof block.id === 'string') {
-        nameByToolUseId.set(block.id, block.name ?? '(unknown)');
-      } else if (block.type === 'tool_result') {
-        if (block.is_error === true) {
-          const toolUseId = block.tool_use_id ?? '';
-          chainTools.push(nameByToolUseId.get(toolUseId) ?? '(unknown)');
-        } else {
-          flush();
-        }
-      }
+      applyBlockToChain(state, block);
     }
   }
-  flush();
-  return chains;
+  flushChain(state);
+  return state.chains;
 }
 
 export function extractLessonCandidates(input: LessonCandidateInput): LessonCandidate[] {

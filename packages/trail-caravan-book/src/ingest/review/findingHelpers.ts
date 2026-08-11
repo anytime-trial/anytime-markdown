@@ -210,39 +210,60 @@ function stripMarker(line: string, markers: readonly string[]): string {
  * - `**改善方法:** / **推奨修正:** / **対処案:** / **修正:** ...` 等の提案マーカー
  * - `- **内容**:` のように bullet 接頭辞付き（Sample 1 形式）
  */
-export function extractProblemSuggestionPairs(lines: string[]): Array<[string, string]> {
-  const pairs: Array<[string, string]> = [];
+/** 行走査の読み位置。ヘルパーが進めた位置を呼び出し側と共有する。 */
+type LineCursor = { index: number };
+
+/**
+ * 問題マーカー行から 1 ペア（問題本文・提案本文）を切り出す。
+ * cursor は次の走査開始位置（＝切り出しの終端）まで進む。
+ */
+function extractPairAt(lines: string[], cursor: LineCursor): [string, string] {
   const isProblemLine = (l: string) => PROBLEM_LINE_RE.test(l);
   const isSuggestionLine = (l: string) => SUGGESTION_LINE_RE.test(l);
 
-  let i = 0;
-  while (i < lines.length) {
-    if (isProblemLine(lines[i])) {
-      const findingLines: string[] = [];
-      const problemRest = stripMarker(lines[i], PROBLEM_MARKERS);
-      if (problemRest) findingLines.push(problemRest);
-      i++;
+  const findingLines: string[] = [];
+  const problemRest = stripMarker(lines[cursor.index], PROBLEM_MARKERS);
+  if (problemRest) findingLines.push(problemRest);
+  cursor.index++;
 
-      while (i < lines.length && !isSuggestionLine(lines[i]) && !isProblemLine(lines[i])) {
-        findingLines.push(lines[i]);
-        i++;
-      }
+  while (
+    cursor.index < lines.length &&
+    !isSuggestionLine(lines[cursor.index]) &&
+    !isProblemLine(lines[cursor.index])
+  ) {
+    findingLines.push(lines[cursor.index]);
+    cursor.index++;
+  }
 
-      const suggestionLines: string[] = [];
-      if (i < lines.length && isSuggestionLine(lines[i])) {
-        const suggestionRest = stripMarker(lines[i], SUGGESTION_MARKERS);
-        if (suggestionRest) suggestionLines.push(suggestionRest);
-        i++;
+  const suggestionLines: string[] = [];
+  if (cursor.index < lines.length && isSuggestionLine(lines[cursor.index])) {
+    const suggestionRest = stripMarker(lines[cursor.index], SUGGESTION_MARKERS);
+    if (suggestionRest) suggestionLines.push(suggestionRest);
+    cursor.index++;
 
-        while (i < lines.length && !isProblemLine(lines[i]) && !isSuggestionLine(lines[i])) {
-          suggestionLines.push(lines[i]);
-          i++;
-        }
-      }
+    while (
+      cursor.index < lines.length &&
+      !isProblemLine(lines[cursor.index]) &&
+      !isSuggestionLine(lines[cursor.index])
+    ) {
+      suggestionLines.push(lines[cursor.index]);
+      cursor.index++;
+    }
+  }
 
-      pairs.push([findingLines.join('\n').trim(), suggestionLines.join('\n').trim()]);
+  return [findingLines.join('\n').trim(), suggestionLines.join('\n').trim()];
+}
+
+export function extractProblemSuggestionPairs(lines: string[]): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [];
+  const isProblemLine = (l: string) => PROBLEM_LINE_RE.test(l);
+
+  const cursor: LineCursor = { index: 0 };
+  while (cursor.index < lines.length) {
+    if (isProblemLine(lines[cursor.index])) {
+      pairs.push(extractPairAt(lines, cursor));
     } else {
-      i++;
+      cursor.index++;
     }
   }
 

@@ -57,6 +57,198 @@ function upsertPipelineState(
 }
 
 
+/** 取込件数の集計。各ステップが参照で更新する。 */
+type CodeIngestTotals = {
+  items_processed: number;
+  entities_inserted: number;
+  edges_inserted: number;
+};
+
+/** activity_current_code_graphs の更新時刻。行が無ければ null（＝skip 判定へ）。 */
+function readGraphUpdatedAt(db: CaravanDbConnection, repoName: string): string | null {
+  // Phase H-3: trail.activity_current_code_graphs から repo_name 列を撤去した。attach 済 trail スキーマの
+  // repos を JOIN して repo_name → repo_id を解決し、repo_id で絞る (クロス DB JOIN)。
+  const stmt = db.prepare(
+    `SELECT g.updated_at FROM trail.activity_current_code_graphs g
+       JOIN trail.activity_repos r ON r.repo_id = g.repo_id
+      WHERE r.repo_name = ?`
+  );
+  try {
+    const row = stmt.get(repoName);
+    if (row) return (row['updated_at'] as string) ?? null;
+    return null;
+  } finally {
+    stmt.free?.();
+  }
+}
+
+/** HEAD のコミット SHA。解決できなければ null（取込自体は続行する）。 */
+function resolveHeadCommitSha(gitRoot: string, logger: CaravanLogger): string | null {
+  try {
+    return execFileSync(resolveGitExecutable(), ['rev-parse', 'HEAD'], { cwd: gitRoot, encoding: 'utf8' }).trim();
+  } catch (err) {
+    logger.error(`[anytime-memory] runCodeIncremental: failed to resolve HEAD commit`, err);
+    return null;
+  }
+}
+
+/**
+ * 生 TrailGraph を trail.activity_current_graphs から読む。
+ *
+ * 旧版は analyzeWithProgram で TS 再解析していたが、同じ graph は analyze-child が
+ * activity_current_graphs に保存済み。typescript 依存を断つため DB から読む。
+ */
+function readTrailGraph(
+  db: CaravanDbConnection,
+  repoName: string,
+  logger: CaravanLogger,
+): AstFactInput['graph'] | null {
+  const graphStmt = db.prepare(
+    `SELECT g.graph_json FROM trail.activity_current_graphs g
+       JOIN trail.activity_repos r ON r.repo_id = g.repo_id
+      WHERE r.repo_name = ?`
+  );
+  try {
+    const row = graphStmt.get(repoName);
+    if (row) return JSON.parse(row['graph_json'] as string) as AstFactInput['graph'];
+    return null;
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] runCodeIncremental: failed to read/parse activity_current_graphs (repo="${repoName}")`,
+      err
+    );
+    return null;
+  } finally {
+    graphStmt.free?.();
+  }
+}
+
+/**
+ * ステップ 7: ingestAstFacts。
+ *
+ * 完走したかを `astFactsRan` で返す。ウォーターマークの前進条件がこれに依存する:
+ * ここが走らない run で前進させると、migration 025 / 029 のようにウォーターマークの
+ * 巻き戻しを再取込のトリガとして使うバックフィルが、再取込されないまま焼き切れる。
+ */
+function runAstFactsStep(args: {
+  db: CaravanDbConnection;
+  repoName: string;
+  graph: AstFactInput['graph'] | null;
+  commit: { sha: string | null; recordedAt: string };
+  totals: CodeIngestTotals;
+  currentEntityIds: Set<string>;
+  failureDetails: string[];
+  logger: CaravanLogger;
+}): { astFactsRan: boolean; ok: boolean } {
+  const { db, repoName, graph, commit, totals, currentEntityIds, failureDetails, logger } = args;
+
+  if (graph) {
+    try {
+      const stats = ingestAstFacts({
+        db, repoName, graph, commitSha: commit.sha, recordedAt: commit.recordedAt, logger,
+      });
+      totals.items_processed += stats.facts_inserted;
+      totals.entities_inserted += stats.facts_inserted + stats.function_entities_upserted;
+      totals.edges_inserted += stats.edges_inserted;
+      for (const id of stats.current_entity_ids) currentEntityIds.add(id);
+      return { astFactsRan: true, ok: true };
+    } catch (err) {
+      logger.error(`[anytime-memory] runCodeIncremental: ingestAstFacts failed`, err);
+      failureDetails.push(`ingestAstFacts: ${describeError(err)}`);
+      return { astFactsRan: false, ok: false };
+    }
+  }
+
+  // スキップではなく失敗として扱う。スキップ判定（3.）が読む activity_current_code_graphs と
+  // 実データの activity_current_graphs は別テーブルで、前者に行があり後者が空・破損という
+  // ズレが起こり得る。warn で流すと「取込ゼロなのに success」になり、ウォーターマークだけが
+  // 進む。
+  logger.error(
+    `[anytime-memory] runCodeIncremental: activity_current_graphs に TrailGraph が無い ` +
+      `(repo="${repoName}") — ingestAstFacts を実行できずウォーターマークを進めない`,
+    new Error('missing TrailGraph in activity_current_graphs')
+  );
+  failureDetails.push('ingestAstFacts: activity_current_graphs に TrailGraph が無い');
+  return { astFactsRan: false, ok: false };
+}
+
+/** trail.activity_code_decision_comments から抽出済み decision comment を読む。 */
+function readDecisionComments(db: CaravanDbConnection, repoName: string): DecisionCommentItem[] {
+  const cStmt = db.prepare(
+    `SELECT c.file_path, c.line, c.comment_text, c.symbol_name
+       FROM trail.activity_code_decision_comments c
+       JOIN trail.activity_repos r ON r.repo_id = c.repo_id
+      WHERE r.repo_name = ?`
+  );
+  try {
+    const rows = cStmt.all(repoName) as Array<{
+      file_path: string;
+      line: number;
+      comment_text: string;
+      symbol_name: string | null;
+    }>;
+    return rows.map((r) => ({
+      filePath: r.file_path,
+      line: r.line,
+      text: r.comment_text,
+      symbolName: r.symbol_name ?? null,
+    }));
+  } finally {
+    cStmt.free?.();
+  }
+}
+
+/**
+ * ステップ 8: ingestDecisionComments（trail.activity_code_decision_comments を読む）。
+ * decision comment の AST 走査は analyze-child へ移設済み。ここでは抽出済みデータを
+ * trail-db から読み caravan-book DB へ ingest するのみ（typescript 非依存）。
+ */
+function runDecisionCommentsStep(args: {
+  db: CaravanDbConnection;
+  repoName: string;
+  recordedAt: string;
+  totals: CodeIngestTotals;
+  logger: CaravanLogger;
+}): boolean {
+  const { db, repoName, recordedAt, totals, logger } = args;
+  try {
+    const comments = readDecisionComments(db, repoName);
+    const stats = ingestDecisionComments({ db, comments, repoName, recordedAt, logger });
+    totals.entities_inserted += stats.decisions_inserted;
+    totals.edges_inserted += stats.edges_inserted;
+    return true;
+  } catch (err) {
+    logger.error(`[anytime-memory] runCodeIncremental: ingestDecisionComments failed`, err);
+    return false;
+  }
+}
+
+/** ステップ 9: extractCommitRationale。 */
+function runCommitRationaleStep(args: {
+  db: CaravanDbConnection;
+  repoName: string;
+  cursor: { lastProcessedAt: string; recordedAt: string };
+  totals: CodeIngestTotals;
+  logger: CaravanLogger;
+}): boolean {
+  const { db, repoName, cursor, totals, logger } = args;
+  try {
+    const stats = extractCommitRationale({
+      db,
+      repoName,
+      sinceCommittedAt: cursor.lastProcessedAt === DEFAULT_SINCE ? null : cursor.lastProcessedAt,
+      recordedAt: cursor.recordedAt,
+      logger,
+    });
+    totals.entities_inserted += stats.decisions_inserted;
+    totals.edges_inserted += stats.edges_inserted;
+    return true;
+  } catch (err) {
+    logger.error(`[anytime-memory] runCodeIncremental: extractCommitRationale failed`, err);
+    return false;
+  }
+}
+
 /**
  * Incremental pipeline that reads `trail.activity_current_code_graphs` and runs the
  * code ingest pipeline (fromTrailGraph, ingestAstFacts, ingestDecisionComments,
@@ -84,20 +276,7 @@ export async function runCodeIncremental(opts: {
   const { last_processed_at } = readPipelineState(db);
 
   // ── 2. Read activity_current_code_graphs.updated_at ───────────────────────────────
-  let graphUpdatedAt: string | null = null;
-  // Phase H-3: trail.activity_current_code_graphs から repo_name 列を撤去した。attach 済 trail スキーマの
-  // repos を JOIN して repo_name → repo_id を解決し、repo_id で絞る (クロス DB JOIN)。
-  const stmt = db.prepare(
-    `SELECT g.updated_at FROM trail.activity_current_code_graphs g
-       JOIN trail.activity_repos r ON r.repo_id = g.repo_id
-      WHERE r.repo_name = ?`
-  );
-  try {
-    const row = stmt.get(repoName);
-    if (row) graphUpdatedAt = (row['updated_at'] as string) ?? null;
-  } finally {
-    stmt.free?.();
-  }
+  const graphUpdatedAt = readGraphUpdatedAt(db, repoName);
 
   if (graphUpdatedAt === null) {
     logger.info(
@@ -118,42 +297,19 @@ export async function runCodeIncremental(opts: {
   ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
-  const totals = { items_processed: 0, entities_inserted: 0, edges_inserted: 0 };
+  const totals: CodeIngestTotals = { items_processed: 0, entities_inserted: 0, edges_inserted: 0 };
   let hasIngestFailure = false;
   // 失敗理由を run 行の error_detail へ残すため蓄積する。旧実装は boolean だけを
   // 持っており、partial の理由がどこにも残らなかった。
   const failureDetails: string[] = [];
 
   // ── 4. git rev-parse HEAD ────────────────────────────────────────────────
-  let commitSha: string | null = null;
-  try {
-    commitSha = execFileSync(resolveGitExecutable(), ['rev-parse', 'HEAD'], { cwd: gitRoot, encoding: 'utf8' }).trim();
-  } catch (err) {
-    logger.error(`[anytime-memory] runCodeIncremental: failed to resolve HEAD commit`, err);
-  }
+  const commitSha = resolveHeadCommitSha(gitRoot, logger);
 
   const recordedAt = new Date().toISOString();
 
   // ── 5. 生 TrailGraph を trail.activity_current_graphs から読む ───────────────────────
-  // 旧版は analyzeWithProgram で TS 再解析していたが、同じ graph は analyze-child が
-  // activity_current_graphs に保存済み。typescript 依存を断つため DB から読む。
-  let graph: AstFactInput['graph'] | null = null;
-  const graphStmt = db.prepare(
-    `SELECT g.graph_json FROM trail.activity_current_graphs g
-       JOIN trail.activity_repos r ON r.repo_id = g.repo_id
-      WHERE r.repo_name = ?`
-  );
-  try {
-    const row = graphStmt.get(repoName);
-    if (row) graph = JSON.parse(row['graph_json'] as string) as AstFactInput['graph'];
-  } catch (err) {
-    logger.error(
-      `[anytime-memory] runCodeIncremental: failed to read/parse activity_current_graphs (repo="${repoName}")`,
-      err
-    );
-  } finally {
-    graphStmt.free?.();
-  }
+  const graph = readTrailGraph(db, repoName, logger);
 
   // ── 6. ingestFromTrailGraph ──────────────────────────────────────────────
   //
@@ -174,90 +330,39 @@ export async function runCodeIncremental(opts: {
   }
 
   // ── 7. ingestAstFacts ────────────────────────────────────────────────────
-  //
-  // 完走したかを `astFactsRan` で持つ。ウォーターマークの前進条件（10.）がこれに依存する:
-  // ここが走らない run で前進させると、migration 025 / 029 のようにウォーターマークの
-  // 巻き戻しを再取込のトリガとして使うバックフィルが、再取込されないまま焼き切れる。
   // 失敗は `graphIngestOk` へも落とす（`hasIngestFailure` は run の status 判定専用）。
   const currentEntityIds = new Set<string>();
-  let astFactsRan = false;
-  if (graph) {
-    try {
-      const stats = ingestAstFacts({ db, repoName, graph, commitSha, recordedAt, logger });
-      totals.items_processed += stats.facts_inserted;
-      totals.entities_inserted += stats.facts_inserted + stats.function_entities_upserted;
-      totals.edges_inserted += stats.edges_inserted;
-      for (const id of stats.current_entity_ids) currentEntityIds.add(id);
-      astFactsRan = true;
-    } catch (err) {
-      logger.error(`[anytime-memory] runCodeIncremental: ingestAstFacts failed`, err);
-      failureDetails.push(`ingestAstFacts: ${describeError(err)}`);
-      hasIngestFailure = true;
-      graphIngestOk = false;
-    }
-  } else {
-    // スキップではなく失敗として扱う。スキップ判定（3.）が読む activity_current_code_graphs と
-    // 実データの activity_current_graphs は別テーブルで、前者に行があり後者が空・破損という
-    // ズレが起こり得る。warn で流すと「取込ゼロなのに success」になり、ウォーターマークだけが
-    // 進む。
-    logger.error(
-      `[anytime-memory] runCodeIncremental: activity_current_graphs に TrailGraph が無い ` +
-        `(repo="${repoName}") — ingestAstFacts を実行できずウォーターマークを進めない`,
-      new Error('missing TrailGraph in activity_current_graphs')
-    );
-    failureDetails.push('ingestAstFacts: activity_current_graphs に TrailGraph が無い');
+  const astResult = runAstFactsStep({
+    db,
+    repoName,
+    graph,
+    commit: { sha: commitSha, recordedAt },
+    totals,
+    currentEntityIds,
+    failureDetails,
+    logger,
+  });
+  const astFactsRan = astResult.astFactsRan;
+  if (!astResult.ok) {
     hasIngestFailure = true;
     graphIngestOk = false;
   }
 
   // ── 8. ingestDecisionComments（trail.activity_code_decision_comments を読む）─────────
-  // decision comment の AST 走査は analyze-child へ移設済み。ここでは抽出済みデータを
-  // trail-db から読み caravan-book DB へ ingest するのみ（typescript 非依存）。
-  try {
-    const cStmt = db.prepare(
-      `SELECT c.file_path, c.line, c.comment_text, c.symbol_name
-         FROM trail.activity_code_decision_comments c
-         JOIN trail.activity_repos r ON r.repo_id = c.repo_id
-        WHERE r.repo_name = ?`
-    );
-    let comments: DecisionCommentItem[] = [];
-    try {
-      const rows = cStmt.all(repoName) as Array<{
-        file_path: string;
-        line: number;
-        comment_text: string;
-        symbol_name: string | null;
-      }>;
-      comments = rows.map((r) => ({
-        filePath: r.file_path,
-        line: r.line,
-        text: r.comment_text,
-        symbolName: r.symbol_name ?? null,
-      }));
-    } finally {
-      cStmt.free?.();
-    }
-    const stats = ingestDecisionComments({ db, comments, repoName, recordedAt, logger });
-    totals.entities_inserted += stats.decisions_inserted;
-    totals.edges_inserted += stats.edges_inserted;
-  } catch (err) {
-    logger.error(`[anytime-memory] runCodeIncremental: ingestDecisionComments failed`, err);
+  if (!runDecisionCommentsStep({ db, repoName, recordedAt, totals, logger })) {
     hasIngestFailure = true;
   }
 
   // ── 9. extractCommitRationale ────────────────────────────────────────────
-  try {
-    const stats = extractCommitRationale({
+  if (
+    !runCommitRationaleStep({
       db,
       repoName,
-      sinceCommittedAt: last_processed_at === DEFAULT_SINCE ? null : last_processed_at,
-      recordedAt,
+      cursor: { lastProcessedAt: last_processed_at, recordedAt },
+      totals,
       logger,
-    });
-    totals.entities_inserted += stats.decisions_inserted;
-    totals.edges_inserted += stats.edges_inserted;
-  } catch (err) {
-    logger.error(`[anytime-memory] runCodeIncremental: extractCommitRationale failed`, err);
+    })
+  ) {
     hasIngestFailure = true;
   }
 

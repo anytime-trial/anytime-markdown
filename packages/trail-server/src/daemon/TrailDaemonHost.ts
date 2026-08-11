@@ -124,27 +124,37 @@ export class TrailDaemonHost {
 
   private onMessage(m: DaemonMessage): void {
     if (m.type === 'response') {
-      const resolver = this.pending.get(m.id);
-      if (!resolver) return;
-      this.pending.delete(m.id);
-      if (m.ok) {
-        resolver.resolve(m.result);
-      } else {
-        const err = new Error(m.error.message);
-        if (m.error.stack) err.stack = m.error.stack;
-        resolver.reject(err);
-      }
+      this.onResponse(m);
     } else if (m.type === 'event') {
-      const set = this.listeners.get(m.channel);
-      if (!set) return;
-      for (const listener of set) {
-        try {
-          listener(m.payload);
-        } catch (err) {
-          // listener 内のエラーは握り潰す (host 側の責務)。
-          // eslint-disable-next-line no-console
-          console.error('[TrailDaemonHost] listener error', err);
-        }
+      this.onEvent(m);
+    }
+  }
+
+  /** response を対応する pending へ引き渡す。未知の id は無視する。 */
+  private onResponse(m: Extract<DaemonMessage, { type: 'response' }>): void {
+    const resolver = this.pending.get(m.id);
+    if (!resolver) return;
+    this.pending.delete(m.id);
+    if (m.ok) {
+      resolver.resolve(m.result);
+    } else {
+      const err = new Error(m.error.message);
+      if (m.error.stack) err.stack = m.error.stack;
+      resolver.reject(err);
+    }
+  }
+
+  /** event を channel の購読者へ配信する。購読者が無ければ何もしない。 */
+  private onEvent(m: DaemonEvent): void {
+    const set = this.listeners.get(m.channel);
+    if (!set) return;
+    for (const listener of set) {
+      try {
+        listener(m.payload);
+      } catch (err) {
+        // listener 内のエラーは握り潰す (host 側の責務)。
+        // eslint-disable-next-line no-console
+        console.error('[TrailDaemonHost] listener error', err);
       }
     }
   }

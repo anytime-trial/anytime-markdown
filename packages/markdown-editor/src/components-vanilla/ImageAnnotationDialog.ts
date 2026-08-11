@@ -85,6 +85,44 @@ interface ImageAnnotationDialogHandle {
 /** プレビュー用の注釈（id なし・badge 非表示）。React 原版 previewAnnotation 相当。 */
 type ShapeLike = Pick<ImageAnnotation, "type" | "x1" | "y1" | "x2" | "y2" | "color">;
 
+/** 図形本体（rect / ellipse / line）を生成する。cursor と click listener は呼び元が付ける。 */
+function buildShapeElement(
+  a: ShapeLike,
+  style: { stroke: string; strokeWidth: string },
+): SVGElement {
+  const { stroke, strokeWidth } = style;
+  if (a.type === "rect") {
+    const rect = document.createElementNS(SVG_NS, "rect");
+    rect.setAttribute("x", String(Math.min(a.x1, a.x2)));
+    rect.setAttribute("y", String(Math.min(a.y1, a.y2)));
+    rect.setAttribute("width", String(Math.abs(a.x2 - a.x1)));
+    rect.setAttribute("height", String(Math.abs(a.y2 - a.y1)));
+    rect.setAttribute("stroke", stroke);
+    rect.setAttribute("stroke-width", strokeWidth);
+    rect.setAttribute("fill", "none");
+    return rect;
+  }
+  if (a.type === "circle") {
+    const ellipse = document.createElementNS(SVG_NS, "ellipse");
+    ellipse.setAttribute("cx", String((a.x1 + a.x2) / 2));
+    ellipse.setAttribute("cy", String((a.y1 + a.y2) / 2));
+    ellipse.setAttribute("rx", String(Math.abs(a.x2 - a.x1) / 2));
+    ellipse.setAttribute("ry", String(Math.abs(a.y2 - a.y1) / 2));
+    ellipse.setAttribute("stroke", stroke);
+    ellipse.setAttribute("stroke-width", strokeWidth);
+    ellipse.setAttribute("fill", "none");
+    return ellipse;
+  }
+  const line = document.createElementNS(SVG_NS, "line");
+  line.setAttribute("x1", String(a.x1));
+  line.setAttribute("y1", String(a.y1));
+  line.setAttribute("x2", String(a.x2));
+  line.setAttribute("y2", String(a.y2));
+  line.setAttribute("stroke", stroke);
+  line.setAttribute("stroke-width", strokeWidth);
+  return line;
+}
+
 /**
  * vanilla 版 ImageAnnotationDialog を生成する。
  *
@@ -238,7 +276,7 @@ export function createImageAnnotationDialog(
   svg.setAttribute("viewBox", "0 0 100 100");
   svg.setAttribute("preserveAspectRatio", "none");
   // 描画面の識別子（ツールアイコンの svg と区別するため）。
-  svg.setAttribute("data-am-annotation-surface", "");
+  svg.dataset.amAnnotationSurface = "";
   svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;";
 
   imgWrap.append(img, svg);
@@ -298,42 +336,10 @@ export function createImageAnnotationDialog(
       if (a.id) handleShapeClick(a.id);
     };
 
-    if (a.type === "rect") {
-      const rect = document.createElementNS(SVG_NS, "rect");
-      rect.setAttribute("x", String(Math.min(a.x1, a.x2)));
-      rect.setAttribute("y", String(Math.min(a.y1, a.y2)));
-      rect.setAttribute("width", String(Math.abs(a.x2 - a.x1)));
-      rect.setAttribute("height", String(Math.abs(a.y2 - a.y1)));
-      rect.setAttribute("stroke", stroke);
-      rect.setAttribute("stroke-width", strokeWidth);
-      rect.setAttribute("fill", "none");
-      rect.style.cursor = cursor;
-      if (interactive) rect.addEventListener("click", onShapeClick);
-      g.appendChild(rect);
-    } else if (a.type === "circle") {
-      const ellipse = document.createElementNS(SVG_NS, "ellipse");
-      ellipse.setAttribute("cx", String((a.x1 + a.x2) / 2));
-      ellipse.setAttribute("cy", String((a.y1 + a.y2) / 2));
-      ellipse.setAttribute("rx", String(Math.abs(a.x2 - a.x1) / 2));
-      ellipse.setAttribute("ry", String(Math.abs(a.y2 - a.y1) / 2));
-      ellipse.setAttribute("stroke", stroke);
-      ellipse.setAttribute("stroke-width", strokeWidth);
-      ellipse.setAttribute("fill", "none");
-      ellipse.style.cursor = cursor;
-      if (interactive) ellipse.addEventListener("click", onShapeClick);
-      g.appendChild(ellipse);
-    } else {
-      const line = document.createElementNS(SVG_NS, "line");
-      line.setAttribute("x1", String(a.x1));
-      line.setAttribute("y1", String(a.y1));
-      line.setAttribute("x2", String(a.x2));
-      line.setAttribute("y2", String(a.y2));
-      line.setAttribute("stroke", stroke);
-      line.setAttribute("stroke-width", strokeWidth);
-      line.style.cursor = cursor;
-      if (interactive) line.addEventListener("click", onShapeClick);
-      g.appendChild(line);
-    }
+    const shapeEl = buildShapeElement(a, { stroke, strokeWidth });
+    shapeEl.style.cursor = cursor;
+    if (interactive) shapeEl.addEventListener("click", onShapeClick);
+    g.appendChild(shapeEl);
 
     // 番号バッジ（preview では非表示）。
     if (showBadge) {
