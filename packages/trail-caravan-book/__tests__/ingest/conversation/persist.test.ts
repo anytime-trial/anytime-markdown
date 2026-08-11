@@ -437,3 +437,122 @@ describe('persistEpisodeFacts', () => {
     }
   });
 });
+
+// ── 低情報エンティティの取込抑制（T-21 リグレッション） ─────────────────────
+
+describe('persistEpisodeFacts low-information entity suppression', () => {
+  test('placeholder-named entities are not inserted and are counted as suppressed', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const extracted = makeExtracted({
+        entities: [
+          { type: 'Bug', name: '不明のバグ', aliases: [], tags: [], attributes: {} },
+          { type: 'Concept', name: 'undefined', aliases: [], tags: [], attributes: {} },
+          { type: 'File', name: 'packages/trail-caravan-book/src/ingest/conversation/persist.ts', aliases: [], tags: [], attributes: {} },
+        ],
+      });
+      const stats = persistEpisodeFacts({ db, episode: makeEpisode(), extracted, recordedAt: TS, logger });
+
+      expect(countRows(db, 'caravan_entities')).toBe(1);
+      expect(stats.entities_inserted).toBe(1);
+      expect(stats.entities_suppressed).toBe(2);
+      const rows = db.exec(`SELECT display_name FROM caravan_entities`);
+      expect(rows[0]?.values[0][0]).toBe('packages/trail-caravan-book/src/ingest/conversation/persist.ts');
+    } finally {
+      db.close();
+    }
+  });
+
+  test('specific names containing a generic word are NOT suppressed', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const extracted = makeExtracted({
+        entities: [
+          { type: 'Bug', name: 'FTS5 の一括 rowid 削除で DB が破損するバグ', aliases: [], tags: [], attributes: {} },
+        ],
+      });
+      const stats = persistEpisodeFacts({ db, episode: makeEpisode(), extracted, recordedAt: TS, logger });
+
+      expect(stats.entities_inserted).toBe(1);
+      expect(stats.entities_suppressed).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  test('edges with a low-information endpoint are skipped without auto-upserting the endpoint', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const extracted = makeExtracted({
+        entities: [
+          { type: 'File', name: 'src/a.ts', aliases: [], tags: [], attributes: {} },
+        ],
+        relations: [
+          {
+            subject: { type: 'File', name: 'src/a.ts' },
+            predicate: 'relates_to',
+            object: { type: 'Bug', name: '不明のバグ' },
+            confidence: 0.8,
+          },
+          {
+            subject: { type: 'Bug', name: '未命名のバグ' },
+            predicate: 'affects',
+            object: { type: 'File', name: 'src/a.ts' },
+            confidence: 0.8,
+          },
+        ],
+      });
+      const stats = persistEpisodeFacts({ db, episode: makeEpisode(), extracted, recordedAt: TS, logger });
+
+      // 端点の片割れ（低情報）は auto-upsert されず、エッジ自体も入らない
+      expect(countRows(db, 'caravan_entities')).toBe(1);
+      expect(countRows(db, 'caravan_edges')).toBe(0);
+      expect(stats.edges_inserted).toBe(0);
+      expect(stats.edges_suppressed).toBe(2);
+    } finally {
+      db.close();
+    }
+  });
+
+  test('questions with placeholder text are not inserted as Question entities', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const extracted = makeExtracted({
+        questions: [
+          { text: '不明' },
+          { text: 'FTS5 の再構築はどのタイミングで走らせるべきか' },
+        ],
+      });
+      const stats = persistEpisodeFacts({ db, episode: makeEpisode(), extracted, recordedAt: TS, logger });
+
+      const rows = db.exec(`SELECT display_name FROM caravan_entities WHERE type = 'Question'`);
+      expect(rows[0]?.values.length ?? 0).toBe(1);
+      expect(rows[0]?.values[0][0]).toBe('FTS5 の再構築はどのタイミングで走らせるべきか');
+      expect(stats.entities_suppressed).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  test('suppressed entities never appear in caravan_episode_entities', () => {
+    const db = makeDb();
+    try {
+      const logger = makeLogger();
+      const extracted = makeExtracted({
+        entities: [
+          { type: 'Bug', name: '不明のバグ', aliases: [], tags: [], attributes: {} },
+          { type: 'File', name: 'src/a.ts', aliases: [], tags: [], attributes: {} },
+        ],
+      });
+      persistEpisodeFacts({ db, episode: makeEpisode(), extracted, recordedAt: TS, logger });
+
+      expect(countRows(db, 'caravan_episode_entities')).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+});

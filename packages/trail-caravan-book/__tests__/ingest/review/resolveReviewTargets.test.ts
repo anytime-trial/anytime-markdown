@@ -20,7 +20,14 @@ interface ReviewSpec {
   readonly sourceRef: string;
   /** 事前に workspace を入れておく場合。省略時は '' (未解決)。 */
   readonly workspace?: string;
-  readonly findings: ReadonlyArray<{ id: string; targetFilePath: string | null }>;
+  readonly findings: ReadonlyArray<{
+    id: string;
+    targetFilePath: string | null;
+    /** 対象パスが空の指摘を裸のファイル名から救う経路のテスト用。既定 'text'。 */
+    findingText?: string;
+    /** 既定 'warn'。info は設計上リンク対象外なので補完も走らない。 */
+    severity?: 'info' | 'warn' | 'error';
+  }>;
 }
 
 interface FixtureOptions {
@@ -86,8 +93,17 @@ async function buildFixture(opts: FixtureOptions): Promise<{ db: CaravanDbConnec
       );
       db.run(
         `INSERT INTO caravan_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, severity, finding_text, recorded_at)
-         VALUES (?, ?, ?, ?, ?, 'warn', 'text', ?)`,
-        [finding.id, review.id, findingEntity, index++, finding.targetFilePath, TS],
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          finding.id,
+          review.id,
+          findingEntity,
+          index++,
+          finding.targetFilePath,
+          finding.severity ?? 'warn',
+          finding.findingText ?? 'text',
+          TS,
+        ],
       );
     }
   }
@@ -107,6 +123,12 @@ function readFinding(db: CaravanDbConnection, id: string) {
   const value = rows[0]?.values?.[0] ?? [];
   return { path: value[0] === null || value[0] === undefined ? null : String(value[0]),
            repo: value[1] === null || value[1] === undefined ? null : String(value[1]) };
+}
+
+function readInferredBy(db: CaravanDbConnection, id: string): string | null {
+  const rows = db.exec(`SELECT target_inferred_by FROM caravan_review_findings WHERE id = ?`, [id]);
+  const value = rows[0]?.values?.[0]?.[0];
+  return value === null || value === undefined ? null : String(value);
 }
 
 function readWorkspace(db: CaravanDbConnection, id: string): string {
@@ -237,5 +259,156 @@ describe('resolveReviewTargets', () => {
     // 解決済みの行は再処理されない。
     expect(second.targetsResolved).toBe(0);
     expect(second.pathsNormalized).toBe(0);
+  });
+});
+
+// ── 対象パス欠落の補完（裸のファイル名 → 一意解決） ───────────────────────────
+//
+// 実データでは非 info の指摘の 6 割が対象パスを持たず、その大半は本文に
+// `cli.ts` のようなファイル名だけを書いている。ディレクトリ接頭辞を必須にする
+// extractTargetFromFinding は 1 件も拾えなかった。
+
+describe('resolveMissingFindingPaths（resolveReviewTargets 経由）', () => {
+  let fixture: { db: CaravanDbConnection; close: () => void };
+  afterEach(() => fixture?.close());
+
+  it('ワークスペース内で一意なファイル名を対象パスへ補完し推測由来を刻む', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/pipelineWatchdog.ts', 'packages/b/src/other.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`pipelineWatchdog.ts:33-38` が running の run を書き換える' }],
+      }],
+    });
+
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({
+      path: 'packages/a/src/pipelineWatchdog.ts',
+      repo: 'anytime-markdown',
+    });
+    expect(result.pathsInferred).toBe(1);
+    expect(result.pathsStillMissing).toBe(0);
+    expect(readInferredBy(fixture.db, 'f1')).toBe('basename');
+  });
+
+  // 同名ファイルは 1 本選んだ時点で誤リンクになる。実データでは types.ts が 78 パス、
+  // package.nls.json が 9 パスに一致する。「わからない」を返すのが正しい。
+  it('同名ファイルが複数あるときは補完しない（fail-closed）', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/types.ts', 'packages/b/src/types.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`types.ts` の union が網羅されていない' }],
+      }],
+    });
+
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
+    expect(result.pathsInferred).toBe(0);
+    expect(result.pathsStillMissing).toBe(1);
+  });
+
+  // ワークスペースを跨いで探すと同名ファイルの衝突が不可避になる。未解決の
+  // ワークスペースは「どのリポジトリか分からない」であって「全部から探せ」ではない。
+  it('ワークスペース未解決のレビューでは補完しない', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/unique.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`unique.ts` が壊れている' }],
+      }],
+    });
+
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
+    expect(result.pathsInferred).toBe(0);
+  });
+
+  it('別ワークスペースの同名ファイルを引き当てない', async () => {
+    fixture = await buildFixture({
+      repos: {
+        'anytime-markdown': ['packages/a/src/other.ts'],
+        'anytime-trade': ['backend/app/unique.ts'],
+      },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`unique.ts` が壊れている' }],
+      }],
+    });
+
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
+  });
+
+  // SQLite の LIKE は既定で ASCII の大小文字を区別しない。SQL だけで決めると
+  // `claude.md` が `CLAUDE.md` に一致し、Linux では別ファイルであるうえ
+  // extractBasenameCandidates の除外リスト（完全一致）も大小文字を変えるだけで素通りする。
+  it('大小文字違いのファイル名を引き当てない', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/Widget.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`widget.ts` が壊れている' }],
+      }],
+    });
+
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
+    expect(result.pathsInferred).toBe(0);
+  });
+
+  // 大小文字違いの行が絞り込み枠を埋めて、本来一意な一致を取り逃してはならない。
+  it('大小文字違いの同名ファイルが在っても完全一致が 1 本なら解決する', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/Widget.ts', 'packages/b/src/WIDGET.ts', 'packages/c/src/widget.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, findingText: '`widget.ts` が壊れている' }],
+      }],
+    });
+
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({
+      path: 'packages/c/src/widget.ts',
+      repo: 'anytime-markdown',
+    });
+  });
+
+  it('severity=info は設計上リンク対象外なので補完しない', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/unique.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: null, severity: 'info', findingText: '`unique.ts` は綺麗' }],
+      }],
+    });
+
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
+    expect(result.pathsInferred).toBe(0);
+    expect(result.pathsStillMissing).toBe(0);
+  });
+
+  // レビュアーが対象を明示した行と推測で埋めた行を混ぜると、対処率が下がった原因が
+  // 「直していない」なのか「推測が外れた」なのか切り分けられなくなる。
+  it('明示された対象には推測の刻印を付けない', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/stated.ts'] },
+      reviews: [{
+        id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown',
+        findings: [{ id: 'f1', targetFilePath: 'packages/a/src/stated.ts' }],
+      }],
+    });
+
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
+    expect(readInferredBy(fixture.db, 'f1')).toBeNull();
   });
 });

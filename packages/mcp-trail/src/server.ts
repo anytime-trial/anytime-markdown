@@ -52,6 +52,14 @@ import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './too
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchCaravanBook,SearchCaravanBookInputSchema } from './tools/searchCaravanBook.js';
+import { handleGetBugCausality, GetBugCausalityInputSchema } from './tools/getBugCausality.js';
+import { handleGetPlanContext, GetPlanContextInputSchema } from './tools/getPlanContext.js';
+import {
+  handleListCaravanCommunities,
+  ListCaravanCommunitiesInputSchema,
+  handleUpsertCaravanCommunitySummaries,
+  UpsertCaravanCommunitySummariesInputSchema,
+} from './tools/caravanCommunities.js';
 import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
 
 export interface McpTrailOptions {
@@ -805,10 +813,66 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       since: SearchCaravanBookInputSchema.shape.since,
       limit: SearchCaravanBookInputSchema.shape.limit,
       hops: SearchCaravanBookInputSchema.shape.hops,
+      detail: SearchCaravanBookInputSchema.shape.detail,
       workspacePath: SearchCaravanBookInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleSearchCaravanBook(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_bug_causality',
+    { description: 'Return causality cards for bug fixes (symptom → root cause from commit body → introduced commit (inferred) → precursor review findings → recurrence → related decisions). Retro-analysis entry point; resolve by commit_sha, file_path or symptom keywords (spec memory-core §7.6)', inputSchema: {
+      query: GetBugCausalityInputSchema.shape.query,
+      commit_sha: GetBugCausalityInputSchema.shape.commit_sha,
+      file_path: GetBugCausalityInputSchema.shape.file_path,
+      limit: GetBugCausalityInputSchema.shape.limit,
+      workspacePath: GetBugCausalityInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetBugCausality(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_plan_context',
+    { description: 'Pack the past context relevant to files you are about to change — unaddressed review findings, recurring bugs, decisions, must-constraints and cochange partners — into one token-budgeted response (default 2000). Planning entry point; dropped items are reported in `truncated` (spec memory-core §7.7)', inputSchema: {
+      target_paths: GetPlanContextInputSchema.shape.target_paths,
+      token_budget: GetPlanContextInputSchema.shape.token_budget,
+      workspacePath: GetPlanContextInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetPlanContext(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'list_caravan_communities',
+    { description: 'List knowledge-graph (caravan-book) Louvain communities of the current layout with stable_key, member count and representative members. Use before assigning names/summaries (T-22 staged assignment; default min_size 10)', inputSchema: {
+      min_size: ListCaravanCommunitiesInputSchema.shape.min_size,
+      unsummarized_only: ListCaravanCommunitiesInputSchema.shape.unsummarized_only,
+      sample_size: ListCaravanCommunitiesInputSchema.shape.sample_size,
+      limit: ListCaravanCommunitiesInputSchema.shape.limit,
+      workspacePath: ListCaravanCommunitiesInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleListCaravanCommunities(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'upsert_caravan_community_summaries',
+    { description: 'Assign names/summaries to caravan-book knowledge-graph communities (idempotent upsert keyed by stable_key from list_caravan_communities). Keys not present in the current layout are skipped and reported', inputSchema: {
+      summaries: UpsertCaravanCommunitySummariesInputSchema.shape.summaries,
+      workspacePath: UpsertCaravanCommunitySummariesInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleUpsertCaravanCommunitySummaries(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

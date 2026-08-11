@@ -46,10 +46,20 @@ export interface CooccurrenceViewerOptions {
   filter?: CooccurrenceFilterOptions;
   showPanels?: boolean;
   skin?: CooccurrenceSkin;
+  /**
+   * card スキンで 1 レーンに縦へ積むカードの上限枚数。省略時は既定（`CARD_MAX_ROWS` = 20）。
+   *
+   * 画面の高さと「縦に何枚並べて読みたいか」は見る人と目的で変わるため、呼び出し側が
+   * 決められるようにする。card 以外のスキンでは図に影響しない。
+   */
+  cardMaxRows?: number;
 }
 
 export type CooccurrenceViewerUpdate = Partial<
-  Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'locale' | 'filter' | 'capabilities' | 'showPanels' | 'skin'>
+  Pick<
+    CooccurrenceViewerOptions,
+    'file' | 'themeMode' | 'locale' | 'filter' | 'capabilities' | 'showPanels' | 'skin' | 'cardMaxRows'
+  >
 > & {
   /**
    * `file` の差し替えで視野を合わせ直さない（既定は合わせ直す）。
@@ -64,6 +74,17 @@ export type CooccurrenceViewerUpdate = Partial<
 export interface CooccurrenceViewerHandle {
   update(partial: CooccurrenceViewerUpdate): void;
   destroy(): void;
+  /**
+   * ホストからの選択指定（機能仕様書 §6.4.1）。効果は語のクリックと同一の選択状態だが、
+   * **トグルではなく指定**（同じ添字を渡しても解除されず、null で解除）。ホストは現在の
+   * 選択状態を知らずに呼ぶため、トグルだと「選択したつもりが解除」が起きる。
+   * 範囲外・非整数の添字は無視して現在の選択を保つ（黙って消すと利用者には「押したのに
+   * 何も起きない」として現れ、ホストの添字ズレへ辿れない）。ファイル差し替えで添字の
+   * 意味が変わるため、ホストは `update({ file })` の後に改めて呼ぶ。
+   */
+  selectNode(index: number | null): void;
+  /** 観測点。現在選択中の語の添字（未選択は null）。selectNode の反映を外から検査する。 */
+  getSelectedNodeIndex(): number | null;
   getLayoutStatus(): LayoutStatus;
   getCacheDecision(): CacheDecision;
   getLayoutRunCount(): number;
@@ -120,6 +141,13 @@ export interface CardLayoutState {
   hasUnclustered: boolean;
   /** サブクラスタ見出しの総数（残余グループは見出しを持たず数えない）。 */
   subHeaderCount: number;
+  /**
+   * 実際に適用した 1 レーンあたりの上限枚数（正規化後）。
+   *
+   * 設定を変えても図は「カードが並んで見える」ままなので、渡した値が効いたかを
+   * 見た目で判定できない。適用値を外から読めるようにして退行を検査可能にする。
+   */
+  maxRows: number;
 }
 
 /** 観測点。クラスタレーン表示の状態。 */

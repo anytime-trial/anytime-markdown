@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-11
+
+### Changed
+
+- Split high-complexity functions across the activity ingest and the code-graph query paths (10 SonarCloud S3776 findings). Behavior is unchanged.
+
+### Fixed
+
+- Resolved SonarCloud high findings: a `sort` without a comparator, a redundant `void` operator and a deprecated API call.
+
 ## [1.0.0] - 2026-08-09
 
 ### Added

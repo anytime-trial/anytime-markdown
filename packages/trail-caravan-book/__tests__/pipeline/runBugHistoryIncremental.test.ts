@@ -163,6 +163,62 @@ describe('runBugHistoryIncremental', () => {
     close();
   }, 30000);
 
+  test('commit body is persisted to body_excerpt (trailer removed)', async () => {
+    const commits: TrailCommit[] = [
+      {
+        commit_hash: 'fix_body_aabb112233',
+        commit_message:
+          'fix(web-app/logic): wrong calc\n\n原因は丸め誤差。採った方針: 整数演算へ変更。\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>',
+        committed_at: '2026-05-01T00:00:00.000Z',
+        repo_name: REPO,
+      },
+    ];
+
+    const { db, close } = await openTestDb(commits, []);
+
+    await runBugHistoryIncremental({ db, repoName: REPO, repoRoot: REPOROOT, logger: noopLogger });
+
+    const rows = db.exec(`SELECT body_excerpt FROM caravan_bug_fixes WHERE commit_sha = 'fix_body_aabb112233'`);
+    expect(rows[0].values[0][0]).toBe('原因は丸め誤差。採った方針: 整数演算へ変更。');
+
+    close();
+  }, 30000);
+
+  test('episodes arriving after ingest are relinked on the next run (even with no new commits)', async () => {
+    const commits: TrailCommit[] = [
+      {
+        commit_hash: 'fix_relink_aabb1122',
+        commit_message: 'fix(web-app): broken',
+        committed_at: '2026-06-10T00:00:00.000Z',
+        repo_name: REPO,
+        session_id: 'sess_late',
+      },
+    ];
+
+    const { db, close } = await openTestDb(commits, []);
+
+    // 1 回目: episode 不在なので root_cause_episode_id は NULL
+    await runBugHistoryIncremental({ db, repoName: REPO, repoRoot: REPOROOT, logger: noopLogger });
+    const before = db.exec(`SELECT root_cause_episode_id FROM caravan_bug_fixes WHERE commit_sha = 'fix_relink_aabb1122'`);
+    expect(before[0].values[0][0]).toBeNull();
+
+    // episode が後から取込まれる（会話取込ラグの再現）
+    db.run(
+      `INSERT INTO caravan_episodes
+         (id, session_id, message_uuid_start, message_uuid_end,
+          agent_runtime, model, valid_from, recorded_at, raw_excerpt)
+       VALUES ('ep_late', 'sess_late', 'm1', 'm2', 'claude_code', 'test',
+               '2026-06-09T00:00:00.000Z', '2026-06-11T00:00:00.000Z', '原因を議論した会話')`
+    );
+
+    // 2 回目: 新規コミット 0 件でも再リンクが走る
+    await runBugHistoryIncremental({ db, repoName: REPO, repoRoot: REPOROOT, logger: noopLogger });
+    const after = db.exec(`SELECT root_cause_episode_id FROM caravan_bug_fixes WHERE commit_sha = 'fix_relink_aabb1122'`);
+    expect(after[0].values[0][0]).toBe('ep_late');
+
+    close();
+  }, 30000);
+
   test('non-fix commits only → items_processed=0, status=success', async () => {
     const commits: TrailCommit[] = [
       { commit_hash: 'feat_only_aabb11223', commit_message: 'feat: new feature', committed_at: '2026-04-01T00:00:00.000Z', repo_name: REPO },

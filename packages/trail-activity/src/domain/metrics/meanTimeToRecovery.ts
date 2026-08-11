@@ -22,6 +22,46 @@ type Inputs = {
 
 const HOUR_MS = 3_600_000;
 
+/** 走査対象コミット（時刻を数値化し、コードファイルだけを残したもの） */
+type CommitCandidate = {
+  hash: string;
+  subject: string;
+  ms: number;
+  committedAt: string;
+  codeFiles: string[];
+};
+
+/** コミットを走査用に整形する。時刻が解釈できないもの・コードファイルを含まないものは除く。 */
+function toCandidates(commits: readonly Commit[]): CommitCandidate[] {
+  return commits
+    .map((c) => ({
+      hash: c.hash,
+      subject: c.subject,
+      ms: new Date(c.committed_at).getTime(),
+      committedAt: c.committed_at,
+      codeFiles: filterCodeFiles(c.files),
+    }))
+    .filter((c) => !Number.isNaN(c.ms) && c.codeFiles.length > 0);
+}
+
+/**
+ * fix とコードファイルが重複し、168h 以内で最も近い先行コミットの時刻を返す。
+ * 該当が無ければ null（ペアリング不能な fix は母数から除外される）。
+ */
+function findNearestFailureMs(
+  fix: CommitCandidate,
+  candidates: readonly CommitCandidate[],
+): number | null {
+  let nearestMs: number | null = null;
+  for (const c of candidates) {
+    if (c.hash === fix.hash) continue;
+    if (c.ms >= fix.ms || fix.ms - c.ms > FIX_WINDOW_MS) continue;
+    if (!hasFileOverlap(fix.codeFiles, c.codeFiles)) continue;
+    if (nearestMs === null || c.ms > nearestMs) nearestMs = c.ms;
+  }
+  return nearestMs;
+}
+
 /**
  * コミットベース近似の MTTR。
  * 「復旧」= fix/revert/hotfix コミット、「障害混入」= その fix とコードファイル重複があり
@@ -36,15 +76,7 @@ function computeAverage(inputs: Inputs, range: DateRange): {
   const fromMs = new Date(range.from).getTime();
   const toMs = new Date(range.to).getTime();
 
-  const candidates = inputs.commits
-    .map((c) => ({
-      hash: c.hash,
-      subject: c.subject,
-      ms: new Date(c.committed_at).getTime(),
-      committedAt: c.committed_at,
-      codeFiles: filterCodeFiles(c.files),
-    }))
-    .filter((c) => !Number.isNaN(c.ms) && c.codeFiles.length > 0);
+  const candidates = toCandidates(inputs.commits);
 
   const fixes = candidates.filter(
     (c) => isFailureCommit(c.subject) && c.ms >= fromMs && c.ms <= toMs,
@@ -52,13 +84,7 @@ function computeAverage(inputs: Inputs, range: DateRange): {
 
   const samples: Array<{ date: string; value: number }> = [];
   for (const fix of fixes) {
-    let nearestMs: number | null = null;
-    for (const c of candidates) {
-      if (c.hash === fix.hash) continue;
-      if (c.ms >= fix.ms || fix.ms - c.ms > FIX_WINDOW_MS) continue;
-      if (!hasFileOverlap(fix.codeFiles, c.codeFiles)) continue;
-      if (nearestMs === null || c.ms > nearestMs) nearestMs = c.ms;
-    }
+    const nearestMs = findNearestFailureMs(fix, candidates);
     if (nearestMs === null) continue;
     samples.push({ date: fix.committedAt, value: (fix.ms - nearestMs) / HOUR_MS });
   }

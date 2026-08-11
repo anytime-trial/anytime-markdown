@@ -817,6 +817,8 @@ describe('CaravanDbSession', () => {
         status: 'ok',
         events_inserted: 3,
         events_updated: 2,
+        events_reopened: 1,
+        events_redetect_suppressed: 0,
       });
 
       const result = await session.runDrift();
@@ -824,7 +826,7 @@ describe('CaravanDbSession', () => {
       expect(mockRunDriftDetection).toHaveBeenCalledTimes(1);
       expect(result.scope).toBe('drift_detection');
       expect(result.status).toBe('ok');
-      expect(result.itemsProcessed).toBe(5); // 3 + 2
+      expect(result.itemsProcessed).toBe(6); // 3 + 2 + 1(reopen)
       expect(result.itemsFailed).toBe(0);
       expect(memDb.save).toHaveBeenCalled();
 
@@ -852,7 +854,7 @@ describe('CaravanDbSession', () => {
       const trailDb = makeTrailDb();
       const session = makeSession(memDb, trailDb);
 
-      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 0, events_updated: 0 });
+      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 0, events_updated: 0, events_reopened: 0, events_redetect_suppressed: 0 });
 
       const result = await session.runDrift();
 
@@ -954,7 +956,7 @@ describe('CaravanDbSession', () => {
         statusWriter: statusWriter as unknown as import('../../src/status/PipelineStatusWriter').PipelineStatusWriter,
       });
 
-      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 1, events_updated: 0 });
+      mockRunDriftDetection.mockResolvedValue({ status: 'ok', events_inserted: 1, events_updated: 0, events_reopened: 0, events_redetect_suppressed: 0 });
 
       await session.runDrift();
 
@@ -1073,6 +1075,17 @@ describe('CaravanDbSession', () => {
 
   // ── コールバック経路 (save / progress / onTotal) ───────────────────────
 
+  /** Incremental/Backfill Result の counter 部分（stub 用の全量ゼロ） */
+  const zeroConversationCounters = {
+    items_skipped: 0,
+    entities_inserted: 0,
+    entities_updated: 0,
+    entities_suppressed: 0,
+    edges_inserted: 0,
+    edges_invalidated: 0,
+    edges_suppressed: 0,
+  } as const;
+
   describe('callback paths', () => {
     it('invokes save callback passed to runConversationBackfill', async () => {
       const memDb = await makeCaravanDb();
@@ -1082,7 +1095,7 @@ describe('CaravanDbSession', () => {
       mockRunConversationBackfill.mockImplementation(async (opts) => {
         // save コールバックを実際に呼ぶ
         opts.save?.();
-        return { status: 'ok', items_processed: 1, items_failed: 0 };
+        return { status: 'success' as const, items_processed: 1, items_failed: 0, ...zeroConversationCounters };
       });
 
       await session.runConversation();
@@ -1107,7 +1120,7 @@ describe('CaravanDbSession', () => {
 
       mockRunConversationIncremental.mockImplementation(async (opts) => {
         opts.save?.();
-        return { status: 'ok', items_processed: 0, items_failed: 0 };
+        return { status: 'success' as const, items_processed: 0, items_failed: 0, ...zeroConversationCounters };
       });
 
       await session.runConversation();
@@ -1122,10 +1135,12 @@ describe('CaravanDbSession', () => {
       const trailDb = makeTrailDb();
       const session = makeSession(memDb, trailDb);
 
-      mockRunConversationBackfill.mockResolvedValue({ status: 'ok', items_processed: 0, items_failed: 0 });
+      mockRunConversationBackfill.mockResolvedValue({
+        status: 'success' as const, items_processed: 0, items_failed: 0, ...zeroConversationCounters,
+      });
       mockRunConversationFailedItemsRetry.mockImplementation(async (opts) => {
         opts.save?.();
-        return { status: 'ok', items_retried: 0, items_failed: 0 };
+        return { status: 'success' as const, items_retried: 0, items_recovered: 0, items_failed: 0 };
       });
 
       await session.runConversation();
@@ -1159,7 +1174,7 @@ describe('CaravanDbSession', () => {
       mockRunConversationBackfill.mockImplementation(async (opts) => {
         opts.onTotal?.(10);
         opts.progress?.(3, 0);
-        return { status: 'ok', items_processed: 3, items_failed: 0 };
+        return { status: 'success' as const, items_processed: 3, items_failed: 0, ...zeroConversationCounters };
       });
 
       await session.runConversation();
@@ -1200,7 +1215,7 @@ describe('CaravanDbSession', () => {
 
       mockRunConversationIncremental.mockImplementation(async (opts) => {
         opts.progress?.(2, 1);
-        return { status: 'ok', items_processed: 2, items_failed: 1 };
+        return { status: 'success' as const, items_processed: 2, items_failed: 1, ...zeroConversationCounters };
       });
 
       await session.runConversation();

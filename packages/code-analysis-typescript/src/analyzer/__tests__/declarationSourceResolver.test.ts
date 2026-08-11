@@ -100,4 +100,26 @@ describe('resolveDeclarationToSource', () => {
 
     expect(result).toBe('/repo/packages/pkgD/src/alpha.ts');
   });
+
+  // 代表ソースの選択は「コードユニット順の先頭」で決まる。ロケール依存の照合
+  // （`localeCompare`）へ替えると大文字と小文字の相対順が入れ替わり、同じリポジトリを
+  // 別マシンで解析したときに remap 先が変わる。全小文字の fixture ではこの差が出ない
+  // ため、大小文字とアンダースコアを混ぜて順序を固定する。
+  it('orders candidates by code unit, not by locale collation', () => {
+    const sources = new Set([
+      '/repo/packages/pkgE/src/apple.ts',
+      '/repo/packages/pkgE/src/Apple.ts',
+      '/repo/packages/pkgE/src/_util.ts',
+    ]);
+
+    const result = resolveDeclarationToSource(
+      '/repo/packages/pkgE/dist/apple.d.ts',
+      ROOT,
+      sources,
+      deps({ findPackageDir: () => '/repo/packages/pkgE' }),
+    );
+
+    // コードユニット順: 'A'(0x41) < '_'(0x5f) < 'a'(0x61)
+    expect(result).toBe('/repo/packages/pkgE/src/Apple.ts');
+  });
 });

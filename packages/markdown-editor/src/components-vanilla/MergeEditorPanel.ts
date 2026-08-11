@@ -372,6 +372,58 @@ function createExpanderRow(opts: {
   };
 }
 
+/** 行番号ガターの 1 行（記号セル + 行番号セル）を生成する。 */
+function createGutterLine(
+  diffLine: DiffLine | undefined,
+  lineNumber: string,
+  navBlockId: number | undefined,
+): HTMLElement {
+  const lineEl = document.createElement("div");
+  lineEl.style.cssText = "display:flex;justify-content:flex-end;gap:2px;";
+  if (navBlockId !== undefined) lineEl.dataset.diffBlockId = String(navBlockId);
+  // 追加/削除の記号セル（色以外の手がかり。空でも幅を確保して桁を揃える）。
+  const symbol = lineChangeSymbol(diffLine?.type ?? "equal");
+  const symbolEl = document.createElement("span");
+  symbolEl.dataset.diffGutterSymbol = "";
+  symbolEl.textContent = symbol || " ";
+  symbolEl.style.cssText =
+    "display:inline-block;min-width:0.8em;font-weight:700;text-align:center;" +
+    (symbol === "+"
+      ? "color:var(--am-color-success-main);"
+      : symbol === "-"
+        ? "color:var(--am-color-error-main);"
+        : "");
+  lineEl.appendChild(symbolEl);
+  const numEl = document.createElement("span");
+  numEl.textContent = lineNumber || " ";
+  lineEl.appendChild(numEl);
+  return lineEl;
+}
+
+/** ミラー（textarea 背後に敷く行背景）の各行を生成して追加する。 */
+function appendMirrorLines(
+  mirror: HTMLElement,
+  displayLines: string[],
+  diffLines: DiffLine[],
+): void {
+  for (let i = 0; i < displayLines.length; i++) {
+    const line = displayLines[i];
+    const lineEl = document.createElement("div");
+    lineEl.style.backgroundColor = lineBgColor(diffLines[i]?.type ?? "equal");
+    lineEl.textContent = line || " ";
+    mirror.appendChild(lineEl);
+  }
+}
+
+/** セグメント textarea のクラス名（スクロールバー非表示・自動リサイズのフラグを反映）。 */
+function segmentTextareaClass(hideScrollbar: boolean, autoResize: boolean | undefined): string {
+  return [
+    "am-merge-textarea",
+    hideScrollbar ? "am-merge-textarea-hide-scrollbar" : null,
+    autoResize ? "am-merge-textarea-overflow-hidden" : null,
+  ].filter(Boolean).join(" ");
+}
+
 /** ソースモードの 1 セグメント（diffLines スライス）。ガター・ミラー・textarea・マージガター・行高さ同期を内包する。 */
 interface SourceSegmentHandle {
   el: HTMLElement;
@@ -438,28 +490,9 @@ function createSourceSegment(opts: {
     `color:color-mix(in srgb, var(--am-color-text-secondary) 60%, transparent);` +
     `user-select:none;overflow:hidden;box-sizing:border-box;flex-shrink:0;`;
   for (let i = 0; i < lineNumbersArray.length; i++) {
-    const num = lineNumbersArray[i];
-    const lineEl = document.createElement("div");
-    lineEl.style.cssText = "display:flex;justify-content:flex-end;gap:2px;";
-    const navBlockId = mergeButtonIndices.get(i);
-    if (navBlockId !== undefined) lineEl.setAttribute("data-diff-block-id", String(navBlockId));
-    // 追加/削除の記号セル（色以外の手がかり。空でも幅を確保して桁を揃える）。
-    const symbol = lineChangeSymbol(diffLines[i]?.type ?? "equal");
-    const symbolEl = document.createElement("span");
-    symbolEl.setAttribute("data-diff-gutter-symbol", "");
-    symbolEl.textContent = symbol || " ";
-    symbolEl.style.cssText =
-      "display:inline-block;min-width:0.8em;font-weight:700;text-align:center;" +
-      (symbol === "+"
-        ? "color:var(--am-color-success-main);"
-        : symbol === "-"
-          ? "color:var(--am-color-error-main);"
-          : "");
-    lineEl.appendChild(symbolEl);
-    const numEl = document.createElement("span");
-    numEl.textContent = num || " ";
-    lineEl.appendChild(numEl);
-    gutter.appendChild(lineEl);
+    gutter.appendChild(
+      createGutterLine(diffLines[i], lineNumbersArray[i], mergeButtonIndices.get(i)),
+    );
   }
   root.appendChild(gutter);
 
@@ -475,22 +508,11 @@ function createSourceSegment(opts: {
     `font-family:monospace;font-size:${fontSize}px;line-height:${lineHeight};white-space:pre-wrap;` +
     `overflow-wrap:break-word;padding-top:16px;padding-bottom:16px;padding-right:${mirrorPadRight};` +
     `padding-left:8px;box-sizing:border-box;`;
-  for (let i = 0; i < displayLines.length; i++) {
-    const line = displayLines[i];
-    const lineEl = document.createElement("div");
-    lineEl.style.backgroundColor = lineBgColor(diffLines[i]?.type ?? "equal");
-    lineEl.textContent = line || " ";
-    mirror.appendChild(lineEl);
-  }
+  appendMirrorLines(mirror, displayLines, diffLines);
   textContainer.appendChild(mirror);
 
   const textarea = document.createElement("textarea");
-  const taClass = [
-    "am-merge-textarea",
-    hideScrollbar ? "am-merge-textarea-hide-scrollbar" : null,
-    autoResize ? "am-merge-textarea-overflow-hidden" : null,
-  ].filter(Boolean).join(" ");
-  textarea.className = taClass;
+  textarea.className = segmentTextareaClass(hideScrollbar, autoResize);
   if (textareaAriaLabel !== undefined) textarea.setAttribute("aria-label", textareaAriaLabel);
   textarea.readOnly = !!readOnly;
   textarea.value = displayText;

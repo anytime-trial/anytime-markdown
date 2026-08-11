@@ -199,25 +199,34 @@ function computePeriodRangeUtc(period: HotspotPeriod): { from: string; to: strin
   return { from, to };
 }
 
-function collectFilePathsForElement(elementId: string, c4Model: C4Model): string[] {
-  const FILE_PREFIX = 'file::';
-  const elementById = new Map(c4Model.elements.map((el) => [el.id, el] as const));
-  const target = elementById.get(elementId);
-  const result = new Set<string>();
-  if (target?.type === 'code' && target.id.startsWith(FILE_PREFIX)) {
-    result.add(target.id.slice(FILE_PREFIX.length));
-    return Array.from(result);
-  }
-  type C4ElementType = (typeof c4Model.elements)[number];
-  const childrenByBoundary = new Map<string, C4ElementType[]>();
+/** C4 の code 要素 id が持つファイルパスの接頭辞。 */
+const C4_FILE_PREFIX = 'file::';
+
+type C4ModelElement = C4Model['elements'][number];
+
+/** boundaryId → 直接の子要素 の索引を作る（boundaryId を持たない要素は対象外）。 */
+function buildChildrenByBoundary(c4Model: C4Model): Map<string, C4ModelElement[]> {
+  const childrenByBoundary = new Map<string, C4ModelElement[]>();
   for (const el of c4Model.elements) {
     if (el.boundaryId == null) continue;
     const arr = childrenByBoundary.get(el.boundaryId);
     if (arr) arr.push(el);
     else childrenByBoundary.set(el.boundaryId, [el]);
   }
+  return childrenByBoundary;
+}
+
+/**
+ * `rootId` を起点に boundary の子孫を深さ優先で辿り、`file::` を持つ code 要素の
+ * ファイルパスを `result` へ集める（訪問済みは skip）。
+ */
+function collectDescendantFilePaths(
+  rootId: string,
+  childrenByBoundary: ReadonlyMap<string, C4ModelElement[]>,
+  result: Set<string>,
+): void {
   const visited = new Set<string>();
-  const stack: string[] = [elementId];
+  const stack: string[] = [rootId];
   while (stack.length > 0) {
     const cur = stack.pop();
     if (cur === undefined || visited.has(cur)) continue;
@@ -225,12 +234,23 @@ function collectFilePathsForElement(elementId: string, c4Model: C4Model): string
     const children = childrenByBoundary.get(cur);
     if (!children) continue;
     for (const el of children) {
-      if (el.type === 'code' && el.id.startsWith(FILE_PREFIX)) {
-        result.add(el.id.slice(FILE_PREFIX.length));
+      if (el.type === 'code' && el.id.startsWith(C4_FILE_PREFIX)) {
+        result.add(el.id.slice(C4_FILE_PREFIX.length));
       }
       stack.push(el.id);
     }
   }
+}
+
+function collectFilePathsForElement(elementId: string, c4Model: C4Model): string[] {
+  const elementById = new Map(c4Model.elements.map((el) => [el.id, el] as const));
+  const target = elementById.get(elementId);
+  const result = new Set<string>();
+  if (target?.type === 'code' && target.id.startsWith(C4_FILE_PREFIX)) {
+    result.add(target.id.slice(C4_FILE_PREFIX.length));
+    return Array.from(result);
+  }
+  collectDescendantFilePaths(elementId, buildChildrenByBoundary(c4Model), result);
   return Array.from(result);
 }
 
@@ -914,8 +934,8 @@ export class TrailDataServer {
     t.exact('GET', '/api/c4/sequence', (ctx) => void this.handleC4SequenceEndpoint(ctx.res, ctx.query('elementId', '')));
     t.exact('GET', '/api/c4/function-graph', (ctx) =>
       void this.handleC4FunctionGraphEndpoint(ctx.res, ctx.query('elementId', '')));
-    t.exact('GET', '/api/c4/call-hierarchy', (ctx) =>
-      void this.handleCallHierarchyEndpoint(ctx.res, {
+    t.exact('GET', '/api/c4/call-hierarchy', (ctx) => {
+      this.handleCallHierarchyEndpoint(ctx.res, {
         file: ctx.query('file', ''),
         fn: ctx.query('fn', ''),
         direction: ctx.query('direction', 'callees'),
@@ -923,7 +943,8 @@ export class TrailDataServer {
         lineParam: ctx.url.searchParams.get('line'),
         scope: ctx.query('scope', 'project'),
         excludeTests: ctx.query('excludeTests', '') === 'true',
-      }));
+      });
+    });
   }
 
   /** 手動 C4（要素・関係・グループ・コミュニティ要約）。書き込み系は Content-Type を検証する。 */
@@ -1044,7 +1065,62 @@ export class TrailDataServer {
         types: ctx.url.searchParams.get('types')?.split(',').filter((s) => s !== '') ?? undefined,
         // 視野（世界座標 minX,minY,maxX,maxY）。指定時はその範囲の上位 N を返す
         bbox: parseBbox(ctx.url.searchParams.get('bbox')),
+        // seed 指定時は ego サブグラフ（画面設計書 §2.4。types / bbox は適用されない）
+        seed: ctx.queryOpt('seed'),
       })));
+
+    // 知識グラフ画面検索（画面設計書 §2.4）。空 q は 400
+    t.exact('GET', '/api/caravan/knowledge-graph/search', (ctx) => {
+      const q = ctx.url.searchParams.get('q')?.trim() ?? '';
+      if (q === '') {
+        ctx.res.writeHead(400, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: 'q required' }));
+        return;
+      }
+      this.respondCaravanJson(ctx.res, '/api/caravan/knowledge-graph/search',
+        this.caravanApi.searchKnowledgeGraph({
+          q,
+          limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 50),
+        }));
+    });
+
+    // エージェント照会（MCP search_caravan_book が記録した検索）の直近リスト（画面設計書 §2.5）
+    t.exact('GET', '/api/caravan/knowledge-graph/agent-searches', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/knowledge-graph/agent-searches',
+        this.caravanApi.getAgentSearches({
+          limit: clampInt(ctx.url.searchParams.get('limit'), 10, 1, 50),
+        })));
+
+    // 画面検索の計測イベント（記録は検索機能の受け入れ条件。失敗は ok:false で fail-open）
+    t.exact('POST', '/api/caravan/knowledge-graph/search-events', (ctx) => {
+      if (!this.requireJsonContentType(ctx.req, ctx.res)) return;
+      void this.readJsonBody(ctx.req).then(async (body) => {
+        const b = body as Record<string, unknown>;
+        const kind = typeof b['kind'] === 'string' ? b['kind'] : '';
+        const query = typeof b['query'] === 'string' ? b['query'] : '';
+        if (!['search', 'ego_open', 'clear'].includes(kind)) {
+          ctx.res.writeHead(400, JSON_HEADERS);
+          ctx.res.end(JSON.stringify({ error: 'invalid kind' }));
+          return;
+        }
+        const data = await this.caravanApi.recordSearchEvent({
+          kind: kind as 'search' | 'ego_open' | 'clear',
+          query,
+          ...(typeof b['resultCount'] === 'number' ? { resultCount: b['resultCount'] } : {}),
+          ...(typeof b['entityId'] === 'string' ? { entityId: b['entityId'] } : {}),
+          // 起点動線（screen spec §3.6）。列挙外は recordSearchEvent 側が ok:false へ落とす
+          ...(typeof b['origin'] === 'string'
+            ? { origin: b['origin'] as 'search' | 'citation' | 'agent_history' }
+            : {}),
+        });
+        ctx.res.writeHead(200, JSON_HEADERS);
+        ctx.res.end(JSON.stringify(data));
+      }).catch((err: unknown) => {
+        this.logger.error(`[/api/caravan/knowledge-graph/search-events POST] ${String(err)}`);
+        ctx.res.writeHead(500, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: String(err) }));
+      });
+    });
 
     t.exact('GET', '/api/caravan/drift/by-day', (ctx) => {
       void this.caravanApi.listDriftHistoryByDay({
@@ -1162,6 +1238,16 @@ export class TrailDataServer {
     t.exact('GET', '/api/caravan/reviews/flight-counts', (ctx) =>
       this.respondCaravanJson(ctx.res, '/api/caravan/reviews/flight-counts',
         this.caravanApi.getFlightReviewFindingCounts()));
+
+    // 対処率の分母別集計（追跡対象 / info / 追跡不能）。一覧の limit に影響されない
+    // よう SQL 集計の専用ルートから取る。失敗時は null が返り、0 件と区別できる。
+    // workspace は一覧（flight-findings）と同じ値を受ける。集計だけ横断のままにすると、
+    // 画面でワークスペースを選んでいるのに対処率だけが他ワークスペース込みという
+    // 食い違いになる（コミットが取込まれていないワークスペースは構造的に追跡対象 0 件で、
+    // 分母だけを押し上げる）。
+    t.exact('GET', '/api/caravan/reviews/flight-summary', (ctx) =>
+      this.respondCaravanJson(ctx.res, '/api/caravan/reviews/flight-summary',
+        this.caravanApi.getFlightReviewFindingSummary({ workspace: ctx.queryOpt('workspace') })));
 
     t.exact('GET', '/api/caravan/reviews/flight-findings', (ctx) => {
       const raw = ctx.queryOpt('instructionIds');
@@ -1822,6 +1908,9 @@ export class TrailDataServer {
   //  API: GET /api/trail/sessions/:id
   // -------------------------------------------------------------------------
 
+  // 実装補助（buildCommitsByMessageUuid / buildCommitsByAssistantUuid /
+  // fillCommitsByTimestampProximity / toSessionMessageDto）はファイル末尾のモジュール関数に置く。
+
   private handleGetSession(
     res: http.ServerResponse,
     sessionId: string,
@@ -1842,75 +1931,31 @@ export class TrailDataServer {
       const messageCommits = this.trailDb.getMessageCommitsBySession(sessionId);
       const errorUuids = this.trailDb.getErrorMessageUuids(sessionId);
       const gitCommitUuids = this.trailDb.getGitCommitMessageUuids(sessionId);
-      const commitsByMessageUuid = new Map<string, string[]>();
-      for (const mc of messageCommits) {
-        const arr = commitsByMessageUuid.get(mc.messageUuid) ?? [];
-        arr.push(mc.commitHash);
-        commitsByMessageUuid.set(mc.messageUuid, arr);
-      }
-      // activity_message_commits stores user message UUIDs; map back to the parent assistant UUID
-      const commitsByAssistantUuid = new Map<string, string[]>();
-      for (const m of rawMessages) {
-        const hashes = commitsByMessageUuid.get(m.uuid);
-        if (hashes && m.parent_uuid) commitsByAssistantUuid.set(m.parent_uuid, hashes);
-      }
+      const commitsByMessageUuid = buildCommitsByMessageUuid(messageCommits);
+      const commitsByAssistantUuid = buildCommitsByAssistantUuid(rawMessages, commitsByMessageUuid);
       // Fallback: for sessions where activity_message_commits is not yet backfilled,
       // match git-commit assistant messages to activity_session_commits by timestamp proximity.
       if (commitsByAssistantUuid.size === 0) {
         const sessionCommitsList = this.trailDb.getSessionCommits(sessionId);
         if (sessionCommitsList.length > 0) {
-          for (const m of rawMessages) {
-            if (!gitCommitUuids.has(m.uuid) || !m.timestamp) continue;
-            const msgTime = new Date(m.timestamp).getTime();
-            let closest: SessionCommitRow | null = null;
-            let closestDiff = Infinity;
-            for (const sc of sessionCommitsList) {
-              if (!sc.committed_at) continue;
-              const diff = new Date(sc.committed_at).getTime() - msgTime;
-              if (diff >= 0 && diff < 300_000 && diff < closestDiff) {
-                closest = sc;
-                closestDiff = diff;
-              }
-            }
-            if (closest) commitsByAssistantUuid.set(m.uuid, [closest.commit_hash]);
-          }
+          fillCommitsByTimestampProximity({
+            rawMessages,
+            sessionCommits: sessionCommitsList,
+            gitCommitUuids,
+            target: commitsByAssistantUuid,
+          });
         }
       }
-      const messages = rawMessages.map((m) => {
-        const linkedCodexSessionId = codexSessionByAssistantUuid.get(m.uuid);
-        const agentId = m.agent_id ?? (linkedCodexSessionId ? `codex:${linkedCodexSessionId}` : undefined);
-        const agentDescription = m.agent_description ?? (linkedCodexSessionId
-          ? `Codex delegated session ${linkedCodexSessionId.slice(0, 8)}`
-          : undefined);
-        return {
-        uuid: m.uuid,
-        parentUuid: m.parent_uuid,
-        type: m.type,
-        subtype: m.subtype,
-        textContent: m.text_content,
-        userContent: m.user_content,
-        toolCalls: m.tool_calls ? JSON.parse(m.tool_calls) : undefined,
-        model: m.model,
-        usage: (m.input_tokens || m.output_tokens || m.cache_read_tokens)
-          ? {
-            inputTokens: m.input_tokens,
-            outputTokens: m.output_tokens,
-            cacheReadTokens: m.cache_read_tokens,
-            cacheCreationTokens: m.cache_creation_tokens,
-          }
-          : undefined,
-        timestamp: m.timestamp,
-        isSidechain: m.is_sidechain === 1,
-        triggerCommitHashes: commitsByAssistantUuid.get(m.uuid) ?? commitsByMessageUuid.get(m.uuid),
-        hasToolError: errorUuids.has(m.uuid) ? true : undefined,
-        hasCommit: gitCommitUuids.has(m.uuid) ? true : undefined,
-        agentId,
-        agentDescription,
-        codexSessionId: linkedCodexSessionId,
-        toolExecMs: toolExecMsMap.get(m.uuid),
-        skill: skillsMap.get(m.uuid),
-        };
-      });
+      const mapContext: SessionMessageMapContext = {
+        codexSessionByAssistantUuid,
+        commitsByAssistantUuid,
+        commitsByMessageUuid,
+        errorUuids,
+        gitCommitUuids,
+        toolExecMsMap,
+        skillsMap,
+      };
+      const messages = rawMessages.map((m) => toSessionMessageDto(m, mapContext));
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ session, messages }));
     } catch (err) {
@@ -3292,38 +3337,14 @@ export class TrailDataServer {
     req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
     req.on('end', () => {
       try {
-        let parsed: Record<string, unknown>;
-        try {
-          parsed = JSON.parse(body) as Record<string, unknown>;
-        } catch {
-          res.writeHead(400, JSON_HEADERS);
-          res.end(JSON.stringify({ error: 'invalid JSON body' }));
-          return;
-        }
-        const mode = parsed['mode'];
-        if (mode !== 'new' && mode !== 'continue' && mode !== 'close') {
-          res.writeHead(400, JSON_HEADERS);
-          res.end(JSON.stringify({ error: 'mode must be one of new|continue|close' }));
-          return;
-        }
+        const declaration = this.parseInstructionDeclaration(body, res);
+        if (!declaration) return;
+        const { parsed, mode } = declaration;
         const now = new Date().toISOString();
 
         const flightDb = this.requireFlightRecordDb();
         if (mode === 'close') {
-          const instructionId = parsed['instructionId'];
-          if (typeof instructionId !== 'string' || instructionId === '') {
-            res.writeHead(400, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'instructionId required' }));
-            return;
-          }
-          if (!flightDb.closeInstruction(instructionId, now)) {
-            res.writeHead(404, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'instruction not found' }));
-            return;
-          }
-          flightDb.save();
-          res.writeHead(200, JSON_HEADERS);
-          res.end(JSON.stringify({ ok: true, instructionId }));
+          this.declareInstructionClose(res, parsed, { now, flightDb });
           return;
         }
 
@@ -3335,64 +3356,129 @@ export class TrailDataServer {
         }
 
         if (mode === 'continue') {
-          const instructionId = parsed['instructionId'];
-          if (typeof instructionId !== 'string' || instructionId === '') {
-            res.writeHead(400, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'instructionId required' }));
-            return;
-          }
-          const declaredWorkspace = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
-          if (!flightDb.continueInstruction({
-            instructionId,
-            sessionId,
-            declaredAt: now,
-            ...(declaredWorkspace === '' ? {} : { workspacePath: declaredWorkspace }),
-          })) {
-            // 存在しない指示・別ワークスペースの指示を黙って受け入れない
-            // （取り違えた ID がそのまま台帳に増え、混入行は絞り込みでも落とせない）
-            res.writeHead(404, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'instruction not found in this workspace' }));
-            return;
-          }
-          flightDb.save();
-          res.writeHead(200, JSON_HEADERS);
-          res.end(JSON.stringify({ ok: true, instructionId }));
+          this.declareInstructionContinue(res, parsed, { now, flightDb, sessionId });
           return;
         }
 
-        const summary = parsed['summary'];
-        if (typeof summary !== 'string' || summary.trim() === '') {
-          res.writeHead(400, JSON_HEADERS);
-          res.end(JSON.stringify({ error: 'summary required' }));
-          return;
-        }
-        const workspacePath = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
-        const providedId = parsed['instructionId'];
-        const instructionId =
-          typeof providedId === 'string' && providedId !== '' ? providedId : randomUUID();
-        flightDb.openInstruction({
-          id: instructionId,
-          sessionId,
-          workspacePath,
-          workspaceName:
-            typeof parsed['workspaceName'] === 'string' && parsed['workspaceName'] !== ''
-              ? parsed['workspaceName']
-              : path.basename(workspacePath),
-          summary: summary.slice(0, TrailDataServer.INSTRUCTION_SUMMARY_MAX_CHARS),
-          originPrompt:
-            typeof parsed['originPrompt'] === 'string'
-              ? parsed['originPrompt'].slice(0, TrailDataServer.INSTRUCTION_PROMPT_MAX_CHARS)
-              : '',
-          startedAt: now,
-        });
-        flightDb.save();
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ ok: true, instructionId }));
+        this.declareInstructionNew(res, parsed, { now, flightDb, sessionId });
       } catch (e) {
         this.logger.error('handleDeclareInstruction failed', e);
         sendServerError(res, 'Failed to declare instruction');
       }
     });
+  }
+
+  /**
+   * 宣言 API の本文をパースし mode を検証する。不正なら 400 を返して null を返す
+   * （呼び出し側はそのまま return する）。
+   */
+  private parseInstructionDeclaration(
+    body: string,
+    res: http.ServerResponse,
+  ): { parsed: Record<string, unknown>; mode: 'new' | 'continue' | 'close' } | null {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(body) as Record<string, unknown>;
+    } catch {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'invalid JSON body' }));
+      return null;
+    }
+    const mode = parsed['mode'];
+    if (mode !== 'new' && mode !== 'continue' && mode !== 'close') {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'mode must be one of new|continue|close' }));
+      return null;
+    }
+    return { parsed, mode };
+  }
+
+  /** mode=close: 既存の指示を終了する。 */
+  private declareInstructionClose(
+    res: http.ServerResponse,
+    parsed: Record<string, unknown>,
+    ctx: { readonly now: string; readonly flightDb: FlightRecordDatabase },
+  ): void {
+    const instructionId = parsed['instructionId'];
+    if (typeof instructionId !== 'string' || instructionId === '') {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'instructionId required' }));
+      return;
+    }
+    if (!ctx.flightDb.closeInstruction(instructionId, ctx.now)) {
+      res.writeHead(404, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'instruction not found' }));
+      return;
+    }
+    ctx.flightDb.save();
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ ok: true, instructionId }));
+  }
+
+  /** mode=continue: 既存の指示へセッションを紐づける。 */
+  private declareInstructionContinue(
+    res: http.ServerResponse,
+    parsed: Record<string, unknown>,
+    ctx: { readonly now: string; readonly flightDb: FlightRecordDatabase; readonly sessionId: string },
+  ): void {
+    const instructionId = parsed['instructionId'];
+    if (typeof instructionId !== 'string' || instructionId === '') {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'instructionId required' }));
+      return;
+    }
+    const declaredWorkspace = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
+    if (!ctx.flightDb.continueInstruction({
+      instructionId,
+      sessionId: ctx.sessionId,
+      declaredAt: ctx.now,
+      ...(declaredWorkspace === '' ? {} : { workspacePath: declaredWorkspace }),
+    })) {
+      // 存在しない指示・別ワークスペースの指示を黙って受け入れない
+      // （取り違えた ID がそのまま台帳に増え、混入行は絞り込みでも落とせない）
+      res.writeHead(404, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'instruction not found in this workspace' }));
+      return;
+    }
+    ctx.flightDb.save();
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ ok: true, instructionId }));
+  }
+
+  /** mode=new: 指示を新規に開く。instructionId 未指定なら採番する。 */
+  private declareInstructionNew(
+    res: http.ServerResponse,
+    parsed: Record<string, unknown>,
+    ctx: { readonly now: string; readonly flightDb: FlightRecordDatabase; readonly sessionId: string },
+  ): void {
+    const summary = parsed['summary'];
+    if (typeof summary !== 'string' || summary.trim() === '') {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'summary required' }));
+      return;
+    }
+    const workspacePath = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
+    const providedId = parsed['instructionId'];
+    const instructionId =
+      typeof providedId === 'string' && providedId !== '' ? providedId : randomUUID();
+    ctx.flightDb.openInstruction({
+      id: instructionId,
+      sessionId: ctx.sessionId,
+      workspacePath,
+      workspaceName:
+        typeof parsed['workspaceName'] === 'string' && parsed['workspaceName'] !== ''
+          ? parsed['workspaceName']
+          : path.basename(workspacePath),
+      summary: summary.slice(0, TrailDataServer.INSTRUCTION_SUMMARY_MAX_CHARS),
+      originPrompt:
+        typeof parsed['originPrompt'] === 'string'
+          ? parsed['originPrompt'].slice(0, TrailDataServer.INSTRUCTION_PROMPT_MAX_CHARS)
+          : '',
+      startedAt: ctx.now,
+    });
+    ctx.flightDb.save();
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ ok: true, instructionId }));
   }
 
   /** GET フィルタで受け付ける outcome（unknown を含む全 enum。手動訂正の入力とは別物）。 */
@@ -3439,61 +3525,27 @@ export class TrailDataServer {
           res.end(JSON.stringify({ error: 'invalid JSON body' }));
           return;
         }
-        const patch: FlightReviewManualPatch = {};
-        const outcome = parsed['outcome'];
-        if (outcome !== undefined) {
-          if (typeof outcome !== 'string' || !TrailDataServer.FLIGHT_REVIEW_MANUAL_OUTCOMES.includes(outcome)) {
-            res.writeHead(400, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'invalid outcome' }));
-            return;
-          }
-          patch.outcome = outcome as FlightReviewManualPatch['outcome'];
-        }
-        const tags = parsed['tags'];
-        if (tags !== undefined) {
-          const valid =
-            Array.isArray(tags) &&
-            tags.length <= TrailDataServer.FLIGHT_REVIEW_TAGS_MAX_COUNT &&
-            tags.every(
-              (t) => typeof t === 'string' && t.length > 0 && t.length <= TrailDataServer.FLIGHT_REVIEW_TAG_MAX_CHARS,
-            );
-          if (!valid) {
-            res.writeHead(400, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'invalid tags' }));
-            return;
-          }
-          patch.tags = tags as string[];
-        }
-        const notes = parsed['notes'];
-        if (notes !== undefined) {
-          if (typeof notes !== 'string' || notes.length > TrailDataServer.FLIGHT_REVIEW_NOTES_MAX_CHARS) {
-            res.writeHead(400, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'invalid notes' }));
-            return;
-          }
-          patch.notes = notes;
+        const patchResult = TrailDataServer.buildFlightReviewManualPatch(parsed);
+        if (patchResult.kind === 'invalid') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: patchResult.error }));
+          return;
         }
         // Rationale Audit（S4）: outcome 系とは別経路で適用する（outcome_source を manual 化しない）
-        const auditStatus = parsed['rationaleAuditStatus'];
-        if (auditStatus !== undefined && (typeof auditStatus !== 'string' || !TrailDataServer.FLIGHT_REVIEW_AUDIT_STATUSES.includes(auditStatus))) {
+        const audit = TrailDataServer.parseRationaleAuditStatus(parsed['rationaleAuditStatus']);
+        if (audit.kind === 'invalid') {
           res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ error: 'invalid rationaleAuditStatus' }));
           return;
         }
-        const hasManualField = patch.outcome !== undefined || patch.tags !== undefined || patch.notes !== undefined;
-        if (!hasManualField && auditStatus === undefined) {
-          res.writeHead(400, JSON_HEADERS);
-          res.end(JSON.stringify({ error: 'no updatable field (outcome / tags / notes / rationaleAuditStatus)' }));
-          return;
-        }
-        const flightDb = this.requireFlightRecordDb();
-        const manualOk = hasManualField ? flightDb.updateFlightReviewManual(sessionId, patch) : true;
-        const auditOk = auditStatus !== undefined
-          ? flightDb.markRationaleAudit(sessionId, auditStatus as RationaleAuditStatus)
-          : true;
-        if (!manualOk || !auditOk) {
-          res.writeHead(404, JSON_HEADERS);
-          res.end(JSON.stringify({ error: 'flight review not found' }));
+        const failure = this.applyFlightReviewManualUpdate({
+          sessionId,
+          patch: patchResult.patch,
+          auditStatus: audit.kind === 'ok' ? audit.value : undefined,
+        });
+        if (failure) {
+          res.writeHead(failure.status, JSON_HEADERS);
+          res.end(JSON.stringify({ error: failure.error }));
           return;
         }
         res.writeHead(200, JSON_HEADERS);
@@ -3503,6 +3555,85 @@ export class TrailDataServer {
         sendServerError(res, 'Failed to update flight review');
       }
     });
+  }
+
+  /**
+   * 手動訂正（PATCH）の outcome / tags / notes を検証して patch を組む。
+   * 検証はサーバー側が正 — UI の select 制約を境界と見なさない。
+   */
+  private static buildFlightReviewManualPatch(
+    parsed: Record<string, unknown>,
+  ):
+    | { readonly kind: 'ok'; readonly patch: FlightReviewManualPatch }
+    | { readonly kind: 'invalid'; readonly error: string } {
+    const patch: FlightReviewManualPatch = {};
+    const outcome = parsed['outcome'];
+    if (outcome !== undefined) {
+      if (typeof outcome !== 'string' || !TrailDataServer.FLIGHT_REVIEW_MANUAL_OUTCOMES.includes(outcome)) {
+        return { kind: 'invalid', error: 'invalid outcome' };
+      }
+      patch.outcome = outcome as FlightReviewManualPatch['outcome'];
+    }
+    const tags = parsed['tags'];
+    if (tags !== undefined) {
+      const valid =
+        Array.isArray(tags) &&
+        tags.length <= TrailDataServer.FLIGHT_REVIEW_TAGS_MAX_COUNT &&
+        tags.every(
+          (t) => typeof t === 'string' && t.length > 0 && t.length <= TrailDataServer.FLIGHT_REVIEW_TAG_MAX_CHARS,
+        );
+      if (!valid) {
+        return { kind: 'invalid', error: 'invalid tags' };
+      }
+      patch.tags = tags as string[];
+    }
+    const notes = parsed['notes'];
+    if (notes !== undefined) {
+      if (typeof notes !== 'string' || notes.length > TrailDataServer.FLIGHT_REVIEW_NOTES_MAX_CHARS) {
+        return { kind: 'invalid', error: 'invalid notes' };
+      }
+      patch.notes = notes;
+    }
+    return { kind: 'ok', patch };
+  }
+
+  /** rationaleAuditStatus の検証。未指定は 'absent'、許可外の値は 'invalid'。 */
+  private static parseRationaleAuditStatus(
+    raw: unknown,
+  ):
+    | { readonly kind: 'absent' }
+    | { readonly kind: 'ok'; readonly value: RationaleAuditStatus }
+    | { readonly kind: 'invalid' } {
+    if (raw === undefined) return { kind: 'absent' };
+    if (typeof raw !== 'string' || !TrailDataServer.FLIGHT_REVIEW_AUDIT_STATUSES.includes(raw)) {
+      return { kind: 'invalid' };
+    }
+    return { kind: 'ok', value: raw as RationaleAuditStatus };
+  }
+
+  /**
+   * 手動訂正と Rationale Audit を適用する。更新対象が 1 つも無い場合と、対象レコードが
+   * 見つからない場合はエラー（status + message）を返す。成功時は null。
+   */
+  private applyFlightReviewManualUpdate(args: {
+    readonly sessionId: string;
+    readonly patch: FlightReviewManualPatch;
+    readonly auditStatus: RationaleAuditStatus | undefined;
+  }): { readonly status: number; readonly error: string } | null {
+    const { sessionId, patch, auditStatus } = args;
+    const hasManualField = patch.outcome !== undefined || patch.tags !== undefined || patch.notes !== undefined;
+    if (!hasManualField && auditStatus === undefined) {
+      return { status: 400, error: 'no updatable field (outcome / tags / notes / rationaleAuditStatus)' };
+    }
+    const flightDb = this.requireFlightRecordDb();
+    const manualOk = hasManualField ? flightDb.updateFlightReviewManual(sessionId, patch) : true;
+    const auditOk = auditStatus !== undefined
+      ? flightDb.markRationaleAudit(sessionId, auditStatus)
+      : true;
+    if (!manualOk || !auditOk) {
+      return { status: 404, error: 'flight review not found' };
+    }
+    return null;
   }
 
   // -------------------------------------------------------------------------
@@ -3989,21 +4120,12 @@ export class TrailDataServer {
       excludeTests: boolean;
     }>,
   ): void {
-    const { file, fn, direction, depthParam, lineParam, scope, excludeTests } = params;
+    const { file, fn, depthParam, lineParam, excludeTests } = params;
     try {
-      if (!file || !fn) {
+      const validated = TrailDataServer.validateCallHierarchyParams(params);
+      if (validated.kind === 'invalid') {
         res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'file and fn query params are required' }));
-        return;
-      }
-      if (direction !== 'callers' && direction !== 'callees') {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'direction must be callers or callees' }));
-        return;
-      }
-      if (scope !== 'project' && scope !== 'package' && scope !== 'file') {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'scope must be project, package, or file' }));
+        res.end(JSON.stringify({ error: validated.error }));
         return;
       }
       const depth = clampInt(depthParam, 1, 0, 10);
@@ -4017,25 +4139,7 @@ export class TrailDataServer {
         return;
       }
 
-      let target: { id: string; filePath: string } | undefined;
-      let fallback: { id: string; filePath: string } | undefined;
-      for (const node of index.nodes.values()) {
-        if (node.type !== 'function') continue;
-        if (node.filePath !== file) continue;
-        if (node.label !== fn) continue;
-        if (typeof requestedLine === 'number' && Number.isFinite(requestedLine)) {
-          if (node.line === requestedLine) {
-            target = node;
-            break;
-          }
-          fallback ??= node;
-        } else {
-          target = node;
-          break;
-        }
-      }
-      target ??= fallback;
-
+      const target = findCallHierarchyTarget(index, { file, fn, requestedLine });
       if (!target) {
         res.writeHead(404, JSON_HEADERS);
         res.end(JSON.stringify({ error: 'function not found', file, fn }));
@@ -4043,7 +4147,7 @@ export class TrailDataServer {
       }
 
       const nodeFilter = buildCallHierarchyNodeFilter({
-        scope: scope as CallHierarchyScope,
+        scope: validated.scope,
         excludeTests,
         rootFilePath: target.filePath,
       });
@@ -4051,7 +4155,7 @@ export class TrailDataServer {
       const tree = traverseCallHierarchy(
         index,
         target.id,
-        direction as CallHierarchyDirection,
+        validated.direction,
         depth,
         nodeFilter ? { nodeFilter } : undefined,
       );
@@ -4067,6 +4171,25 @@ export class TrailDataServer {
       this.logger.error('[/api/c4/call-hierarchy] failed', e);
       sendServerError(res, 'call-hierarchy failed');
     }
+  }
+
+  /** call-hierarchy のクエリパラメータを検証する。不正なら 400 に載せるメッセージを返す。 */
+  private static validateCallHierarchyParams(
+    params: Readonly<{ file: string; fn: string; direction: string; scope: string }>,
+  ):
+    | { readonly kind: 'ok'; readonly direction: CallHierarchyDirection; readonly scope: CallHierarchyScope }
+    | { readonly kind: 'invalid'; readonly error: string } {
+    const { file, fn, direction, scope } = params;
+    if (!file || !fn) {
+      return { kind: 'invalid', error: 'file and fn query params are required' };
+    }
+    if (direction !== 'callers' && direction !== 'callees') {
+      return { kind: 'invalid', error: 'direction must be callers or callees' };
+    }
+    if (scope !== 'project' && scope !== 'package' && scope !== 'file') {
+      return { kind: 'invalid', error: 'scope must be project, package, or file' };
+    }
+    return { kind: 'ok', direction, scope };
   }
 
   /**
@@ -4425,6 +4548,156 @@ export function isClientMessage(data: unknown): data is ClientMessage {
     'provider.recheck',
   ];
   return typeof msg.type === 'string' && validTypes.includes(msg.type);
+}
+
+// ---------------------------------------------------------------------------
+//  call-hierarchy のノード探索
+// ---------------------------------------------------------------------------
+
+/** file / fn が一致する function ノードか（元の 3 段の continue と同じ判定順）。 */
+function matchesCallHierarchyFunction(
+  node: Readonly<{ type: string; filePath: string; label: string }>,
+  file: string,
+  fn: string,
+): boolean {
+  if (node.type !== 'function') return false;
+  if (node.filePath !== file) return false;
+  return node.label === fn;
+}
+
+/**
+ * index から file / fn に一致する function ノードを探す。
+ * requestedLine が有効な数値なら行一致を優先し、行が合わない場合は最初の一致を fallback にする。
+ * requestedLine が無効・未指定なら最初の一致をそのまま返す。
+ */
+function findCallHierarchyTarget(
+  index: ReturnType<typeof buildCallHierarchyIndex>,
+  criteria: Readonly<{ file: string; fn: string; requestedLine: number | undefined }>,
+): { id: string; filePath: string } | undefined {
+  const { file, fn, requestedLine } = criteria;
+  // 行指定の有無はループ不変なので事前に判定する。
+  const wantsLine = typeof requestedLine === 'number' && Number.isFinite(requestedLine);
+  let fallback: { id: string; filePath: string } | undefined;
+  for (const node of index.nodes.values()) {
+    if (!matchesCallHierarchyFunction(node, file, fn)) continue;
+    if (!wantsLine) return node;
+    if (node.line === requestedLine) return node;
+    fallback ??= node;
+  }
+  return fallback;
+}
+
+// ---------------------------------------------------------------------------
+//  GET /api/trail/sessions/:id — メッセージ射影の補助
+// ---------------------------------------------------------------------------
+
+/** activity_message_commits を messageUuid → commitHash[] の索引にする。 */
+function buildCommitsByMessageUuid(
+  messageCommits: readonly { readonly messageUuid: string; readonly commitHash: string }[],
+): Map<string, string[]> {
+  const commitsByMessageUuid = new Map<string, string[]>();
+  for (const mc of messageCommits) {
+    const arr = commitsByMessageUuid.get(mc.messageUuid) ?? [];
+    arr.push(mc.commitHash);
+    commitsByMessageUuid.set(mc.messageUuid, arr);
+  }
+  return commitsByMessageUuid;
+}
+
+/** activity_message_commits stores user message UUIDs; map back to the parent assistant UUID */
+function buildCommitsByAssistantUuid(
+  rawMessages: readonly MessageRow[],
+  commitsByMessageUuid: ReadonlyMap<string, string[]>,
+): Map<string, string[]> {
+  const commitsByAssistantUuid = new Map<string, string[]>();
+  for (const m of rawMessages) {
+    const hashes = commitsByMessageUuid.get(m.uuid);
+    if (hashes && m.parent_uuid) commitsByAssistantUuid.set(m.parent_uuid, hashes);
+  }
+  return commitsByAssistantUuid;
+}
+
+/** msgTime 以降 5 分以内で最も近い commit を返す（該当なしは null）。 */
+function findClosestCommitWithin(
+  sessionCommits: readonly SessionCommitRow[],
+  msgTime: number,
+): SessionCommitRow | null {
+  let closest: SessionCommitRow | null = null;
+  let closestDiff = Infinity;
+  for (const sc of sessionCommits) {
+    if (!sc.committed_at) continue;
+    const diff = new Date(sc.committed_at).getTime() - msgTime;
+    if (diff >= 0 && diff < 300_000 && diff < closestDiff) {
+      closest = sc;
+      closestDiff = diff;
+    }
+  }
+  return closest;
+}
+
+/**
+ * git-commit assistant メッセージを activity_session_commits と時刻の近接で突き合わせ、
+ * 一致した分だけ `target` へ追加する（activity_message_commits 未 backfill 時のフォールバック）。
+ */
+function fillCommitsByTimestampProximity(args: {
+  readonly rawMessages: readonly MessageRow[];
+  readonly sessionCommits: readonly SessionCommitRow[];
+  readonly gitCommitUuids: ReadonlySet<string>;
+  readonly target: Map<string, string[]>;
+}): void {
+  for (const m of args.rawMessages) {
+    if (!args.gitCommitUuids.has(m.uuid) || !m.timestamp) continue;
+    const closest = findClosestCommitWithin(args.sessionCommits, new Date(m.timestamp).getTime());
+    if (closest) args.target.set(m.uuid, [closest.commit_hash]);
+  }
+}
+
+/** toSessionMessageDto がメッセージ単位で引く索引群。 */
+interface SessionMessageMapContext {
+  readonly codexSessionByAssistantUuid: ReturnType<TrailDatabase['getLinkedCodexSessionByAssistantUuid']>;
+  readonly commitsByAssistantUuid: ReadonlyMap<string, string[]>;
+  readonly commitsByMessageUuid: ReadonlyMap<string, string[]>;
+  readonly errorUuids: ReturnType<TrailDatabase['getErrorMessageUuids']>;
+  readonly gitCommitUuids: ReturnType<TrailDatabase['getGitCommitMessageUuids']>;
+  readonly toolExecMsMap: ReturnType<TrailDatabase['getTurnExecMsBySession']>;
+  readonly skillsMap: ReturnType<TrailDatabase['getSkillsBySession']>;
+}
+
+/** GET /api/trail/sessions/:id のメッセージ 1 件を API レスポンス形へ射影する。 */
+function toSessionMessageDto(m: MessageRow, ctx: SessionMessageMapContext) {
+  const linkedCodexSessionId = ctx.codexSessionByAssistantUuid.get(m.uuid);
+  const agentId = m.agent_id ?? (linkedCodexSessionId ? `codex:${linkedCodexSessionId}` : undefined);
+  const agentDescription = m.agent_description ?? (linkedCodexSessionId
+    ? `Codex delegated session ${linkedCodexSessionId.slice(0, 8)}`
+    : undefined);
+  return {
+    uuid: m.uuid,
+    parentUuid: m.parent_uuid,
+    type: m.type,
+    subtype: m.subtype,
+    textContent: m.text_content,
+    userContent: m.user_content,
+    toolCalls: m.tool_calls ? JSON.parse(m.tool_calls) : undefined,
+    model: m.model,
+    usage: (m.input_tokens || m.output_tokens || m.cache_read_tokens)
+      ? {
+        inputTokens: m.input_tokens,
+        outputTokens: m.output_tokens,
+        cacheReadTokens: m.cache_read_tokens,
+        cacheCreationTokens: m.cache_creation_tokens,
+      }
+      : undefined,
+    timestamp: m.timestamp,
+    isSidechain: m.is_sidechain === 1,
+    triggerCommitHashes: ctx.commitsByAssistantUuid.get(m.uuid) ?? ctx.commitsByMessageUuid.get(m.uuid),
+    hasToolError: ctx.errorUuids.has(m.uuid) ? true : undefined,
+    hasCommit: ctx.gitCommitUuids.has(m.uuid) ? true : undefined,
+    agentId,
+    agentDescription,
+    codexSessionId: linkedCodexSessionId,
+    toolExecMs: ctx.toolExecMsMap.get(m.uuid),
+    skill: ctx.skillsMap.get(m.uuid),
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import type { CaravanDbConnection } from '../db/connection/types';
 import type { CaravanLogger } from '../logger';
 import type { DriftEventInput } from './report';
-import { THRESHOLDS, decideSeverity } from './policy';
+import { THRESHOLDS, decideSeverity, CODE_STRUCTURAL_PREDICATES } from './policy';
 
 export function detectReviewUnfixed(input: {
   db: CaravanDbConnection;
@@ -23,7 +23,7 @@ export function detectReviewUnfixed(input: {
   try {
     rows = db.exec(
       `SELECT f.id, f.finding_entity_id, f.target_file_path, f.severity, f.recorded_at,
-              COALESCE(r.workspace, '') AS workspace
+              COALESCE(r.workspace, '') AS workspace, f.target_repo
        FROM caravan_review_findings f
        LEFT JOIN caravan_reviews r ON r.id = f.review_id
        WHERE f.addressed_at IS NULL
@@ -64,6 +64,9 @@ export function detectReviewUnfixed(input: {
         target_file_path: filePath,
         recorded_at: recordedAt,
         days_old: daysOld,
+        // 対象ファイルの実在ゲート (targetExistence) の判定基準。workspace は
+        // 「レビューが行われたリポジトリ」であり対象の所在ではない（migration 016）。
+        target_repo: (row[6] as string | null) ?? null,
       },
     });
   }
@@ -77,6 +80,10 @@ export function detectReviewVsCode(input: {
 }): DriftEventInput[] {
   const { db, existingSpecVsCodeKeys = new Set(), logger } = input;
 
+  // 除外述語は CODE_STRUCTURAL_PREDICATES（コンパイル時のリテラル配列）から組み立てる。
+  // ここを 'relates_to' 決め打ちにすると、述語が分かれるたびに 3 箇所の一つだけが取り残される。
+  const excludedPredicates = CODE_STRUCTURAL_PREDICATES.map((p) => `'${p}'`).join(', ');
+
   let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
@@ -87,7 +94,7 @@ export function detectReviewVsCode(input: {
        WHERE valid_to IS NULL
          AND modality = 'asserted'
          AND confidence >= 0.6
-         AND predicate NOT IN ('relates_to')
+         AND predicate NOT IN (${excludedPredicates})
        GROUP BY subject_entity_id, predicate
        HAVING rev_v IS NOT NULL AND code_v IS NOT NULL AND rev_v != code_v`,
     );
@@ -152,7 +159,9 @@ export function detectRecurringReviewFindings(input: {
       `SELECT f.target_file_path, f.category, COUNT(*) AS cnt,
               GROUP_CONCAT(f.id) AS finding_ids,
               CASE WHEN COUNT(DISTINCT NULLIF(r.workspace, '')) = 1
-                   THEN MIN(NULLIF(r.workspace, '')) ELSE '' END AS workspace
+                   THEN MIN(NULLIF(r.workspace, '')) ELSE '' END AS workspace,
+              CASE WHEN COUNT(DISTINCT NULLIF(f.target_repo, '')) = 1
+                   THEN MIN(NULLIF(f.target_repo, '')) ELSE NULL END AS target_repo
        FROM caravan_review_findings f
        LEFT JOIN caravan_reviews r ON r.id = f.review_id
        WHERE f.category NOT IN (${placeholders})
@@ -185,7 +194,16 @@ export function detectRecurringReviewFindings(input: {
       drift_type: 'recurring_review_finding',
       severity: 'warn',
       workspace: (row[4] as string | null) ?? '',
-      detail: { file_path: filePath, category, cnt, finding_ids: findingIds, windowDays },
+      detail: {
+        file_path: filePath,
+        category,
+        cnt,
+        finding_ids: findingIds,
+        windowDays,
+        // クラスタ内の指摘が単一の target_repo（対象の実リポジトリ）へ収束するときだけ
+        // 確定する。混在・全 null は null（実在ゲートは fail-open で素通しする）。
+        target_repo: (row[5] as string | null) ?? null,
+      },
     });
   }
   return results;

@@ -215,6 +215,234 @@ function computeSizeColorMap(
   return map;
 }
 
+// ─── Per-overlay color maps ───────────────────────────────────────────────────
+
+function computeComplexityColorMap(
+  overlay: 'edit-complexity-most' | 'edit-complexity-highest',
+  complexityMatrix: ComplexityMatrix,
+): Map<string, string> {
+  const field = overlay === 'edit-complexity-most' ? 'mostFrequent' : 'highest';
+  const map = new Map<string, string>();
+  for (const entry of complexityMatrix.entries) {
+    map.set(entry.elementId, COMPLEXITY_COLORS[entry[field]]);
+  }
+  return map;
+}
+
+function computeImportanceColorMap(importanceMatrix: ImportanceMatrix): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, score] of Object.entries(importanceMatrix)) {
+    map.set(elementId, importanceHeatColor(score));
+  }
+  return map;
+}
+
+function computeCentralityColorMap(centralityMatrix: CentralityMatrix): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, score] of Object.entries(centralityMatrix)) {
+    map.set(elementId, importanceHeatColor(score));
+  }
+  return map;
+}
+
+function computeRoleColorMap(roleMatrix: RoleMatrix): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, entry] of Object.entries(roleMatrix)) {
+    map.set(elementId, ROLE_COLORS[entry.dominantRole]);
+  }
+  return map;
+}
+
+function computeDefectRiskColorMap(
+  defectRiskMap: ReadonlyMap<string, number>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, score] of defectRiskMap) {
+    map.set(elementId, defectRiskHeatColor(score));
+  }
+  return map;
+}
+
+function computeBusFactorColorMap(
+  busFactorMap: ReadonlyMap<string, number>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, score] of busFactorMap) {
+    map.set(elementId, busFactorHeatColor(score));
+  }
+  return map;
+}
+
+function computeDeadCodeColorMap(deadCodeMatrix: Record<string, number>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, score] of Object.entries(deadCodeMatrix)) {
+    map.set(elementId, deadCodeColor(score));
+  }
+  return map;
+}
+
+// L4 (code) は二値 (ratio = 0 or 1)、L3/L2 はグラデーション。
+// ratio が undefined (集計対象なし) の要素は出力に含めない。
+function computeArchitectureUiColorMap(
+  architectureMatrix: ArchitectureMatrix,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, entry] of Object.entries(architectureMatrix)) {
+    if (entry.ratio === undefined) continue;
+    map.set(elementId, architectureUiColor(entry.ratio));
+  }
+  return map;
+}
+
+// 層の色はテーマ依存のため呼び出し側（trail-viewer）から layerColors を受け取る。
+function computeLayerColorMap(
+  layerMatrix: LayerMatrix,
+  layerColors: Readonly<Record<ArchitectureLayer, string>>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [elementId, layer] of Object.entries(layerMatrix)) {
+    map.set(elementId, layerColors[layer]);
+  }
+  return map;
+}
+
+// ─── Overlay dispatch ─────────────────────────────────────────────────────────
+
+/**
+ * overlay の色決定に使う入力一式。
+ * 引数が 15 個あるため、分岐グループへは 1 オブジェクトに束ねて渡す。
+ */
+interface ColorMapInputs {
+  coverageMatrix: CoverageMatrix | null;
+  dsmMatrix: DsmMatrix | null;
+  complexityMatrix: ComplexityMatrix | null;
+  importanceMatrix: ImportanceMatrix | null;
+  defectRiskMap: ReadonlyMap<string, number> | null;
+  hotspotMap: HotspotMap | null;
+  deadCodeMatrix: Record<string, number> | null;
+  sizeMatrix: SizeMatrix | null;
+  centralityMatrix: CentralityMatrix | null;
+  architectureMatrix: ArchitectureMatrix | null;
+  roleMatrix: RoleMatrix | null;
+  layerMatrix: LayerMatrix | null;
+  layerColors: Readonly<Record<ArchitectureLayer, string>> | null;
+  busFactorMap: ReadonlyMap<string, number> | null;
+}
+
+/** 元になる行列が無い overlay は空 Map へ縮退する（元の `matrix ? build : new Map()` と同一）。 */
+function mapOrEmpty<T>(
+  input: T | null,
+  build: (value: T) => Map<string, string>,
+): Map<string, string> {
+  return input ? build(input) : new Map();
+}
+
+/**
+ * グラフ構造系 overlay（none / coverage / DSM / 編集複雑度）を担当する。
+ * どれにも該当しなければ null を返し、呼び出し側が次のグループへ委ねる。
+ */
+function computeGraphOverlayColorMap(
+  overlay: MetricOverlay,
+  inputs: ColorMapInputs,
+): Map<string, string> | null {
+  if (overlay === 'none') return new Map();
+
+  // ── Coverage ──
+  if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
+    return mapOrEmpty(inputs.coverageMatrix, (m) => computeCoverageColorMap(overlay, m));
+  }
+
+  // ── DSM out/in ──
+  if (overlay === 'dsm-out' || overlay === 'dsm-in') {
+    return mapOrEmpty(inputs.dsmMatrix, (m) => computeDsmOutInColorMap(overlay, m));
+  }
+
+  // ── DSM cyclic ──
+  if (overlay === 'dsm-cyclic') {
+    return mapOrEmpty(inputs.dsmMatrix, computeDsmCyclicColorMap);
+  }
+
+  // ── Complexity ──
+  if (overlay === 'edit-complexity-most' || overlay === 'edit-complexity-highest') {
+    return mapOrEmpty(inputs.complexityMatrix, (m) => computeComplexityColorMap(overlay, m));
+  }
+
+  return null;
+}
+
+/**
+ * スコア系 overlay（重要度 / 中心性 / 関数ロール / 欠陥リスク / 属人度 / デッドコード）を担当する。
+ * どれにも該当しなければ null を返し、呼び出し側が次のグループへ委ねる。
+ */
+function computeScoreOverlayColorMap(
+  overlay: MetricOverlay,
+  inputs: ColorMapInputs,
+): Map<string, string> | null {
+  // ── Importance ──
+  if (overlay === 'importance') {
+    return mapOrEmpty(inputs.importanceMatrix, computeImportanceColorMap);
+  }
+
+  // ── Centrality ──
+  if (overlay === 'centrality') {
+    return mapOrEmpty(inputs.centralityMatrix, computeCentralityColorMap);
+  }
+
+  // ── Function Roles ──
+  if (overlay === 'function-roles') {
+    return mapOrEmpty(inputs.roleMatrix, computeRoleColorMap);
+  }
+
+  // ── Defect Risk ──
+  if (overlay === 'defect-risk') {
+    return mapOrEmpty(inputs.defectRiskMap, computeDefectRiskColorMap);
+  }
+
+  // ── Bus Factor（属人度。高いほど「その人しか触っていない」） ──
+  if (overlay === 'bus-factor') {
+    return mapOrEmpty(inputs.busFactorMap, computeBusFactorColorMap);
+  }
+
+  // ── Dead Code Score ──
+  if (overlay === 'dead-code-score') {
+    return mapOrEmpty(inputs.deadCodeMatrix, computeDeadCodeColorMap);
+  }
+
+  return null;
+}
+
+/**
+ * 規模・変更頻度・アーキテクチャ系 overlay（hotspot / size / architecture）を担当する。
+ * どれにも該当しなければ null を返し、呼び出し側が空 Map へ落とす。
+ */
+function computeVolumeOverlayColorMap(
+  overlay: MetricOverlay,
+  inputs: ColorMapInputs,
+): Map<string, string> | null {
+  // ── Hotspot ──
+  if (overlay === 'hotspot-frequency' || overlay === 'hotspot-risk') {
+    return mapOrEmpty(inputs.hotspotMap, (m) => computeHotspotColorMap(overlay, m));
+  }
+
+  // ── Size metrics (LOC / files / functions) ──
+  if (overlay === 'size-loc' || overlay === 'size-files' || overlay === 'size-functions') {
+    return mapOrEmpty(inputs.sizeMatrix, (m) => computeSizeColorMap(overlay, m));
+  }
+
+  // ── Architecture: UI / Logic 比率 ──
+  if (overlay === 'architecture-ui') {
+    return mapOrEmpty(inputs.architectureMatrix, computeArchitectureUiColorMap);
+  }
+
+  // ── Architecture: レイヤー（9 層・モジュール粒度）──
+  if (overlay === 'architecture-layer') {
+    if (!inputs.layerMatrix || !inputs.layerColors) return new Map();
+    return computeLayerColorMap(inputs.layerMatrix, inputs.layerColors);
+  }
+
+  return null;
+}
+
 export function computeColorMap(
   overlay: MetricOverlay,
   coverageMatrix: CoverageMatrix | null,
@@ -233,128 +461,28 @@ export function computeColorMap(
   /** Phase 6 S5-B: 属人度スコア（0-1）。score 未判定の要素は含まれない */
   busFactorMap: ReadonlyMap<string, number> | null = null,
 ): Map<string, string> {
-  if (overlay === 'none') return new Map();
+  const inputs: ColorMapInputs = {
+    coverageMatrix,
+    dsmMatrix,
+    complexityMatrix,
+    importanceMatrix,
+    defectRiskMap,
+    hotspotMap,
+    deadCodeMatrix,
+    sizeMatrix,
+    centralityMatrix,
+    architectureMatrix,
+    roleMatrix,
+    layerMatrix,
+    layerColors,
+    busFactorMap,
+  };
 
-  // ── Coverage ──
-  if (overlay === 'coverage-lines' || overlay === 'coverage-branches' || overlay === 'coverage-functions') {
-    return coverageMatrix ? computeCoverageColorMap(overlay, coverageMatrix) : new Map();
-  }
-
-  // ── DSM out/in ──
-  if (overlay === 'dsm-out' || overlay === 'dsm-in') {
-    return dsmMatrix ? computeDsmOutInColorMap(overlay, dsmMatrix) : new Map();
-  }
-
-  // ── DSM cyclic ──
-  if (overlay === 'dsm-cyclic') {
-    return dsmMatrix ? computeDsmCyclicColorMap(dsmMatrix) : new Map();
-  }
-
-  // ── Complexity ──
-  if (overlay === 'edit-complexity-most' || overlay === 'edit-complexity-highest') {
-    if (!complexityMatrix) return new Map();
-    const field = overlay === 'edit-complexity-most' ? 'mostFrequent' : 'highest';
-    const map = new Map<string, string>();
-    for (const entry of complexityMatrix.entries) {
-      map.set(entry.elementId, COMPLEXITY_COLORS[entry[field]]);
-    }
-    return map;
-  }
-
-  // ── Importance ──
-  if (overlay === 'importance') {
-    if (!importanceMatrix) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, score] of Object.entries(importanceMatrix)) {
-      map.set(elementId, importanceHeatColor(score));
-    }
-    return map;
-  }
-
-  // ── Centrality ──
-  if (overlay === 'centrality') {
-    if (!centralityMatrix) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, score] of Object.entries(centralityMatrix)) {
-      map.set(elementId, importanceHeatColor(score));
-    }
-    return map;
-  }
-
-  // ── Function Roles ──
-  if (overlay === 'function-roles') {
-    if (!roleMatrix) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, entry] of Object.entries(roleMatrix)) {
-      map.set(elementId, ROLE_COLORS[entry.dominantRole]);
-    }
-    return map;
-  }
-
-  // ── Defect Risk ──
-  if (overlay === 'defect-risk') {
-    if (!defectRiskMap) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, score] of defectRiskMap) {
-      map.set(elementId, defectRiskHeatColor(score));
-    }
-    return map;
-  }
-
-  // ── Bus Factor（属人度。高いほど「その人しか触っていない」） ──
-  if (overlay === 'bus-factor') {
-    if (!busFactorMap) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, score] of busFactorMap) {
-      map.set(elementId, busFactorHeatColor(score));
-    }
-    return map;
-  }
-
-  // ── Hotspot ──
-  if (overlay === 'hotspot-frequency' || overlay === 'hotspot-risk') {
-    if (!hotspotMap) return new Map();
-    return computeHotspotColorMap(overlay, hotspotMap);
-  }
-
-  // ── Dead Code Score ──
-  if (overlay === 'dead-code-score') {
-    if (!deadCodeMatrix) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, score] of Object.entries(deadCodeMatrix)) {
-      map.set(elementId, deadCodeColor(score));
-    }
-    return map;
-  }
-
-  // ── Size metrics (LOC / files / functions) ──
-  if (overlay === 'size-loc' || overlay === 'size-files' || overlay === 'size-functions') {
-    return sizeMatrix ? computeSizeColorMap(overlay, sizeMatrix) : new Map();
-  }
-
-  // ── Architecture: UI / Logic 比率 ──
-  // L4 (code) は二値 (ratio = 0 or 1)、L3/L2 はグラデーション。
-  // ratio が undefined (集計対象なし) の要素は出力に含めない。
-  if (overlay === 'architecture-ui') {
-    if (!architectureMatrix) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, entry] of Object.entries(architectureMatrix)) {
-      if (entry.ratio === undefined) continue;
-      map.set(elementId, architectureUiColor(entry.ratio));
-    }
-    return map;
-  }
-
-  // ── Architecture: レイヤー（9 層・モジュール粒度）──
-  // 層の色はテーマ依存のため呼び出し側（trail-viewer）から layerColors を受け取る。
-  if (overlay === 'architecture-layer') {
-    if (!layerMatrix || !layerColors) return new Map();
-    const map = new Map<string, string>();
-    for (const [elementId, layer] of Object.entries(layerMatrix)) {
-      map.set(elementId, layerColors[layer]);
-    }
-    return map;
-  }
-
-  return new Map();
+  // 判定順序は元の if 連鎖のまま（overlay 値はグループ間で重複しない）。
+  return (
+    computeGraphOverlayColorMap(overlay, inputs) ??
+    computeScoreOverlayColorMap(overlay, inputs) ??
+    computeVolumeOverlayColorMap(overlay, inputs) ??
+    new Map()
+  );
 }

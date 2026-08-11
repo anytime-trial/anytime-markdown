@@ -124,6 +124,24 @@ function addDeletionTarget(
   }
 }
 
+/**
+ * 末尾削除（対応する現在ノードが後方に無い）のターゲット -1 を積む。
+ * 末尾ノード自体が変更扱いなら削除マーカーは出さない。
+ */
+function addTrailingDeletionTarget(
+  current: NodeEntry[],
+  changed: Set<number>,
+  target: { seen: Set<number>; deletionBefore: number[] },
+): void {
+  const n = current.length;
+  const lastCurrentDocIdx = n > 0 ? current[n - 1].docIndex : -1;
+  const endIsChanged = lastCurrentDocIdx >= 0 && changed.has(lastCurrentDocIdx);
+  if (!target.seen.has(-1) && !endIsChanged) {
+    target.seen.add(-1);
+    target.deletionBefore.push(-1);
+  }
+}
+
 /** Detect deletion positions by finding unmatched baseline nodes */
 function detectDeletions(
   baselineLen: number,
@@ -134,7 +152,6 @@ function detectDeletions(
   const matchedBaseline = new Set(matchPairs.map((p) => p.bi));
   const deletionBefore: number[] = [];
   const seen = new Set<number>();
-  const n = current.length;
 
   // matchPairs は bi 昇順にソート済み。bi の単調増加に合わせてポインタを進めることで、
   // 旧実装の matchPairs.find (O(n²)) を O(n+m) に置き換える。
@@ -148,12 +165,7 @@ function detectDeletions(
     if (nextPair) {
       addDeletionTarget(current[nextPair.ci].docIndex, seen, changed, deletionBefore);
     } else {
-      const lastCurrentDocIdx = n > 0 ? current[n - 1].docIndex : -1;
-      const endIsChanged = lastCurrentDocIdx >= 0 && changed.has(lastCurrentDocIdx);
-      if (!seen.has(-1) && !endIsChanged) {
-        seen.add(-1);
-        deletionBefore.push(-1);
-      }
+      addTrailingDeletionTarget(current, changed, { seen, deletionBefore });
     }
   }
   return deletionBefore;

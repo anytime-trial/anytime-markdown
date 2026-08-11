@@ -148,7 +148,7 @@ export function createMarkdownMinimap(
     diffSource ? diffSource.getRatios() : calcChangeRatios(editor, defaultContainer);
 
   const root = document.createElement("div");
-  root.setAttribute("data-am-minimap", "");
+  root.dataset.amMinimap = "";
   root.style.cssText = [
     `width:${BAR_WIDTH}px`,
     "flex-shrink:0",
@@ -184,7 +184,7 @@ export function createMarkdownMinimap(
 
   // クリックジャンプ可能なバー本体。マーカーを absolute で重ねる基準（position:relative）。
   const bar = document.createElement("div");
-  bar.setAttribute("data-am-minimap-bar", "");
+  bar.dataset.amMinimapBar = "";
   bar.style.cssText = [
     "flex:1 1 auto",
     "width:100%",
@@ -228,7 +228,7 @@ export function createMarkdownMinimap(
       barHeight > 0 ? Math.max(MARKER_MIN_HEIGHT, barHeight * 0.03) : MARKER_MIN_HEIGHT;
     for (const ratio of ratios) {
       const marker = document.createElement("div");
-      marker.setAttribute("data-am-minimap-marker", "");
+      marker.dataset.amMinimapMarker = "";
       marker.style.cssText = [
         "position:absolute",
         "left:0",

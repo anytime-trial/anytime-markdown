@@ -275,7 +275,7 @@ export function createEditorToolbar(
     );
   }
   const markSideCoupled = (el: HTMLElement): void => {
-    if (sideCoupled) el.setAttribute("data-am-side-coupled", "");
+    if (sideCoupled) el.dataset.amSideCoupled = "";
   };
   const fileHandlers = opts.fileHandlers;
 
@@ -616,10 +616,8 @@ export function createEditorToolbar(
     );
   }
 
-  // --- ビュー切替（explorer / outline / comments） — md 以上で表示 ---
-  const desktopViews = document.createElement("div");
-  desktopViews.setAttribute("data-desktop-contents", "");
-  {
+  /** ビュー切替（explorer / outline / comments）の ToggleButtonGroup を container へ追加する。 */
+  function buildDesktopViewToggles(container: HTMLElement): void {
     const group = createToggleButtonGroup({ size: "small", ariaLabel: t("view") });
     group.el.style.height = "30px";
     toggleGroups.push(group);
@@ -669,8 +667,13 @@ export function createEditorToolbar(
       withTooltip(span, label);
       group.register(btn);
     }
-    desktopViews.appendChild(group.el);
+    container.appendChild(group.el);
   }
+
+  // --- ビュー切替（explorer / outline / comments） — md 以上で表示 ---
+  const desktopViews = document.createElement("div");
+  desktopViews.dataset.desktopContents = "";
+  buildDesktopViewToggles(desktopViews);
   root.appendChild(desktopViews);
 
   // --- spacer（右寄せ） ---
@@ -698,7 +701,7 @@ export function createEditorToolbar(
       labelSpan.textContent = ariaLabel;
       // 旧 .modeLabel parity: 狭幅（<900px・ハンバーガー表示時）はアイコンのみにするため、
       // ラベルの表示制御を responsive スタイルシートに委ねる（インライン display は置かない）。
-      labelSpan.setAttribute("data-mode-label", "");
+      labelSpan.dataset.modeLabel = "";
       const iconEl = svgIcon(icon, 16);
       const btn = createToggleButton({
         value,
@@ -743,7 +746,7 @@ export function createEditorToolbar(
   let compareGroup: ReturnType<typeof createToggleButtonGroup> | null = null;
   if (!hide.modeToggle && !hide.compareToggle) {
     const wrapper = document.createElement("div");
-    wrapper.setAttribute("data-compare-toggle", "");
+    wrapper.dataset.compareToggle = "";
     compareGroup = createToggleButtonGroup({
       variant: "pill",
       size: "small",
@@ -790,7 +793,7 @@ export function createEditorToolbar(
   if (!hide.moreMenu) {
     // desktop: ヘルプアンカー。
     const desktopWrap = document.createElement("div");
-    desktopWrap.setAttribute("data-more-desktop", "");
+    desktopWrap.dataset.moreDesktop = "";
     desktopWrap.style.cssText =
       `width:${SIDE_TOOLBAR_WIDTH}px;flex-shrink:0;margin-left:auto;` +
       "border-left:1px solid var(--am-color-divider);";
@@ -810,7 +813,7 @@ export function createEditorToolbar(
 
     // mobile: ハンバーガー（host 側 React Menu へ intent）。
     const mobileWrap = document.createElement("div");
-    mobileWrap.setAttribute("data-more-mobile", "");
+    mobileWrap.dataset.moreMobile = "";
     const mobileBtn = createIconButton({
       size: "small",
       ariaLabel: t("more"),

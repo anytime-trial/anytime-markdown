@@ -9,7 +9,11 @@
  * 色だけでなくテキストでも示す（色のみで情報を伝えない）。
  */
 import { escapeHtml } from '../shared/escapeHtml';
-import type { CaravanFlightReviewFindingRow } from '../data/types';
+import { workspaceLabel } from '../shared/workspaceLabel';
+import type {
+  CaravanFlightReviewFindingRow,
+  CaravanFlightReviewFindingSummary,
+} from '../data/types';
 
 export type FindingsTranslate = (key: string) => string;
 
@@ -194,11 +198,67 @@ export function renderFindingSection(input: {
 }
 
 /**
+ * Review サブタブ上部の対処率集計。
+ *
+ * 分母を「追跡対象（自動リンクの母集合）」に限った率と、分母から外れた残量（info /
+ * 追跡不能）を並べて出す。全件を分母にした単一の率は、リンク対象外が 8 割を占める
+ * 現状では実態より低く見え、改善施策が効いたかも読めないため出さない。
+ * 集計は全経路（セッション・レビュー文書）で、一覧（セッション経路のみ）より広い。
+ */
+export function renderFindingSummary(input: {
+  t: FindingsTranslate;
+  summary: CaravanFlightReviewFindingSummary | null;
+  loadFailed: boolean;
+}): string {
+  const { t, summary } = input;
+  // 表本体が loadFailed の文言を出すので、ここでは重ねない。
+  if (input.loadFailed) return '';
+  if (summary === null) {
+    return `<p data-am-finding-summary-unavailable role="status">${escapeHtml(
+      t('flightRecord.findings.summary.unavailable'),
+    )}</p>`;
+  }
+  const untrackable = summary.noPath + summary.unresolvedRepo;
+  const rate = summary.tracked === 0 ? null : Math.round((summary.addressed / summary.tracked) * 100);
+  const rateText = rate === null ? '—' : `${summary.addressed} / ${summary.tracked} (${rate}%)`;
+  return `<dl data-am-finding-summary title="${escapeHtml(t('flightRecord.findings.summary.scopeHint'))}">
+    <div data-am-finding-summary-item data-kind="rate">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.addressedRate'))}</dt>
+      <dd>${escapeHtml(rateText)}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="untrackable"
+      title="${escapeHtml(t('flightRecord.findings.summary.untrackableHint'))}">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.untrackable'))}</dt>
+      <dd>${untrackable}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="inferred"
+      title="${escapeHtml(t('flightRecord.findings.summary.inferredHint'))}">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.inferred'))}</dt>
+      <dd>${summary.inferred}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="weak-linked"
+      title="${escapeHtml(t('flightRecord.findings.summary.weakLinkedHint'))}">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.weakLinked'))}</dt>
+      <dd>${summary.weakLinked}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="info">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.info'))}</dt>
+      <dd>${summary.info}</dd>
+    </div>
+    <div data-am-finding-summary-item data-kind="total">
+      <dt>${escapeHtml(t('flightRecord.findings.summary.total'))}</dt>
+      <dd>${summary.total}</dd>
+    </div>
+  </dl>`;
+}
+
+/**
  * Review サブタブの全指示横断表。
  *
- * 列順は「指摘 → 状態 → レビュー日 → 重大度 → カテゴリ → 対象 → 指示」。指摘本文を先頭に
- * 置くのは、この表を読む目的が「何を指摘されたか」であって、どの指示に属するかは
- * 絞り込み・行クリックで辿る二次情報のため。thead と tbody は同じ順で並べる
+ * 列順は「指摘 → 状態 → レビュー日 → 重大度 → カテゴリ → 対象 → ワークスペース → 指示」。
+ * 指摘本文を先頭に置くのは、この表を読む目的が「何を指摘されたか」であって、どの指示に
+ * 属するかは絞り込み・行クリックで辿る二次情報のため。ワークスペースを指示の直前へ置くのは
+ * 同じ「どの文脈の記録か」を答える列だから。thead と tbody は同じ順で並べる
  * （片方だけ替えると値が別の列へ入り、件数を見るテストでは捕まらない）。
  */
 export function renderFindingTable(input: {
@@ -234,6 +294,7 @@ export function renderFindingTable(input: {
         <td data-am-finding-nowrap-cell>${severityChip(t, row.severity)}</td>
         <td data-am-finding-nowrap-cell>${escapeHtml(row.category)}</td>
         <td data-am-finding-target-cell>${targetCell(t, row, linkable)}</td>
+        <td data-am-finding-nowrap-cell>${escapeHtml(workspaceLabel(row.workspace))}</td>
         <td>${escapeHtml(labelOf(row.instructionId))}</td>
       </tr>`,
     )
@@ -252,6 +313,7 @@ export function renderFindingTable(input: {
         <th>${escapeHtml(t('flightRecord.findings.column.severity'))}</th>
         <th>${escapeHtml(t('flightRecord.findings.column.category'))}</th>
         <th>${escapeHtml(t('flightRecord.findings.column.target'))}</th>
+        <th>${escapeHtml(t('flightRecord.column.workspace'))}</th>
         <th>${escapeHtml(t('flightRecord.column.instruction'))}</th>
       </tr></thead>
       <tbody>${rows}</tbody>

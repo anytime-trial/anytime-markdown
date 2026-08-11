@@ -201,60 +201,96 @@ function leafArray(spec: ThinkingDiagramSpec, path: string): string[] {
 
 // ── 各操作の適用 ─────────────────────────────────────────────────────
 
-function applySetLabel(spec: ThinkingDiagramSpec, path: string, value: string): void {
-  if (spec.type === "causal-loop") {
-    const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
-    if (polMatch) {
-      const link = spec.links[Number(polMatch[1])];
-      if (!link) throw new AnytimeGraphMutateError(`link index ${polMatch[1]} がありません`);
-      // 極性は +/- に正規化。不正値は既存値を維持し DSL の round-trip を壊さない。
-      const norm = normalizePolarity(value);
-      if (norm) link.polarity = norm;
-      return;
-    }
-    const idx = causalLoopVarIndex(path);
-    if (idx !== null) {
-      const vars = causalLoopVariables(spec);
-      const old = vars[idx];
-      if (old === undefined) throw new AnytimeGraphMutateError(`変数 index ${idx} がありません`);
-      for (const link of spec.links) {
-        if (link.from === old) link.from = value;
-        if (link.to === old) link.to = value;
-      }
-      return;
-    }
+/** 変数名の改名を links の両端点へ反映する。 */
+function renameCausalLoopVariable(
+  spec: Extract<ThinkingDiagramSpec, { type: "causal-loop" }>,
+  old: string,
+  value: string
+): void {
+  for (const link of spec.links) {
+    if (link.from === old) link.from = value;
+    if (link.to === old) link.to = value;
   }
-  // structure-map で部分の見出しを改名する場合、その部分を端点に持つ関係も追従改名する
-  // （追従しないと関係が旧ラベルを指して dangling になり、再パースで GraphDslError）。
-  if (spec.type === "structure-map") {
-    const m = /^parts\.(\d+)$/.exec(path);
-    if (m) {
-      const part = spec.parts[Number(m[1])];
-      if (part) {
-        const old = part.label;
-        for (const r of spec.relations) {
-          if (r.from === old) r.from = value;
-          if (r.to === old) r.to = value;
-        }
-      }
-    }
+}
+
+/**
+ * causal-loop 固有のラベル設定（極性・変数名）を適用する。
+ * 適用したら true、対象外の path なら false（呼び出し側の汎用処理へ落ちる）。
+ */
+function applyCausalLoopSetLabel(
+  spec: Extract<ThinkingDiagramSpec, { type: "causal-loop" }>,
+  path: string,
+  value: string
+): boolean {
+  const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
+  if (polMatch) {
+    const link = spec.links[Number(polMatch[1])];
+    if (!link) throw new AnytimeGraphMutateError(`link index ${polMatch[1]} がありません`);
+    // 極性は +/- に正規化。不正値は既存値を維持し DSL の round-trip を壊さない。
+    const norm = normalizePolarity(value);
+    if (norm) link.polarity = norm;
+    return true;
   }
+  const idx = causalLoopVarIndex(path);
+  if (idx === null) return false;
+  const vars = causalLoopVariables(spec);
+  const old = vars[idx];
+  if (old === undefined) throw new AnytimeGraphMutateError(`変数 index ${idx} がありません`);
+  renameCausalLoopVariable(spec, old, value);
+  return true;
+}
+
+/**
+ * structure-map で部分の見出しを改名する場合、その部分を端点に持つ関係も追従改名する
+ * （追従しないと関係が旧ラベルを指して dangling になり、再パースで GraphDslError）。
+ */
+function renameStructureMapPartRelations(
+  spec: Extract<ThinkingDiagramSpec, { type: "structure-map" }>,
+  path: string,
+  value: string
+): void {
+  const m = /^parts\.(\d+)$/.exec(path);
+  if (!m) return;
+  const part = spec.parts[Number(m[1])];
+  if (!part) return;
+  const old = part.label;
+  for (const r of spec.relations) {
+    if (r.from === old) r.from = value;
+    if (r.to === old) r.to = value;
+  }
+}
+
+/** 現在値がオブジェクトなら label を更新して true。オブジェクトでなければ false。 */
+function updateObjectLabel(cur: unknown, value: string): boolean {
+  if (cur && typeof cur === "object") {
+    (cur as AnyRecord).label = value;
+    return true;
+  }
+  return false;
+}
+
+/** path が指す位置へラベルを書き込む（文字列要素は差し替え、オブジェクトは label を更新）。 */
+function setLabelAtRef(spec: ThinkingDiagramSpec, path: string, value: string): void {
   const { parent, key } = resolveRef(spec, path);
   if (Array.isArray(parent) && isIndex(key)) {
     const i = Number(key);
     const cur = parent[i];
     if (typeof cur === "string") parent[i] = value;
-    else if (cur && typeof cur === "object") (cur as AnyRecord).label = value;
-    else throw new AnytimeGraphMutateError(`ラベルを設定できません: ${path}`);
+    else if (!updateObjectLabel(cur, value)) throw new AnytimeGraphMutateError(`ラベルを設定できません: ${path}`);
   } else if (parent && typeof parent === "object") {
     const obj = parent as AnyRecord;
     const cur = obj[key];
     if (typeof cur === "string") obj[key] = value;
-    else if (cur && typeof cur === "object") (cur as AnyRecord).label = value;
-    else throw new AnytimeGraphMutateError(`ラベルを設定できません: ${path}`);
+    else if (!updateObjectLabel(cur, value)) throw new AnytimeGraphMutateError(`ラベルを設定できません: ${path}`);
   } else {
     throw new AnytimeGraphMutateError(`ラベルを設定できません: ${path}`);
   }
+}
+
+function applySetLabel(spec: ThinkingDiagramSpec, path: string, value: string): void {
+  if (spec.type === "causal-loop" && applyCausalLoopSetLabel(spec, path, value)) return;
+  if (spec.type === "structure-map") renameStructureMapPartRelations(spec, path, value);
+  setLabelAtRef(spec, path, value);
 }
 
 function applyRemove(spec: ThinkingDiagramSpec, path: string): void {
@@ -387,119 +423,181 @@ export interface NodeDescriptor {
 const DD_KEYS = new Set(["discover", "define", "develop", "deliver"]);
 const SWOT_KEYS = new Set(["strengths", "weaknesses", "opportunities", "threats"]);
 
+/** すべてのアフォーダンスが無効な初期値（各 describe ヘルパーがスプレッドで上書きする）。 */
+const BASE_DESCRIPTOR: NodeDescriptor = {
+  label: null,
+  canRemove: false,
+  canAddSibling: false,
+  canAddChild: false,
+  items: null,
+  desc: null,
+};
+
+/** fishbone: 問題ラベルとカテゴリ（causes を集約リーフとして持つ）。 */
+function describeFishboneNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "fishbone" }>,
+  path: string
+): NodeDescriptor | null {
+  if (path === "problem") return { ...BASE_DESCRIPTOR, label: spec.problem };
+  const cat = getTarget(spec, path) as { label?: string; causes?: string[] } | undefined;
+  if (cat && typeof cat.label === "string") {
+    return { ...BASE_DESCRIPTOR, label: cat.label, canRemove: true, canAddSibling: true, items: cat.causes ?? [] };
+  }
+  return null;
+}
+
+/** causal-loop: エッジ極性と、links から導出した変数。 */
+function describeCausalLoopNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "causal-loop" }>,
+  path: string
+): NodeDescriptor | null {
+  const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
+  if (polMatch) {
+    const link = spec.links[Number(polMatch[1])];
+    // 極性 +/- はエッジ上の DSL 由来ラベル。構造操作なしの編集専用。
+    return link ? { ...BASE_DESCRIPTOR, label: link.polarity } : null;
+  }
+  const idx = causalLoopVarIndex(path);
+  if (idx === null) return null;
+  const v = causalLoopVariables(spec)[idx];
+  if (v === undefined) return null;
+  return { ...BASE_DESCRIPTOR, label: v, canRemove: true };
+}
+
+/** pyramid: tier（説明文 desc を持つ）。 */
+function describePyramidNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "pyramid" }>,
+  path: string
+): NodeDescriptor | null {
+  const tier = getTarget(spec, path) as { label?: string; desc?: string } | undefined;
+  if (tier && typeof tier.label === "string") {
+    return { ...BASE_DESCRIPTOR, label: tier.label, canRemove: true, canAddSibling: true, desc: tier.desc ?? "" };
+  }
+  return null;
+}
+
+/** mindmap / logic-tree: root と tree ノード。 */
+function describeTreeNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "mindmap" | "logic-tree" }>,
+  path: string
+): NodeDescriptor | null {
+  if (path === "root") return { ...BASE_DESCRIPTOR, label: spec.root, canAddChild: true };
+  const node = getTarget(spec, path) as { label?: string } | undefined;
+  if (node && typeof node.label === "string") {
+    return { ...BASE_DESCRIPTOR, label: node.label, canRemove: true, canAddSibling: true, canAddChild: true };
+  }
+  return null;
+}
+
+/** why-chain: 問題ラベルと steps の各段。 */
+function describeWhyChainNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "why-chain" }>,
+  path: string
+): NodeDescriptor | null {
+  if (path === "problem") return { ...BASE_DESCRIPTOR, label: spec.problem };
+  const m = /^steps\.(\d+)$/.exec(path);
+  if (m) {
+    const step = spec.steps[Number(m[1])];
+    if (step !== undefined) return { ...BASE_DESCRIPTOR, label: step, canRemove: true, canAddSibling: true };
+  }
+  return null;
+}
+
+/** double-diamond / swot: 固定キー直下の項目配列（ラベル編集なし）。 */
+function describeKeyedItemsNode(
+  spec: ThinkingDiagramSpec,
+  path: string,
+  keys: ReadonlySet<string>
+): NodeDescriptor | null {
+  if (keys.has(path)) {
+    return { ...BASE_DESCRIPTOR, items: (spec as unknown as Record<string, string[]>)[path] };
+  }
+  return null;
+}
+
+/** morph-box: パラメータ見出しと option（string 要素）。 */
+function describeMorphBoxNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "morph-box" }>,
+  path: string
+): NodeDescriptor | null {
+  const optMatch = /^parameters\.\d+\.options\.(\d+)$/.exec(path);
+  if (optMatch) {
+    const opt = getTarget(spec, path);
+    if (typeof opt === "string") return { ...BASE_DESCRIPTOR, label: opt, canRemove: true, canAddSibling: true };
+    return null;
+  }
+  const param = getTarget(spec, path) as { label?: string } | undefined;
+  if (/^parameters\.\d+$/.test(path) && param && typeof param.label === "string") {
+    return { ...BASE_DESCRIPTOR, label: param.label, canRemove: true, canAddSibling: true, canAddChild: true };
+  }
+  return null;
+}
+
+/** affinity: グループ見出しと note（string 要素）。 */
+function describeAffinityNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "affinity" }>,
+  path: string
+): NodeDescriptor | null {
+  const noteMatch = /^groups\.\d+\.notes\.(\d+)$/.exec(path);
+  if (noteMatch) {
+    const note = getTarget(spec, path);
+    if (typeof note === "string") return { ...BASE_DESCRIPTOR, label: note, canRemove: true, canAddSibling: true };
+    return null;
+  }
+  const group = getTarget(spec, path) as { label?: string } | undefined;
+  if (/^groups\.\d+$/.test(path) && group && typeof group.label === "string") {
+    return { ...BASE_DESCRIPTOR, label: group.label, canRemove: true, canAddSibling: true, canAddChild: true };
+  }
+  return null;
+}
+
+/** structure-map: 全体・部分見出し・構成要素/他領域（string 要素）。 */
+function describeStructureMapNode(
+  spec: Extract<ThinkingDiagramSpec, { type: "structure-map" }>,
+  path: string
+): NodeDescriptor | null {
+  if (path === "whole") return { ...BASE_DESCRIPTOR, label: spec.whole };
+  // 部分の構成要素 / 他領域（string[] の要素）
+  if (/^parts\.\d+\.items\.\d+$/.test(path) || /^domains\.\d+$/.test(path)) {
+    const leaf = getTarget(spec, path);
+    if (typeof leaf === "string") return { ...BASE_DESCRIPTOR, label: leaf, canRemove: true, canAddSibling: true };
+    return null;
+  }
+  // 部分の見出し（addChild で構成要素を追加できる）
+  const part = getTarget(spec, path) as { label?: string; items?: string[] } | undefined;
+  if (/^parts\.\d+$/.test(path) && part && typeof part.label === "string") {
+    return { ...BASE_DESCRIPTOR, label: part.label, canRemove: true, canAddSibling: true, canAddChild: true, items: part.items ?? [] };
+  }
+  return null;
+}
+
 /**
  * path が指すノードの編集アフォーダンスを返す（純粋）。
  * 認識できない path は null（操作層はハンドラを装着しない）。
  */
 export function describeNode(spec: ThinkingDiagramSpec, path: string): NodeDescriptor | null {
-  const base: NodeDescriptor = {
-    label: null,
-    canRemove: false,
-    canAddSibling: false,
-    canAddChild: false,
-    items: null,
-    desc: null,
-  };
   switch (spec.type) {
-    case "fishbone": {
-      if (path === "problem") return { ...base, label: spec.problem };
-      const cat = getTarget(spec, path) as { label?: string; causes?: string[] } | undefined;
-      if (cat && typeof cat.label === "string") {
-        return { ...base, label: cat.label, canRemove: true, canAddSibling: true, items: cat.causes ?? [] };
-      }
-      return null;
-    }
-    case "causal-loop": {
-      const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
-      if (polMatch) {
-        const link = spec.links[Number(polMatch[1])];
-        // 極性 +/- はエッジ上の DSL 由来ラベル。構造操作なしの編集専用。
-        return link ? { ...base, label: link.polarity } : null;
-      }
-      const idx = causalLoopVarIndex(path);
-      if (idx === null) return null;
-      const v = causalLoopVariables(spec)[idx];
-      if (v === undefined) return null;
-      return { ...base, label: v, canRemove: true };
-    }
-    case "pyramid": {
-      const tier = getTarget(spec, path) as { label?: string; desc?: string } | undefined;
-      if (tier && typeof tier.label === "string") {
-        return { ...base, label: tier.label, canRemove: true, canAddSibling: true, desc: tier.desc ?? "" };
-      }
-      return null;
-    }
+    case "fishbone":
+      return describeFishboneNode(spec, path);
+    case "causal-loop":
+      return describeCausalLoopNode(spec, path);
+    case "pyramid":
+      return describePyramidNode(spec, path);
     case "mindmap":
-    case "logic-tree": {
-      if (path === "root") return { ...base, label: spec.root, canAddChild: true };
-      const node = getTarget(spec, path) as { label?: string } | undefined;
-      if (node && typeof node.label === "string") {
-        return { ...base, label: node.label, canRemove: true, canAddSibling: true, canAddChild: true };
-      }
-      return null;
-    }
-    case "why-chain": {
-      if (path === "problem") return { ...base, label: spec.problem };
-      const m = /^steps\.(\d+)$/.exec(path);
-      if (m) {
-        const step = spec.steps[Number(m[1])];
-        if (step !== undefined) return { ...base, label: step, canRemove: true, canAddSibling: true };
-      }
-      return null;
-    }
-    case "double-diamond": {
-      if (DD_KEYS.has(path)) {
-        return { ...base, items: (spec as unknown as Record<string, string[]>)[path] };
-      }
-      return null;
-    }
-    case "swot": {
-      if (SWOT_KEYS.has(path)) {
-        return { ...base, items: (spec as unknown as Record<string, string[]>)[path] };
-      }
-      return null;
-    }
-    case "morph-box": {
-      const optMatch = /^parameters\.\d+\.options\.(\d+)$/.exec(path);
-      if (optMatch) {
-        const opt = getTarget(spec, path);
-        if (typeof opt === "string") return { ...base, label: opt, canRemove: true, canAddSibling: true };
-        return null;
-      }
-      const param = getTarget(spec, path) as { label?: string } | undefined;
-      if (/^parameters\.\d+$/.test(path) && param && typeof param.label === "string") {
-        return { ...base, label: param.label, canRemove: true, canAddSibling: true, canAddChild: true };
-      }
-      return null;
-    }
-    case "affinity": {
-      const noteMatch = /^groups\.\d+\.notes\.(\d+)$/.exec(path);
-      if (noteMatch) {
-        const note = getTarget(spec, path);
-        if (typeof note === "string") return { ...base, label: note, canRemove: true, canAddSibling: true };
-        return null;
-      }
-      const group = getTarget(spec, path) as { label?: string } | undefined;
-      if (/^groups\.\d+$/.test(path) && group && typeof group.label === "string") {
-        return { ...base, label: group.label, canRemove: true, canAddSibling: true, canAddChild: true };
-      }
-      return null;
-    }
-    case "structure-map": {
-      if (path === "whole") return { ...base, label: spec.whole };
-      // 部分の構成要素 / 他領域（string[] の要素）
-      if (/^parts\.\d+\.items\.\d+$/.test(path) || /^domains\.\d+$/.test(path)) {
-        const leaf = getTarget(spec, path);
-        if (typeof leaf === "string") return { ...base, label: leaf, canRemove: true, canAddSibling: true };
-        return null;
-      }
-      // 部分の見出し（addChild で構成要素を追加できる）
-      const part = getTarget(spec, path) as { label?: string; items?: string[] } | undefined;
-      if (/^parts\.\d+$/.test(path) && part && typeof part.label === "string") {
-        return { ...base, label: part.label, canRemove: true, canAddSibling: true, canAddChild: true, items: part.items ?? [] };
-      }
-      return null;
-    }
+    case "logic-tree":
+      return describeTreeNode(spec, path);
+    case "why-chain":
+      return describeWhyChainNode(spec, path);
+    case "double-diamond":
+      return describeKeyedItemsNode(spec, path, DD_KEYS);
+    case "swot":
+      return describeKeyedItemsNode(spec, path, SWOT_KEYS);
+    case "morph-box":
+      return describeMorphBoxNode(spec, path);
+    case "affinity":
+      return describeAffinityNode(spec, path);
+    case "structure-map":
+      return describeStructureMapNode(spec, path);
     // 共起ネットワークは専用 viewer（cooccurrence-viewer）で編集する図種であり、
     // anytime-graph フェンス上のアウトライン編集は対象外とする。
     // Why not 語をラベル編集可能にするか: 語の追加・削除は links / subject /

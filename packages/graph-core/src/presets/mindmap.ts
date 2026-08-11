@@ -43,6 +43,41 @@ interface BranchEntry {
   isBranch: boolean;
 }
 
+/** ブランチ塗りの不透明度（第1階層とそれ以外）。 */
+interface BranchAlphas {
+  branch: number;
+  leaf: number;
+}
+
+/** 合成ツリーの矩形 1 個をマインドマップのノードへ変換する（第1階層かどうかで見た目を変える）。 */
+function mindmapBranchNode(
+  id: string,
+  rect: { x: number; y: number; width: number; height: number },
+  style: { entry: BranchEntry; alphas: BranchAlphas; textColor: string },
+): GraphNode {
+  const { entry, alphas, textColor } = style;
+  return mkNode(id, 'rect', rect, entry.spec.label, {
+    fill: withAlpha(entry.color, entry.isBranch ? alphas.branch : alphas.leaf),
+    stroke: entry.color,
+    strokeWidth: entry.isBranch ? 2 : 1.5,
+    fontColor: textColor,
+    fontSize: entry.isBranch ? 14 : 13,
+    fontStyle: entry.isBranch ? 1 : 0,
+    borderRadius: entry.isBranch ? 8 : 6,
+    metadata: { path: entry.path },
+  } satisfies NodeOpts);
+}
+
+/** 親ノードから当該ノードへの色付き bezier エッジ。 */
+function mindmapBranchEdge(id: string, entry: BranchEntry): GraphEdge {
+  return connectorEdge(`${entry.parentId}->${id}`, entry.parentId, id, {
+    routing: 'bezier',
+    stroke: entry.color,
+    strokeWidth: entry.isBranch ? 2 : 1.5,
+    endShape: 'none',
+  });
+}
+
 export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument {
   const pal = thinkingPalette(isDark);
   const nodes: GraphNode[] = [];
@@ -114,8 +149,10 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
     const rootRect = layout.get(SYNTH_ROOT)!;
     const dy = -(rootRect.y + NODE_H / 2);
     const dx = mirror ? -dxRight : dxRight;
-    const branchFillAlpha = isDark ? 0.2 : 0.14;
-    const leafFillAlpha = isDark ? 0.14 : 0.1;
+    const alphas: BranchAlphas = {
+      branch: isDark ? 0.2 : 0.14,
+      leaf: isDark ? 0.14 : 0.1,
+    };
 
     for (const [id, rect] of layout) {
       if (id === SYNTH_ROOT) continue;
@@ -123,25 +160,13 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
       const x = (mirror ? -(rect.x + rect.width) : rect.x) + dx;
       const y = rect.y + dy;
       nodes.push(
-        mkNode(id, 'rect', { x, y, width: rect.width, height: rect.height }, entry.spec.label, {
-          fill: withAlpha(entry.color, entry.isBranch ? branchFillAlpha : leafFillAlpha),
-          stroke: entry.color,
-          strokeWidth: entry.isBranch ? 2 : 1.5,
-          fontColor: pal.text,
-          fontSize: entry.isBranch ? 14 : 13,
-          fontStyle: entry.isBranch ? 1 : 0,
-          borderRadius: entry.isBranch ? 8 : 6,
-          metadata: { path: entry.path },
-        } satisfies NodeOpts),
+        mindmapBranchNode(
+          id,
+          { x, y, width: rect.width, height: rect.height },
+          { entry, alphas, textColor: pal.text },
+        ),
       );
-      edges.push(
-        connectorEdge(`${entry.parentId}->${id}`, entry.parentId, id, {
-          routing: 'bezier',
-          stroke: entry.color,
-          strokeWidth: entry.isBranch ? 2 : 1.5,
-          endShape: 'none',
-        }),
-      );
+      edges.push(mindmapBranchEdge(id, entry));
     }
   };
 

@@ -20,6 +20,7 @@
 import type {
   CaravanFlightReviewFindingCountRow,
   CaravanFlightReviewFindingRow,
+  CaravanFlightReviewFindingSummary,
 } from './types';
 
 export interface FlightFindingViewState {
@@ -28,6 +29,12 @@ export interface FlightFindingViewState {
   readonly loadFailed: boolean;
   readonly counts: readonly CaravanFlightReviewFindingCountRow[];
   readonly findings: readonly CaravanFlightReviewFindingRow[];
+  /**
+   * 対処率の分母別集計。null は「取得できていない」（未取得・ルート無し・集計失敗）で、
+   * 集計 0 件（total=0 のオブジェクト）と区別する。summary の取得失敗だけでは
+   * loadFailed にしない — 旧サーバーにはルートが無く、表本体は従来どおり出せるため。
+   */
+  readonly summary: CaravanFlightReviewFindingSummary | null;
 }
 
 export interface FlightFindingStore {
@@ -58,6 +65,28 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * summary 応答の形検証。数値 8 フィールドが揃わない応答（旧サーバーの 404・プロキシの
+ * エラー HTML・サーバー側集計失敗の null）は null へ倒す（誤った率を出すより出さない）。
+ */
+async function parseSummary(res: Response | null): Promise<CaravanFlightReviewFindingSummary | null> {
+  if (res === null || !res.ok) return null;
+  try {
+    const body = (await res.json()) as unknown;
+    if (body === null || typeof body !== 'object') return null;
+    const r = body as Record<string, unknown>;
+    const fields = ['total', 'info', 'noPath', 'unresolvedRepo', 'tracked', 'addressed', 'inferred', 'weakLinked'] as const;
+    if (!fields.every((f) => typeof r[f] === 'number')) {
+      console.warn('[flightFinding] unexpected response shape from /api/caravan/reviews/flight-summary');
+      return null;
+    }
+    return body as CaravanFlightReviewFindingSummary;
+  } catch (err) {
+    console.warn(`[flightFinding] failed to parse flight-summary response: ${errorMessage(err)}`);
+    return null;
+  }
+}
+
 export function createFlightFindingStore(
   serverUrl: string,
   options?: FlightFindingStoreOptions,
@@ -77,6 +106,7 @@ export function createFlightFindingStore(
     loadFailed: false,
     counts: [],
     findings: [],
+    summary: null,
   };
 
   const listeners = new Set<() => void>();
@@ -107,11 +137,19 @@ export function createFlightFindingStore(
       const workspaceQuery = workspaceFilter === ''
         ? ''
         : `&workspace=${encodeURIComponent(workspaceFilter)}`;
-      const [countsRes, findingsRes] = await Promise.all([
+      const [countsRes, findingsRes, summaryRes] = await Promise.all([
         // 件数は指示 ID で突き合わせるため絞り込まない（一覧側が既にワークスペースで
         // 絞られており、余分な行は突合で落ちる）。
         request('/api/caravan/reviews/flight-counts'),
         request(`/api/caravan/reviews/flight-findings?limit=${limit}${workspaceQuery}`),
+        // 対処率の分母別集計。一覧と**同じ** workspace で絞る。ここだけ横断にすると、
+        // 画面で選んだワークスペースの表の上に、他ワークスペース込みの対処率が並ぶ。
+        // ルートが無い旧サーバーでも表本体は出せるよう、失敗は summary=null に留めて
+        // loadFailed へ波及させない。
+        request(`/api/caravan/reviews/flight-summary?${workspaceQuery.replace(/^&/, '')}`).catch((err: unknown) => {
+          console.warn(`[flightFinding] failed to load flight-summary: ${errorMessage(err)}`);
+          return null;
+        }),
       ]);
       if (isStale()) return;
       if (!countsRes.ok || !findingsRes.ok) {
@@ -120,6 +158,7 @@ export function createFlightFindingStore(
       }
       const counts = (await countsRes.json()) as unknown;
       const findings = (await findingsRes.json()) as unknown;
+      const summary = await parseSummary(summaryRes);
       if (isStale()) return;
       // 形が違う応答（旧サーバー・プロキシのエラーページ）を空配列へ丸めない。
       // 丸めると「指摘なし」と区別が付かなくなる。
@@ -133,6 +172,7 @@ export function createFlightFindingStore(
         loadFailed: false,
         counts: counts as CaravanFlightReviewFindingCountRow[],
         findings: findings as CaravanFlightReviewFindingRow[],
+        summary,
       });
     } catch (err) {
       if (isStale()) return;

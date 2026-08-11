@@ -281,11 +281,14 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     }
     this.save();
 
-    // reconciliation: code_incremental が skipped なら entity_ids 空のため
-    // 全 entity 誤 soft-delete を避けて reconciliation も skip する (ハード制約)。
+    // reconciliation: entity_ids が空なら全 entity 誤 soft-delete になるため skip する
+    // (ハード制約)。status==='skipped' だけを見ていると、ingestAstFacts が実行できず
+    // entity_ids が空のまま status が success / partial になる経路（TrailGraph 欠落）を
+    // 素通りさせるため、集合そのものを条件にする。
+    const reconciliationUnsafe = codeWasSkipped || codeEntityIds.size === 0;
     this.status?.start('code_reconciliation');
     try {
-      if (codeWasSkipped) {
+      if (reconciliationUnsafe) {
         this.status?.finish('code_reconciliation', 'skipped', 0, 0);
       } else {
         const reconResult = runCodeReconciliation({
@@ -481,13 +484,24 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     const logger = this.logger;
     this.status?.start('drift_detection');
     try {
-      const driftResult = await runDriftDetection({ db: memDb.db, logger });
-      this.status?.finish('drift_detection', driftResult.status, driftResult.events_inserted + driftResult.events_updated, 0);
+      // 対象ファイル実在ゲート用の resolver。この daemon が管理するのは gitRoot の
+      // 1 リポジトリだけなので、repoName 一致以外は null（= 実在チェックせず fail-open）。
+      const gitRoot = this.deps.gitRoot;
+      const repoName = this.repoName;
+      const driftResult = await runDriftDetection({
+        db: memDb.db,
+        logger,
+        resolveRepoRoot: (repo) => (repo === repoName ? gitRoot : null),
+      });
+      // reopen（再発）も処理件数に含める。除くと再発だけの実行が 0 件処理に見える。
+      const driftProcessed =
+        driftResult.events_inserted + driftResult.events_updated + driftResult.events_reopened;
+      this.status?.finish('drift_detection', driftResult.status, driftProcessed, 0);
       this.save();
       return {
         scope: 'drift_detection',
         status: driftResult.status,
-        itemsProcessed: driftResult.events_inserted + driftResult.events_updated,
+        itemsProcessed: driftProcessed,
         itemsFailed: 0,
       };
     } catch (err) {

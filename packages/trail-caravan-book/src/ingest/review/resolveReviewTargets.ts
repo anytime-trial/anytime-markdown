@@ -13,8 +13,9 @@
  */
 import type { CaravanDbConnection } from '../../db/connection/types';
 import type { CaravanLogger } from '../../logger';
+import { extractBasenameCandidates } from './findingHelpers';
 import { normalizeTargetPath } from './normalizeTargetPath';
-import { resolveTargetRepo } from './resolveTargetRepo';
+import { resolveByBasename, resolveTargetRepo } from './resolveTargetRepo';
 
 /**
  * CaravanLogger の `warn` は optional なので、未実装なら `info` へ落とす。
@@ -34,6 +35,15 @@ export interface ResolveReviewTargetsResult {
   readonly pathsNormalized: number;
   /** 正規化に失敗し NULL へ落とした行数（パスとして成立しなかったもの）。 */
   readonly pathsRejected: number;
+  /** 対象パスが空だった指摘のうち、裸のファイル名から一意解決して埋めた行数。 */
+  readonly pathsInferred: number;
+  /**
+   * 対象パスが空のまま残った指摘の件数。
+   *
+   * 埋めた件数だけでは「元から少なかった」と「ほとんど救えなかった」を区別できない。
+   * 上流（レビュー出力書式）の必須化が効いているかは、この残数の推移でしか読めない。
+   */
+  readonly pathsStillMissing: number;
   /**
    * 処理中に発生した失敗の件数。
    *
@@ -203,7 +213,100 @@ export function resolveFindingTargets(
   return { targetsResolved, pathsNormalized, pathsRejected, failures };
 }
 
-/** ワークスペース解決 → 対象リポジトリ解決をまとめて実行する。 */
+interface PathlessFinding {
+  readonly id: string;
+  readonly text: string;
+  readonly workspace: string;
+}
+
+/**
+ * 対象パスが空の findings を、本文中の裸のファイル名から救う。
+ *
+ * 実データでは非 info の指摘の 6 割が対象パスを持たず、その大半は本文に
+ * `` `cli.ts` `` `` `pipelineWatchdog.ts:33-38` `` のようにファイル名だけを書いている。
+ * ディレクトリ接頭辞を必須にする `extractTargetFromFinding` は 1 件も拾えない。
+ *
+ * `resolveFindingTargets` と同じく**独立した 1 パス**にして、増分取込とバックフィルを
+ * 同じ実装に乗せる。埋めた行は `target_inferred_by='basename'` を刻む — 推測由来は
+ * 「移動済みファイルの旧パスへ一意解決して、以後どのコミットとも一致しない」という
+ * 固有の失敗モードを持ち、明示された対象と混ぜると対処率の低下要因を切り分けられない。
+ *
+ * `severity='info'` は設計上リンク対象外なので走査しない（無駄な照会を避ける）。
+ */
+export function resolveMissingFindingPaths(
+  db: CaravanDbConnection,
+  logger: CaravanLogger,
+): Pick<ResolveReviewTargetsResult, 'pathsInferred' | 'pathsStillMissing' | 'failures'> {
+  let pending: PathlessFinding[];
+
+  try {
+    const result = db.exec(
+      `SELECT rf.id, rf.finding_text, rf.suggestion_text, r.workspace
+         FROM caravan_review_findings rf
+         JOIN caravan_reviews r ON r.id = rf.review_id
+        WHERE (rf.target_file_path IS NULL OR rf.target_file_path = '')
+          AND rf.severity <> 'info'`,
+      [],
+    );
+    pending = (result[0]?.values ?? []).map((row) => ({
+      id: String(row[0]),
+      text: `${String(row[1] ?? '')}\n${String(row[2] ?? '')}`,
+      workspace: String(row[3] ?? ''),
+    }));
+  } catch (err) {
+    warn(
+      logger,
+      `[anytime-memory] resolveMissingFindingPaths: failed to query pathless findings: ${String(err)}`,
+    );
+    return { pathsInferred: 0, pathsStillMissing: 0, failures: 1 };
+  }
+
+  let pathsInferred = 0;
+  let failures = 0;
+
+  for (const finding of pending) {
+    try {
+      const resolved = firstResolvableBasename(db, finding);
+      if (resolved === null) continue;
+
+      db.run(
+        `UPDATE caravan_review_findings
+            SET target_file_path = ?, target_repo = ?, target_inferred_by = 'basename'
+          WHERE id = ?`,
+        [resolved.path, resolved.repo, finding.id],
+      );
+      pathsInferred += 1;
+    } catch (err) {
+      failures += 1;
+      warn(
+        logger,
+        `[anytime-memory] resolveMissingFindingPaths: finding=${finding.id} failed: ${String(err)}`,
+      );
+    }
+  }
+
+  return { pathsInferred, pathsStillMissing: pending.length - pathsInferred, failures };
+}
+
+/**
+ * 候補を出現順に試し、最初に一意解決したものを採る。
+ *
+ * 出現順にするのは、指摘は「まず対象を名指してから周辺を説明する」書き方が支配的で、
+ * 先に出るファイル名ほど対象である確度が高いため。順位付けを増やすと推測が強くなるので、
+ * 曖昧さの排除は `resolveByBasename` の一意性検査だけに任せる。
+ */
+function firstResolvableBasename(
+  db: CaravanDbConnection,
+  finding: PathlessFinding,
+): { repo: string; path: string } | null {
+  for (const basename of extractBasenameCandidates(finding.text)) {
+    const resolved = resolveByBasename({ db, basename, workspaceRepo: finding.workspace });
+    if (resolved !== null) return resolved;
+  }
+  return null;
+}
+
+/** ワークスペース解決 → 対象リポジトリ解決 → 対象パス欠落の補完をまとめて実行する。 */
 export function resolveReviewTargets(input: {
   db: CaravanDbConnection;
   logger: CaravanLogger;
@@ -211,9 +314,13 @@ export function resolveReviewTargets(input: {
   const { db, logger } = input;
   const workspaces = resolveReviewWorkspaces(db, logger);
   const findings = resolveFindingTargets(db, logger);
+  // 順序は固定。resolveFindingTargets は正規化に失敗したパスを NULL へ落とすため、
+  // 先に走らせておくと「誤抽出で埋まっていた行」も補完の対象に入る。
+  const inferred = resolveMissingFindingPaths(db, logger);
   return {
     ...findings,
+    ...inferred,
     workspacesFilled: workspaces.filled,
-    failures: workspaces.failures + findings.failures,
+    failures: workspaces.failures + findings.failures + inferred.failures,
   };
 }

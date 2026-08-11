@@ -530,6 +530,29 @@ export function computeBlockAlignment(docA: PMNode, docB: PMNode): AlignedSlot[]
   return buildAlignedSlots(getTopLevelBlocks(docA), getTopLevelBlocks(docB));
 }
 
+/**
+ * 連続する非表示 slot 区間 [start, end) から左右の折りたたみ run を作り、runs へ積む。
+ * 最小長に満たない区間は折りたたまない。
+ */
+function pushCollapseRuns(
+  slots: AlignedSlot[],
+  range: { start: number; end: number },
+  runs: { a: CollapseRun[]; b: CollapseRun[] },
+): void {
+  const { start, end } = range;
+  const len = end - start;
+  if (len < MIN_COLLAPSE_RUN) return;
+  const runId = start;
+  const aIdx: number[] = [];
+  const bIdx: number[] = [];
+  for (let k = start; k < end; k++) {
+    if (slots[k].a !== null) aIdx.push(slots[k].a as number);
+    if (slots[k].b !== null) bIdx.push(slots[k].b as number);
+  }
+  if (aIdx.length > 0) runs.a.push({ runId, hideIndices: aIdx, anchorIndex: aIdx[0], count: len });
+  if (bIdx.length > 0) runs.b.push({ runId, hideIndices: bIdx, anchorIndex: bIdx[0], count: len });
+}
+
 export function computeBlockCollapsePlan(docA: PMNode, docB: PMNode, context: number): BlockCollapsePlan {
   const slots = computeBlockAlignment(docA, docB);
   const visible = markContextVisible(slots.length, (i) => !slots[i].equal, context);
@@ -541,18 +564,7 @@ export function computeBlockCollapsePlan(docA: PMNode, docB: PMNode, context: nu
     if (visible[i]) { i++; continue; }
     let j = i;
     while (j < slots.length && !visible[j]) j++;
-    const len = j - i;
-    if (len >= MIN_COLLAPSE_RUN) {
-      const runId = i;
-      const aIdx: number[] = [];
-      const bIdx: number[] = [];
-      for (let k = i; k < j; k++) {
-        if (slots[k].a !== null) aIdx.push(slots[k].a as number);
-        if (slots[k].b !== null) bIdx.push(slots[k].b as number);
-      }
-      if (aIdx.length > 0) aRuns.push({ runId, hideIndices: aIdx, anchorIndex: aIdx[0], count: len });
-      if (bIdx.length > 0) bRuns.push({ runId, hideIndices: bIdx, anchorIndex: bIdx[0], count: len });
-    }
+    pushCollapseRuns(slots, { start: i, end: j }, { a: aRuns, b: bRuns });
     i = j;
   }
   return { aRuns, bRuns };

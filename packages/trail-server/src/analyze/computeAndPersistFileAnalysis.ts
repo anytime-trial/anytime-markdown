@@ -120,22 +120,10 @@ export async function computeAndPersistFileAnalysis(
   const everChurned = trailDb.getCommitFilesEverChurned(repoName);
   // 5c. Phase 6 S5-D: recent 窓より前の churn と取込履歴の長さ（Newly Active 判定用）
   const priorChurnMap = trailDb.getCommitFilesChurnBefore(repoName, sinceIso);
-  const earliestCommitAt = trailDb.getEarliestCommitAt(repoName);
-  const historyDays = earliestCommitAt
-    ? Math.max(0, (Date.now() - new Date(earliestCommitAt).getTime()) / (24 * 60 * 60 * 1000))
-    : 0;
+  const historyDays = computeHistoryDays(trailDb.getEarliestCommitAt(repoName));
 
   // 6. カバレッジ（coverage file_path = 絶対パス → 相対化）
-  const coverageRows = trailDb.getCurrentCoverage(repoName);
-  const coverageMap = new Map<string, number>(); // key = 相対パス
-  for (const r of coverageRows) {
-    if (r.file_path === '__total__') continue;
-    // istanbul は絶対パスをキーとして使う
-    const rel = path.isAbsolute(r.file_path)
-      ? path.relative(analysisRoot, r.file_path)
-      : r.file_path;
-    coverageMap.set(rel, r.lines_pct);
-  }
+  const coverageMap = buildCoverageMap(trailDb.getCurrentCoverage(repoName), analysisRoot);
 
   // 7. 全ファイルパス（相対）の universe を収集
   //    = importance 解析対象 ∪ code graph ノード（lineCountByFile で拡張子復元）
@@ -144,35 +132,9 @@ export async function computeAndPersistFileAnalysis(
   // 8a. centrality を計算
   //     CodeGraph.edges は node id (repoName:relPathNoExt) 形式のため、
   //     computeCentrality が期待する relPath (拡張子あり) に変換する
-  const noExtToWithExt = new Map<string, string>();
-  for (const key of lineCountByFile.keys()) {
-    noExtToWithExt.set(stripExt(key), key);
-  }
-  const nodeIdToRelPath = new Map<string, string>();
-  if (codeGraph) {
-    const prefix = `${repoName}:`;
-    for (const n of codeGraph.nodes) {
-      if (!n.id.startsWith(prefix)) continue;
-      const relPathNoExt = n.id.slice(prefix.length);
-      const withExt =
-        noExtToWithExt.get(relPathNoExt) ??
-        (lineCountByFile.has(`${relPathNoExt}.ts`) ? `${relPathNoExt}.ts` : `${relPathNoExt}.tsx`);
-      if (!nodeIdToRelPath.has(n.id)) {
-        nodeIdToRelPath.set(n.id, withExt);
-      }
-    }
-  }
-  const centralityEdges = (codeGraph?.edges ?? [])
-    .map((e) => ({ source: nodeIdToRelPath.get(e.source) ?? '', target: nodeIdToRelPath.get(e.target) ?? '' }))
-    .filter((e) => e.source && e.target);
-
-  const fileMetadata: Record<string, { functionCount: number; cognitiveComplexityMax: number }> = {};
-  for (const [relPath, agg] of fileAggregates.entries()) {
-    fileMetadata[relPath] = {
-      functionCount: (agg as { functionCount?: number }).functionCount ?? 0,
-      cognitiveComplexityMax: (agg as { cognitiveComplexityMax?: number }).cognitiveComplexityMax ?? 0,
-    };
-  }
+  const nodeIdToRelPath = buildNodeIdToRelPathIndex(codeGraph, repoName, lineCountByFile);
+  const centralityEdges = buildCentralityEdges(codeGraph, nodeIdToRelPath);
+  const fileMetadata = buildFileMetadata(fileAggregates);
 
   const centralityResults = computeCentrality({ edges: centralityEdges }, fileMetadata);
   const centralityMap = new Map(centralityResults.map((c) => [c.filePath, c]));
@@ -254,6 +216,96 @@ export async function computeAndPersistFileAnalysis(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/** 取込済み commit 履歴の長さ（日）。履歴が無ければ 0。 */
+function computeHistoryDays(earliestCommitAt: ReturnType<TrailDatabase['getEarliestCommitAt']>): number {
+  return earliestCommitAt
+    ? Math.max(0, (Date.now() - new Date(earliestCommitAt).getTime()) / (24 * 60 * 60 * 1000))
+    : 0;
+}
+
+/** coverage 行から「相対パス → 行カバレッジ %」のマップを作る（`__total__` 行は除外）。 */
+function buildCoverageMap(
+  coverageRows: ReturnType<TrailDatabase['getCurrentCoverage']>,
+  analysisRoot: string,
+): Map<string, number> {
+  const coverageMap = new Map<string, number>(); // key = 相対パス
+  for (const r of coverageRows) {
+    if (r.file_path === '__total__') continue;
+    // istanbul は絶対パスをキーとして使う
+    const rel = path.isAbsolute(r.file_path)
+      ? path.relative(analysisRoot, r.file_path)
+      : r.file_path;
+    coverageMap.set(rel, r.lines_pct);
+  }
+  return coverageMap;
+}
+
+/**
+ * 拡張子なし相対パスを、TS Compiler が認識している拡張子付き相対パスへ復元する。
+ * lineCountByFile に対応キーが無い場合は `.ts` / `.tsx` を推測する（従来挙動を維持）。
+ */
+function resolveRelPathWithExt(
+  relPathNoExt: string,
+  noExtToWithExt: ReadonlyMap<string, string>,
+  lineCountByFile: ReadonlyMap<string, number>,
+): string {
+  return (
+    noExtToWithExt.get(relPathNoExt) ??
+    (lineCountByFile.has(`${relPathNoExt}.ts`) ? `${relPathNoExt}.ts` : `${relPathNoExt}.tsx`)
+  );
+}
+
+/**
+ * node.id → 相対パス（拡張子あり）の逆引きマップ。
+ * 同一 node.id が複数回現れた場合は先勝ち（従来挙動）。
+ */
+function buildNodeIdToRelPathIndex(
+  graph: CodeGraph | null,
+  repoName: string,
+  lineCountByFile: ReadonlyMap<string, number>,
+): Map<string, string> {
+  const noExtToWithExt = new Map<string, string>();
+  for (const key of lineCountByFile.keys()) {
+    noExtToWithExt.set(stripExt(key), key);
+  }
+  const nodeIdToRelPath = new Map<string, string>();
+  if (!graph) return nodeIdToRelPath;
+  const prefix = `${repoName}:`;
+  for (const n of graph.nodes) {
+    if (!n.id.startsWith(prefix)) continue;
+    const relPathNoExt = n.id.slice(prefix.length);
+    const withExt = resolveRelPathWithExt(relPathNoExt, noExtToWithExt, lineCountByFile);
+    if (!nodeIdToRelPath.has(n.id)) {
+      nodeIdToRelPath.set(n.id, withExt);
+    }
+  }
+  return nodeIdToRelPath;
+}
+
+/** computeCentrality 用のエッジ（relPath ベース）。端点を解決できないエッジは落とす。 */
+function buildCentralityEdges(
+  graph: CodeGraph | null,
+  nodeIdToRelPath: ReadonlyMap<string, string>,
+): { source: string; target: string }[] {
+  return (graph?.edges ?? [])
+    .map((e) => ({ source: nodeIdToRelPath.get(e.source) ?? '', target: nodeIdToRelPath.get(e.target) ?? '' }))
+    .filter((e) => e.source && e.target);
+}
+
+/** computeCentrality へ渡すファイル単位のメタデータを fileAggregates から組む。 */
+function buildFileMetadata(
+  fileAggregates: ReturnType<typeof aggregateImportanceToFile>,
+): Record<string, { functionCount: number; cognitiveComplexityMax: number }> {
+  const fileMetadata: Record<string, { functionCount: number; cognitiveComplexityMax: number }> = {};
+  for (const [relPath, agg] of fileAggregates.entries()) {
+    fileMetadata[relPath] = {
+      functionCount: (agg as { functionCount?: number }).functionCount ?? 0,
+      cognitiveComplexityMax: (agg as { cognitiveComplexityMax?: number }).cognitiveComplexityMax ?? 0,
+    };
+  }
+  return fileMetadata;
+}
 
 interface BuildFileRowCtx {
   relPath: string;

@@ -26,6 +26,41 @@ const EXCLUDED_DIR_PREFIXES = ['90.skill/'];
 
 // ── File reading helper ───────────────────────────────────────────────────────
 
+/** サイズ上限超過の skip を警告する。logger.warn を持たないロガーは info へ退避する。 */
+function logLargeFileSkip(abs_path: string, fileSize: number, logger: CaravanLogger): void {
+  const warnMsg = `[anytime-memory] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${abs_path}`;
+  if (typeof logger.warn === 'function') {
+    logger.warn(warnMsg);
+  } else {
+    logger.info(`[WARN] ${warnMsg}`);
+  }
+}
+
+/** fd から fileSize バイトを読み切る。途中で EOF に達したら読めた分だけ返す。 */
+function readAllBytes(fd: number, fileSize: number): Buffer {
+  const buf = Buffer.alloc(fileSize);
+  let read = 0;
+  while (read < fileSize) {
+    const n = readSync(fd, buf, read, fileSize - read, null);
+    if (n === 0) break;
+    read += n;
+  }
+  return read === fileSize ? buf : buf.subarray(0, read);
+}
+
+/** fd を閉じる。close の失敗は読み取り結果に影響しないため warn に留めて握り潰す。 */
+function closeFdQuietly(fd: number, abs_path: string, logger: CaravanLogger): void {
+  try {
+    closeSync(fd);
+  } catch (err) {
+    logger.warn?.(
+      `[anytime-memory] discoverChangedSpecs: failed to close fd for ${abs_path}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
 /**
  * Read the full contents of a file using openSync/fstatSync/readSync to avoid
  * TOCTOU race (stat-then-open). Returns null if the file should be skipped
@@ -43,39 +78,19 @@ function readFileContent(abs_path: string, logger: CaravanLogger): Buffer | null
 
     const fileSize = fstatSync(fd).size;
     if (fileSize > MAX_FILE_BYTES) {
-      const warnMsg = `[anytime-memory] discoverChangedSpecs: skipping large file (${fileSize} bytes) ${abs_path}`;
-      if (typeof logger.warn === 'function') {
-        logger.warn(warnMsg);
-      } else {
-        logger.info(`[WARN] ${warnMsg}`);
-      }
+      logLargeFileSkip(abs_path, fileSize, logger);
       return null;
     }
 
     try {
-      const buf = Buffer.alloc(fileSize);
-      let read = 0;
-      while (read < fileSize) {
-        const n = readSync(fd, buf, read, fileSize - read, null);
-        if (n === 0) break;
-        read += n;
-      }
-      return read === fileSize ? buf : buf.subarray(0, read);
+      return readAllBytes(fd, fileSize);
     } catch (err) {
       logger.error(`[anytime-memory] discoverChangedSpecs: failed to read file ${abs_path}`, err);
       return null;
     }
   } finally {
     if (fd !== null) {
-      try {
-        closeSync(fd);
-      } catch (err) {
-        logger.warn?.(
-          `[anytime-memory] discoverChangedSpecs: failed to close fd for ${abs_path}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
+      closeFdQuietly(fd, abs_path, logger);
     }
   }
 }

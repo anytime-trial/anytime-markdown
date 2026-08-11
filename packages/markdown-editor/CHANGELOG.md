@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-08-11
+
+### Changed
+
+- Split high-complexity functions across the editor chrome, the vanilla components and the extensions (28 SonarCloud S3776 findings). Behavior is unchanged.
+
+### Fixed
+
+- Data-attribute writes now go through `dataset` instead of `setAttribute` (S7761).
+- Resolved the remaining SonarCloud high findings: a `sort` without a comparator (S2871), a redundant `void` operator (S3735) and a deprecated DOM API (S7768).
+
 ## [1.21.0] - 2026-08-09
 
 ### Changed

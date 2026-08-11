@@ -426,6 +426,46 @@ export class FlightRecordDatabase {
     if (present.size === 0) return null;
 
     const copiedRows: Record<string, number> = {};
+    this.copyFlightTablesFromTrail(present, copiedRows);
+
+    const missingRows: Record<string, number> = {};
+    this.verifyFlightTables(present, missingRows);
+
+    // flight 群の検証結果。失敗しても acceptance / pr の処理は独立に続ける
+    // （1 群の失敗が他群の回収まで止めると、失敗が長引くほど二重管理の窓が広がる）。
+    const flightLost = Object.entries(missingRows).filter(([, n]) => n > 0);
+    if (flightLost.length === 0) {
+      for (const table of ['instruction_sessions', 'flight_reviews', 'instructions'] as const) {
+        if (present.has(table)) this.backupAndDropTrailTable(table);
+      }
+    }
+
+    this.migrateAcceptanceRecords(present, copiedRows, missingRows);
+    this.reclaimPrReviewTables(present, missingRows);
+
+    const lost = Object.entries(missingRows).filter(([, n]) => n > 0);
+    if (lost.length > 0) {
+      this.logger.error(
+        `[FlightRecordDatabase] migration verification failed (rows not preserved): ${JSON.stringify(Object.fromEntries(lost))}; keeping affected trail-side tables`,
+        new Error('flight record migration anti-join mismatch'),
+      );
+      return { status: 'verification_failed', copiedRows, missingRows };
+    }
+    this.logger.info(
+      `[FlightRecordDatabase] migrated trail-side tables (copied rows): ${JSON.stringify(copiedRows)}`,
+    );
+    return { status: 'migrated', copiedRows, missingRows };
+  }
+
+  /**
+   * instructions / instruction_sessions / flight_reviews を trail 側から複製する
+   * （manual 訂正・学習候補のマージを含む単一トランザクション）。
+   */
+  private copyFlightTablesFromTrail(
+    present: ReadonlySet<string>,
+    copiedRows: Record<string, number>,
+  ): void {
+    const db = this.ensureDb();
     db.run('BEGIN');
     try {
       if (present.has('instructions')) {
@@ -473,10 +513,17 @@ export class FlightRecordDatabase {
       db.run('ROLLBACK');
       throw e;
     }
+  }
 
-    // 検証: キー単位のアンチ結合。INSERT OR IGNORE は CHECK 制約違反も黙って捨てるため、
-    // 件数の大小比較では「コピーできなかった行」を検知できない（移設後の新規行が件数を膨らませる）。
-    const missingRows: Record<string, number> = {};
+  /**
+   * 検証: キー単位のアンチ結合。INSERT OR IGNORE は CHECK 制約違反も黙って捨てるため、
+   * 件数の大小比較では「コピーできなかった行」を検知できない（移設後の新規行が件数を膨らませる）。
+   */
+  private verifyFlightTables(
+    present: ReadonlySet<string>,
+    missingRows: Record<string, number>,
+  ): void {
+    const db = this.ensureDb();
     const antiJoins: Array<[string, string]> = [
       ['instructions', `SELECT COUNT(*) FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instructions m WHERE m.id = t.id)`],
       ['instruction_sessions', `SELECT COUNT(*) FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instruction_sessions m WHERE m.session_id = t.session_id)`],
@@ -496,66 +543,72 @@ export class FlightRecordDatabase {
       );
       missingRows['flight_reviews'] = (missingRows['flight_reviews'] ?? 0) + unmergedManual;
     }
-    // flight 群の検証結果。失敗しても acceptance / pr の処理は独立に続ける
-    // （1 群の失敗が他群の回収まで止めると、失敗が長引くほど二重管理の窓が広がる）。
-    const flightLost = Object.entries(missingRows).filter(([, n]) => n > 0);
-    if (flightLost.length === 0) {
-      for (const table of ['instruction_sessions', 'flight_reviews', 'instructions'] as const) {
-        if (present.has(table)) this.backupAndDropTrailTable(table);
-      }
-    }
+  }
 
-    // ── acceptance_records → caravan_acceptance_records（受入台帳・2026-08-07 移設）──────
-    if (present.has('acceptance_records')) {
-      db.run('BEGIN');
-      try {
-        db.run(
-          `INSERT OR IGNORE INTO caravan_acceptance_records (commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at)
+  /** ── acceptance_records → caravan_acceptance_records（受入台帳・2026-08-07 移設）────── */
+  private migrateAcceptanceRecords(
+    present: ReadonlySet<string>,
+    copiedRows: Record<string, number>,
+    missingRows: Record<string, number>,
+  ): void {
+    if (!present.has('acceptance_records')) return;
+    const db = this.ensureDb();
+    db.run('BEGIN');
+    try {
+      db.run(
+        `INSERT OR IGNORE INTO caravan_acceptance_records (commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at)
            SELECT commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at FROM trail.acceptance_records`,
-        );
-        copiedRows['acceptance_records'] = db.getRowsModified();
-        db.run('COMMIT');
-      } catch (e) {
-        db.run('ROLLBACK');
-        throw e;
-      }
-      // 検証はキー存在（アンチ結合）に加えて**衝突キーの全保存列の一致**を要求する。
-      // INSERT OR IGNORE は同一キーの既存 memory 行を残すため、存在だけで通すと trail 側の
-      // verdict / decided_by / notes 等の差分が退避テーブル以外から消える。どちらが正かを
-      // 機械決定できない不一致は DROP せず verification_failed で人の判断へ回す
-      const missing = Number(
-        db.exec(
-          `SELECT COUNT(*) FROM trail.acceptance_records t
-           WHERE NOT EXISTS (SELECT 1 FROM caravan_acceptance_records m WHERE m.commit_sha = t.commit_sha AND m.route = t.route)`,
-        )[0]?.values?.[0]?.[0] ?? 0,
       );
-      const conflicting = Number(
-        db.exec(
-          `SELECT COUNT(*) FROM trail.acceptance_records t JOIN caravan_acceptance_records m
+      copiedRows['acceptance_records'] = db.getRowsModified();
+      db.run('COMMIT');
+    } catch (e) {
+      db.run('ROLLBACK');
+      throw e;
+    }
+    // 検証はキー存在（アンチ結合）に加えて**衝突キーの全保存列の一致**を要求する。
+    // INSERT OR IGNORE は同一キーの既存 memory 行を残すため、存在だけで通すと trail 側の
+    // verdict / decided_by / notes 等の差分が退避テーブル以外から消える。どちらが正かを
+    // 機械決定できない不一致は DROP せず verification_failed で人の判断へ回す
+    const missing = Number(
+      db.exec(
+        `SELECT COUNT(*) FROM trail.acceptance_records t
+           WHERE NOT EXISTS (SELECT 1 FROM caravan_acceptance_records m WHERE m.commit_sha = t.commit_sha AND m.route = t.route)`,
+      )[0]?.values?.[0]?.[0] ?? 0,
+    );
+    const conflicting = Number(
+      db.exec(
+        `SELECT COUNT(*) FROM trail.acceptance_records t JOIN caravan_acceptance_records m
              ON m.commit_sha = t.commit_sha AND m.route = t.route
            WHERE m.verdict != t.verdict OR m.decided_by != t.decided_by
               OR COALESCE(m.decided_at, '') != COALESCE(t.decided_at, '')
               OR m.repo_name != t.repo_name OR m.farm_run_ref != t.farm_run_ref
               OR m.failed_tests != t.failed_tests OR m.vrt_diff != t.vrt_diff
               OR m.quarantined_count != t.quarantined_count OR m.notes != t.notes`,
-        )[0]?.values?.[0]?.[0] ?? 0,
+      )[0]?.values?.[0]?.[0] ?? 0,
+    );
+    if (conflicting > 0) {
+      this.logger.error(
+        `[FlightRecordDatabase] caravan_acceptance_records migration: ${conflicting} row(s) conflict with existing memory-side rows on (commit_sha, route); keeping trail-side table for manual reconciliation`,
+        new Error('acceptance records migration column mismatch'),
       );
-      if (conflicting > 0) {
-        this.logger.error(
-          `[FlightRecordDatabase] caravan_acceptance_records migration: ${conflicting} row(s) conflict with existing memory-side rows on (commit_sha, route); keeping trail-side table for manual reconciliation`,
-          new Error('acceptance records migration column mismatch'),
-        );
-      }
-      missingRows['acceptance_records'] = missing + conflicting;
-      if (missingRows['acceptance_records'] === 0) {
-        this.backupAndDropTrailTable('acceptance_records');
-      }
     }
+    missingRows['acceptance_records'] = missing + conflicting;
+    if (missingRows['acceptance_records'] === 0) {
+      this.backupAndDropTrailTable('acceptance_records');
+    }
+  }
 
-    // ── pr_reviews 系（caravan_reviews への意味統合・2026-08-07）────────────────
-    // memory 側に同型テーブルは無い（統合先はスキーマの異なる caravan_reviews）ため、
-    // 自動のデータ変換はしない。**0 行のときだけ**テーブルを回収し、行が残る DB では
-    // DROP せず error ログで手動変換を促す（統合前の実データを黙って捨てない）。
+  /**
+   * ── pr_reviews 系（caravan_reviews への意味統合・2026-08-07）────────────────
+   * memory 側に同型テーブルは無い（統合先はスキーマの異なる caravan_reviews）ため、
+   * 自動のデータ変換はしない。**0 行のときだけ**テーブルを回収し、行が残る DB では
+   * DROP せず error ログで手動変換を促す（統合前の実データを黙って捨てない）。
+   */
+  private reclaimPrReviewTables(
+    present: ReadonlySet<string>,
+    missingRows: Record<string, number>,
+  ): void {
+    const db = this.ensureDb();
     for (const table of ['pr_review_findings', 'pr_review_comments', 'pr_reviews'] as const) {
       if (!present.has(table)) continue;
       const rows = Number(db.exec(`SELECT COUNT(*) FROM trail.${table}`)[0]?.values?.[0]?.[0] ?? 0);
@@ -569,19 +622,6 @@ export class FlightRecordDatabase {
         );
       }
     }
-
-    const lost = Object.entries(missingRows).filter(([, n]) => n > 0);
-    if (lost.length > 0) {
-      this.logger.error(
-        `[FlightRecordDatabase] migration verification failed (rows not preserved): ${JSON.stringify(Object.fromEntries(lost))}; keeping affected trail-side tables`,
-        new Error('flight record migration anti-join mismatch'),
-      );
-      return { status: 'verification_failed', copiedRows, missingRows };
-    }
-    this.logger.info(
-      `[FlightRecordDatabase] migrated trail-side tables (copied rows): ${JSON.stringify(copiedRows)}`,
-    );
-    return { status: 'migrated', copiedRows, missingRows };
   }
 
   /**

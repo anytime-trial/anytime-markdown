@@ -54,14 +54,15 @@ function insertReviewFinding(
     category?: string;
     recordedAt?: string;
     addressedAt?: string | null;
+    targetRepo?: string | null;
   },
 ): string {
   const id = opts.id ?? `rf-${++seq}`;
   db.run(
     `INSERT INTO caravan_review_findings
        (id, review_id, finding_entity_id, finding_index, target_file_path,
-        severity, category, finding_text, recorded_at, addressed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        severity, category, finding_text, recorded_at, addressed_at, target_repo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       opts.reviewId,
@@ -73,6 +74,7 @@ function insertReviewFinding(
       'finding text',
       opts.recordedAt ?? TS,
       opts.addressedAt ?? null,
+      opts.targetRepo ?? null,
     ],
   );
   return id;
@@ -435,5 +437,78 @@ describe('ワークスペースの解決', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].workspace).toBe('anytime-lab');
+  });
+});
+
+describe('target_repo の伝搬（対象ファイル実在ゲート用）', () => {
+  it('detectReviewUnfixed は finding の target_repo を detail へ渡す', () => {
+    const db = makeDb();
+    const reviewId = insertReview(db);
+    const findingEntity = insertEntity(db);
+    insertReviewFinding(db, {
+      reviewId,
+      findingEntityId: findingEntity,
+      recordedAt: '2020-01-01T00:00:00.000Z',
+      targetRepo: 'other-repo',
+    });
+
+    const results = detectReviewUnfixed({ db, daysOld: 30, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].detail['target_repo']).toBe('other-repo');
+  });
+
+  it('detectReviewUnfixed は target_repo 未解決 (null) を null のまま渡す', () => {
+    const db = makeDb();
+    const reviewId = insertReview(db);
+    const findingEntity = insertEntity(db);
+    insertReviewFinding(db, {
+      reviewId,
+      findingEntityId: findingEntity,
+      recordedAt: '2020-01-01T00:00:00.000Z',
+    });
+
+    const results = detectReviewUnfixed({ db, daysOld: 30, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].detail['target_repo']).toBeNull();
+  });
+
+  it('detectRecurringReviewFindings はクラスタが単一 target_repo なら確定する', () => {
+    const db = makeDb();
+    const reviewId = insertReview(db);
+    for (let i = 0; i < 2; i++) {
+      insertReviewFinding(db, {
+        reviewId,
+        findingEntityId: insertEntity(db),
+        targetFilePath: 'src/same.ts',
+        recordedAt: new Date().toISOString(),
+        targetRepo: 'repo-a',
+      });
+    }
+
+    const results = detectRecurringReviewFindings({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].detail['target_repo']).toBe('repo-a');
+  });
+
+  it('detectRecurringReviewFindings はクラスタ内で target_repo が混在すると null（fail-open）', () => {
+    const db = makeDb();
+    const reviewId = insertReview(db);
+    for (const repo of ['repo-a', 'repo-b']) {
+      insertReviewFinding(db, {
+        reviewId,
+        findingEntityId: insertEntity(db),
+        targetFilePath: 'src/same.ts',
+        recordedAt: new Date().toISOString(),
+        targetRepo: repo,
+      });
+    }
+
+    const results = detectRecurringReviewFindings({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].detail['target_repo']).toBeNull();
   });
 });

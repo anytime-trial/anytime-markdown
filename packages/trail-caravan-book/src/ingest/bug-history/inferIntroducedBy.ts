@@ -62,16 +62,27 @@ function isFix(db: CaravanDbConnection, sha: string): boolean {
   }
 }
 
-export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroducedByResult {
-  const { db, bugEntityId, fixCommitSha, affectedFilePaths, repoRoot, recordedAt, valid_from, logger } = input;
-
+/**
+ * 修正コミットが触れた各行を git blame し、直前の変更コミット SHA を数える。
+ * diff / blame の失敗はファイル・行単位で読み飛ばす（1 件の失敗で全体を止めない）。
+ */
+function countBlameShas(args: {
+  fixCommitSha: string;
+  affectedFilePaths: string[];
+  repoRoot: string;
+  logger: CaravanLogger;
+}): Map<string, number> {
+  const { fixCommitSha, affectedFilePaths, repoRoot, logger } = args;
   const shaCount = new Map<string, number>();
 
   for (const filePath of affectedFilePaths) {
     let diffOutput: string;
     try {
+      // オプションは `--` の前に置く。後ろに置くと git は pathspec として解釈する
+      // （blame は usage エラーで全滅、diff は無視されて context 付き出力になっていた。
+      // テストが execFileSync をモックするため引数順の誤りは実 git でしか発現しない）
       diffOutput = execFileSync(resolveGitExecutable(), [
-        'diff', `${fixCommitSha}^`, fixCommitSha, '--', filePath, '--unified=0',
+        'diff', '--unified=0', `${fixCommitSha}^`, fixCommitSha, '--', filePath,
       ], repoRoot);
     } catch (err) {
       logger.error(
@@ -87,7 +98,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
       let blameOutput: string;
       try {
         blameOutput = execFileSync(resolveGitExecutable(), [
-          'blame', '-L', `${lineNum},${lineNum}`, `${fixCommitSha}^`, '--', filePath, '--porcelain',
+          'blame', '--porcelain', '-L', `${lineNum},${lineNum}`, `${fixCommitSha}^`, '--', filePath,
         ], repoRoot);
       } catch (err) {
         logger.error(
@@ -104,24 +115,32 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
     }
   }
 
-  if (shaCount.size === 0) {
-    return { introduced_commit_sha: null, edges_inserted: 0 };
-  }
+  return shaCount;
+}
 
-  // Find most frequent SHA that is not itself a fix commit
-  function bestNonFixCandidate(counts: Map<string, number>, exclude?: string): string | null {
-    let best: string | null = null;
-    let bestCount = 0;
-    for (const [sha, count] of counts) {
-      if (sha === exclude) continue;
-      if (count > bestCount && !isFix(db, sha)) {
-        bestCount = count;
-        best = sha;
-      }
+// Find most frequent SHA that is not itself a fix commit
+function bestNonFixCandidate(
+  db: CaravanDbConnection,
+  counts: Map<string, number>,
+  exclude?: string,
+): string | null {
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [sha, count] of counts) {
+    if (sha === exclude) continue;
+    if (count > bestCount && !isFix(db, sha)) {
+      bestCount = count;
+      best = sha;
     }
-    return best;
   }
+  return best;
+}
 
+/** 最頻の SHA を選ぶ。それ自体が fix コミットなら次点の非 fix へ退避する。 */
+function pickIntroducedCandidate(
+  db: CaravanDbConnection,
+  shaCount: Map<string, number>,
+): string | null {
   // Find most frequent SHA (may be a fix commit)
   let topCandidate: string | null = null;
   let topCount = 0;
@@ -130,10 +149,21 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
   }
 
   // If top candidate is itself a fix commit, fall back to next best non-fix
-  const candidate =
-    topCandidate && isFix(db, topCandidate)
-      ? bestNonFixCandidate(shaCount, topCandidate)
-      : topCandidate;
+  return topCandidate && isFix(db, topCandidate)
+    ? bestNonFixCandidate(db, shaCount, topCandidate)
+    : topCandidate;
+}
+
+export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroducedByResult {
+  const { db, bugEntityId, fixCommitSha, affectedFilePaths, repoRoot, recordedAt, valid_from, logger } = input;
+
+  const shaCount = countBlameShas({ fixCommitSha, affectedFilePaths, repoRoot, logger });
+
+  if (shaCount.size === 0) {
+    return { introduced_commit_sha: null, edges_inserted: 0 };
+  }
+
+  const candidate = pickIntroducedCandidate(db, shaCount);
 
   if (!candidate) {
     return { introduced_commit_sha: null, edges_inserted: 0 };

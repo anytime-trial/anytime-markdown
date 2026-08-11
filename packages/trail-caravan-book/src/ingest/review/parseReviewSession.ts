@@ -53,6 +53,29 @@ type MsgRow = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
+ * tool_calls 配列の 1 要素から参照パスを集める。
+ * Looks for input.prompt (backtick paths), input.file_path, input.path.
+ */
+function extractRefsFromToolCall(call: unknown): string[] {
+  if (!call || typeof call !== 'object') return [];
+  const input = (call as Record<string, unknown>)['input'];
+  if (!input || typeof input !== 'object') return [];
+  const inp = input as Record<string, unknown>;
+
+  const refs: string[] = [];
+  if (typeof inp['prompt'] === 'string') {
+    refs.push(...extractBacktickPaths(inp['prompt']));
+  }
+  if (typeof inp['file_path'] === 'string') {
+    refs.push(inp['file_path']);
+  }
+  if (typeof inp['path'] === 'string') {
+    refs.push(inp['path']);
+  }
+  return refs;
+}
+
+/**
  * Extract target refs from tool_calls JSON array.
  * Looks for input.prompt (backtick paths), input.file_path, input.path.
  */
@@ -76,20 +99,7 @@ function extractRefsFromToolCalls(
 
   const refs: string[] = [];
   for (const call of parsed) {
-    if (!call || typeof call !== 'object') continue;
-    const input = (call as Record<string, unknown>)['input'];
-    if (!input || typeof input !== 'object') continue;
-    const inp = input as Record<string, unknown>;
-
-    if (typeof inp['prompt'] === 'string') {
-      refs.push(...extractBacktickPaths(inp['prompt']));
-    }
-    if (typeof inp['file_path'] === 'string') {
-      refs.push(inp['file_path']);
-    }
-    if (typeof inp['path'] === 'string') {
-      refs.push(inp['path']);
-    }
+    refs.push(...extractRefsFromToolCall(call));
   }
   return refs;
 }

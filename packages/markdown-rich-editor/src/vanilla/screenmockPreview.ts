@@ -76,6 +76,20 @@ function makeScreen(
   };
 }
 
+/** 空行を読み飛ばし、次の非空行（または終端）の位置を返す。 */
+function skipBlankLines(lines: string[], from: number): number {
+  let cursor = from;
+  while (cursor < lines.length && lines[cursor].trim() === "") cursor += 1;
+  return cursor;
+}
+
+/** 区切り行に到達するまで読み進め、その位置（または終端）を返す。 */
+function seekDelimiter(lines: string[], from: number): number {
+  let cursor = from;
+  while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
+  return cursor;
+}
+
 export function parseScreenmock(source: string): ScreenmockScreen[] {
   if (!source.trim()) return [];
 
@@ -91,21 +105,21 @@ export function parseScreenmock(source: string): ScreenmockScreen[] {
   const screens: ScreenmockScreen[] = [];
   let cursor = firstContentIndex;
   while (cursor < lines.length) {
-    while (cursor < lines.length && lines[cursor].trim() === "") cursor += 1;
+    cursor = skipBlankLines(lines, cursor);
     if (cursor >= lines.length) break;
     if (!isDelimiter(lines[cursor])) {
       const body = lines.slice(cursor).join("\n");
       screens.push(makeScreen({}, body, screens.length + 1, usedIds));
       break;
     }
-    cursor += 1;
-    const fmStart = cursor;
-    while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
-    if (cursor >= lines.length) break;
-    const frontmatter = lines.slice(fmStart, cursor);
-    cursor += 1;
-    const bodyStart = cursor;
-    while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
+    // frontmatter は開始区切りの次行から、次の区切り行の手前まで。
+    const fmStart = cursor + 1;
+    const fmEnd = seekDelimiter(lines, fmStart);
+    if (fmEnd >= lines.length) break;
+    const frontmatter = lines.slice(fmStart, fmEnd);
+    // 本文は終了区切りの次行から、次の画面の開始区切り（または終端）まで。
+    const bodyStart = fmEnd + 1;
+    cursor = seekDelimiter(lines, bodyStart);
     const body = lines.slice(bodyStart, cursor).join("\n");
     const meta = parseFrontmatter(frontmatter);
     if (meta) {

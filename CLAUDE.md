@@ -45,6 +45,8 @@
 
 - **discovery 順序（mcp-trail discovery ツール優先）**: 構造・依存・所在の探索は (1) どこから読むか＝`get_important_files`（filter: central/dead/barrel/risky）→ (2) 影響範囲＝`get_code_dependencies`（filePath 可・incoming/outgoing）/ シンボル所在＝`query_code_graph`（検索専用・既定 summary）/ 接続経路＝`find_code_path` / 共変更＝`get_cochange_partners` → Serena（本文）→ Read（編集箇所）の順（原則は global `~/.claude/CLAUDE.md`「discovery の順序」）。`activity_current_code_graphs.graph_json` の丸読み（約43万トークン）と `list_relationships` の影響範囲用途は禁止（後者は手動 C4 専用。影響範囲は `get_code_dependencies` を使う）。TrailDataServer 稼働が前提（未起動時はエラー）。
 
+- **知識グラフ検索（`search_caravan_book`）**: バグ修正・調査・提案 grounding の**着手時**に、対象ファイル名・シンボル名・概念名で照会し、過去の決定（Decision）・不具合（Bug）・レビュー指摘との接続を確認する。構造・依存の探索（上記 discovery 順序）とは別軸の「経緯・文脈の検索」を担う（採択根拠と利用実測の観測計画は `<docsRoot>/proposal/20260809-knowledge-graph-utilization.ja.md`）。
+
 ## ドクトリン接地判断と What 承認の代行（D2・2026-08-05 昇格）
 
 中間承認（What 承認）をドクトリンへ接地した判断へ段階移行する。**2026-08-05 に人の承認で D2（低重大度・高可逆な What 承認の代行）へ昇格した**（昇格時の実測: 母数 27 件・一致率 93.3%・引用解決率 97.1%・代行可能率 41.7%）。正本は `<docsRoot>/spec/31.trail/16.doctrine-judgment/doctrine-judgment.ja.md` と `<docsRoot>/spec/31.trail/18.coverage-gate/coverage-gate.ja.md`。

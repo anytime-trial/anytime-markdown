@@ -1,12 +1,14 @@
 import type { CaravanDbConnection } from '../db/connection/types';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import {
-  searchCaravanBook,
+  fetchGraphContext,
   vectorTopK,
   type SearchInput,
   type SearchResult,
   type SearchEntity,
 } from '../retrieve/searchCaravanBook';
+import { isLowInformationEntity } from '../canonical/entityQuality';
+import { fetchCommunityNames } from '../retrieve/communitySummaries';
 import { tokenizeForFts5 } from './tokenizeForFts5';
 import { reciprocalRankFusion, type RankSource } from './reciprocalRankFusion';
 
@@ -19,7 +21,17 @@ export interface HybridSearchInput extends SearchInput {
   readonly rrf_k?: number;
   /** 融合後の最終件数。default 12 */
   readonly final_limit?: number;
+  /** 実体ごとの文脈エピソード上限。default 3（detail=full で 5。spec §7.5） */
+  readonly episodes_per_entity?: number;
 }
+
+/**
+ * abstain 閾値: BM25 ヒット 0 かつ最上位 cosine がこの値未満なら
+ * 「確信できる一致なし」を明示応答する（spec §7.5。RRF 順位スコアだけでは
+ * 全滅ケースでも無関係な候補が確からしい顔で返り、消費者が空振りを判定できない）。
+ */
+// SHORTCUT: abstain 閾値を固定値 0.45 に置く. ceiling: bge-m3 の無関連ペア分布での較正を経ていない仮値. upgrade: 評価ハーネス(§7.8)の golden task で較正して確定する.
+export const ABSTAIN_COSINE_THRESHOLD = 0.45;
 
 export interface HybridSearchOptions {
   readonly db: CaravanDbConnection;
@@ -30,10 +42,16 @@ export interface HybridSearchOptions {
 
 interface FusedEntity extends SearchEntity {
   readonly sources: ReadonlyArray<RankSource>;
+  /** アームごとの生スコア（RRF は順位の逆数のみで確からしさを持たないため併記する。spec §7.5） */
+  raw_scores?: { bm25_rank?: number; cosine?: number };
 }
 
 export interface HybridSearchResult extends SearchResult {
   readonly entities: FusedEntity[];
+  /** 1 件以上返せたか。false のとき entities は空 */
+  matched: boolean;
+  /** 両アームとも確信できる一致が無く abstain した（spec §7.5） */
+  no_confident_match?: true;
 }
 
 function tableExists(db: CaravanDbConnection, name: string): boolean {
@@ -106,23 +124,47 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
   });
   const tBm25 = nowMs();
 
-  // 2. Vector top-K
-  const vecEntities = await vectorTopK({
-    db,
-    ollama,
-    embedModel,
-    input: {
-      query: input.query,
-      entity_types: input.entity_types,
-      since: input.since,
-    },
-    limit: vecLimit,
-  });
+  // 2. Vector top-K。ollama 不通時は BM25 のみへ縮退する（従来は検索全体が
+  //    失敗し、embedding 基盤の無い環境で結果ゼロになっていた）
+  let vecEntities: SearchEntity[] = [];
+  try {
+    vecEntities = await vectorTopK({
+      db,
+      ollama,
+      embedModel,
+      input: {
+        query: input.query,
+        entity_types: input.entity_types,
+        since: input.since,
+      },
+      limit: vecLimit,
+    });
+  } catch (err) {
+    const stack = err instanceof Error ? (err.stack ?? String(err)) : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[${new Date().toISOString()}] [WARN] hybridSearchCaravanBook vector arm degraded to BM25-only: ${stack}`,
+    );
+  }
   const vecHits = vecEntities.map((e, i) => ({ id: e.id, rank: i }));
   const tVec = nowMs();
 
-  // 3. RRF
-  const fused = reciprocalRankFusion(bm25Hits, vecHits, rrfK).slice(0, finalLimit);
+  // 2.5 abstain: 字句一致ゼロかつ意味類似も閾値未満なら、確信できる一致なしを
+  //     明示して返す（無関係な上位 N を確からしい顔で返すより、空振りの自己申告が
+  //     消費者にとっての有効情報。spec §7.5）
+  const topCosine = vecEntities.length > 0 ? vecEntities[0].score : 0;
+  if (bm25Hits.length === 0 && topCosine < ABSTAIN_COSINE_THRESHOLD) {
+    logPerf({
+      bm25_ms: tBm25 - t0,
+      vec_ms: tVec - tBm25,
+      abstain: true,
+      top_cosine: topCosine,
+    });
+    return { entities: [], edges: [], episodes: [], matched: false, no_confident_match: true };
+  }
+
+  // 3. RRF（低情報エンティティ除外後に finalLimit へ切るため、ここでは切らない）
+  const fused = reciprocalRankFusion(bm25Hits, vecHits, rrfK);
   const tRrf = nowMs();
   logPerf({
     bm25_ms: tBm25 - t0,
@@ -133,7 +175,7 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
     fused_count: fused.length,
   });
   if (fused.length === 0) {
-    return { entities: [], edges: [], episodes: [] };
+    return { entities: [], edges: [], episodes: [], matched: false };
   }
 
   // 4. Hydrate: BM25-only でヒットした id は entity 詳細を別途取得する。
@@ -143,33 +185,45 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
   const extraEntities = missingIds.length > 0 ? hydrateEntities(db, missingIds) : [];
   const extraById = new Map(extraEntities.map((e) => [e.id, e]));
 
+  const bm25RankById = new Map(bm25Hits.map((h) => [h.id, h.rank]));
   const entities: FusedEntity[] = [];
   for (const f of fused) {
+    if (entities.length >= finalLimit) break;
     const base = vecById.get(f.id) ?? extraById.get(f.id);
     if (!base) continue;
-    entities.push({ ...base, score: f.score, sources: f.sources });
+    // vec アームは vectorTopK 内で除外済みだが、BM25 のみで hit した id はここが唯一の関所
+    if (isLowInformationEntity(base.display_name, base.summary)) continue;
+    const bm25Rank = bm25RankById.get(f.id);
+    const cosine = vecById.get(f.id)?.score;
+    entities.push({
+      ...base,
+      score: f.score,
+      sources: f.sources,
+      raw_scores: {
+        ...(bm25Rank !== undefined ? { bm25_rank: bm25Rank } : {}),
+        ...(cosine !== undefined ? { cosine } : {}),
+      },
+    });
   }
 
-  // 5. hops=1 のときは searchCaravanBook を fused id 集合で再実行して edges/episodes を取る
-  if ((input.hops ?? 1) === 0) {
-    return { entities, edges: [], episodes: [] };
+  // 要約済みコミュニティの名前を文脈として同梱する（T-22。無ければフィールド省略）
+  const communityNames = fetchCommunityNames(db, entities.map((e) => e.id));
+  for (const entity of entities) {
+    const communityName = communityNames.get(entity.id);
+    if (communityName !== undefined) entity.community = { name: communityName };
   }
 
-  const fullResult = await searchCaravanBook({
-    db,
-    ollama,
-    embedModel,
-    input: {
-      ...input,
-      limit: finalLimit,
-    },
+  // 5. hops=1 のときは fused エンティティの周辺文脈を直接取得する
+  //    （従来は searchCaravanBook を再実行してベクトル検索を二重に走らせ、
+  //    さらに edges を subject 側だけでフィルタして object 側の接続を落としていた）
+  if ((input.hops ?? 1) === 0 || entities.length === 0) {
+    return { entities, edges: [], episodes: [], matched: entities.length > 0 };
+  }
+
+  const { edges, episodes } = fetchGraphContext(db, entities.map((e) => e.id), {
+    maxEpisodesPerEntity: input.episodes_per_entity,
   });
-  const fusedIds = new Set(entities.map((e) => e.id));
-  return {
-    entities,
-    edges: fullResult.edges.filter((e) => fusedIds.has(e.subject_id)),
-    episodes: fullResult.episodes,
-  };
+  return { entities, edges, episodes, matched: true };
 }
 
 function hydrateEntities(db: CaravanDbConnection, ids: string[]): SearchEntity[] {

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-08-11
+
+### Changed
+
+- Refreshed the bundled `anytime-analysis` skill: knowledge-graph search (`search_caravan_book`) is now wired into the workflow so grounding starts from recorded decisions and past bugs.
+- Split high-complexity functions in `agent-core` (transcript parsing, status worker, JSONL spool, section-lock gate, stop-hook spool). Behavior is unchanged.
+
 ## [1.15.0] - 2026-08-09
 
 ### Changed

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-08-11
+
+### Fixed
+
+- Addressed pre-merge review findings in the GitHub tickets route and `githubAuth`, and split a high-complexity function there. Behavior is unchanged.
+
 ## [0.47.0] - 2026-08-09
 
 ### Changed

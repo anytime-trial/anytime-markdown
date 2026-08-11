@@ -89,40 +89,47 @@ function rangeHasDiagram(step: ReplaceStep | ReplaceAroundStep, docBefore: PmNod
   return touched;
 }
 
+type TransactionStep = Transaction["steps"][number];
+
 /**
- * トランザクションの step が diagram コードブロックに触れたか判定する。
+ * 単一 step が diagram コードブロックに触れたか判定する。
  *
  * - マーク変更（太字等）は diagram 集計に無関係 → スキップ
  * - Replace 系: 挿入スライス（挿入・setNodeMarkup 後のノード）と旧レンジ（削除・言語変更）を検査
  * - attr / node-mark 系（pos を持つ）: 対象ノードが diagram codeBlock か
  * - 未知の step: 安全側で再計算する（誤スキップで集計が古く残るより安全）
+ */
+function stepTouchesCodeBlock(step: TransactionStep, docBefore: PmNode): boolean {
+  if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) return false;
+
+  if (step instanceof ReplaceStep || step instanceof ReplaceAroundStep) {
+    // 挿入スライス（通常小さい）を先に、続いて旧レンジを検査
+    if (fragmentHasDiagram(step.slice.content)) return true;
+    if (rangeHasDiagram(step, docBefore)) return true;
+    return false;
+  }
+
+  // attr / node-mark 系 step（AttrStep など pos を持つ）の対象ノード
+  const pos = (step as { pos?: number }).pos;
+  if (typeof pos === "number") {
+    const node = docBefore.nodeAt(pos);
+    if (node && isDiagramCodeBlock(node)) return true;
+    return false;
+  }
+
+  // pos も slice も持たない未知 step → 安全側で再計算をトリガー
+  return true;
+}
+
+/**
+ * トランザクションの step が diagram コードブロックに触れたか判定する。
  *
  * プレーンテキスト編集・非 diagram コードブロック内の編集では false を返す。
  */
 export function stepsTouchCodeBlock(tr: Transaction): boolean {
   for (let i = 0; i < tr.steps.length; i++) {
-    const step = tr.steps[i];
     const docBefore = tr.docs[i] ?? tr.before;
-
-    if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) continue;
-
-    if (step instanceof ReplaceStep || step instanceof ReplaceAroundStep) {
-      // 挿入スライス（通常小さい）を先に、続いて旧レンジを検査
-      if (fragmentHasDiagram(step.slice.content)) return true;
-      if (rangeHasDiagram(step, docBefore)) return true;
-      continue;
-    }
-
-    // attr / node-mark 系 step（AttrStep など pos を持つ）の対象ノード
-    const pos = (step as { pos?: number }).pos;
-    if (typeof pos === "number") {
-      const node = docBefore.nodeAt(pos);
-      if (node && isDiagramCodeBlock(node)) return true;
-      continue;
-    }
-
-    // pos も slice も持たない未知 step → 安全側で再計算をトリガー
-    return true;
+    if (stepTouchesCodeBlock(tr.steps[i], docBefore)) return true;
   }
   return false;
 }

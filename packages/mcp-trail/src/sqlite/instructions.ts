@@ -86,6 +86,110 @@ export function ensureInstructionTables(db: Database): void {
 const ensureTables = ensureInstructionTables;
 
 /**
+ * trail 側の指示台帳を caravan_ 側へ INSERT OR IGNORE でコピーし、コピー行数を返す。
+ *
+ * コピー列は両側の交差から組み立てる（doctrine 版と同方式）。固定列挙だと旧 activity.db
+ * との列差 1 つで全体が throw → catch に落ち、旧指示が永久に回収されない。
+ * trail 側はレガシー名・memory 側は caravan_ 新名のため、交差は両名で取る。
+ */
+function copyInstructionTables(db: Database, present: ReadonlySet<string>): number {
+  const intersectCols = (trailTable: string, memTable: string): string[] => {
+    const trailCols = (db.prepare(`PRAGMA trail.table_info(${trailTable})`).all() as Array<{ name: string }>).map((c) => c.name);
+    const memCols = new Set((db.prepare(`PRAGMA table_info(${memTable})`).all() as Array<{ name: string }>).map((c) => c.name));
+    return trailCols.filter((c) => memCols.has(c));
+  };
+  let copiedRows = 0;
+  if (present.has('instructions')) {
+    const cols = intersectCols('instructions', 'caravan_instructions').join(', ');
+    copiedRows += db
+      .prepare(`INSERT OR IGNORE INTO caravan_instructions (${cols}) SELECT ${cols} FROM trail.instructions`)
+      .run().changes;
+  }
+  if (present.has('instruction_sessions')) {
+    const cols = intersectCols('instruction_sessions', 'caravan_instruction_sessions').join(', ');
+    copiedRows += db
+      .prepare(`INSERT OR IGNORE INTO caravan_instruction_sessions (${cols}) SELECT ${cols} FROM trail.instruction_sessions`)
+      .run().changes;
+    // session_id 衝突（memory 側で別指示へ再宣言済み）は後勝ちで memory が正だが、
+    // 旧リンクの置換を黙って通さず可視化する（復旧は退避テーブルから可能）
+    const superseded = Number(
+      (db
+        .prepare(
+          `SELECT COUNT(*) c FROM trail.instruction_sessions t JOIN caravan_instruction_sessions m
+                 ON m.session_id = t.session_id WHERE m.instruction_id <> t.instruction_id`,
+        )
+        .get() as { c: number }).c,
+    );
+    if (superseded > 0) {
+      console.error(
+        `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration: ${superseded} session link(s) superseded by trail-caravan-book side (old links retained in instruction_sessions__pre_move_backup)`,
+      );
+    }
+  }
+  return copiedRows;
+}
+
+/** 検証: id / session_id のアンチ結合で「コピーできなかった行」を数える。 */
+function countMissingInstructionRows(db: Database, present: ReadonlySet<string>): number {
+  let missingRows = 0;
+  if (present.has('instructions')) {
+    missingRows += Number(
+      (db
+        .prepare(
+          `SELECT COUNT(*) c FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instructions m WHERE m.id = t.id)`,
+        )
+        .get() as { c: number }).c,
+    );
+  }
+  if (present.has('instruction_sessions')) {
+    missingRows += Number(
+      (db
+        .prepare(
+          `SELECT COUNT(*) c FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instruction_sessions m WHERE m.session_id = t.session_id)`,
+        )
+        .get() as { c: number }).c,
+    );
+  }
+  return missingRows;
+}
+
+/** 退避 → DROP の結果。件数不一致は ROLLBACK 済みで、呼び出し側は verification_failed を返す。 */
+type InstructionBackupOutcome = { kind: 'ok' } | { kind: 'mismatch'; trailCount: number };
+
+/**
+ * **副作用: trail 側テーブルを退避テーブルへ複製した上で DROP する。**
+ * 退避の行数が元と一致しない場合は DROP せず ROLLBACK する（退避を外してはならない）。
+ */
+function backupAndDropInstructionTables(
+  db: Database,
+  present: ReadonlySet<string>,
+): InstructionBackupOutcome {
+  for (const table of ['instruction_sessions', 'instructions'] as const) {
+    if (!present.has(table)) continue;
+    const backup = `${table}__pre_move_backup`;
+    const trailCount = Number((db.prepare(`SELECT COUNT(*) c FROM trail.${table}`).get() as { c: number }).c);
+    const backupExists =
+      db.prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = ?`).get(backup) !== undefined;
+    let backedUp: number;
+    if (backupExists) {
+      backedUp = db.prepare(`INSERT INTO trail.${backup} SELECT * FROM trail.${table}`).run().changes;
+    } else {
+      db.exec(`CREATE TABLE trail.${backup} AS SELECT * FROM trail.${table}`);
+      backedUp = Number((db.prepare(`SELECT COUNT(*) c FROM trail.${backup}`).get() as { c: number }).c);
+    }
+    if (backedUp !== trailCount) {
+      console.error(
+        `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration: backup row count mismatch for ${table} (backup=${backedUp} trail=${trailCount}); rolling back`,
+      );
+      db.exec('ROLLBACK');
+      return { kind: 'mismatch', trailCount };
+    }
+    db.exec(`DROP TABLE IF EXISTS trail.${table}`);
+  }
+  return { kind: 'ok' };
+}
+
+/**
  * **副作用: 検証通過時に activity.db 側の instructions / caravan_instruction_sessions を退避テーブルへ
  * 複製した上で DROP する。**
  *
@@ -125,61 +229,8 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
         db.exec('COMMIT');
         return null;
       }
-      // コピー列は両側の交差から組み立てる（doctrine 版と同方式）。固定列挙だと旧 activity.db
-      // との列差 1 つで全体が throw → catch に落ち、旧指示が永久に回収されない
-      // trail 側はレガシー名・memory 側は caravan_ 新名のため、交差は両名で取る
-      const intersectCols = (trailTable: string, memTable: string): string[] => {
-        const trailCols = (db.prepare(`PRAGMA trail.table_info(${trailTable})`).all() as Array<{ name: string }>).map((c) => c.name);
-        const memCols = new Set((db.prepare(`PRAGMA table_info(${memTable})`).all() as Array<{ name: string }>).map((c) => c.name));
-        return trailCols.filter((c) => memCols.has(c));
-      };
-      let copiedRows = 0;
-      if (present.has('instructions')) {
-        const cols = intersectCols('instructions', 'caravan_instructions').join(', ');
-        copiedRows += db
-          .prepare(`INSERT OR IGNORE INTO caravan_instructions (${cols}) SELECT ${cols} FROM trail.instructions`)
-          .run().changes;
-      }
-      if (present.has('instruction_sessions')) {
-        const cols = intersectCols('instruction_sessions', 'caravan_instruction_sessions').join(', ');
-        copiedRows += db
-          .prepare(`INSERT OR IGNORE INTO caravan_instruction_sessions (${cols}) SELECT ${cols} FROM trail.instruction_sessions`)
-          .run().changes;
-        // session_id 衝突（memory 側で別指示へ再宣言済み）は後勝ちで memory が正だが、
-        // 旧リンクの置換を黙って通さず可視化する（復旧は退避テーブルから可能）
-        const superseded = Number(
-          (db
-            .prepare(
-              `SELECT COUNT(*) c FROM trail.instruction_sessions t JOIN caravan_instruction_sessions m
-                 ON m.session_id = t.session_id WHERE m.instruction_id <> t.instruction_id`,
-            )
-            .get() as { c: number }).c,
-        );
-        if (superseded > 0) {
-          console.error(
-            `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration: ${superseded} session link(s) superseded by trail-caravan-book side (old links retained in instruction_sessions__pre_move_backup)`,
-          );
-        }
-      }
-      let missingRows = 0;
-      if (present.has('instructions')) {
-        missingRows += Number(
-          (db
-            .prepare(
-              `SELECT COUNT(*) c FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instructions m WHERE m.id = t.id)`,
-            )
-            .get() as { c: number }).c,
-        );
-      }
-      if (present.has('instruction_sessions')) {
-        missingRows += Number(
-          (db
-            .prepare(
-              `SELECT COUNT(*) c FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM caravan_instruction_sessions m WHERE m.session_id = t.session_id)`,
-            )
-            .get() as { c: number }).c,
-        );
-      }
+      const copiedRows = copyInstructionTables(db, present);
+      const missingRows = countMissingInstructionRows(db, present);
       if (missingRows > 0) {
         console.error(
           `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration verification failed (rows not preserved: ${missingRows}); keeping trail-side tables`,
@@ -187,27 +238,9 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
         db.exec('COMMIT');
         return { status: 'verification_failed', copiedRows, missingRows };
       }
-      for (const table of ['instruction_sessions', 'instructions'] as const) {
-        if (!present.has(table)) continue;
-        const backup = `${table}__pre_move_backup`;
-        const trailCount = Number((db.prepare(`SELECT COUNT(*) c FROM trail.${table}`).get() as { c: number }).c);
-        const backupExists =
-          db.prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = ?`).get(backup) !== undefined;
-        let backedUp: number;
-        if (backupExists) {
-          backedUp = db.prepare(`INSERT INTO trail.${backup} SELECT * FROM trail.${table}`).run().changes;
-        } else {
-          db.exec(`CREATE TABLE trail.${backup} AS SELECT * FROM trail.${table}`);
-          backedUp = Number((db.prepare(`SELECT COUNT(*) c FROM trail.${backup}`).get() as { c: number }).c);
-        }
-        if (backedUp !== trailCount) {
-          console.error(
-            `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration: backup row count mismatch for ${table} (backup=${backedUp} trail=${trailCount}); rolling back`,
-          );
-          db.exec('ROLLBACK');
-          return { status: 'verification_failed', copiedRows: 0, missingRows: trailCount };
-        }
-        db.exec(`DROP TABLE IF EXISTS trail.${table}`);
+      const backup = backupAndDropInstructionTables(db, present);
+      if (backup.kind === 'mismatch') {
+        return { status: 'verification_failed', copiedRows: 0, missingRows: backup.trailCount };
       }
       db.exec('COMMIT');
       return { status: 'migrated', copiedRows, missingRows: 0 };

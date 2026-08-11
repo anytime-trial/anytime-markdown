@@ -326,20 +326,10 @@ export function installCodeBlockOverlay(
     return true;
   };
 
-  const openEdit = (): void => {
-    if (!node || pos < 0) return;
-    closeDialog();
-    // chrome の選択トラッカーは pos 不変の本文差し替え（Apply）では onSelect を再発火しない。
-    // node スナップショットは古くなり得るため、開くたびに文書から解決し直す。
-    node = editor.state.doc.nodeAt(pos) ?? node;
-    const language = languageOf();
-    const kind: CodeBlockKind = classifyCodeBlock(language);
-    if (tryOpenCompareEdit(codeBlockToolbarLabel(kind, language, t))) return;
-    editState.update({ editor, pos, node });
-    editState.onOpen();
-    unsubscribeState = editState.subscribe(watchDiscard);
+  /** 各編集ダイアログへ共通で渡すオプション（テーマ・フォント・状態・閉じる操作）。 */
+  const buildCommonDialogOptions = () => {
     const { editorBg, fontSize, lineHeight } = style();
-    const common = {
+    return {
       isDark: isDark(),
       editorBg,
       fontSize,
@@ -349,226 +339,225 @@ export function installCodeBlockOverlay(
       t,
       onClose: () => editState.tryCloseEdit(),
     };
+  };
+  type CommonDialogOptions = ReturnType<typeof buildCommonDialogOptions>;
 
-    if (kind === "embed") {
-      openEmbedEdit();
-      return;
-    }
-    if (kind === "math") {
-      // グラフ表示トグル（GraphView）は未移植（installer 冒頭の差分注記参照）。表示制御は
-      // chrome 側 isGraphHidden が担うため、dialog へのフラグ受け渡しは行わない。
-      const handle = createMathEditDialog({
-        ...common,
-        label: "Math",
+  const openMathEdit = (common: CommonDialogOptions): void => {
+    // グラフ表示トグル（GraphView）は未移植（installer 冒頭の差分注記参照）。表示制御は
+    // chrome 側 isGraphHidden が担うため、dialog へのフラグ受け渡しは行わない。
+    const handle = createMathEditDialog({
+      ...common,
+      label: "Math",
+    });
+    activeDialog = handle;
+  };
+
+  const openMermaidEdit = (common: CommonDialogOptions): void => {
+    const code = editState.getCode();
+    const handle = createMermaidEditDialog({
+      ...common,
+      label: t("mermaid"),
+      code,
+      svg: getCachedMermaidSvg(code, isDark()) || undefined,
+      onExport: doExport,
+      onExportSource: doExportSource,
+      exportSourceKey: "exportMmd",
+    });
+    activeDialog = handle;
+    // 入力に追従して svg を再レンダ（requestMermaidRender 自体が 500ms debounce を持つ）。
+    const renderNow = (): void => {
+      cancelRender?.();
+      cancelRender = requestMermaidRender(editState.getFsCode(), isDark(), (svg, error) => {
+        if (error) console.warn("[installCodeBlockOverlay] mermaid render failed", error);
+        if (svg) handle.updateSvg(svg);
       });
-      activeDialog = handle;
-      return;
-    }
-    if (kind === "diagram" && language === "mermaid") {
-      const code = editState.getCode();
-      const handle = createMermaidEditDialog({
-        ...common,
-        label: t("mermaid"),
-        code,
-        svg: getCachedMermaidSvg(code, isDark()) || undefined,
-        onExport: doExport,
-        onExportSource: doExportSource,
-        exportSourceKey: "exportMmd",
-      });
-      activeDialog = handle;
-      // 入力に追従して svg を再レンダ（requestMermaidRender 自体が 500ms debounce を持つ）。
-      const renderNow = (): void => {
-        cancelRender?.();
-        cancelRender = requestMermaidRender(editState.getFsCode(), isDark(), (svg, error) => {
-          if (error) console.warn("[installCodeBlockOverlay] mermaid render failed", error);
-          if (svg) handle.updateSvg(svg);
-        });
-      };
-      const baseUnsub = unsubscribeState;
-      const renderUnsub = editState.subscribe(renderNow);
-      unsubscribeState = () => {
-        baseUnsub?.();
-        renderUnsub();
-      };
-      renderNow();
-      return;
-    }
-    if (kind === "diagram" && language === "plantuml") {
-      const code = editState.getCode();
-      const handle = createPlantUmlEditDialog({
-        ...common,
-        label: t("plantuml"),
-        code,
-        plantUmlUrl: buildPlantUmlImageUrl(code, isDark()),
-        onExport: doExport,
-        onExportSource: doExportSource,
-        exportSourceKey: "exportPuml",
-      });
-      activeDialog = handle;
-      const baseUnsub = unsubscribeState;
-      const renderUnsub = editState.subscribe(() => {
-        handle.updateUrl(buildPlantUmlImageUrl(editState.getFsCode(), isDark()));
-      });
-      unsubscribeState = () => {
-        baseUnsub?.();
-        renderUnsub();
-      };
-      return;
-    }
-    if (kind === "diagram" && language === "anytime-thinking-model") {
-      const hint = t("anytimeGraphHint");
-      const handle = createCodeBlockEditDialog({
-        ...common,
-        label: t("anytimeGraph"),
-        language: "anytime-thinking-model",
-        renderPreview: true,
-        renderPreviewHtml: (code, dark) =>
-          renderAnytimeGraphPreviewHtml(code, dark, hint, (svg) =>
-            DOMPurify.sanitize(svg, GRAPH_SVG_SANITIZE_CONFIG),
-          ),
-        // 編集可能時のみプレビュー上で WYSIWYG 操作（ラベル編集・追加/削除）を有効化する。
-        onPreviewRendered: editor.isEditable
-          ? (previewEl, dark) =>
-              attachAnytimeGraphInteractions({
-                previewEl,
-                getCode: () => editState.getFsCode(),
-                setCode: (dsl) => editState.onFsTextChange(dsl),
-                isDark: dark,
-                t,
-              })
-          : undefined,
-        // mermaid と同形式で全10図種をサンプル選択できるようにする。
-        customSamples: ANYTIME_GRAPH_SAMPLES,
-      });
-      activeDialog = handle;
-      return;
-    }
-    if (kind === "diagram" && language === "anytime-chart") {
-      // 右ペインは canvas WC（<anytime-chart>）を実体マウントする。HTML 文字列では
-      // .spec プロパティ駆動の WC を描画できないため renderPreviewHtml は空にし、
-      // onPreviewRendered で現在の JSON から spec をマウントする（入力ごとに再実行される）。
-      const handle = createCodeBlockEditDialog({
-        ...common,
-        label: t("anytimeChart"),
-        language: "anytime-chart",
-        renderPreview: true,
-        renderPreviewHtml: () => "",
-        onPreviewRendered: (previewEl, dark) =>
-          mountAnytimeChartPreview(previewEl, editState.getFsCode(), dark),
-        // line / bar / scatter のサンプルを編集ダイアログから選べるようにする。
-        customSamples: ANYTIME_CHART_SAMPLES,
-        // 左ペインで「スクリプト ⇄ 表」を切替し、表（spreadsheet グリッド）でも編集可能にする。
-        leftAuxTab: { labelKey: "tableTab", mount: createChartTableEditor },
-      });
-      activeDialog = handle;
-      return;
-    }
-    if (kind === "screenmock") {
-      let designMode = false;
-      let lastSelectedPath: string | null = null;
-      let activeScreenIndex = 0;
-      let panel: ScreenmockEditPanelHandle | null = null;
-      const designToggleLabel = document.createElement("label");
-      designToggleLabel.style.cssText =
-        "display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--am-color-divider,#d0d7de);font:inherit;font-size:0.8125rem;cursor:pointer;user-select:none;";
-      const designToggle = document.createElement("input");
-      designToggle.type = "checkbox";
-      designToggle.setAttribute("aria-label", t("screenmockDesignMode"));
-      designToggleLabel.appendChild(designToggle);
-      designToggleLabel.appendChild(document.createTextNode(t("screenmockDesignMode")));
-      designToggle.addEventListener("change", () => {
-        designMode = designToggle.checked;
-        panel?.setDesignMode(designMode);
-        editState.onFsTextChange(editState.getFsCode());
-      });
-      const handle = createCodeBlockEditDialog({
-        ...common,
-        label: t("screenmock"),
-        language: "screenmock",
-        renderPreview: true,
-        renderPreviewHtml: () => "",
-        previewToolbar: designToggleLabel,
-        // 未指定だと言語別 Hello World（CODE_HELLO_SAMPLES）にフォールバックしてしまうため、
-        // screenmock 用の画面サンプル（sm- 部品語彙・画面遷移込み）を明示的に渡す。
-        customSamples: SCREENMOCK_SAMPLES,
-        previewSidePanel: {
-          mount: (container, ctx) => {
-            panel = createScreenmockEditPanel({
-              getSource: ctx.getCode,
-              setSource: ctx.setCode,
+    };
+    const baseUnsub = unsubscribeState;
+    const renderUnsub = editState.subscribe(renderNow);
+    unsubscribeState = () => {
+      baseUnsub?.();
+      renderUnsub();
+    };
+    renderNow();
+  };
+
+  const openPlantUmlEdit = (common: CommonDialogOptions): void => {
+    const code = editState.getCode();
+    const handle = createPlantUmlEditDialog({
+      ...common,
+      label: t("plantuml"),
+      code,
+      plantUmlUrl: buildPlantUmlImageUrl(code, isDark()),
+      onExport: doExport,
+      onExportSource: doExportSource,
+      exportSourceKey: "exportPuml",
+    });
+    activeDialog = handle;
+    const baseUnsub = unsubscribeState;
+    const renderUnsub = editState.subscribe(() => {
+      handle.updateUrl(buildPlantUmlImageUrl(editState.getFsCode(), isDark()));
+    });
+    unsubscribeState = () => {
+      baseUnsub?.();
+      renderUnsub();
+    };
+  };
+
+  const openAnytimeGraphEdit = (common: CommonDialogOptions): void => {
+    const hint = t("anytimeGraphHint");
+    const handle = createCodeBlockEditDialog({
+      ...common,
+      label: t("anytimeGraph"),
+      language: "anytime-thinking-model",
+      renderPreview: true,
+      renderPreviewHtml: (code, dark) =>
+        renderAnytimeGraphPreviewHtml(code, dark, hint, (svg) =>
+          DOMPurify.sanitize(svg, GRAPH_SVG_SANITIZE_CONFIG),
+        ),
+      // 編集可能時のみプレビュー上で WYSIWYG 操作（ラベル編集・追加/削除）を有効化する。
+      onPreviewRendered: editor.isEditable
+        ? (previewEl, dark) =>
+            attachAnytimeGraphInteractions({
+              previewEl,
+              getCode: () => editState.getFsCode(),
+              setCode: (dsl) => editState.onFsTextChange(dsl),
+              isDark: dark,
               t,
-              getDesignMode: () => designMode,
-              getSelectedPath: () => lastSelectedPath,
-              setSelectedPath: (path) => {
-                lastSelectedPath = path;
-              },
-              getActiveScreenIndex: () => activeScreenIndex,
-              setActiveScreenIndex: (index) => {
-                activeScreenIndex = index;
-                editState.onFsTextChange(editState.getFsCode());
-              },
-              confirm,
-              isDark: ctx.isDark,
-            });
-            container.appendChild(panel.el);
-            return () => {
-              panel?.destroy();
-              panel = null;
-            };
-          },
-        },
-        onPreviewRendered: (previewEl) => {
-          previewEl.replaceChildren();
-          previewEl.setAttribute("aria-label", "Screenmock preview");
-          previewEl.style.fontFamily = "inherit";
-          previewEl.style.whiteSpace = "normal";
-          const preview = designMode
-            ? createScreenmockDesignModePreview({
-                source: editState.getFsCode(),
-                getSource: () => editState.getFsCode(),
-                setSource: (source) => editState.onFsTextChange(source),
-                emptyHint: t("screenmockEmptyHint"),
-                tabListLabel: t("screenmockTabsLabel"),
-                hintLabel: t("screenmockDesignHint"),
-                freePositionLabel: t("screenmockDragFreePosition"),
-                initialActiveScreenIndex: activeScreenIndex,
-                initialSelectedPath: lastSelectedPath ?? undefined,
-                onActiveScreenChange: (index) => {
-                  activeScreenIndex = index;
-                  panel?.setActiveScreenIndex(index);
-                },
-                onSelectionChange: (path) => {
-                  lastSelectedPath = path;
-                  panel?.setSelection(path);
-                },
-              })
-            : createScreenmockPreview(editState.getFsCode(), {
-                emptyHint: t("screenmockEmptyHint"),
-                tabListLabel: t("screenmockTabsLabel"),
-              });
-          previewEl.appendChild(preview);
+            })
+        : undefined,
+      // mermaid と同形式で全10図種をサンプル選択できるようにする。
+      customSamples: ANYTIME_GRAPH_SAMPLES,
+    });
+    activeDialog = handle;
+  };
+
+  const openAnytimeChartEdit = (common: CommonDialogOptions): void => {
+    // 右ペインは canvas WC（<anytime-chart>）を実体マウントする。HTML 文字列では
+    // .spec プロパティ駆動の WC を描画できないため renderPreviewHtml は空にし、
+    // onPreviewRendered で現在の JSON から spec をマウントする（入力ごとに再実行される）。
+    const handle = createCodeBlockEditDialog({
+      ...common,
+      label: t("anytimeChart"),
+      language: "anytime-chart",
+      renderPreview: true,
+      renderPreviewHtml: () => "",
+      onPreviewRendered: (previewEl, dark) =>
+        mountAnytimeChartPreview(previewEl, editState.getFsCode(), dark),
+      // line / bar / scatter のサンプルを編集ダイアログから選べるようにする。
+      customSamples: ANYTIME_CHART_SAMPLES,
+      // 左ペインで「スクリプト ⇄ 表」を切替し、表（spreadsheet グリッド）でも編集可能にする。
+      leftAuxTab: { labelKey: "tableTab", mount: createChartTableEditor },
+    });
+    activeDialog = handle;
+  };
+
+  const openScreenmockEdit = (common: CommonDialogOptions): void => {
+    let designMode = false;
+    let lastSelectedPath: string | null = null;
+    let activeScreenIndex = 0;
+    let panel: ScreenmockEditPanelHandle | null = null;
+    const designToggleLabel = document.createElement("label");
+    designToggleLabel.style.cssText =
+      "display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--am-color-divider,#d0d7de);font:inherit;font-size:0.8125rem;cursor:pointer;user-select:none;";
+    const designToggle = document.createElement("input");
+    designToggle.type = "checkbox";
+    designToggle.setAttribute("aria-label", t("screenmockDesignMode"));
+    designToggleLabel.appendChild(designToggle);
+    designToggleLabel.appendChild(document.createTextNode(t("screenmockDesignMode")));
+    designToggle.addEventListener("change", () => {
+      designMode = designToggle.checked;
+      panel?.setDesignMode(designMode);
+      editState.onFsTextChange(editState.getFsCode());
+    });
+    const handle = createCodeBlockEditDialog({
+      ...common,
+      label: t("screenmock"),
+      language: "screenmock",
+      renderPreview: true,
+      renderPreviewHtml: () => "",
+      previewToolbar: designToggleLabel,
+      // 未指定だと言語別 Hello World（CODE_HELLO_SAMPLES）にフォールバックしてしまうため、
+      // screenmock 用の画面サンプル（sm- 部品語彙・画面遷移込み）を明示的に渡す。
+      customSamples: SCREENMOCK_SAMPLES,
+      previewSidePanel: {
+        mount: (container, ctx) => {
+          panel = createScreenmockEditPanel({
+            getSource: ctx.getCode,
+            setSource: ctx.setCode,
+            t,
+            getDesignMode: () => designMode,
+            getSelectedPath: () => lastSelectedPath,
+            setSelectedPath: (path) => {
+              lastSelectedPath = path;
+            },
+            getActiveScreenIndex: () => activeScreenIndex,
+            setActiveScreenIndex: (index) => {
+              activeScreenIndex = index;
+              editState.onFsTextChange(editState.getFsCode());
+            },
+            confirm,
+            isDark: ctx.isDark,
+          });
+          container.appendChild(panel.el);
           return () => {
-            const maybeDisposable = preview as HTMLElement & { destroy?: () => void };
-            if (typeof maybeDisposable.destroy === "function") {
-              maybeDisposable.destroy();
-            } else {
-              preview.remove();
-            }
+            panel?.destroy();
+            panel = null;
           };
         },
-      });
-      activeDialog = handle;
-      const baseUnsub = unsubscribeState;
-      const panelUnsub = editState.subscribe(() => {
-        panel?.render();
-      });
-      unsubscribeState = () => {
-        baseUnsub?.();
-        panelUnsub();
-      };
-      return;
-    }
-    // regular / html / markdown / その他 unknown kind はコード編集ダイアログ。
+      },
+      onPreviewRendered: (previewEl) => {
+        previewEl.replaceChildren();
+        previewEl.setAttribute("aria-label", "Screenmock preview");
+        previewEl.style.fontFamily = "inherit";
+        previewEl.style.whiteSpace = "normal";
+        const preview = designMode
+          ? createScreenmockDesignModePreview({
+              source: editState.getFsCode(),
+              getSource: () => editState.getFsCode(),
+              setSource: (source) => editState.onFsTextChange(source),
+              emptyHint: t("screenmockEmptyHint"),
+              tabListLabel: t("screenmockTabsLabel"),
+              hintLabel: t("screenmockDesignHint"),
+              freePositionLabel: t("screenmockDragFreePosition"),
+              initialActiveScreenIndex: activeScreenIndex,
+              initialSelectedPath: lastSelectedPath ?? undefined,
+              onActiveScreenChange: (index) => {
+                activeScreenIndex = index;
+                panel?.setActiveScreenIndex(index);
+              },
+              onSelectionChange: (path) => {
+                lastSelectedPath = path;
+                panel?.setSelection(path);
+              },
+            })
+          : createScreenmockPreview(editState.getFsCode(), {
+              emptyHint: t("screenmockEmptyHint"),
+              tabListLabel: t("screenmockTabsLabel"),
+            });
+        previewEl.appendChild(preview);
+        return () => {
+          const maybeDisposable = preview as HTMLElement & { destroy?: () => void };
+          if (typeof maybeDisposable.destroy === "function") {
+            maybeDisposable.destroy();
+          } else {
+            preview.remove();
+          }
+        };
+      },
+    });
+    activeDialog = handle;
+    const baseUnsub = unsubscribeState;
+    const panelUnsub = editState.subscribe(() => {
+      panel?.render();
+    });
+    unsubscribeState = () => {
+      baseUnsub?.();
+      panelUnsub();
+    };
+  };
+
+  /** regular / html / markdown / その他 unknown kind はコード編集ダイアログ。 */
+  const openGenericCodeEdit = (common: CommonDialogOptions, kind: CodeBlockKind, language: string): void => {
     const isHtml = kind === "html";
     const handle = createCodeBlockEditDialog({
       ...common,
@@ -585,6 +574,57 @@ export function installCodeBlockOverlay(
         : undefined,
     });
     activeDialog = handle;
+  };
+
+  /** 図種別（kind === "diagram"）の専用ダイアログを開く。開いたら true、対象外なら false。 */
+  const openDiagramEdit = (common: CommonDialogOptions, language: string): boolean => {
+    if (language === "mermaid") {
+      openMermaidEdit(common);
+      return true;
+    }
+    if (language === "plantuml") {
+      openPlantUmlEdit(common);
+      return true;
+    }
+    if (language === "anytime-thinking-model") {
+      openAnytimeGraphEdit(common);
+      return true;
+    }
+    if (language === "anytime-chart") {
+      openAnytimeChartEdit(common);
+      return true;
+    }
+    return false;
+  };
+
+  const openEdit = (): void => {
+    if (!node || pos < 0) return;
+    closeDialog();
+    // chrome の選択トラッカーは pos 不変の本文差し替え（Apply）では onSelect を再発火しない。
+    // node スナップショットは古くなり得るため、開くたびに文書から解決し直す。
+    node = editor.state.doc.nodeAt(pos) ?? node;
+    const language = languageOf();
+    const kind: CodeBlockKind = classifyCodeBlock(language);
+    if (tryOpenCompareEdit(codeBlockToolbarLabel(kind, language, t))) return;
+    editState.update({ editor, pos, node });
+    editState.onOpen();
+    unsubscribeState = editState.subscribe(watchDiscard);
+    const common = buildCommonDialogOptions();
+
+    if (kind === "embed") {
+      openEmbedEdit();
+      return;
+    }
+    if (kind === "math") {
+      openMathEdit(common);
+      return;
+    }
+    if (kind === "diagram" && openDiagramEdit(common, language)) return;
+    if (kind === "screenmock") {
+      openScreenmockEdit(common);
+      return;
+    }
+    openGenericCodeEdit(common, kind, language);
   };
 
   const destroyChrome = createCodeBlockChrome(editor, {

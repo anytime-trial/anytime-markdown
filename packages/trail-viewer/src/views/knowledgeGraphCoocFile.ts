@@ -8,6 +8,8 @@ import { computeSpecHash, type CooccurrenceFile } from '@anytime-markdown/graph-
 import type { CooccurrenceLinkTuple } from '@anytime-markdown/graph-core';
 
 export interface KnowledgeGraphNodeDto {
+  /** 実体 ID（caravan_entities.id）。旧サーバ応答には無い（§2.5 で追加）。 */
+  readonly id?: string;
   readonly label: string;
   readonly type: string;
   /** アクティブエッジ次数。円の面積に比例させる。 */
@@ -70,9 +72,30 @@ function disambiguateLabels(nodes: readonly KnowledgeGraphNodeDto[]): string[] {
 export function buildKnowledgeGraphCoocFile(
   response: KnowledgeGraphResponse,
   generatedAt: string,
+  options?: {
+    /**
+     * 中心実体の ID（ego 表示。画面設計書 §2.5）。応答ノードの `id` と一致した最初の
+     * ノードを `spec.subject` に立てる。ラベル一致より優先する — 同名実体（index.ts 等）
+     * をラベルで取り違えないため。
+     */
+    subjectId?: string;
+    /**
+     * 中心実体のラベル（ego 表示。画面設計書 §3.5）。`subjectId` が無い・応答に id が
+     * 無い旧サーバへの後方互換。見つからなければ subject なし（全体図と同じ）。
+     */
+    subjectLabel?: string;
+  },
 ): CooccurrenceFile {
   const labels = disambiguateLabels(response.nodes);
   const nodeCount = response.nodes.length;
+  const byId = options?.subjectId === undefined
+    ? -1
+    : response.nodes.findIndex((n) => n.id === options.subjectId);
+  const subjectIndex = byId >= 0
+    ? byId
+    : options?.subjectLabel === undefined
+      ? -1
+      : response.nodes.findIndex((n) => n.label === options.subjectLabel);
 
   // 範囲外添字・自己ループは黙って捨てるのではなく図を壊さないために除外する。
   // サーバが正しければ空振りする防御で、除外がテスト対象（設計書 §3.3）。
@@ -90,6 +113,7 @@ export function buildKnowledgeGraphCoocFile(
     clusters: response.clusters
       .filter((cluster) => cluster.members.length > 0)
       .map((cluster) => ({ label: cluster.label, members: [...cluster.members] })),
+    ...(subjectIndex >= 0 ? { subject: subjectIndex } : {}),
   };
 
   return {

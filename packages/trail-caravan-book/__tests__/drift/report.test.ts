@@ -342,3 +342,140 @@ describe('reportDriftEvents — workspace', () => {
     expect(workspaceOf(db, idOfOnlyEvent(db))).toBe('anytime-trade');
   });
 });
+
+describe('reportDriftEvents - missingTargetCandidates（対象ファイル消滅）', () => {
+  function eventRow(db: BetterSqlite3CaravanDb, subjId: string) {
+    const rows = db.exec(
+      `SELECT resolved_at, resolution_note FROM caravan_drift_events WHERE subject_entity_id = ?`,
+      [subjId],
+    );
+    const values = rows[0]?.values ?? [];
+    expect(values).toHaveLength(1);
+    return { resolved_at: values[0][0] as string | null, resolution_note: values[0][1] as string };
+  }
+
+  it('既存未解決イベントを auto: target file missing で解決し events_resolved に数える', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db);
+    const candidate = makeCandidate(subjId);
+    reportDriftEvents({ db, candidates: [candidate], recordedAt: TS, logger: silentLogger });
+
+    const result = reportDriftEvents({
+      db,
+      candidates: [],
+      missingTargetCandidates: [candidate],
+      recordedAt: TS2,
+      logger: silentLogger,
+    });
+
+    expect(result.events_resolved).toBe(1);
+    const row = eventRow(db, subjId);
+    expect(row.resolved_at).toBe(TS2);
+    expect(row.resolution_note).toBe('auto: target file missing');
+  });
+
+  it('人手で解決済みのイベントは missingTarget でも上書きしない', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db);
+    const candidate = makeCandidate(subjId);
+    reportDriftEvents({ db, candidates: [candidate], recordedAt: TS, logger: silentLogger });
+    db.run(
+      `UPDATE caravan_drift_events SET resolved_at = ?, resolution_note = 'human: 仕様確認済み'
+       WHERE subject_entity_id = ?`,
+      [TS, subjId],
+    );
+
+    const result = reportDriftEvents({
+      db,
+      candidates: [],
+      missingTargetCandidates: [candidate],
+      recordedAt: TS2,
+      logger: silentLogger,
+    });
+
+    expect(result.events_resolved).toBe(0);
+    const row = eventRow(db, subjId);
+    expect(row.resolved_at).toBe(TS);
+    expect(row.resolution_note).toBe('human: 仕様確認済み');
+  });
+
+  it('対象消滅で解決後にファイルが復活して再検出 → reopen される', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db);
+    const candidate = makeCandidate(subjId);
+    reportDriftEvents({ db, candidates: [candidate], recordedAt: TS, logger: silentLogger });
+    reportDriftEvents({
+      db,
+      candidates: [],
+      missingTargetCandidates: [candidate],
+      recordedAt: TS2,
+      logger: silentLogger,
+    });
+
+    const result = reportDriftEvents({
+      db,
+      candidates: [candidate],
+      recordedAt: '2026-01-03T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(result.events_reopened).toBe(1);
+    expect(eventRow(db, subjId).resolved_at).toBeNull();
+  });
+
+  it('既存イベントの無い missingTarget 候補は insert しない', () => {
+    const db = makeDb();
+    const subjId = insertEntity(db);
+
+    const result = reportDriftEvents({
+      db,
+      candidates: [],
+      missingTargetCandidates: [makeCandidate(subjId)],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    expect(result.events_inserted).toBe(0);
+    expect(result.events_resolved).toBe(0);
+    const rows = db.exec(`SELECT COUNT(*) FROM caravan_drift_events`);
+    expect(rows[0]?.values[0][0]).toBe(0);
+  });
+
+  it('missingTarget 候補の key 照合は entity を生成しない（孤立 File entity を残さない）', () => {
+    const db = makeDb();
+
+    reportDriftEvents({
+      db,
+      candidates: [],
+      missingTargetCandidates: [makeCandidate('file:packages/deleted/src/gone.ts')],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    const rows = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type = 'File'`);
+    expect(rows[0]?.values[0][0]).toBe(0);
+  });
+
+  it('missingTarget と無関係な既存イベントは従来 note で auto-resolve される', () => {
+    const db = makeDb();
+    const subjA = insertEntity(db);
+    const subjB = insertEntity(db);
+    reportDriftEvents({
+      db,
+      candidates: [makeCandidate(subjA), makeCandidate(subjB)],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    reportDriftEvents({
+      db,
+      candidates: [],
+      missingTargetCandidates: [makeCandidate(subjA)],
+      recordedAt: TS2,
+      logger: silentLogger,
+    });
+
+    expect(eventRow(db, subjA).resolution_note).toBe('auto: target file missing');
+    expect(eventRow(db, subjB).resolution_note).toBe('auto: drift no longer present');
+  });
+});

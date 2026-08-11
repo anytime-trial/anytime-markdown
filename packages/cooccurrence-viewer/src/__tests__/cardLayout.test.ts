@@ -60,7 +60,13 @@ describe('computeCardLayout', () => {
     for (let i = 0; i + 1 < result.columns.length; i++) {
       expect(columnSpan(result.columns[i + 1]).min).toBeGreaterThan(columnSpan(result.columns[i]).max);
     }
-    expect(result.state).toEqual({ columnCount: 3, cardCount: 5, hasUnclustered: true, subHeaderCount: 0 });
+    expect(result.state).toEqual({
+      columnCount: 3,
+      cardCount: 5,
+      hasUnclustered: true,
+      subHeaderCount: 0,
+      maxRows: CARD_MAX_ROWS,
+    });
   });
 
   it('カラム内は頻度降順、同値はラベル順で並ぶ', () => {
@@ -154,6 +160,43 @@ describe('computeCardLayout', () => {
     const xs = column.members.map((index) => result.positions[index][0]);
     expect(Math.max(...xs)).toBeLessThanOrEqual(column.x + column.width);
     expect(new Set(xs).size).toBe(2);
+  });
+
+  it('maxRows で 1 レーンに積む枚数が変わる（未指定は既定の CARD_MAX_ROWS）', () => {
+    const count = 12;
+    const nodes = Array.from({ length: count }, (_value, index) => ({ label: `w${index}`, frequency: 1 }));
+    const file = fileWith(nodes, [{ label: 'A', members: nodes.map((_node, index) => index) }]);
+    const visibleNodeIndexes = allVisible(file);
+
+    // 既定（20）では 12 枚が 1 レーンに収まり折り返さない
+    const byDefault = computeCardLayout({ file, visibleNodeIndexes });
+    expect(byDefault.state.maxRows).toBe(CARD_MAX_ROWS);
+    expect(byDefault.columns[0].width).toBe(CARD_WIDTH);
+
+    // 5 枚に絞ると 12 枚は 3 レーン（5 / 5 / 2）へ折り返す
+    const narrow = computeCardLayout({ file, visibleNodeIndexes, maxRows: 5 });
+    expect(narrow.state.maxRows).toBe(5);
+    const laneXs = new Set(narrow.columns[0].members.map((index) => narrow.positions[index][0]));
+    expect(laneXs.size).toBe(3);
+    const maxY = CARD_COLUMN_HEADER_HEIGHT + 5 * (CARD_HEIGHT + CARD_GAP_Y);
+    for (const index of narrow.columns[0].members) {
+      expect(narrow.positions[index][1]).toBeLessThanOrEqual(maxY);
+    }
+  });
+
+  it('maxRows が 1 未満・小数でも 1 レーン 1 枚以上に正規化する（レーンが無限に増えない）', () => {
+    const nodes = Array.from({ length: 3 }, (_value, index) => ({ label: `w${index}`, frequency: 1 }));
+    const file = fileWith(nodes, [{ label: 'A', members: [0, 1, 2] }]);
+    const visibleNodeIndexes = allVisible(file);
+
+    for (const maxRows of [0, -5, 0.4]) {
+      const result = computeCardLayout({ file, visibleNodeIndexes, maxRows });
+      expect(result.state.maxRows).toBe(1);
+      // 1 枚ずつ別レーンへ並ぶ（縦は 1 段だけ）
+      expect(new Set(result.columns[0].members.map((index) => result.positions[index][0])).size).toBe(3);
+    }
+    // 小数は切り捨てる（2.9 行 = 2 行）
+    expect(computeCardLayout({ file, visibleNodeIndexes, maxRows: 2.9 }).state.maxRows).toBe(2);
   });
 
   it('同一入力に対して常に同一の出力を返す（決定性）', () => {

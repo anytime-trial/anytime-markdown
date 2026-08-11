@@ -208,40 +208,52 @@ export function removeLockedSection(text: string, path: string, occurrence: numb
 
 // --- sections ---------------------------------------------------------------
 
-export function listSections(text: string): SectionInfo[] {
-  const lines = text.split(/\r?\n/);
-  let scanStart = 0;
+interface HeadingHit {
+  level: number;
+  text: string;
+  line: number;
+}
+
+type FenceState = { char: string; length: number } | null;
+
+/** frontmatter（先頭 `---` ブロック）を読み飛ばした走査開始行。閉じ `---` が無ければ 0。 */
+function frontmatterScanStart(lines: readonly string[]): number {
   if (lines[0]?.trimEnd() === '---') {
     for (let i = 1; i < lines.length; i += 1) {
       if (lines[i].trimEnd() === '---') {
-        scanStart = i + 1;
-        break;
+        return i + 1;
       }
     }
   }
+  return 0;
+}
 
-  interface HeadingHit {
-    level: number;
-    text: string;
-    line: number;
+/**
+ * コードフェンスの開閉を 1 行分だけ進める。
+ * `consumed` はフェンスの開始行・終了行そのもの（見出し判定へ進めない行）を表す。
+ * フェンス中の非フェンス行は consumed=false で返し、呼び出し側の `if (fence) continue` が捨てる。
+ */
+function stepFence(line: string, fence: FenceState): { fence: FenceState; consumed: boolean } {
+  const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+  if (!fenceMatch) return { fence, consumed: false };
+  const char = fenceMatch[1][0];
+  const length = fenceMatch[1].length;
+  if (!fence) return { fence: { char, length }, consumed: true };
+  if (fence.char === char && length >= fence.length && line.trim() === fenceMatch[1]) {
+    return { fence: null, consumed: true };
   }
+  return { fence, consumed: false };
+}
+
+/** コードフェンス内を除いて見出し行を収集する。 */
+function collectHeadings(lines: readonly string[], scanStart: number): HeadingHit[] {
   const headings: HeadingHit[] = [];
-  let fence: { char: string; length: number } | null = null;
+  let fence: FenceState = null;
   for (let i = scanStart; i < lines.length; i += 1) {
     const line = lines[i];
-    const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fenceMatch) {
-      const char = fenceMatch[1][0];
-      const length = fenceMatch[1].length;
-      if (!fence) {
-        fence = { char, length };
-        continue;
-      }
-      if (fence.char === char && length >= fence.length && line.trim() === fenceMatch[1]) {
-        fence = null;
-        continue;
-      }
-    }
+    const step = stepFence(line, fence);
+    fence = step.fence;
+    if (step.consumed) continue;
     if (fence) continue;
     // 空見出し（"##" のみ）も列挙する。doc 側（ProseMirror heading ノード連番）との
     // インデックス空間を一致させるため（cross-review 合意 #6）。
@@ -250,6 +262,12 @@ export function listSections(text: string): SectionInfo[] {
     const text2 = (headingMatch[2] ?? '').replace(/\s+#+$/, '');
     headings.push({ level: headingMatch[1].length, text: text2, line: i });
   }
+  return headings;
+}
+
+export function listSections(text: string): SectionInfo[] {
+  const lines = text.split(/\r?\n/);
+  const headings = collectHeadings(lines, frontmatterScanStart(lines));
 
   const stack: { level: number; text: string }[] = [];
   const occurrenceByPath = new Map<string, number>();

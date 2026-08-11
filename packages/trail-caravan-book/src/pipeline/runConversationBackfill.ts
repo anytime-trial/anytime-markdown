@@ -37,8 +37,10 @@ export interface BackfillResult {
   items_skipped: number;
   entities_inserted: number;
   entities_updated: number;
+  entities_suppressed: number;
   edges_inserted: number;
   edges_invalidated: number;
+  edges_suppressed: number;
   items_failed: number;
 }
 
@@ -165,6 +167,196 @@ function persistBackfillEpisode(opts: {
  * The trail DB must already be ATTACHed as "trail" on `db` via
  * attachTrailDbFromHandle / attachTrailDbReadOnly before calling this function.
  */
+type BackfillEpisode = ReturnType<typeof splitEpisodes>[number];
+type ExtractedFacts = Awaited<ReturnType<typeof extractFactsFromEpisode>> | null;
+
+/** セッション 1 件を処理した結果。呼び出し側のループ制御を戻り値へ写したもの。 */
+type SessionSignal =
+  | { kind: 'continue' }
+  /** quarantine 到達。cursor を据えて partial で返す。 */
+  | { kind: 'quarantine'; cursor: string }
+  /** Ollama throttle COOLING による中断。cursor は据え置き。 */
+  | { kind: 'stopped' };
+
+interface BackfillContext {
+  db: CaravanDbConnection;
+  ollama: OllamaClient;
+  model: string | undefined;
+  logger: CaravanLogger;
+  ledger: PipelineRunLedger;
+  save: (() => void) | undefined;
+  progress: ((processed: number, failed: number) => void) | undefined;
+  shouldStop: (() => boolean) | undefined;
+  extractConcurrency: number;
+  /** 進捗ログの分母（existingIds 控除後）。 */
+  toProcess: number;
+}
+
+interface BackfillState {
+  totals: PersistStats & { items_processed: number; items_skipped: number; items_failed: number };
+  maxTimestamp: string;
+  consecutiveFailures: number;
+}
+
+/**
+ * 既に caravan_episodes にある episode id を先読みする。
+ *
+ * backfill が中断（VS Code reload・OS shutdown）されたとき persistEpisodeFacts は
+ * 冪等だが extractFactsFromEpisode はそうではない。永続化済みの数千 episode へ
+ * 再び LLM 抽出を走らせると 1 件 ~10 秒を無駄にするため、ここで skip して
+ * 次回 backfill を実質 resume にする。
+ */
+function preloadExistingEpisodeIds(db: CaravanDbConnection, sinceISO: string): Set<string> {
+  const existingIds = new Set<string>();
+  const existsRows = db.exec(`SELECT id FROM caravan_episodes WHERE valid_from >= ?`, [sinceISO]);
+  for (const row of existsRows[0]?.values ?? []) {
+    existingIds.add(row[0] as string);
+  }
+  return existingIds;
+}
+
+/** 永続化済み（skip）と抽出対象に振り分ける。skip 分も maxTimestamp には反映する。 */
+function partitionEpisodes(
+  episodes: BackfillEpisode[],
+  existingIds: ReadonlySet<string>,
+  state: BackfillState,
+): BackfillEpisode[] {
+  const toExtract: BackfillEpisode[] = [];
+  for (const episode of episodes) {
+    const epId = episodeId(episode.session_id, episode.message_uuid_start);
+    if (!existingIds.has(epId)) {
+      toExtract.push(episode);
+      continue;
+    }
+    state.totals.items_skipped += 1;
+    if (episode.valid_from > state.maxTimestamp) {
+      state.maxTimestamp = episode.valid_from;
+    }
+  }
+  return toExtract;
+}
+
+/** LLM 抽出（I/O バウンドなのでバッチ内は並行）。1 件の失敗は null にして他を止めない。 */
+async function extractBatchFacts(batch: BackfillEpisode[], ctx: BackfillContext): Promise<ExtractedFacts[]> {
+  return Promise.all(
+    batch.map(async (ep) => {
+      try {
+        return await extractFactsFromEpisode({
+          ollama: ctx.ollama,
+          episode: {
+            raw_excerpt: ep.raw_excerpt,
+            session_id: ep.session_id,
+            message_uuid_start: ep.message_uuid_start,
+            message_uuid_end: ep.message_uuid_end,
+            valid_from: ep.valid_from,
+          },
+          model: ctx.model,
+          logger: ctx.logger,
+        });
+      } catch (err) {
+        ctx.logger.error(
+          `[anytime-memory] runConversationBackfill: unexpected error in extractFacts for episode ${ep.message_uuid_start}`,
+          err
+        );
+        return null;
+      }
+    })
+  );
+}
+
+/**
+ * episode 1 件を永続化し集計へ反映する。quarantine 到達時のみ cursor を返す
+ * （ログ・pipeline_state 更新・ledger 確定は呼び出し側で 1 度だけ行う）。
+ */
+function persistBatchEpisode(
+  args: { episode: BackfillEpisode; ex: ExtractedFacts; recordedAt: string },
+  ctx: BackfillContext,
+  state: BackfillState,
+): { quarantineCursor: string } | null {
+  const { totals } = state;
+  totals.items_processed += 1;
+  if (args.episode.valid_from > state.maxTimestamp) state.maxTimestamp = args.episode.valid_from;
+
+  // UI 通知は毎エピソード発火 (incremental と同じ理由)。
+  // 50 件 checkpoint 間で UI が 0/N のまま動かないように見える
+  // 問題を避ける。DB checkpoint と保存は引き続き 10 件毎。
+  ctx.progress?.(totals.items_processed, totals.items_failed);
+
+  // Progress log every PROGRESS_LOG_INTERVAL episodes
+  if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
+    ctx.logger.info(`[anytime-memory] backfill progress: ${totals.items_processed}/${ctx.toProcess} episodes processed (${totals.items_skipped} skipped)`);
+    ctx.ledger.heartbeat(totals);
+    ctx.save?.();
+  }
+
+  const episodeResult = persistBackfillEpisode({
+    db: ctx.db,
+    episode: args.episode,
+    ex: args.ex,
+    recordedAt: args.recordedAt,
+    consecutiveFailures: state.consecutiveFailures,
+    logger: ctx.logger,
+  });
+
+  if (episodeResult.outcome === 'quarantine') {
+    totals.items_failed += 1;
+    return { quarantineCursor: episodeResult.quarantineCursor };
+  }
+
+  if (episodeResult.outcome === 'failed') {
+    totals.items_failed += 1;
+    state.consecutiveFailures += 1;
+    return null;
+  }
+
+  // outcome === 'persisted'
+  state.consecutiveFailures = 0;
+  const s = episodeResult.stats;
+  totals.entities_inserted += s.entities_inserted;
+  totals.entities_updated += s.entities_updated;
+  totals.entities_suppressed += s.entities_suppressed;
+  totals.edges_inserted += s.edges_inserted;
+  totals.edges_invalidated += s.edges_invalidated;
+  totals.edges_suppressed += s.edges_suppressed;
+  return null;
+}
+
+/**
+ * セッション 1 件（= 複数 episode）を処理する。
+ *
+ * 抽出は LLM I/O バウンドのため並行、永続化は sql.js が単一スレッドの WASM で
+ * スレッドセーフでないため直列。CONCURRENCY=1 なら従来の完全直列と等価。
+ */
+async function processBackfillSession(
+  episodes: BackfillEpisode[],
+  existingIds: ReadonlySet<string>,
+  ctx: BackfillContext,
+  state: BackfillState,
+): Promise<SessionSignal> {
+  const toExtract = partitionEpisodes(episodes, existingIds, state);
+
+  for (let batchStart = 0; batchStart < toExtract.length; batchStart += ctx.extractConcurrency) {
+    // Ollama throttle が COOLING に入ったら次バッチを処理せず中断する。
+    // cursor は据え置き、永続化済み episode は次 run で existingIds が冪等に skip。
+    if (ctx.shouldStop?.()) return { kind: 'stopped' };
+
+    const batch = toExtract.slice(batchStart, batchStart + ctx.extractConcurrency);
+    const recordedAt = new Date().toISOString();
+    const extracted = await extractBatchFacts(batch, ctx);
+
+    // consecutiveFailures はバッチ内でも 1 件ずつ進み、旧直列実装と同じ数え方になる。
+    for (let j = 0; j < batch.length; j++) {
+      const quarantined = persistBatchEpisode(
+        { episode: batch[j], ex: extracted[j], recordedAt },
+        ctx,
+        state,
+      );
+      if (quarantined) return { kind: 'quarantine', cursor: quarantined.quarantineCursor };
+    }
+  }
+  return { kind: 'continue' };
+}
+
 export async function runConversationBackfill(opts: {
   db: CaravanDbConnection;
   ollama: OllamaClient;
@@ -227,13 +419,13 @@ export async function runConversationBackfill(opts: {
     items_skipped: 0,
     entities_inserted: 0,
     entities_updated: 0,
+    entities_suppressed: 0,
     edges_inserted: 0,
     edges_invalidated: 0,
+    edges_suppressed: 0,
     items_failed: 0,
   };
 
-  let maxTimestamp = sinceISO;
-  let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
   let stoppedByThrottle = false;
 
@@ -245,20 +437,7 @@ export async function runConversationBackfill(opts: {
     (sum, { messages }) => sum + splitEpisodes(messages).length, 0
   );
 
-  // Preload episode ids that already exist in caravan_episodes (within sinceISO window).
-  // When backfill is interrupted (VS Code reload, OS shutdown), persistEpisodeFacts
-  // is idempotent but extractFactsFromEpisode is not — re-running the LLM extraction
-  // on thousands of already-persisted episodes wastes ~10s/episode. Skipping them
-  // makes the next backfill effectively a resume.
-  const existingIds = new Set<string>();
-  const existsRows = db.exec(
-    `SELECT id FROM caravan_episodes WHERE valid_from >= ?`,
-    [sinceISO]
-  );
-  for (const row of existsRows[0]?.values ?? []) {
-    existingIds.add(row[0] as string);
-  }
-
+  const existingIds = preloadExistingEpisodeIds(db, sinceISO);
   const toProcess = totalEpisodes - existingIds.size;
   logger.info(
     `[anytime-memory] backfill: ${totalSessions} sessions, ${totalEpisodes} episodes ` +
@@ -271,6 +450,11 @@ export async function runConversationBackfill(opts: {
   ledger.heartbeat(totals);
   save?.();
 
+  const ctx: BackfillContext = {
+    db, ollama, model, logger, ledger, save, progress, shouldStop, extractConcurrency, toProcess,
+  };
+  const state: BackfillState = { totals, maxTimestamp: sinceISO, consecutiveFailures: 0 };
+
   let sessionIdx = 0;
   try {
     for (const { session_id, messages } of sessionList) {
@@ -282,114 +466,23 @@ export async function runConversationBackfill(opts: {
       ledger.heartbeat(totals);
       save?.();
 
-      // Partition episodes into skipped (already in DB) and to-extract.
-      // Doing this up-front lets us batch the LLM calls below.
-      const toExtract: typeof episodes = [];
-      for (const episode of episodes) {
-        const epId = episodeId(episode.session_id, episode.message_uuid_start);
-        if (existingIds.has(epId)) {
-          totals.items_skipped += 1;
-          if (episode.valid_from > maxTimestamp) {
-            maxTimestamp = episode.valid_from;
-          }
-        } else {
-          toExtract.push(episode);
-        }
+      const signal = await processBackfillSession(episodes, existingIds, ctx, state);
+
+      if (signal.kind === 'quarantine') {
+        logger.error(`[anytime-memory] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`);
+        // 失敗 episode + 1ms をカーソルに。後続セッションは再走査可能。
+        upsertPipelineState(db, {
+          status: 'quarantine',
+          last_processed_at: signal.cursor,
+          error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
+        });
+        ledger.finish('partial', totals, `${QUARANTINE_THRESHOLD} consecutive extraction failures`);
+        return { status: 'partial', ...totals };
       }
-
-      // Concurrent extraction (LLM I/O bound) + serial persist (sql.js is
-      // single-threaded WASM, not thread-safe). With CONCURRENCY=1 this is
-      // equivalent to the previous serial behavior.
-      for (let batchStart = 0; batchStart < toExtract.length; batchStart += extractConcurrency) {
-        // Ollama throttle が COOLING に入ったら次バッチを処理せず中断する。
-        // cursor は据え置き、永続化済み episode は次 run で existingIds が冪等に skip。
-        if (shouldStop?.()) {
-          stoppedByThrottle = true;
-          break;
-        }
-        const batch = toExtract.slice(batchStart, batchStart + extractConcurrency);
-        const recordedAt = new Date().toISOString();
-
-        const extracted = await Promise.all(
-          batch.map(async (ep) => {
-            try {
-              return await extractFactsFromEpisode({
-                ollama,
-                episode: {
-                  raw_excerpt: ep.raw_excerpt,
-                  session_id: ep.session_id,
-                  message_uuid_start: ep.message_uuid_start,
-                  message_uuid_end: ep.message_uuid_end,
-                  valid_from: ep.valid_from,
-                },
-                model,
-                logger,
-              });
-            } catch (err) {
-              logger.error(
-                `[anytime-memory] runConversationBackfill: unexpected error in extractFacts for episode ${ep.message_uuid_start}`,
-                err
-              );
-              return null;
-            }
-          })
-        );
-
-        // Serial persist + bookkeeping. consecutiveFailures advances by 1 per
-        // failed episode within the batch, mirroring the prior serial flow.
-        for (let j = 0; j < batch.length; j++) {
-          const episode = batch[j];
-          const ex = extracted[j];
-
-          totals.items_processed += 1;
-          if (episode.valid_from > maxTimestamp) maxTimestamp = episode.valid_from;
-
-          // UI 通知は毎エピソード発火 (incremental と同じ理由)。
-          // 50 件 checkpoint 間で UI が 0/N のまま動かないように見える
-          // 問題を避ける。DB checkpoint と保存は引き続き 10 件毎。
-          progress?.(totals.items_processed, totals.items_failed);
-
-          // Progress log every PROGRESS_LOG_INTERVAL episodes
-          if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
-            logger.info(`[anytime-memory] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`);
-            ledger.heartbeat(totals);
-            save?.();
-          }
-
-          const episodeResult = persistBackfillEpisode({
-            db, episode, ex, recordedAt, consecutiveFailures, logger,
-          });
-
-          if (episodeResult.outcome === 'quarantine') {
-            totals.items_failed += 1;
-            logger.error(`[anytime-memory] runConversationBackfill: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`);
-            // 失敗 episode + 1ms をカーソルに。後続セッションは再走査可能。
-            upsertPipelineState(db, {
-              status: 'quarantine',
-              last_processed_at: episodeResult.quarantineCursor,
-              error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
-            });
-            ledger.finish('partial', totals, `${QUARANTINE_THRESHOLD} consecutive extraction failures`);
-            return { status: 'partial', ...totals };
-          }
-
-          if (episodeResult.outcome === 'failed') {
-            totals.items_failed += 1;
-            consecutiveFailures += 1;
-            continue;
-          }
-
-          // outcome === 'persisted'
-          consecutiveFailures = 0;
-          const s = episodeResult.stats;
-          totals.entities_inserted += s.entities_inserted;
-          totals.entities_updated += s.entities_updated;
-          totals.edges_inserted += s.edges_inserted;
-          totals.edges_invalidated += s.edges_invalidated;
-        }
+      if (signal.kind === 'stopped') {
+        stoppedByThrottle = true;
+        break;
       }
-
-      if (stoppedByThrottle) break;
 
       // 意図的にここで last_processed_at を前進させない。
       // 旧実装は max(timestamp seen) をセッション境界毎にカーソル化していたが、
@@ -430,9 +523,9 @@ export async function runConversationBackfill(opts: {
 
   // ── 4. Finalize ──────────────────────────────────────────────────────────
   const nextSince =
-    maxTimestamp === sinceISO
+    state.maxTimestamp === sinceISO
       ? sinceISO
-      : new Date(new Date(maxTimestamp).getTime() + 1).toISOString();
+      : new Date(new Date(state.maxTimestamp).getTime() + 1).toISOString();
 
   // Update backfill pipeline state
   upsertPipelineState(db, {

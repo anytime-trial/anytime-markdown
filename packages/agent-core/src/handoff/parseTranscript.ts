@@ -80,6 +80,27 @@ function toolEvent(block: ContentBlock): TranscriptEvent {
   return { role: 'tool', text: '', tool: name, detail, files };
 }
 
+/** user レコードから実プロンプトのイベントを積む（コマンド展開ターンは捨てる）。 */
+function pushUserEvent(content: unknown, events: TranscriptEvent[]): void {
+  const text = blockText(content).trim();
+  if (text && !isCommandMeta(text)) {
+    events.push({ role: 'user', text, tool: '', detail: '', files: [] });
+  }
+}
+
+/** assistant レコードからテキストイベントと tool_use イベントを積む。 */
+function pushAssistantEvents(content: unknown, events: TranscriptEvent[]): void {
+  const text = blockText(content).trim();
+  if (text) events.push({ role: 'assistant', text, tool: '', detail: '', files: [] });
+  if (Array.isArray(content)) {
+    for (const block of content as ContentBlock[]) {
+      if (block && typeof block === 'object' && block.type === 'tool_use') {
+        events.push(toolEvent(block));
+      }
+    }
+  }
+}
+
 /** transcript の行配列を構造化イベントへ変換する。 */
 export function parseLines(lines: readonly string[]): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
@@ -97,20 +118,9 @@ export function parseLines(lines: readonly string[]): TranscriptEvent[] {
     const content = rec.message && typeof rec.message === 'object' ? rec.message.content : null;
 
     if (rec.type === 'user') {
-      const text = blockText(content).trim();
-      if (text && !isCommandMeta(text)) {
-        events.push({ role: 'user', text, tool: '', detail: '', files: [] });
-      }
+      pushUserEvent(content, events);
     } else if (rec.type === 'assistant') {
-      const text = blockText(content).trim();
-      if (text) events.push({ role: 'assistant', text, tool: '', detail: '', files: [] });
-      if (Array.isArray(content)) {
-        for (const block of content as ContentBlock[]) {
-          if (block && typeof block === 'object' && block.type === 'tool_use') {
-            events.push(toolEvent(block));
-          }
-        }
-      }
+      pushAssistantEvents(content, events);
     }
   }
   return events;

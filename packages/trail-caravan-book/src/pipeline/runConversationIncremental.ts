@@ -20,8 +20,10 @@ export interface IncrementalResult {
   items_skipped: number;
   entities_inserted: number;
   entities_updated: number;
+  entities_suppressed: number;
   edges_inserted: number;
   edges_invalidated: number;
+  edges_suppressed: number;
   items_failed: number;
 }
 
@@ -173,6 +175,152 @@ async function processEpisode(opts: {
  * The trail DB must already be ATTACHed as "trail" on `db` via
  * attachTrailDbFromHandle / attachTrailDbReadOnly before calling this function.
  */
+/** セッション 1 件を処理した結果。呼び出し側のループ制御を戻り値へ写したもの。 */
+type IncrementalSignal =
+  | { kind: 'continue' }
+  /** quarantine 到達。cursor を据えて partial で返す。 */
+  | { kind: 'quarantine'; cursor: string }
+  /** Ollama throttle COOLING による中断。cursor は据え置き。 */
+  | { kind: 'stopped' };
+
+interface IncrementalContext {
+  db: CaravanDbConnection;
+  ollama: OllamaClient;
+  model: string | undefined;
+  logger: CaravanLogger;
+  ledger: PipelineRunLedger;
+  save: (() => void) | undefined;
+  progress: ((processed: number, failed: number) => void) | undefined;
+  shouldStop: (() => boolean) | undefined;
+  /** processEpisode が可変 Set を要求するため ReadonlySet にはしない。 */
+  existingIds: Set<string>;
+}
+
+interface IncrementalState {
+  totals: PersistStats & { items_processed: number; items_skipped: number; items_failed: number };
+  maxTimestamp: string;
+  consecutiveFailures: number;
+}
+
+/**
+ * 既に caravan_episodes にある episode id を先読みする。
+ *
+ * 前回 run が中断（VS Code reload）されたとき persistEpisodeFacts は冪等だが
+ * extractFactsFromEpisode はそうではない。永続化済み episode を Ollama へ
+ * 再投入すると 1 件あたり数分を無駄にするため、ここで skip する。
+ */
+function preloadExistingEpisodeIds(db: CaravanDbConnection, sinceISO: string): Set<string> {
+  const existingIds = new Set<string>();
+  const existsRows = db.exec(`SELECT id FROM caravan_episodes WHERE valid_from >= ?`, [sinceISO]);
+  for (const row of existsRows[0]?.values ?? []) {
+    existingIds.add(row[0] as string);
+  }
+  return existingIds;
+}
+
+/** 進捗ログ・heartbeat・disk 保存のチェックポイント。 */
+function checkpointProgress(ctx: IncrementalContext, state: IncrementalState): void {
+  const { totals } = state;
+  ctx.logger.info(
+    `[anytime-memory] conversation incremental progress: ${totals.items_processed} processed ` +
+      `(${totals.items_failed} failed, ${totals.items_skipped} skipped, ` +
+      `entities_inserted=${totals.entities_inserted})`
+  );
+  // Persist items_processed (and other run counters) to DB BEFORE
+  // save() so the disk snapshot reflects the checkpoint. Cursor
+  // advancement happens at session boundary, not here, because
+  // session_id ordering ≠ timestamp ordering (UUIDs) — advancing
+  // mid-session could skip ahead of later-iterated sessions with
+  // earlier timestamps.
+  ctx.ledger.heartbeat(totals);
+  if (ctx.save) {
+    const t0 = Date.now();
+    ctx.save();
+    ctx.logger.info(`[anytime-memory] conversation incremental: checkpoint save ${Date.now() - t0}ms`);
+  }
+}
+
+/** episode 1 件を処理し集計へ反映する。quarantine 到達時のみ cursor を返す。 */
+async function runIncrementalEpisode(
+  episode: ReturnType<typeof splitEpisodes>[number],
+  ctx: IncrementalContext,
+  state: IncrementalState,
+): Promise<{ quarantineCursor: string } | null> {
+  const { totals } = state;
+  const result = await processEpisode({
+    db: ctx.db,
+    ollama: ctx.ollama,
+    episode,
+    epId: episodeId(episode.session_id, episode.message_uuid_start),
+    existingIds: ctx.existingIds,
+    model: ctx.model,
+    recordedAt: new Date().toISOString(),
+    consecutiveFailures: state.consecutiveFailures,
+    logger: ctx.logger,
+  });
+
+  if (result.outcome === 'skipped') {
+    totals.items_skipped += 1;
+    return null;
+  }
+
+  totals.items_processed += 1;
+
+  // UI 通知は毎エピソード発火させる。これを 50 件毎にすると 30 日分の
+  // backlog (10k+ episodes) では 8〜25 分 "0/N" のまま見え、ユーザーが
+  // フリーズと誤認して reload → 部分作業の喪失ループに陥る。
+  ctx.progress?.(totals.items_processed, totals.items_failed);
+
+  if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
+    checkpointProgress(ctx, state);
+  }
+
+  if (result.outcome === 'quarantine') {
+    totals.items_failed += 1;
+    return { quarantineCursor: result.quarantineCursor };
+  }
+
+  if (result.outcome === 'failed') {
+    totals.items_failed += 1;
+    state.consecutiveFailures += 1;
+    return null;
+  }
+
+  // outcome === 'persisted'
+  state.consecutiveFailures = 0;
+  const s = result.stats;
+  totals.entities_inserted += s.entities_inserted;
+  totals.entities_updated += s.entities_updated;
+  totals.entities_suppressed += s.entities_suppressed;
+  totals.edges_inserted += s.edges_inserted;
+  totals.edges_invalidated += s.edges_invalidated;
+  totals.edges_suppressed += s.edges_suppressed;
+  return null;
+}
+
+/** セッション 1 件（= 複数 episode）を順に処理する。 */
+async function runIncrementalSession(
+  episodes: ReturnType<typeof splitEpisodes>,
+  ctx: IncrementalContext,
+  state: IncrementalState,
+): Promise<IncrementalSignal> {
+  for (const episode of episodes) {
+    // Ollama throttle が COOLING に入ったら以降の episode を処理せず中断する。
+    // cursor は据え置き、永続化済み episode は次 run で existingIds が冪等に skip。
+    if (ctx.shouldStop?.()) return { kind: 'stopped' };
+
+    // Track latest timestamp seen — used ONLY for the completion-time
+    // cursor advancement at end of run, not for mid-session bookkeeping.
+    if (episode.valid_from > state.maxTimestamp) {
+      state.maxTimestamp = episode.valid_from;
+    }
+
+    const quarantined = await runIncrementalEpisode(episode, ctx, state);
+    if (quarantined) return { kind: 'quarantine', cursor: quarantined.quarantineCursor };
+  }
+  return { kind: 'continue' };
+}
+
 export async function runConversationIncremental(opts: {
   db: CaravanDbConnection;
   ollama: OllamaClient;
@@ -206,18 +354,7 @@ export async function runConversationIncremental(opts: {
   ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
-  // Preload episode ids already in caravan_episodes within the sinceISO window.
-  // When a previous run was interrupted (VS Code reload mid-pipeline),
-  // persistEpisodeFacts is idempotent but extractFactsFromEpisode is not —
-  // re-feeding already-persisted episodes to Ollama wastes minutes per episode.
-  const existingIds = new Set<string>();
-  const existsRows = db.exec(
-    `SELECT id FROM caravan_episodes WHERE valid_from >= ?`,
-    [sinceISO]
-  );
-  for (const row of existsRows[0]?.values ?? []) {
-    existingIds.add(row[0] as string);
-  }
+  const existingIds = preloadExistingEpisodeIds(db, sinceISO);
 
   // Accumulators
   const totals: PersistStats & {
@@ -229,113 +366,49 @@ export async function runConversationIncremental(opts: {
     items_skipped: 0,
     entities_inserted: 0,
     entities_updated: 0,
+    entities_suppressed: 0,
     edges_inserted: 0,
     edges_invalidated: 0,
+    edges_suppressed: 0,
     items_failed: 0,
   };
 
-  let maxTimestamp = sinceISO;
-  let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
   let stoppedByThrottle = false;
+
+  const ctx: IncrementalContext = { db, ollama, model, logger, ledger, save, progress, shouldStop, existingIds };
+  const state: IncrementalState = { totals, maxTimestamp: sinceISO, consecutiveFailures: 0 };
 
   // ── 3. Iterate sessions ──────────────────────────────────────────────────
   try {
     for (const { messages } of readMessagesSince(db, sinceISO)) {
-      const episodes = splitEpisodes(messages);
+      const signal = await runIncrementalSession(splitEpisodes(messages), ctx, state);
 
-      for (const episode of episodes) {
-        // Ollama throttle が COOLING に入ったら以降の episode を処理せず中断する。
-        // cursor は据え置き、永続化済み episode は次 run で existingIds が冪等に skip。
-        if (shouldStop?.()) {
-          stoppedByThrottle = true;
-          break;
-        }
-
-        // Track latest timestamp seen — used ONLY for the completion-time
-        // cursor advancement at end of run, not for mid-session bookkeeping.
-        if (episode.valid_from > maxTimestamp) {
-          maxTimestamp = episode.valid_from;
-        }
-
-        const epId = episodeId(episode.session_id, episode.message_uuid_start);
-        const recordedAt = new Date().toISOString();
-
-        const result = await processEpisode({
-          db, ollama, episode, epId, existingIds, model, recordedAt, consecutiveFailures, logger,
+      if (signal.kind === 'quarantine') {
+        logger.error(
+          `[anytime-memory] runConversationIncremental: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
+        );
+        // 失敗 episode の valid_from + 1ms をカーソルに。これにより
+        // 次回 run は失敗 episode を WHERE timestamp >= cursor で
+        // 除外しつつ、後続セッションの未処理 episode は再走査される。
+        // 失敗 episode 自体は caravan_failed_items に記録済みで
+        // runConversationFailedItemsRetry が後で拾い直す。
+        upsertPipelineState(db, {
+          status: 'quarantine',
+          last_processed_at: signal.cursor,
+          error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
         });
-
-        if (result.outcome === 'skipped') {
-          totals.items_skipped += 1;
-          continue;
-        }
-
-        totals.items_processed += 1;
-
-        // UI 通知は毎エピソード発火させる。これを 50 件毎にすると 30 日分の
-        // backlog (10k+ episodes) では 8〜25 分 "0/N" のまま見え、ユーザーが
-        // フリーズと誤認して reload → 部分作業の喪失ループに陥る。
-        progress?.(totals.items_processed, totals.items_failed);
-
-        if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
-          logger.info(
-            `[anytime-memory] conversation incremental progress: ${totals.items_processed} processed ` +
-              `(${totals.items_failed} failed, ${totals.items_skipped} skipped, ` +
-              `entities_inserted=${totals.entities_inserted})`
-          );
-          // Persist items_processed (and other run counters) to DB BEFORE
-          // save() so the disk snapshot reflects the checkpoint. Cursor
-          // advancement happens at session boundary, not here, because
-          // session_id ordering ≠ timestamp ordering (UUIDs) — advancing
-          // mid-session could skip ahead of later-iterated sessions with
-          // earlier timestamps.
-          ledger.heartbeat(totals);
-          if (save) {
-            const t0 = Date.now();
-            save();
-            logger.info(`[anytime-memory] conversation incremental: checkpoint save ${Date.now() - t0}ms`);
-          }
-        }
-
-        if (result.outcome === 'quarantine') {
-          totals.items_failed += 1;
-          logger.error(
-            `[anytime-memory] runConversationIncremental: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
-          );
-          // 失敗 episode の valid_from + 1ms をカーソルに。これにより
-          // 次回 run は失敗 episode を WHERE timestamp >= cursor で
-          // 除外しつつ、後続セッションの未処理 episode は再走査される。
-          // 失敗 episode 自体は caravan_failed_items に記録済みで
-          // runConversationFailedItemsRetry が後で拾い直す。
-          upsertPipelineState(db, {
-            status: 'quarantine',
-            last_processed_at: result.quarantineCursor,
-            error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
-          });
-          ledger.finish(
-            'partial',
-            totals,
-            `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
-          );
-          return { status: 'partial', ...totals };
-        }
-
-        if (result.outcome === 'failed') {
-          totals.items_failed += 1;
-          consecutiveFailures += 1;
-          continue;
-        }
-
-        // outcome === 'persisted'
-        consecutiveFailures = 0;
-        const s = result.stats;
-        totals.entities_inserted += s.entities_inserted;
-        totals.entities_updated += s.entities_updated;
-        totals.edges_inserted += s.edges_inserted;
-        totals.edges_invalidated += s.edges_invalidated;
+        ledger.finish(
+          'partial',
+          totals,
+          `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
+        );
+        return { status: 'partial', ...totals };
       }
-
-      if (stoppedByThrottle) break;
+      if (signal.kind === 'stopped') {
+        stoppedByThrottle = true;
+        break;
+      }
 
       // 意図的にここで last_processed_at を前進させない。
       // 旧実装は max(timestamp seen so far) でカーソルを毎セッション境界で
@@ -381,9 +454,9 @@ export async function runConversationIncremental(opts: {
   // Advance maxTimestamp by 1 ms so that next run uses an exclusive lower bound
   // (the query uses >=, so incrementing prevents reprocessing the last episode).
   const nextSince =
-    maxTimestamp === sinceISO
+    state.maxTimestamp === sinceISO
       ? sinceISO // no new messages were processed — keep the same cursor
-      : new Date(new Date(maxTimestamp).getTime() + 1).toISOString();
+      : new Date(new Date(state.maxTimestamp).getTime() + 1).toISOString();
 
   upsertPipelineState(db, {
     status: 'idle',

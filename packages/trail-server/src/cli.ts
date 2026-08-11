@@ -111,43 +111,11 @@ program
     // LEP 設定 (lep.json) — 唯一の設定ソース。旧 config.json は一度きり lep.json へ移行し以後読まない。
     // daemon は primary gitRoot を workspace とし、stage / schedule / llm / memory を集約する。
     const lepWorkspaceRoot = effectiveGitRoots[0];
-    let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
-    let lepStage: LepStage = opts.scheduler ? 'primary+memory' : 'disabled';
-    let lepDisabledAnalyzers: readonly string[] = [];
-    let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
-    if (lepWorkspaceRoot) {
-      try {
-        // config.json → lep.json 一度きり移行 (欠落セクションのみ gap-fill、完了後 rename)。
-        migrateConfigJsonIntoLepJson({
-          workspaceRoot: lepWorkspaceRoot,
-          analyzeAllEnabled: opts.scheduler,
-          logger,
-        });
-        const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
-        lepConfig = lep.config;
-        lepStage = lep.config.stage;
-        lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
-        logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
-
-        // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
-        const ghSource = resolveGitHubSource(lep.config);
-        if (ghSource.enabled) {
-          githubPrReview = {
-            client: ghSource.token
-              ? createFetchGitHubReviewClient({
-                  token: ghSource.token,
-                  logger: { info: (m) => logger.info(m), warn: (m) => logger.warn(m) },
-                })
-              : null,
-            since: ghSource.since,
-            maxPrs: ghSource.maxPrs,
-          };
-          logger.info('GitHub PR review source enabled', { hasToken: Boolean(ghSource.token) });
-        }
-      } catch (err) {
-        logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}; fallback stage=${lepStage}`);
-      }
-    }
+    const { lepConfig, lepStage, lepDisabledAnalyzers, githubPrReview } = setupLepForDaemon(
+      lepWorkspaceRoot,
+      opts.scheduler,
+      logger,
+    );
 
     // ingest / chat / health で共有する LLM 値を lep.json から解決する。
     // baseUrl は resolveOllamaBaseUrl で env / Dev Container 検出を畳み込み、
@@ -157,104 +125,18 @@ program
     const ingestGenModel = process.env['MEMORY_CORE_GEN_MODEL'] || lepOllama.models.chat;
 
     // Ollama 熱負荷スロットリング (劣化 CPU 延命)。背景パイプラインのみに適用する。
-    const throttleCfg = lepConfig.throttle;
-    const throttleGovernor = new OllamaThrottleGovernor(throttleCfg);
-    if (throttleCfg.enabled) {
-      logger.info('ollama throttle enabled', {
-        slowdownFactor: throttleCfg.slowdownFactor,
-        cooldownSec: throttleCfg.cooldownSec,
-        maxContinuousMin: throttleCfg.maxContinuousMin,
-      });
-    }
-    const throttledOllamaFactory = throttleCfg.enabled
-      ? () => createThrottledOllamaClient(createOllamaClient({ baseUrl: resolvedOllamaBaseUrl }), throttleGovernor)
-      : undefined;
-
-    // throttle 状態を OLLAMA パネル (vscode-agent-extension) へ渡す status file writer。
-    const throttleStatusWriter = throttleCfg.enabled
-      ? new ThrottleStatusWriter(throttleGovernor, join(dbStorageDir, 'throttle-status.json'), logger)
-      : undefined;
+    const throttle = setupOllamaThrottle(lepConfig.throttle, {
+      baseUrl: resolvedOllamaBaseUrl,
+      statusFilePath: join(dbStorageDir, 'throttle-status.json'),
+      logger,
+    });
+    const throttleGovernor = throttle.governor;
+    const throttledOllamaFactory = throttle.factory;
+    const throttleStatusWriter = throttle.statusWriter;
     throttleStatusWriter?.start();
 
     // Wire analyze pipeline if gitRoots are available
-    if (effectiveGitRoots.length > 0) {
-      const codeGraphRepos = effectiveGitRoots.map((p) => ({
-        id: basename(p),
-        label: basename(p),
-        path: p,
-      }));
-      const primaryGitRoot = effectiveGitRoots[0]!;
-      // 除外ルートは lep.json workspace.excludeRoot で一元管理する（空なら undefined →
-      // 解析対象リポ自身にフォールバック）。相対は primary gitRoot 起点で絶対化。
-      const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, lepWorkspaceRoot);
-
-      const codeGraphService = new CodeGraphService({
-        repositories: codeGraphRepos,
-        trailDb,
-        logger,
-        pythonWasmPath: join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
-        excludeRoot: analyzeExcludeRoot,
-      });
-      server.setCodeGraphService(codeGraphService);
-
-      server.onAnalyzeCurrentCode = ({ workspacePath, tsconfigPath }) =>
-        runCurrentCodeAnalysis({
-          workspacePath,
-          tsconfigPath,
-          primaryGitRoot,
-          excludeRoot: analyzeExcludeRoot,
-          trailDb,
-          server,
-          codeGraphService,
-          logger,
-        });
-
-      server.onAnalyzeReleaseCode = async (req) => {
-        return runAnalyzeReleaseCodePipeline({
-          trailDb,
-          codeGraphService,
-          gitRoot: primaryGitRoot,
-          // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
-          compute: { kind: 'in-host' },
-          scope: toAnalyzeReleaseScope(req.tags),
-          logger,
-        });
-      };
-
-      // Snapshot per Commit: 1 コミット分のみ生成する。
-      server.onAnalyzeCommitCode = async (req) => {
-        // 保存先は req.repo が決めるので、解析対象の git root も req.repo から引く。
-        // primary をそのまま渡すと、別リポジトリ名で primary の断面を保存し得る。
-        const commitGitRoot = resolveGitRootForRepo(effectiveGitRoots, req.repo);
-        if (!commitGitRoot) throw new UnknownRepoError(req.repo);
-        return runAnalyzeCommitCodePipeline({
-          trailDb,
-          codeGraphService,
-          gitRoot: commitGitRoot,
-          sha: req.sha,
-          repoName: req.repo,
-          // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
-          compute: { kind: 'in-host' },
-          logger,
-        });
-      };
-
-      server.onAnalyzeAll = async () => {
-        const startedAt = Date.now();
-        const result = await trailDb.importAll(
-          (message) => logger.info(`Trail import (HTTP): ${message}`),
-          effectiveGitRoots,
-        );
-        return { ...result, durationMs: Date.now() - startedAt };
-      };
-
-      logger.info('analyze pipeline wired', {
-        repos: codeGraphRepos.map((r) => r.id),
-        primary: primaryGitRoot,
-      });
-    } else {
-      logger.warn('analyze pipeline not wired — no gitRoots configured');
-    }
+    wireAnalyzePipeline({ effectiveGitRoots, lepConfig, lepWorkspaceRoot, trailDb, server, logger });
 
     const port = Number.parseInt(String(opts.port), 10);
     await server.start(port);
@@ -265,27 +147,19 @@ program
     // CaravanBookService — daemon は trail-caravan-book ingest pipeline をホストする。
     // pause/resume 状態は `${TRAIL_HOME}/trail-caravan-book-runner.json` に永続化され、
     // VS Code 拡張 reload 後・daemon 再起動後も保持される。
-    const caravanBookLogSink: CaravanBookLogSink = {
-      appendLine: (msg: string) => logger.info(msg),
-    };
     const caravanBookPrimaryGitRoot = effectiveGitRoots[0];
-    const caravanBookService = new CaravanBookService({
-      logSink: caravanBookLogSink,
+    const caravanBookService = createCaravanBookService({
+      gitRoot: caravanBookPrimaryGitRoot,
       trailDbPath: join(dbStorageDir, 'activity.db'),
-      ...(caravanBookPrimaryGitRoot ? { gitRoot: caravanBookPrimaryGitRoot } : {}),
       statePath: join(TRAIL_HOME, 'trail-caravan-book-runner.json'),
       backfillDays: lepConfig.memory.conversation.backfillDays,
-      // lep.json の llm を ingest パイプラインへ通す (baseUrl は openCaravanDbSession
-      // が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
       llm: {
         baseUrl: lepOllama.baseUrl,
         chatModel: ingestGenModel,
         embedModel: lepOllama.models.embedding,
       },
-      ...(throttledOllamaFactory ? { ollamaFactory: throttledOllamaFactory } : {}),
-    });
-    logger.info('trail-caravan-book service constructed (orchestrated by AnalyzeAllRunner)', {
-      gitRoot: caravanBookPrimaryGitRoot ?? null,
+      ollamaFactory: throttledOllamaFactory,
+      logger,
     });
 
     const caravanLogger = {
@@ -385,18 +259,11 @@ program
       paused: analyzeAllRunner.getStatus().paused,
     });
 
-    const schedulerDisabledByEnv = process.env.TRAIL_DISABLE_SCHEDULER === '1';
-    const schedulerEnabled = opts.scheduler && !schedulerDisabledByEnv;
-    if (schedulerEnabled) {
-      analyzeAllRunner.start(lepConfig.schedule.intervalSec * 1000, {
-        runOnStart: lepConfig.schedule.runOnStart,
-        startupDelayMs: lepConfig.schedule.startupDelaySec * 1000,
-      });
-    } else {
-      logger.info('scheduler disabled', {
-        reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
-      });
-    }
+    startAnalyzeAllScheduler(analyzeAllRunner, {
+      cliEnabled: opts.scheduler,
+      schedule: lepConfig.schedule,
+      logger,
+    });
 
     lc.writeDaemonJson({
       schemaVersion: 1,
@@ -413,26 +280,20 @@ program
       pidStartTime: Date.now(),
     });
 
-    const shutdown = async (signal: string) => {
-      logger.info('shutdown requested', { signal });
-      try { throttleStatusWriter?.stop(); } catch (err) { logger.error('throttle status writer stop failed', err); }
-      try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
-      try { await caravanBookService.dispose(); } catch (err) { logger.error('trail-caravan-book dispose failed', err); }
-      try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
-      // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
-      try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
-      try { await server.stop(); } catch (err) { logger.error('server stop failed', err); }
-      lc.removeDaemonJson();
-      try {
-        const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
-        if (typeof closeFn === 'function') await closeFn.call(trailDb);
-      } catch (err) { logger.error('trail db close failed', err); }
-      // daemon の生存期間を表す system run を正常終了として閉じる。閉じないと
-      // status='running' のまま残る（watchdog は system wave を失効させないため）。
-      try { systemRunLedger.finish('success'); } catch (err) { logger.error('system run finish failed', err); }
-      try { ledgerCoreDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
-      process.exit(0);
+    const shutdownDeps: DaemonShutdownDeps = {
+      logger,
+      lc,
+      throttleStatusWriter,
+      analyzeAllRunner,
+      caravanBookService,
+      rebuildSchedulerDisposable,
+      chatBridge,
+      server,
+      trailDb,
+      systemRunLedger,
+      ledgerCoreDb,
     };
+    const shutdown = async (signal: string) => shutdownDaemon(signal, shutdownDeps);
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
     process.on('SIGINT', () => void shutdown('SIGINT'));
   });
@@ -546,6 +407,282 @@ async function callDaemonAnalyzeAll(
     console.error('Failed to reach daemon:', err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
+}
+
+/** daemon 起動時に lep.json から解決する設定一式。 */
+interface DaemonLepSetup {
+  readonly lepConfig: LepConfig;
+  readonly lepStage: LepStage;
+  readonly lepDisabledAnalyzers: readonly string[];
+  readonly githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
+}
+
+/**
+ * LEP 設定 (lep.json) を解決する。旧 config.json は一度きり lep.json へ移行し以後読まない。
+ * workspace ルート未確定・読み込み失敗時は既定値へフォールバックする (warn のみ・daemon は止めない)。
+ */
+function setupLepForDaemon(
+  lepWorkspaceRoot: string | undefined,
+  schedulerEnabled: boolean,
+  logger: Logger,
+): DaemonLepSetup {
+  let lepConfig: LepConfig = DEFAULT_LEP_CONFIG;
+  let lepStage: LepStage = schedulerEnabled ? 'primary+memory' : 'disabled';
+  let lepDisabledAnalyzers: readonly string[] = [];
+  let githubPrReview: AnalyzeAllRunnerOptions['githubPrReview'] | undefined;
+  if (lepWorkspaceRoot) {
+    try {
+      // config.json → lep.json 一度きり移行 (欠落セクションのみ gap-fill、完了後 rename)。
+      migrateConfigJsonIntoLepJson({
+        workspaceRoot: lepWorkspaceRoot,
+        analyzeAllEnabled: schedulerEnabled,
+        logger,
+      });
+      const lep = loadLepConfig({ workspaceRoot: lepWorkspaceRoot, logger });
+      lepConfig = lep.config;
+      lepStage = lep.config.stage;
+      lepDisabledAnalyzers = disabledAnalyzerIds(lep.config);
+      logger.info('lep.json loaded', { stage: lepStage, files: lep.loadedPaths.length });
+
+      // 新ソース参照実装 (Step 4b): GitHub PR review。opt-in (sources.github.enabled)。
+      const ghSource = resolveGitHubSource(lep.config);
+      if (ghSource.enabled) {
+        githubPrReview = {
+          client: ghSource.token
+            ? createFetchGitHubReviewClient({
+                token: ghSource.token,
+                logger: { info: (m) => logger.info(m), warn: (m) => logger.warn(m) },
+              })
+            : null,
+          since: ghSource.since,
+          maxPrs: ghSource.maxPrs,
+        };
+        logger.info('GitHub PR review source enabled', { hasToken: Boolean(ghSource.token) });
+      }
+    } catch (err) {
+      logger.warn(`lep.json load failed: ${err instanceof Error ? err.message : String(err)}; fallback stage=${lepStage}`);
+    }
+  }
+  return { lepConfig, lepStage, lepDisabledAnalyzers, githubPrReview };
+}
+
+/** Ollama スロットリングの構成物。無効時は factory / statusWriter とも undefined。 */
+interface OllamaThrottleSetup {
+  readonly governor: OllamaThrottleGovernor;
+  readonly factory?: () => ReturnType<typeof createThrottledOllamaClient>;
+  readonly statusWriter?: ThrottleStatusWriter;
+}
+
+/**
+ * Ollama 熱負荷スロットリング (劣化 CPU 延命) を構成する。
+ * statusWriter は throttle 状態を OLLAMA パネル (vscode-agent-extension) へ渡す status file writer。
+ */
+function setupOllamaThrottle(
+  cfg: LepConfig['throttle'],
+  args: { readonly baseUrl: string; readonly statusFilePath: string; readonly logger: Logger },
+): OllamaThrottleSetup {
+  const governor = new OllamaThrottleGovernor(cfg);
+  if (!cfg.enabled) return { governor };
+  args.logger.info('ollama throttle enabled', {
+    slowdownFactor: cfg.slowdownFactor,
+    cooldownSec: cfg.cooldownSec,
+    maxContinuousMin: cfg.maxContinuousMin,
+  });
+  return {
+    governor,
+    factory: () =>
+      createThrottledOllamaClient(createOllamaClient({ baseUrl: args.baseUrl }), governor),
+    statusWriter: new ThrottleStatusWriter(governor, args.statusFilePath, args.logger),
+  };
+}
+
+/**
+ * gitRoots が解決できていれば解析パイプライン (CodeGraphService と各 analyze ハンドラ) を
+ * server へ配線する。gitRoots が空なら配線せず warn のみ残す。
+ */
+function wireAnalyzePipeline(args: {
+  readonly effectiveGitRoots: readonly string[];
+  readonly lepConfig: LepConfig;
+  readonly lepWorkspaceRoot: string | undefined;
+  readonly trailDb: TrailDatabase;
+  readonly server: TrailDataServer;
+  readonly logger: Logger;
+}): void {
+  const { effectiveGitRoots, lepConfig, lepWorkspaceRoot, trailDb, server, logger } = args;
+  if (effectiveGitRoots.length > 0) {
+    const codeGraphRepos = effectiveGitRoots.map((p) => ({
+      id: basename(p),
+      label: basename(p),
+      path: p,
+    }));
+    const primaryGitRoot = effectiveGitRoots[0]!;
+    // 除外ルートは lep.json workspace.excludeRoot で一元管理する（空なら undefined →
+    // 解析対象リポ自身にフォールバック）。相対は primary gitRoot 起点で絶対化。
+    const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, lepWorkspaceRoot);
+
+    const codeGraphService = new CodeGraphService({
+      repositories: codeGraphRepos,
+      trailDb,
+      logger,
+      pythonWasmPath: join(__dirname, 'wasm', 'tree-sitter-python.wasm'),
+      excludeRoot: analyzeExcludeRoot,
+    });
+    server.setCodeGraphService(codeGraphService);
+
+    server.onAnalyzeCurrentCode = ({ workspacePath, tsconfigPath }) =>
+      runCurrentCodeAnalysis({
+        workspacePath,
+        tsconfigPath,
+        primaryGitRoot,
+        excludeRoot: analyzeExcludeRoot,
+        trailDb,
+        server,
+        codeGraphService,
+        logger,
+      });
+
+    server.onAnalyzeReleaseCode = async (req) => {
+      return runAnalyzeReleaseCodePipeline({
+        trailDb,
+        codeGraphService,
+        gitRoot: primaryGitRoot,
+        // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
+        compute: { kind: 'in-host' },
+        scope: toAnalyzeReleaseScope(req.tags),
+        logger,
+      });
+    };
+
+    // Snapshot per Commit: 1 コミット分のみ生成する。
+    server.onAnalyzeCommitCode = async (req) => {
+      // 保存先は req.repo が決めるので、解析対象の git root も req.repo から引く。
+      // primary をそのまま渡すと、別リポジトリ名で primary の断面を保存し得る。
+      const commitGitRoot = resolveGitRootForRepo(effectiveGitRoots, req.repo);
+      if (!commitGitRoot) throw new UnknownRepoError(req.repo);
+      return runAnalyzeCommitCodePipeline({
+        trailDb,
+        codeGraphService,
+        gitRoot: commitGitRoot,
+        sha: req.sha,
+        repoName: req.repo,
+        // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
+        compute: { kind: 'in-host' },
+        logger,
+      });
+    };
+
+    server.onAnalyzeAll = async () => {
+      const startedAt = Date.now();
+      const result = await trailDb.importAll(
+        (message) => logger.info(`Trail import (HTTP): ${message}`),
+        effectiveGitRoots,
+      );
+      return { ...result, durationMs: Date.now() - startedAt };
+    };
+
+    logger.info('analyze pipeline wired', {
+      repos: codeGraphRepos.map((r) => r.id),
+      primary: primaryGitRoot,
+    });
+  } else {
+    logger.warn('analyze pipeline not wired — no gitRoots configured');
+  }
+}
+
+/**
+ * daemon がホストする trail-caravan-book ingest pipeline のサービスを構成する。
+ * gitRoot / ollamaFactory は未解決なら渡さない (CaravanBookService の既定へ委ねる)。
+ */
+function createCaravanBookService(args: {
+  readonly gitRoot: string | undefined;
+  readonly trailDbPath: string;
+  readonly statePath: string;
+  readonly backfillDays: number;
+  readonly llm: { readonly baseUrl: string; readonly chatModel: string; readonly embedModel: string };
+  readonly ollamaFactory: (() => ReturnType<typeof createThrottledOllamaClient>) | undefined;
+  readonly logger: Logger;
+}): CaravanBookService {
+  const logSink: CaravanBookLogSink = {
+    appendLine: (msg: string) => args.logger.info(msg),
+  };
+  const service = new CaravanBookService({
+    logSink,
+    trailDbPath: args.trailDbPath,
+    ...(args.gitRoot ? { gitRoot: args.gitRoot } : {}),
+    statePath: args.statePath,
+    backfillDays: args.backfillDays,
+    // lep.json の llm を ingest パイプラインへ通す (baseUrl は openCaravanDbSession
+    // が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
+    llm: args.llm,
+    ...(args.ollamaFactory ? { ollamaFactory: args.ollamaFactory } : {}),
+  });
+  args.logger.info('trail-caravan-book service constructed (orchestrated by AnalyzeAllRunner)', {
+    gitRoot: args.gitRoot ?? null,
+  });
+  return service;
+}
+
+/**
+ * 定期実行スケジューラを起動する。`--no-scheduler` と `TRAIL_DISABLE_SCHEDULER=1` の
+ * いずれかで無効化し、無効時はどちらが理由かを info ログへ残す。
+ */
+function startAnalyzeAllScheduler(
+  runner: AnalyzeAllRunner,
+  args: { readonly cliEnabled: boolean; readonly schedule: LepConfig['schedule']; readonly logger: Logger },
+): void {
+  const schedulerDisabledByEnv = process.env.TRAIL_DISABLE_SCHEDULER === '1';
+  const schedulerEnabled = args.cliEnabled && !schedulerDisabledByEnv;
+  if (schedulerEnabled) {
+    runner.start(args.schedule.intervalSec * 1000, {
+      runOnStart: args.schedule.runOnStart,
+      startupDelayMs: args.schedule.startupDelaySec * 1000,
+    });
+  } else {
+    args.logger.info('scheduler disabled', {
+      reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
+    });
+  }
+}
+
+/** daemon 停止時に破棄するリソース群。 */
+interface DaemonShutdownDeps {
+  readonly logger: Logger;
+  readonly lc: DaemonLifecycle;
+  readonly throttleStatusWriter: ThrottleStatusWriter | undefined;
+  readonly analyzeAllRunner: AnalyzeAllRunner;
+  readonly caravanBookService: CaravanBookService;
+  readonly rebuildSchedulerDisposable: { dispose(): void };
+  readonly chatBridge: ChatBridge;
+  readonly server: TrailDataServer;
+  readonly trailDb: TrailDatabase;
+  readonly systemRunLedger: PipelineRunLedger;
+  readonly ledgerCoreDb: { close(): void };
+}
+
+/**
+ * SIGTERM / SIGINT 時の後始末。各 dispose の失敗は個別に error ログを残して次へ進む
+ * (1 つの失敗で以降の解放を止めない)。最後に process.exit(0) する。
+ */
+async function shutdownDaemon(signal: string, deps: DaemonShutdownDeps): Promise<void> {
+  const { logger, lc, trailDb } = deps;
+  logger.info('shutdown requested', { signal });
+  try { deps.throttleStatusWriter?.stop(); } catch (err) { logger.error('throttle status writer stop failed', err); }
+  try { await deps.analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
+  try { await deps.caravanBookService.dispose(); } catch (err) { logger.error('trail-caravan-book dispose failed', err); }
+  try { deps.rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
+  // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
+  try { await deps.chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
+  try { await deps.server.stop(); } catch (err) { logger.error('server stop failed', err); }
+  lc.removeDaemonJson();
+  try {
+    const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
+    if (typeof closeFn === 'function') await closeFn.call(trailDb);
+  } catch (err) { logger.error('trail db close failed', err); }
+  // daemon の生存期間を表す system run を正常終了として閉じる。閉じないと
+  // status='running' のまま残る（watchdog は system wave を失効させないため）。
+  try { deps.systemRunLedger.finish('success'); } catch (err) { logger.error('system run finish failed', err); }
+  try { deps.ledgerCoreDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
+  process.exit(0);
 }
 
 async function runCurrentCodeAnalysis(args: {

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-rich-editor",
-  "version": "1.21.0",
+  "version": "1.21.1",
   "description": "markdown-editor（エディタ基盤）に mermaid / katex / plantuml / plotly / jsxgraph の図表描画を足した派生パッケージ。重量外部モジュールをここへ隔離し、基盤側を軽量に保つ。依存の向きは markdown-rich-editor → markdown-editor（逆ではない）。",
   "license": "MIT",
   "private": true,

@@ -118,7 +118,7 @@ export function createCodeBlockNodeView(
   // --- DOM 構築 ---
   const dom = document.createElement("div");
   dom.className = "rich-codeblock block-node-wrapper";
-  dom.setAttribute("data-rich-codeblock", "");
+  dom.dataset.richCodeblock = "";
 
   const frame = document.createElement("div");
   frame.className = "rich-codeblock-frame";

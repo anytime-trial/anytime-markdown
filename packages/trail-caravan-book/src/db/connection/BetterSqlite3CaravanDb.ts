@@ -43,10 +43,17 @@ export class BetterSqlite3CaravanDb implements CaravanDbConnection {
 
   private checkReadOnlyAttach(sql: string): void {
     if (this.readOnlyAliases.size === 0) return;
-    if (!/^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql)) return;
+    // 検査するのは**書込先テーブル**だけ。文中のどこかに alias が現れるだけで拒否すると、
+    // `UPDATE <main 表> ... WHERE x IN (SELECT ... FROM trail.*)` のような読み取り
+    // 副問い合わせ付きの正当な書込を誤ブロックする。呼び出し側は補助機構として
+    // fail-open が多く、「毎回失敗するが処理は続く」形の恒久欠落になる
+    // （本番実測: backfillBugFixWorkspace が常に拒否され workspace 1,362 行が空のまま）。
+    // SHORTCUT: 先頭が WITH の書込文と引用符付き schema 名 ("trail".x) は検査対象外. ceiling: 現行コードベースにその形の書込文は無い. upgrade: CTE 経由の書込を導入する時に SQL パーサベースの判定へ置き換える.
+    const m = /^\s*(?:INSERT\s+(?:OR\s+[A-Za-z]+\s+)?INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+[A-Za-z]+)?|DELETE\s+FROM)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\./i.exec(sql);
+    if (m === null) return;
+    const targetSchema = m[1].toLowerCase();
     for (const alias of this.readOnlyAliases) {
-      const re = new RegExp(String.raw`\b${alias.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}\.`, 'i');
-      if (re.test(sql)) {
+      if (targetSchema === alias.toLowerCase()) {
         throw new Error(
           `[anytime-memory] write to read-only attached schema '${alias}' is forbidden. SQL: ${sql.slice(0, 100)}`,
         );

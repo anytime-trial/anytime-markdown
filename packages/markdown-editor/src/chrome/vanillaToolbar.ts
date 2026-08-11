@@ -38,7 +38,7 @@ export const ICON = {
  */
 export function createToolbarContainer(ariaLabel: string): HTMLElement {
   const el = document.createElement("div");
-  el.setAttribute("data-block-toolbar", "");
+  el.dataset.blockToolbar = "";
   el.setAttribute("role", "toolbar");
   el.setAttribute("aria-label", ariaLabel);
   // 背景は不透明（bg-paper）+ 枠線 + 影。ツールバーはブロック上側にフロート配置され
@@ -66,7 +66,7 @@ export function createToolbarContainer(ariaLabel: string): HTMLElement {
  */
 export function mkDragHandle(label: string): HTMLElement {
   const el = document.createElement("div");
-  el.setAttribute("data-drag-handle", "");
+  el.dataset.dragHandle = "";
   el.setAttribute("aria-label", label);
   el.style.cssText =
     "display:inline-flex;align-items:center;cursor:grab;color:var(--am-color-text-secondary);";

@@ -1,4 +1,4 @@
-import type { CaravanDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection, SqlValue } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { normalizeTargetPath } from './normalizeTargetPath';
 import { escapeLike } from './resolveTargetRepo';
@@ -37,7 +37,20 @@ export type LinkAddressesResult = {
   no_matching_commit: number;
   /** 理由別の除外件数。集計に失敗したときは null（0 件と区別する）。 */
   skipped: LinkAddressesSkipCounts | null;
+  /** 成立したリンクのうち、同一セッション加点が寄与したもの。 */
+  linked_with_same_session: number;
+  /** 成立したリンクのうち、レビュー対処マーカー加点が寄与したもの。 */
+  linked_with_review_marker: number;
 };
+
+/**
+ * リンクの成立根拠。どのシグナルが効いたかを行へ残すために使う。
+ *
+ * `text` はコミットメッセージと指摘本文の類似（従来からの唯一の根拠）、`same_session` は
+ * レビューを取り込んだセッションと同じセッションのコミットであること、`review_marker` は
+ * コミットメッセージがレビュー対処を明示していること。
+ */
+export type LinkSignal = 'text' | 'same_session' | 'review_marker';
 
 // ── Stop words ────────────────────────────────────────────────────────────────
 
@@ -116,6 +129,62 @@ function scoreCommit(commitMessage: string, findingText: string): number {
   return score;
 }
 
+/**
+ * コミットメッセージが「レビュー指摘への対処」を明示しているか。
+ *
+ * 修正コミットは指摘 1 件を名指ししない。`fix(agent/logic): …（レビュー指摘対応）` のように
+ * まとめて対処した旨だけを書くため、本文との類似度スコアには届かない（実測では候補コミットが
+ * 在るのに閾値未満で落ちる指摘が 98 件あり、その 4 割がこの形）。対処の意図そのものを
+ * 決定論的なパターンで拾う。
+ *
+ * 「レビュー」単独は拾わない。レビュー書式の改訂やレビュー機能の実装コミットまで当たるため、
+ * 対処を表す語（指摘 / 対応 / 対処 / address / feedback）との共起を必須にする。
+ */
+const REVIEW_FIX_MARKER_RE =
+  /レビュー\s*指摘|指摘\s*対応|指摘\s*対処|レビュー\s*対応|レビュー\s*対処|review\s*(?:指摘|feedback|comments?)|address(?:es|ing|ed)?\s+review/i;
+
+export function hasReviewFixMarker(commitMessage: string): boolean {
+  return REVIEW_FIX_MARKER_RE.test(commitMessage);
+}
+
+/**
+ * 候補コミット 1 件の受理スコアと、その内訳シグナルを返す。
+ *
+ * セッション一致とレビュー対処マーカーは**加点であってバイパスではない**。単独で受理させると、
+ * レビュー後に同じファイルを触っただけの機能追加コミットが対処として確定する（実データの
+ * サンプルで確認済み）。誤リンクは無リンクより悪いので、片方だけでは閾値に届かせない。
+ * 逆に 2 つ揃えば、テキストの裏付けが無くても「同じセッションでレビュー対処だと明記して
+ * その対象ファイルを変更した」ことになり、根拠として十分と判断する。
+ *
+ * SHORTCUT: テキスト裏付け無しの受理を finding 単位で独立に判定する.
+ *   ceiling: 1 つの「レビュー指摘対応」コミットが、同じ対象ファイルを指す**未対処のまま
+ *   だった指摘**まで巻き込む。指摘 5 件中 3 件しか直していないケースを区別できない
+ *   （区別するにはコミットの diff hunk と指摘の行範囲を突き合わせる必要があり、
+ *   activity_commit_files は行情報を持たない）。境界はファイル一致で、コミットが触って
+ *   いないファイルの指摘には決して波及しない。実測の露出は 9 件で、うち 6 件は同じ
+ *   コミットにテキスト裏付けのリンクも成立している（＝実際に一括対処されたコミット）。
+ *   upgrade: 対処率の集計で weakLinked が tracked の 1 割を超えたら、コミットの変更行範囲と
+ *   指摘の target_line_start/end の重なりを受理条件へ足す.
+ */
+export function scoreCandidate(input: {
+  readonly commitMessage: string;
+  readonly findingText: string;
+  /** レビューを取り込んだセッションと同じセッションのコミットか。 */
+  readonly sameSession: boolean;
+}): { score: number; signals: LinkSignal[] } {
+  const textScore = scoreCommit(input.commitMessage, input.findingText);
+  const signals: LinkSignal[] = [];
+  if (textScore > 0) signals.push('text');
+  if (input.sameSession) signals.push('same_session');
+  const marker = hasReviewFixMarker(input.commitMessage);
+  if (marker) signals.push('review_marker');
+
+  return {
+    score: textScore + (input.sameSession ? 1 : 0) + (marker ? 1 : 0),
+    signals,
+  };
+}
+
 // ── Internal types ─────────────────────────────────────────────────────────────
 
 type FindingRow = {
@@ -126,6 +195,12 @@ type FindingRow = {
   target_repo: string;
   finding_text: string;
   reviewed_at: string;
+  /**
+   * レビューを取り込んだセッション。`source_kind='session'` の `source_ref`
+   * （`<session_id>#<message_uuid>`）から取る。他経路（review_doc / agent）は null で、
+   * 同一セッション加点が単に付かない（例外にも「全部一致」にもしない）。
+   */
+  review_session_id: string | null;
 };
 
 /**
@@ -140,38 +215,56 @@ const SCORE_THRESHOLD_DIRECTORY = 3;
 
 // ── Per-finding helper ─────────────────────────────────────────────────────────
 
-/**
- * Attempt to link one finding to the oldest qualifying commit.
- * Returns { edgeInserted: boolean } on success, null if no commit matched.
- */
-function linkOneFinding(
-  db: CaravanDbConnection,
-  finding: FindingRow,
-  effectiveWindowDays: number,
-): { edgeInserted: boolean } | null {
-  // 対象がファイルかディレクトリかは、格納済みの正規化パスから判定する。
-  // 'unknown'（既知拡張子でも明らかなディレクトリでもない形）は両方式を試す。
-  const normalized = normalizeTargetPath(finding.target_file_path);
-  if (normalized === null) return null;
-  const predicates: ReadonlyArray<'exact' | 'prefix'> =
-    normalized.kind === 'file' ? ['exact'] : normalized.kind === 'directory' ? ['prefix'] : ['exact', 'prefix'];
+/** 受理したコミット 1 件（リンク先）。 */
+type AcceptedCommit = { commit_hash: string; committed_at: string; signals: LinkSignal[] };
 
-  // リポジトリは finding.target_repo で絞る。かつては呼び出し元の単一 repoName で
-  // 絞っており、他ワークスペースの指摘が永久にリンクできず、かつリポジトリ名を
-  // 含まない相対パスが別リポジトリの同名ファイルへ誤リンクし得た。
-  //
-  // Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。
-  // 窓の下限は `committed_at >= reviewed_at`（同時刻の即時修正＝同一セッション内の対処も拾う）。
-  // 兄弟 linkPrecedesBugs は後続バグを探すため `> reviewed_at`（厳密大なり）で、境界差は意図的。
-  //
-  // ディレクトリ指定は前方一致。`|| '/'` を挟んでセグメント境界を守る
-  // （`packages/markdown-viewer` が `packages/markdown-viewer-extra/...` に当たらないように）。
-  let acceptedCommit: { commit_hash: string; committed_at: string } | null = null;
+/** 候補行を古い順に走査し、最初に閾値を満たしたコミットを返す。 */
+function pickAcceptedCommitRow(args: {
+  rows: ReadonlyArray<ReadonlyArray<SqlValue>>;
+  finding: FindingRow;
+  threshold: number;
+}): AcceptedCommit | null {
+  const { rows, finding, threshold } = args;
+  for (const row of rows) {
+    const { score, signals } = scoreCandidate({
+      commitMessage: String(row[1]),
+      findingText: finding.finding_text,
+      sameSession:
+        finding.review_session_id !== null && String(row[3]) === finding.review_session_id,
+    });
+    if (score >= threshold) {
+      return { commit_hash: String(row[0]), committed_at: String(row[2]), signals };
+    }
+  }
+  return null;
+}
+
+/**
+ * predicate（完全一致 / 前方一致）の順に候補コミットを検索し、最初に受理した 1 件を返す。
+ *
+ * リポジトリは finding.target_repo で絞る。かつては呼び出し元の単一 repoName で
+ * 絞っており、他ワークスペースの指摘が永久にリンクできず、かつリポジトリ名を
+ * 含まない相対パスが別リポジトリの同名ファイルへ誤リンクし得た。
+ *
+ * Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。
+ * 窓の下限は `committed_at >= reviewed_at`（同時刻の即時修正＝同一セッション内の対処も拾う）。
+ * 兄弟 linkPrecedesBugs は後続バグを探すため `> reviewed_at`（厳密大なり）で、境界差は意図的。
+ *
+ * ディレクトリ指定は前方一致。`|| '/'` を挟んでセグメント境界を守る
+ * （`packages/markdown-viewer` が `packages/markdown-viewer-extra/...` に当たらないように）。
+ */
+function findAcceptedCommit(args: {
+  db: CaravanDbConnection;
+  finding: FindingRow;
+  predicates: ReadonlyArray<'exact' | 'prefix'>;
+  effectiveWindowDays: number;
+}): AcceptedCommit | null {
+  const { db, finding, predicates, effectiveWindowDays } = args;
 
   for (const predicate of predicates) {
     const isPrefix = predicate === 'prefix';
     const commitResult = db.exec(
-      `SELECT DISTINCT sc.commit_hash, sc.commit_message, sc.committed_at
+      `SELECT DISTINCT sc.commit_hash, sc.commit_message, sc.committed_at, sc.session_id
        FROM trail.activity_session_commits sc
        JOIN trail.activity_commit_files cf ON cf.commit_hash = sc.commit_hash
                                   AND cf.repo_id = sc.repo_id
@@ -194,22 +287,38 @@ function linkOneFinding(
     if (!commitRows) continue;
 
     const threshold = isPrefix ? SCORE_THRESHOLD_DIRECTORY : SCORE_THRESHOLD_FILE;
-    for (const row of commitRows.values) {
-      const score = scoreCommit(String(row[1]), finding.finding_text);
-      if (score >= threshold) {
-        acceptedCommit = { commit_hash: String(row[0]), committed_at: String(row[2]) };
-        break;
-      }
-    }
-    if (acceptedCommit) break;
+    const accepted = pickAcceptedCommitRow({ rows: commitRows.values, finding, threshold });
+    if (accepted) return accepted;
   }
+  return null;
+}
+
+/**
+ * Attempt to link one finding to the oldest qualifying commit.
+ * Returns { edgeInserted: boolean } on success, null if no commit matched.
+ */
+function linkOneFinding(
+  db: CaravanDbConnection,
+  finding: FindingRow,
+  effectiveWindowDays: number,
+): { edgeInserted: boolean; signals: LinkSignal[] } | null {
+  // 対象がファイルかディレクトリかは、格納済みの正規化パスから判定する。
+  // 'unknown'（既知拡張子でも明らかなディレクトリでもない形）は両方式を試す。
+  const normalized = normalizeTargetPath(finding.target_file_path);
+  if (normalized === null) return null;
+  const predicates: ReadonlyArray<'exact' | 'prefix'> =
+    normalized.kind === 'file' ? ['exact'] : normalized.kind === 'directory' ? ['prefix'] : ['exact', 'prefix'];
+
+  const acceptedCommit = findAcceptedCommit({ db, finding, predicates, effectiveWindowDays });
   if (!acceptedCommit) return null;
 
   const now = new Date().toISOString();
 
   db.run(
-    `UPDATE caravan_review_findings SET addressed_commit_sha = ?, addressed_at = ? WHERE id = ?`,
-    [acceptedCommit.commit_hash, now, finding.id]
+    `UPDATE caravan_review_findings
+        SET addressed_commit_sha = ?, addressed_at = ?, addressed_signals_json = ?
+      WHERE id = ?`,
+    [acceptedCommit.commit_hash, now, JSON.stringify(acceptedCommit.signals), finding.id]
   );
 
   const commitEntityId = entityId('Commit', acceptedCommit.commit_hash);
@@ -232,7 +341,7 @@ function linkOneFinding(
     [edgeId, commitEntityId, finding.finding_entity_id, acceptedCommit.committed_at, now, `review_finding#${finding.id}`]
   );
 
-  return { edgeInserted: db.getRowsModified() > 0 };
+  return { edgeInserted: db.getRowsModified() > 0, signals: acceptedCommit.signals };
 }
 
 // ── Main function ─────────────────────────────────────────────────────────────
@@ -272,22 +381,14 @@ function countSkips(
   }
 }
 
-export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
-  const { db, windowDays = 30, logger } = input;
-  const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 30;
-  const skipped = countSkips(db, logger);
-
-  /** 母集合を作れなかったときの戻り値。除外内訳だけは残す（調査の起点になる）。 */
-  const emptyResult: LinkAddressesResult = {
-    findings_linked: 0,
-    edges_inserted: 0,
-    candidates: 0,
-    no_matching_commit: 0,
-    skipped,
-  };
-
-  let findings: FindingRow[];
-
+/**
+ * 未リンクの指摘（母集合）を読み出す。クエリに失敗したら null を返す
+ * （0 件と「読めなかった」を呼び出し側で区別するため）。
+ */
+function loadUnlinkedFindings(
+  db: CaravanDbConnection,
+  logger: { warn: (msg: string) => void },
+): FindingRow[] | null {
   try {
     // コミット窓のアンカーは caravan_reviews.reviewed_at（実レビュー時刻）を使う。
     // caravan_review_findings.recorded_at は ingest 時刻なので、一括 re-ingest 後に
@@ -296,9 +397,12 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     // target_repo が NULL の行は照合対象から外す（fail-closed）。NULL は
     // 「対象がどのリポジトリのものか確認できなかった」を意味し、ここで単一の
     // repoName を仮定して照合すると別リポジトリの同名ファイルへ誤リンクする。
+    // source_kind='session' の source_ref は `<session_id>#<message_uuid>`。SQL 側で切り出さず
+    // 生値を取り、経路の判別と分解は TypeScript 側で行う（他経路の source_ref はセッション ID
+    // ではないため、SQL で一律 substr すると review_doc のパス断片がセッション ID に化ける）。
     const result = db.exec(`
       SELECT mrf.id, mrf.finding_entity_id, mrf.target_file_path, mrf.target_repo,
-             mrf.finding_text, r.reviewed_at
+             mrf.finding_text, r.reviewed_at, r.source_kind, r.source_ref
       FROM caravan_review_findings mrf
       JOIN caravan_reviews r ON r.id = mrf.review_id
       WHERE mrf.addressed_at IS NULL
@@ -309,33 +413,65 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
 
     const rows = result[0];
     if (!rows) {
-      return emptyResult;
+      return null;
     }
 
-    findings = rows.values.map((r) => ({
+    return rows.values.map((r) => ({
       id: String(r[0]),
       finding_entity_id: String(r[1]),
       target_file_path: String(r[2]),
       target_repo: String(r[3]),
       finding_text: String(r[4]),
       reviewed_at: String(r[5]),
+      review_session_id: reviewSessionId(String(r[6]), String(r[7])),
     }));
   } catch (err) {
     logger.warn(
       `[anytime-memory] linkAddresses: failed to query review findings: ${String(err)}`
     );
-    return emptyResult;
+    return null;
   }
+}
 
-  let findingsLinked = 0;
-  let edgesInserted = 0;
+/** リンク成立件数の集計。シグナル別の内訳もここに束ねる。 */
+type LinkTotals = {
+  findingsLinked: number;
+  edgesInserted: number;
+  linkedWithSameSession: number;
+  linkedWithReviewMarker: number;
+};
+
+/** 成立した 1 件のリンク結果を集計へ反映する。 */
+function accumulateLinkResult(
+  totals: LinkTotals,
+  result: { edgeInserted: boolean; signals: LinkSignal[] },
+): void {
+  totals.findingsLinked += 1;
+  if (result.edgeInserted) totals.edgesInserted += 1;
+  if (result.signals.includes('same_session')) totals.linkedWithSameSession += 1;
+  if (result.signals.includes('review_marker')) totals.linkedWithReviewMarker += 1;
+}
+
+/** 母集合の各指摘をコミットへリンクする。1 件の失敗は warn に留めて他を止めない。 */
+function linkAllFindings(args: {
+  db: CaravanDbConnection;
+  findings: FindingRow[];
+  effectiveWindowDays: number;
+  logger: { warn: (msg: string) => void };
+}): LinkTotals {
+  const { db, findings, effectiveWindowDays, logger } = args;
+  const totals: LinkTotals = {
+    findingsLinked: 0,
+    edgesInserted: 0,
+    linkedWithSameSession: 0,
+    linkedWithReviewMarker: 0,
+  };
 
   for (const finding of findings) {
     try {
       const result = linkOneFinding(db, finding, effectiveWindowDays);
       if (result !== null) {
-        findingsLinked += 1;
-        if (result.edgeInserted) edgesInserted += 1;
+        accumulateLinkResult(totals, result);
       }
     } catch (err) {
       logger.warn(
@@ -343,6 +479,31 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
       );
     }
   }
+
+  return totals;
+}
+
+export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
+  const { db, windowDays = 30, logger } = input;
+  const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 30;
+  const skipped = countSkips(db, logger);
+
+  const findings = loadUnlinkedFindings(db, logger);
+  if (findings === null) {
+    /** 母集合を作れなかったときの戻り値。除外内訳だけは残す（調査の起点になる）。 */
+    return {
+      findings_linked: 0,
+      edges_inserted: 0,
+      candidates: 0,
+      no_matching_commit: 0,
+      skipped,
+      linked_with_same_session: 0,
+      linked_with_review_marker: 0,
+    };
+  }
+
+  const { findingsLinked, edgesInserted, linkedWithSameSession, linkedWithReviewMarker } =
+    linkAllFindings({ db, findings, effectiveWindowDays, logger });
 
   const skipText =
     skipped === null
@@ -352,7 +513,10 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
   // Flight Record 上の「未対処」が対処漏れなのか記録漏れなのか区別できない。
   logger.warn(
     `[anytime-memory] linkAddresses: candidates=${findings.length} linked=${findingsLinked} ` +
-      `noMatch=${findings.length - findingsLinked} skipped(${skipText})`,
+      `noMatch=${findings.length - findingsLinked} skipped(${skipText}) ` +
+      // シグナル別の内訳を毎回残す。テキスト以外の根拠で成立したリンクの割合が
+      // 分からないと、対処率が伸びたのが実態の改善なのか照合の緩和なのか読めない。
+      `bySignal(session=${linkedWithSameSession} reviewMarker=${linkedWithReviewMarker})`,
   );
 
   return {
@@ -361,5 +525,21 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     candidates: findings.length,
     no_matching_commit: findings.length - findingsLinked,
     skipped,
+    linked_with_same_session: linkedWithSameSession,
+    linked_with_review_marker: linkedWithReviewMarker,
   };
+}
+
+/**
+ * レビューの取込元セッションを返す。`source_kind='session'` 以外は null。
+ *
+ * `source_ref` は `<session_id>#<message_uuid>` 形式。`#` を含まない値は形式外なので
+ * 推測せず null にする（壊れた値からセッション ID を捏造すると、無関係なコミットが
+ * 同一セッション扱いで加点される）。
+ */
+function reviewSessionId(sourceKind: string, sourceRef: string): string | null {
+  if (sourceKind !== 'session') return null;
+  const separator = sourceRef.indexOf('#');
+  if (separator <= 0) return null;
+  return sourceRef.slice(0, separator);
 }

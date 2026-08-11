@@ -30,6 +30,67 @@ interface PendingRow {
   body: string | null;
 }
 
+type EmbedSection = ReturnType<typeof selectEmbedSections>[number];
+type DocStmt = ReturnType<DocDb['prepare']>;
+
+/** 1 doc の全節埋め込みの結果。1 節でも落ちたら doc 全体を failed にする（all-or-nothing）。 */
+type DocVectors =
+  | { kind: 'ok'; vecs: number[][] }
+  | { kind: 'failed'; errorMessage?: string };
+
+/**
+ * 1 doc の全節を埋め込む。空ベクトル応答・embed() の throw はいずれも doc 単位の失敗として返し、
+ * 呼び出し側が他 doc へ続行できるようにする。
+ */
+async function embedDocSections(
+  sections: readonly EmbedSection[],
+  embed: EmbedFn,
+  maxChars: number,
+): Promise<DocVectors> {
+  const vecs: number[][] = [];
+  for (const s of sections) {
+    try {
+      const vec = await embed(s.text.slice(0, maxChars));
+      if (!Array.isArray(vec) || vec.length === 0) {
+        return { kind: 'failed' };
+      }
+      vecs.push(vec);
+    } catch (err) {
+      // 1 節の失敗（ollama 到達不可・timeout 等）で doc を未完了扱いにし、他 doc へ続行。
+      return { kind: 'failed', errorMessage: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  return { kind: 'ok', vecs };
+}
+
+interface PersistDocSectionsInput {
+  readonly db: DocDb;
+  readonly del: DocStmt;
+  readonly ins: DocStmt;
+  readonly path: string;
+  readonly model: string;
+  readonly hash: string;
+  readonly sections: readonly EmbedSection[];
+  readonly vecs: number[][];
+}
+
+/** 1 doc 分の節埋め込みを洗い替えで永続化する（all-or-nothing。失敗は ROLLBACK して再送出）。 */
+function persistDocSections(input: PersistDocSectionsInput): void {
+  const { db, del, ins, path, model, hash, sections, vecs } = input;
+  db.exec('BEGIN');
+  try {
+    del.run(path);
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections[i];
+      ins.run(path, s.sectionIdx, s.heading, s.level, model, vecs[i].length, float32ToBlob(vecs[i]), hash);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 /**
  * 節埋め込みが未生成・doc の content_hash 不一致・model 変更の doc だけを
  * 節単位で再埋め込みする（差分 backfill）。
@@ -74,24 +135,11 @@ export async function embedSections(db: DocDb, embed: EmbedFn, opts: EmbedOption
       continue; // skipped（対象節なし。pending のままだが embed コストはゼロ）
     }
 
-    const vecs: number[][] = [];
-    let docFailed = false;
-    for (const s of sections) {
-      try {
-        const vec = await embed(s.text.slice(0, maxChars));
-        if (!Array.isArray(vec) || vec.length === 0) {
-          docFailed = true;
-          break;
-        }
-        vecs.push(vec);
-      } catch (err) {
-        // 1 節の失敗（ollama 到達不可・timeout 等）で doc を未完了扱いにし、他 doc へ続行。
-        docFailed = true;
-        if (firstError === undefined) firstError = err instanceof Error ? err.message : String(err);
-        break;
+    const embedded = await embedDocSections(sections, embed, maxChars);
+    if (embedded.kind === 'failed') {
+      if (embedded.errorMessage !== undefined && firstError === undefined) {
+        firstError = embedded.errorMessage;
       }
-    }
-    if (docFailed) {
       failed += 1;
       continue;
     }
@@ -99,18 +147,16 @@ export async function embedSections(db: DocDb, embed: EmbedFn, opts: EmbedOption
     const hash = (hashOf.get(row.path) as unknown as { content_hash: string } | undefined)?.content_hash;
     if (!hash) continue; // doc が消えた等（skipped）
 
-    db.exec('BEGIN');
-    try {
-      del.run(row.path);
-      for (let i = 0; i < sections.length; i++) {
-        const s = sections[i];
-        ins.run(row.path, s.sectionIdx, s.heading, s.level, opts.model, vecs[i].length, float32ToBlob(vecs[i]), hash);
-      }
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
+    persistDocSections({
+      db,
+      del,
+      ins,
+      path: row.path,
+      model: opts.model,
+      hash,
+      sections,
+      vecs: embedded.vecs,
+    });
     docsEmbedded += 1;
     sectionsEmbedded += sections.length;
   }

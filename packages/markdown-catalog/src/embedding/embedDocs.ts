@@ -63,6 +63,24 @@ function buildEmbedText(row: PendingRow, maxChars: number): string {
     .slice(0, maxChars);
 }
 
+/** 1 doc の embed 結果。空ベクトル（empty）と例外（failed）は呼出側で扱いが違うため分ける。 */
+type DocVector =
+  | { kind: 'ok'; vec: number[] }
+  | { kind: 'empty' }
+  | { kind: 'failed'; errorMessage: string };
+
+/** 1 doc を embed する。例外は failed として返し、バッチ全体を中断させない。 */
+async function embedOneDoc(text: string, embed: EmbedFn): Promise<DocVector> {
+  let vec: number[];
+  try {
+    vec = await embed(text);
+  } catch (err) {
+    return { kind: 'failed', errorMessage: err instanceof Error ? err.message : String(err) };
+  }
+  if (!Array.isArray(vec) || vec.length === 0) return { kind: 'empty' };
+  return { kind: 'ok', vec };
+}
+
 /**
  * embedding が未生成・content_hash 不一致・model 変更の doc だけを再 embed する（差分 backfill）。
  *
@@ -94,17 +112,16 @@ export async function embedDocs(db: DocDb, embed: EmbedFn, opts: EmbedOptions): 
   for (const row of pending) {
     const text = buildEmbedText(row, maxChars);
     if (!text) continue;
-    let vec: number[];
-    try {
-      vec = await embed(text);
-    } catch (err) {
+    const result = await embedOneDoc(text, embed);
+    if (result.kind === 'failed') {
       // 1 件の embed 失敗（ollama 到達不可・timeout 等）でバッチ全体を中断しない。
       // 失敗を握り潰さず件数と最初のエラーを呼出側へ返す（止血＋観測）。
       failed += 1;
-      if (firstError === undefined) firstError = err instanceof Error ? err.message : String(err);
+      if (firstError === undefined) firstError = result.errorMessage;
       continue;
     }
-    if (!Array.isArray(vec) || vec.length === 0) continue;
+    if (result.kind === 'empty') continue;
+    const vec = result.vec;
     const hash = (hashOf.get(row.path) as unknown as { content_hash: string } | undefined)?.content_hash;
     if (!hash) continue; // doc が消えた等
     upsert.run({ path: row.path, model: opts.model, dim: vec.length, vec: float32ToBlob(vec), hash });

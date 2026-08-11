@@ -83,6 +83,30 @@ describe('mountDriftPanel', () => {
     expect(c.querySelector('tbody')?.children.length).toBe(2);
   });
 
+  it('ワークスペース列を Detected の右・操作列の左に出す', () => {
+    const c = document.createElement('div');
+    mountDriftPanel(c, basePanelProps({ rows: [makeRow({ workspace: 'anytime-trade' })] }));
+
+    const heads = [...c.querySelectorAll('thead th')].map((el) => el.textContent);
+    expect(heads).toEqual([
+      'Subject',
+      'Type',
+      'flightRecord.drift.fixTarget',
+      'flightRecord.drift.filterSeverity',
+      'Detected',
+      'flightRecord.column.workspace',
+      '',
+    ]);
+    expect(c.querySelector('[data-am-drift-workspace]')?.textContent).toBe('anytime-trade');
+  });
+
+  it('ワークスペース未解決（空文字）はダッシュで出す', () => {
+    // 空セルにすると「ワークスペースの概念が無い行」と見分けが付かない。
+    const c = document.createElement('div');
+    mountDriftPanel(c, basePanelProps({ rows: [makeRow({ workspace: '' })] }));
+    expect(c.querySelector('[data-am-drift-workspace]')?.textContent).toBe('—');
+  });
+
   it('unresolved-only switch で resolved 行をフィルタする', () => {
     const resolved = makeRow({ id: 'r-resolved', resolvedAt: '2026-06-10T00:00:00.000Z' });
     const pending = makeRow({ id: 'r-pending', resolvedAt: null });

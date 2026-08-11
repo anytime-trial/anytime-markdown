@@ -406,7 +406,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
   const commentCard = (comment: InlineComment): HTMLElement => {
     const found = findCommentInDoc(editor, comment.id);
     const card = document.createElement("div");
-    card.setAttribute("data-am-comment-card", "");
+    card.dataset.amCommentCard = "";
     card.setAttribute("role", "button");
     card.tabIndex = 0;
     card.style.opacity = comment.resolved ? "0.5" : "1";
@@ -471,7 +471,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       card.appendChild(field.el);
     } else {
       const body = document.createElement("p");
-      body.setAttribute("data-am-comment-body", "");
+      body.dataset.amCommentBody = "";
       body.style.cssText =
         "margin:0;margin-bottom:4px;font-size:0.875rem;line-height:1.43;letter-spacing:0.01071em;" +
         "cursor:text;min-height:1.4em;";
@@ -520,7 +520,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
       `opacity:${a.resolved ? "0.5" : "1"};`;
 
     const cardBtn = document.createElement("div");
-    cardBtn.setAttribute("data-am-annotation-card", "");
+    cardBtn.dataset.amAnnotationCard = "";
     cardBtn.setAttribute("role", "button");
     cardBtn.tabIndex = 0;
     const onCardClick = (): void => navigate(img.pos);

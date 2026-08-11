@@ -151,10 +151,10 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
     // 次数: e1=4, e2=3, e3=2, e4=1
     // （失効 x1・無効化 x2・リテラル x3・自己ループ x4・soft delete 端点 x5 は数えない）
     expect(result?.nodes).toEqual([
-      { label: 'TrailDataServer', type: 'Concept', frequency: 4 },
-      { label: 'trail-caravan-book', type: 'Concept', frequency: 3 },
-      { label: 'server.ts', type: 'File', frequency: 2 },
-      { label: 'FTS crash', type: 'Bug', frequency: 1 },
+      { id: 'e1', label: 'TrailDataServer', type: 'Concept', frequency: 4 },
+      { id: 'e2', label: 'trail-caravan-book', type: 'Concept', frequency: 3 },
+      { id: 'e3', label: 'server.ts', type: 'File', frequency: 2 },
+      { id: 'e4', label: 'FTS crash', type: 'Bug', frequency: 1 },
     ]);
     const sortedLinks = [...(result?.links ?? [])].sort((l, r) => l.a - r.a || l.b - r.b);
     expect(sortedLinks).toEqual([
@@ -186,8 +186,8 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
 
     // Concept 同士のエッジは e1-e2 ×2 のみ。File との混合エッジは次数に入らない
     expect(result?.nodes).toEqual([
-      { label: 'TrailDataServer', type: 'Concept', frequency: 2 },
-      { label: 'trail-caravan-book', type: 'Concept', frequency: 2 },
+      { id: 'e1', label: 'TrailDataServer', type: 'Concept', frequency: 2 },
+      { id: 'e2', label: 'trail-caravan-book', type: 'Concept', frequency: 2 },
     ]);
     expect(result?.links).toEqual([{ a: 0, b: 1, strength: 2 }]);
     expect(result?.totalEntityCount).toBe(2);
@@ -214,6 +214,31 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
     const missing = new CaravanApiHandler(makeMockLogger(), path.join(tmpDir, 'missing.db'));
     expect(await missing.getKnowledgeGraph({})).toBeNull();
     missing.dispose();
+  });
+
+  it('T-22: uses named-community clusters when summaries exist, unmatched nodes stay unclustered', async () => {
+    addCommunitySummaryTables(dbPath, [
+      // e1/e2 はコミュニティ 1（要約あり）、e3 はコミュニティ 2（要約なし）、e4 は layout 外
+      { entityId: 'e1', communityId: 1 },
+      { entityId: 'e2', communityId: 1 },
+      { entityId: 'e3', communityId: 2 },
+    ], [{ communityId: 1, name: 'Trail 基盤' }]);
+
+    const result = await handler.getKnowledgeGraph({});
+
+    expect(result?.clusters).toEqual([{ label: 'Trail 基盤', members: [0, 1] }]);
+  });
+
+  it('T-22: falls back to type clusters when no summarized community matches', async () => {
+    addCommunitySummaryTables(dbPath, [{ entityId: 'e1', communityId: 1 }], []);
+
+    const result = await handler.getKnowledgeGraph({});
+
+    expect(result?.clusters).toEqual([
+      { label: 'Concept', members: [0, 1] },
+      { label: 'File', members: [2] },
+      { label: 'Bug', members: [3] },
+    ]);
   });
 });
 
@@ -591,3 +616,43 @@ describe('CaravanApiHandler.getKnowledgeGraph — viewport fast path', () => {
     expect(result?.totalEntityCount).toBe(6);
   });
 });
+
+/** layout / summaries テーブルを後付けする（migration 026/028 適用済み DB を模す） */
+function addCommunitySummaryTables(
+  dbPath: string,
+  layoutRows: { entityId: string; communityId: number }[],
+  summaries: { communityId: number; name: string }[],
+): void {
+  const db = new BetterSqlite3(dbPath);
+  db.exec(`CREATE TABLE IF NOT EXISTS caravan_entity_layout (
+    entity_id TEXT PRIMARY KEY,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    community_id INTEGER NOT NULL,
+    degree INTEGER NOT NULL DEFAULT 0,
+    graph_version TEXT NOT NULL,
+    recorded_at TEXT NOT NULL
+  ) STRICT`);
+  db.exec(`CREATE TABLE IF NOT EXISTS caravan_community_summaries (
+    stable_key TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    member_count INTEGER NOT NULL DEFAULT 0,
+    graph_version TEXT NOT NULL,
+    community_id INTEGER NOT NULL,
+    generated_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  ) STRICT`);
+  const layout = db.prepare(
+    `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, degree, graph_version, recorded_at)
+     VALUES (?, 0, 0, ?, 1, 'v1', ?)`,
+  );
+  for (const row of layoutRows) layout.run(row.entityId, row.communityId, TS);
+  const summary = db.prepare(
+    `INSERT INTO caravan_community_summaries
+       (stable_key, name, summary, member_count, graph_version, community_id, generated_at, updated_at)
+     VALUES (?, ?, '', 0, 'v1', ?, ?, ?)`,
+  );
+  for (const row of summaries) summary.run(`key${row.communityId}`.padEnd(16, '0'), row.name, row.communityId, TS, TS);
+  db.close();
+}

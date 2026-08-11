@@ -54,11 +54,13 @@ export function serializeOddRegistry(registry: OddRegistry): OddRegistryFile {
   } = registry;
 
   // `OddRegistry` にフィールドが増えたとき、本関数の追従漏れを型エラーで知らせる。
-  // 拾い切れていないキーが残ると残余が空オブジェクトでなくなり、この代入が落ちる。
+  // 拾い切れていないキーが残ると残余が空オブジェクトでなくなり、この検査が落ちる。
   // 追従漏れは「パーサは受理するのに serializer は出さない」非対称そのもの——本関数が
   // 塞いだ欠陥の再発なので、テストの更新忘れに依存せず型で止める。
-  const _exhaustive: Record<string, never> = _unhandled;
-  void _exhaustive;
+  // Why not `const _exhaustive: Record<string, never> = _unhandled; void _exhaustive;`:
+  // 検査のためだけの束縛と、それを未使用扱いさせないための `void` 演算子（S3735）が要る。
+  // `satisfies` は同じ型検査を式のまま行い、実行時には何も残らない。
+  _unhandled satisfies Record<string, never>;
 
   const base = {
     version,

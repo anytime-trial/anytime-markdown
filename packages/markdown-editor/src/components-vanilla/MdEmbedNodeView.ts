@@ -73,13 +73,13 @@ export function createMdEmbedNodeView({
   const dom = document.createElement("div");
   dom.className = "am-md-embed-card";
   dom.contentEditable = "false";
-  dom.setAttribute("data-am-md-embed-card", "");
+  dom.dataset.amMdEmbedCard = "";
   dom.style.cssText =
     "border:1px solid var(--am-color-divider);border-radius:8px;margin:8px 0;" +
     "background:var(--am-color-background-paper);overflow:hidden;";
 
   const header = document.createElement("div");
-  header.setAttribute("data-am-md-embed-header", "");
+  header.dataset.amMdEmbedHeader = "";
   header.style.cssText =
     "display:flex;align-items:center;gap:8px;padding:6px 8px;" +
     "border-bottom:1px solid var(--am-color-divider);font-size:12px;";
@@ -92,7 +92,7 @@ export function createMdEmbedNodeView({
   collapseButton.style.cssText = buttonStyle();
 
   const title = document.createElement("span");
-  title.setAttribute("data-am-md-embed-title", "");
+  title.dataset.amMdEmbedTitle = "";
   title.style.cssText = "font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
 
   const spacer = document.createElement("span");
@@ -104,17 +104,17 @@ export function createMdEmbedNodeView({
   openButton.style.cssText = buttonStyle();
 
   const status = document.createElement("span");
-  status.setAttribute("data-am-md-embed-status", "idle");
+  status.dataset.amMdEmbedStatus = "idle";
   // saving/saved/dirty/error/conflict の非同期遷移をスクリーンリーダーへ通知する（指摘43）。
   status.setAttribute("aria-live", "polite");
   status.style.cssText = "color:var(--am-color-text-secondary);white-space:nowrap;";
 
   const body = document.createElement("div");
-  body.setAttribute("data-am-md-embed-body", "");
+  body.dataset.amMdEmbedBody = "";
   body.style.cssText = "padding:8px;";
 
   const message = document.createElement("div");
-  message.setAttribute("data-am-md-embed-message", "");
+  message.dataset.amMdEmbedMessage = "";
   // エラー・競合メッセージ（保存失敗・fetch失敗・上書き失敗）はスクリーンリーダーへ即時通知する
   // （role="alert" は暗黙的に aria-live="assertive" を持つ。指摘43）。
   message.setAttribute("role", "alert");

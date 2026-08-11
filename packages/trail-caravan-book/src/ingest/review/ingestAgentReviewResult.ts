@@ -156,14 +156,15 @@ async function ingestOneFinding(opts: {
       `INSERT OR IGNORE INTO caravan_review_findings
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
-          category, severity, finding_text, suggestion_text, recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          category, severity, finding_text, suggestion_text, extracted_by, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         findingRowId, reviewEntityId, findingEntityId, finding.finding_index,
         finding.target_file_path, finding.target_symbol,
         finding.target_line_start, finding.target_line_end,
         finding.category, finding.severity,
         finding.finding_text, finding.suggestion_text,
+        'agent:review',
         recordedAt,
       ],
     );

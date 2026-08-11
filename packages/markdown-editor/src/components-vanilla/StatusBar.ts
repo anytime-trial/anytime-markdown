@@ -329,7 +329,7 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
    */
   function buildOriginBadge(origin: FileOrigin): HTMLSpanElement {
     const badge = document.createElement("span");
-    badge.setAttribute("data-am-file-origin", origin);
+    badge.dataset.amFileOrigin = origin;
     badge.setAttribute("aria-hidden", "true");
     badge.style.cssText =
       "display:inline-flex;align-items:center;gap:4px;margin-left:8px;" +
@@ -341,6 +341,29 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
     label.textContent = t(ORIGIN_LABEL_KEY[origin]);
     badge.appendChild(label);
     return badge;
+  }
+
+  /** ファイル所在バッジ + ファイル名 + dirty ドットを root へ追加する。 */
+  function appendFileNameSection(name: string): void {
+    if (fileOrigin) el.appendChild(buildOriginBadge(fileOrigin));
+    fileNameText.el.style.marginLeft = fileOrigin ? "6px" : "8px";
+    fileNameText.el.textContent = "";
+    fileNameText.el.appendChild(document.createTextNode(name));
+    // 読み上げは「所在 → ファイル名 →（未保存）」の順にここへ集約する（バッジは aria-hidden）。
+    const originLabel = fileOrigin
+      ? t("fileOriginLabel", { origin: t(ORIGIN_LABEL_KEY[fileOrigin]) })
+      : null;
+    const named = originLabel ? `${originLabel} ${name}` : name;
+    fileNameText.el.setAttribute(
+      "aria-label",
+      isDirty ? `${named} (${t("unsavedChanges")})` : named,
+    );
+    if (isDirty) {
+      const dot = buildDirtyDot();
+      fileNameText.el.appendChild(dot);
+      dirtyTooltip = createTooltip({ reference: dot, title: t("unsavedChanges") });
+    }
+    el.appendChild(fileNameText.el);
   }
 
   // --- root の構築 / 再構築（hidden / fileName / メニュー有無で配置が変わる） ---
@@ -384,27 +407,7 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
     el.appendChild(liveWrap);
 
     // ファイル所在バッジ + ファイル名 + dirty ドット。
-    if (fileName) {
-      if (fileOrigin) el.appendChild(buildOriginBadge(fileOrigin));
-      fileNameText.el.style.marginLeft = fileOrigin ? "6px" : "8px";
-      fileNameText.el.textContent = "";
-      fileNameText.el.appendChild(document.createTextNode(fileName));
-      // 読み上げは「所在 → ファイル名 →（未保存）」の順にここへ集約する（バッジは aria-hidden）。
-      const originLabel = fileOrigin
-        ? t("fileOriginLabel", { origin: t(ORIGIN_LABEL_KEY[fileOrigin]) })
-        : null;
-      const named = originLabel ? `${originLabel} ${fileName}` : fileName;
-      fileNameText.el.setAttribute(
-        "aria-label",
-        isDirty ? `${named} (${t("unsavedChanges")})` : named,
-      );
-      if (isDirty) {
-        const dot = buildDirtyDot();
-        fileNameText.el.appendChild(dot);
-        dirtyTooltip = createTooltip({ reference: dot, title: t("unsavedChanges") });
-      }
-      el.appendChild(fileNameText.el);
-    }
+    if (fileName) appendFileNameSection(fileName);
 
     // spacer（右寄せ）。
     const spacer = document.createElement("div");
@@ -481,6 +484,49 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
     for (const e of SOURCE_EVENTS) document.removeEventListener(e, handleSourceCursor);
   };
 
+  /** 再描画の要らない値を反映する（sourceMode は listener の付け外しを伴う）。 */
+  const applyPlainUpdates = (next: Partial<CreateStatusBarOptions>): void => {
+    if (next.sourceMode !== undefined && next.sourceMode !== sourceMode) {
+      sourceMode = next.sourceMode;
+      if (sourceMode) bindSourceListeners();
+      else unbindSourceListeners();
+    }
+    if (next.sourceText !== undefined) sourceText = next.sourceText;
+    if (next.encoding !== undefined) encoding = next.encoding;
+    if (next.confirm !== undefined) confirm = next.confirm;
+    if (next.onStatusChange !== undefined) onStatusChange = next.onStatusChange;
+  };
+
+  /** 配置が変わる値を反映し、再描画が必要かを返す。 */
+  const applyLayoutUpdates = (next: Partial<CreateStatusBarOptions>): boolean => {
+    let needsRender = false;
+    if (next.fileName !== undefined) {
+      fileName = next.fileName;
+      needsRender = true;
+    }
+    if (next.fileOrigin !== undefined) {
+      fileOrigin = next.fileOrigin;
+      needsRender = true;
+    }
+    if (next.isDirty !== undefined) {
+      isDirty = next.isDirty;
+      needsRender = true;
+    }
+    if (next.onLineEndingChange !== undefined) {
+      onLineEndingChange = next.onLineEndingChange;
+      needsRender = true;
+    }
+    if (next.onEncodingChange !== undefined) {
+      onEncodingChange = next.onEncodingChange;
+      needsRender = true;
+    }
+    if (next.hidden !== undefined && next.hidden !== hidden) {
+      hidden = next.hidden;
+      needsRender = true;
+    }
+    return needsRender;
+  };
+
   // 初期化（render → 初期カーソル → 初期 status 通知）。
   render();
   updateEditorCursor();
@@ -490,40 +536,8 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
   return {
     el,
     update(next: Partial<CreateStatusBarOptions>) {
-      let needsRender = false;
-      if (next.sourceMode !== undefined && next.sourceMode !== sourceMode) {
-        sourceMode = next.sourceMode;
-        if (sourceMode) bindSourceListeners();
-        else unbindSourceListeners();
-      }
-      if (next.sourceText !== undefined) sourceText = next.sourceText;
-      if (next.encoding !== undefined) encoding = next.encoding;
-      if (next.confirm !== undefined) confirm = next.confirm;
-      if (next.onStatusChange !== undefined) onStatusChange = next.onStatusChange;
-      if (next.fileName !== undefined) {
-        fileName = next.fileName;
-        needsRender = true;
-      }
-      if (next.fileOrigin !== undefined) {
-        fileOrigin = next.fileOrigin;
-        needsRender = true;
-      }
-      if (next.isDirty !== undefined) {
-        isDirty = next.isDirty;
-        needsRender = true;
-      }
-      if (next.onLineEndingChange !== undefined) {
-        onLineEndingChange = next.onLineEndingChange;
-        needsRender = true;
-      }
-      if (next.onEncodingChange !== undefined) {
-        onEncodingChange = next.onEncodingChange;
-        needsRender = true;
-      }
-      if (next.hidden !== undefined && next.hidden !== hidden) {
-        hidden = next.hidden;
-        needsRender = true;
-      }
+      applyPlainUpdates(next);
+      const needsRender = applyLayoutUpdates(next);
 
       // メニューが開いている間に行末/エンコードハンドラが消えたら閉じる。
       if (!onLineEndingChange && !onEncodingChange) closeMenu();

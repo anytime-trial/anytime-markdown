@@ -1,6 +1,7 @@
-import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection, SqlValue } from '../db/connection/types';
 import { canonicalize } from '../canonical/canonicalize';
 import type { CaravanLogger } from '../logger';
+import { CODE_STRUCTURAL_PREDICATES } from './policy';
 export type { DriftType } from './policy';
 
 export type DriftCandidate = {
@@ -32,6 +33,49 @@ function resolveDriftType(
 }
 
 /**
+ * 集約結果の 1 行を DriftCandidate へ変換する。正規化後に全ソースが一致した
+ * 行は drift ではないので null を返す（SQL は生値で比較しているため、
+ * normalizeValue が差分を解消することがある）。
+ */
+function toDriftCandidate(
+  row: ReadonlyArray<SqlValue>,
+  colIndex: (name: string) => number,
+): DriftCandidate | null {
+  const subject_entity_id = row[colIndex('subject_entity_id')] as string;
+  const predicate = row[colIndex('predicate')] as string;
+  const rawConv = row[colIndex('conv_v')] as string | null;
+  const rawSpec = row[colIndex('spec_v')] as string | null;
+  const rawCode = row[colIndex('code_v')] as string | null;
+
+  // Normalize for comparison
+  const convN = rawConv === null ? null : normalizeValue(rawConv);
+  const specN = rawSpec === null ? null : normalizeValue(rawSpec);
+  const codeN = rawCode === null ? null : normalizeValue(rawCode);
+
+  // Check disagreements using normalized values
+  const convSpecDiff = convN !== null && specN !== null && convN !== specN;
+  const specCodeDiff = specN !== null && codeN !== null && specN !== codeN;
+  const convCodeDiff = convN !== null && codeN !== null && convN !== codeN;
+
+  // Skip if normalization made all sources equal (SQL compared raw; normalization may reconcile)
+  if (!convSpecDiff && !specCodeDiff && !convCodeDiff) {
+    return null;
+  }
+
+  // Determine drift_type (three_way takes priority)
+  const drift_type = resolveDriftType(convSpecDiff, specCodeDiff, convCodeDiff);
+
+  return {
+    subject_entity_id,
+    predicate,
+    conversation_value: rawConv,
+    spec_value: rawSpec,
+    code_value: rawCode,
+    drift_type,
+  };
+}
+
+/**
  * Detects drift candidates by comparing caravan_edges across
  * 'conversation', 'spec', and 'code' source types.
  *
@@ -46,7 +90,7 @@ export function detectThreeSourceDrifts(input: {
   const {
     db,
     minConfidence = 0.6,
-    excludePredicates = ['relates_to'],
+    excludePredicates = [...CODE_STRUCTURAL_PREDICATES],
     logger,
   } = input;
 
@@ -93,38 +137,10 @@ export function detectThreeSourceDrifts(input: {
     const candidates: DriftCandidate[] = [];
 
     for (const row of values) {
-      const subject_entity_id = row[colIndex('subject_entity_id')] as string;
-      const predicate = row[colIndex('predicate')] as string;
-      const rawConv = row[colIndex('conv_v')] as string | null;
-      const rawSpec = row[colIndex('spec_v')] as string | null;
-      const rawCode = row[colIndex('code_v')] as string | null;
-
-      // Normalize for comparison
-      const convN = rawConv === null ? null : normalizeValue(rawConv);
-      const specN = rawSpec === null ? null : normalizeValue(rawSpec);
-      const codeN = rawCode === null ? null : normalizeValue(rawCode);
-
-      // Check disagreements using normalized values
-      const convSpecDiff = convN !== null && specN !== null && convN !== specN;
-      const specCodeDiff = specN !== null && codeN !== null && specN !== codeN;
-      const convCodeDiff = convN !== null && codeN !== null && convN !== codeN;
-
-      // Skip if normalization made all sources equal (SQL compared raw; normalization may reconcile)
-      if (!convSpecDiff && !specCodeDiff && !convCodeDiff) {
-        continue;
+      const candidate = toDriftCandidate(row, colIndex);
+      if (candidate !== null) {
+        candidates.push(candidate);
       }
-
-      // Determine drift_type (three_way takes priority)
-      const drift_type = resolveDriftType(convSpecDiff, specCodeDiff, convCodeDiff);
-
-      candidates.push({
-        subject_entity_id,
-        predicate,
-        conversation_value: rawConv,
-        spec_value: rawSpec,
-        code_value: rawCode,
-        drift_type,
-      });
     }
 
     logger.info(

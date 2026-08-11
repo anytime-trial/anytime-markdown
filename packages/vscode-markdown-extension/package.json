@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.21.0",
+  "version": "1.21.1",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -359,8 +359,8 @@
     "webpack-cli": "6.0.1"
   },
   "dependencies": {
-    "@anytime-markdown/markdown-catalog": "*",
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/markdown-catalog": "*",
     "@anytime-markdown/markdown-editor": "*",
     "@anytime-markdown/markdown-rich-editor": "*",
     "@anytime-markdown/mcp-markdown": "*",

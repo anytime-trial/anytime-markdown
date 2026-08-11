@@ -680,9 +680,22 @@ export interface TrailI18n {
   'knowledgeGraph.typeFilter': string;
   'knowledgeGraph.typeAll': string;
   'knowledgeGraph.nodeLimit': string;
+  'knowledgeGraph.cardRows': string;
   /** 初回描画に数秒かかる件数の注記。選択肢ラベルへ後置する。 */
   'knowledgeGraph.nodeLimitSlowSuffix': string;
   'knowledgeGraph.shownCount': string;
+  'knowledgeGraph.searchPlaceholder': string;
+  'knowledgeGraph.searchRun': string;
+  'knowledgeGraph.searchNoMatch': string;
+  'knowledgeGraph.searchFailed': string;
+  /** ego 表示中の件数表示。{{label}} = 中心実体・{{shown}} = ノード数。 */
+  'knowledgeGraph.egoShownCount': string;
+  'knowledgeGraph.egoClear': string;
+  'knowledgeGraph.agentSearches': string;
+  'knowledgeGraph.agentSearchesEmpty': string;
+  'knowledgeGraph.agentSearchesFailed': string;
+  'knowledgeGraph.agentSearchHitCount': string;
+  'knowledgeGraph.entityNotFound': string;
   'flightRecord.filter.outcome': string;
   'flightRecord.filter.outcomeAll': string;
   'flightRecord.filter.since': string;
@@ -768,6 +781,17 @@ export interface TrailI18n {
   'flightRecord.findings.filter.categoryAll': string;
   'flightRecord.findings.filter.status': string;
   'flightRecord.findings.filter.statusAll': string;
+  'flightRecord.findings.summary.addressedRate': string;
+  'flightRecord.findings.summary.untrackable': string;
+  'flightRecord.findings.summary.untrackableHint': string;
+  'flightRecord.findings.summary.inferred': string;
+  'flightRecord.findings.summary.inferredHint': string;
+  'flightRecord.findings.summary.weakLinked': string;
+  'flightRecord.findings.summary.weakLinkedHint': string;
+  'flightRecord.findings.summary.info': string;
+  'flightRecord.findings.summary.total': string;
+  'flightRecord.findings.summary.unavailable': string;
+  'flightRecord.findings.summary.scopeHint': string;
   'flightRecord.detail.title': string;
   'flightRecord.detail.close': string;
   'flightRecord.detail.keyEvents': string;

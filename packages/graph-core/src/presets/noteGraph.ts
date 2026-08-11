@@ -134,6 +134,126 @@ function buildClusterEdges(
   return edges;
 }
 
+/** ノート網の配色コンテキスト（種別色・パレット・ダークモード）。 */
+interface NoteGraphTheme {
+  typeColor: Map<string, string>;
+  pal: ReturnType<typeof thinkingPalette>;
+  isDark: boolean;
+}
+
+/** ドキュメント 1 件をノート網ノードへ変換する（円状初期配置の座標を受け取る）。 */
+function makeNoteGraphNode(
+  d: NoteGraphDocInput,
+  pt: { x: number; y: number },
+  theme: NoteGraphTheme,
+): GraphNode {
+  const color = theme.typeColor.get(d.type ?? '') ?? theme.pal.accent;
+  const style: NodeOpts = {
+    fill: withAlpha(color, theme.isDark ? 0.22 : 0.16),
+    stroke: color,
+    strokeWidth: 2,
+    fontColor: theme.pal.text,
+    fontSize: 13,
+    borderRadius: 8,
+  };
+  const node = mkNode(
+    d.path,
+    'rect',
+    { x: pt.x - NODE_W / 2, y: pt.y - NODE_H / 2, width: NODE_W, height: NODE_H },
+    d.title,
+    style,
+  );
+  node.url = d.path;
+  node.metadata = { path: d.path, ...(d.type ? { docType: d.type } : {}) };
+  return node;
+}
+
+/** 未解決参照を表すプレースホルダノード（グレー・破線）。 */
+function makePlaceholderNode(
+  target: string,
+  phIndex: number,
+  pal: ReturnType<typeof thinkingPalette>,
+): GraphNode {
+  const angle = -Math.PI / 2 + phIndex * 0.7;
+  const px = (RING_RADIUS_BASE + 120) * Math.cos(angle);
+  const py = (RING_RADIUS_BASE + 120) * Math.sin(angle);
+  const ph = mkNode(
+    target,
+    'rect',
+    { x: px - PLACEHOLDER_W / 2, y: py - PLACEHOLDER_H / 2, width: PLACEHOLDER_W, height: PLACEHOLDER_H },
+    target.split('/').at(-1) ?? target,
+    {
+      fill: 'transparent',
+      stroke: withAlpha(pal.text, 0.4),
+      strokeWidth: 1.5,
+      fontColor: withAlpha(pal.text, 0.7),
+      fontSize: 12,
+      dashed: true,
+      borderRadius: 8,
+    },
+  );
+  ph.url = target;
+  ph.metadata = { path: target, placeholder: 1 };
+  return ph;
+}
+
+/**
+ * 主エッジ（`related`）と、未解決参照のプレースホルダノードを集める。
+ * 自己参照と重複エッジ（同一 from→to→type）は除外する。
+ */
+function collectRelatedEdges(
+  docs: readonly NoteGraphDocInput[],
+  known: ReadonlySet<string>,
+  pal: ReturnType<typeof thinkingPalette>,
+): { edges: GraphEdge[]; placeholders: Map<string, GraphNode> } {
+  const edges: GraphEdge[] = [];
+  const placeholders = new Map<string, GraphNode>();
+  const relatedSeen = new Set<string>();
+  let phIndex = 0;
+  for (const d of docs) {
+    for (const ref of d.related ?? []) {
+      const { to: target, type } = normalizeRelated(ref);
+      // 自己参照と重複エッジ（同一 from→to→type）を除外する
+      if (target === d.path) continue;
+      const edgeKey = `${d.path}->${target}->${type}`;
+      if (relatedSeen.has(edgeKey)) continue;
+      relatedSeen.add(edgeKey);
+      if (!known.has(target) && !placeholders.has(target)) {
+        // 未解決参照はプレースホルダノード（グレー・破線）として可視化
+        placeholders.set(target, makePlaceholderNode(target, phIndex, pal));
+        phIndex += 1;
+      }
+      const rs = relationEdgeStyle(type, pal);
+      edges.push(
+        connectorEdge(`related:${type}:${d.path}->${target}`, d.path, target, {
+          stroke: rs.stroke,
+          strokeWidth: rs.strokeWidth,
+          dashed: rs.dashed,
+          endShape: rs.endShape,
+          label: rs.label,
+        }),
+      );
+    }
+  }
+  return { edges, placeholders };
+}
+
+/** category ごとのグループを作る（category 未指定のドキュメントは含めない）。 */
+function buildCategoryGroups(docs: readonly NoteGraphDocInput[]): GraphGroup[] {
+  const byCategory = new Map<string, string[]>();
+  for (const d of docs) {
+    if (!d.category) continue;
+    const list = byCategory.get(d.category) ?? [];
+    list.push(d.path);
+    byCategory.set(d.category, list);
+  }
+  const groups: GraphGroup[] = [];
+  for (const [category, memberIds] of byCategory) {
+    groups.push({ id: `group:${category}`, memberIds, label: category });
+  }
+  return groups;
+}
+
 /**
  * ノート網グラフを構築する。
  *
@@ -159,81 +279,17 @@ export function buildNoteGraph(
   const ring = ringPoints(docs.length, {
     radius: RING_RADIUS_BASE + docs.length * RING_RADIUS_PER_NODE,
   });
+  const theme: NoteGraphTheme = { typeColor, pal, isDark };
   docs.forEach((d, i) => {
-    const color = typeColor.get(d.type ?? '') ?? pal.accent;
-    const pt = ring[i] ?? { x: 0, y: 0 };
-    const style: NodeOpts = {
-      fill: withAlpha(color, isDark ? 0.22 : 0.16),
-      stroke: color,
-      strokeWidth: 2,
-      fontColor: pal.text,
-      fontSize: 13,
-      borderRadius: 8,
-    };
-    const node = mkNode(
-      d.path,
-      'rect',
-      { x: pt.x - NODE_W / 2, y: pt.y - NODE_H / 2, width: NODE_W, height: NODE_H },
-      d.title,
-      style,
-    );
-    node.url = d.path;
-    node.metadata = { path: d.path, ...(d.type ? { docType: d.type } : {}) };
-    nodes.push(node);
+    nodes.push(makeNoteGraphNode(d, ring[i] ?? { x: 0, y: 0 }, theme));
   });
 
   // ── 主エッジ: related（解決 or プレースホルダ） ──────────────────
-  const placeholders = new Map<string, GraphNode>();
-  const relatedSeen = new Set<string>();
-  if (relatedEnabled) {
-    let phIndex = 0;
-    for (const d of docs) {
-      for (const ref of d.related ?? []) {
-        const { to: target, type } = normalizeRelated(ref);
-        // 自己参照と重複エッジ（同一 from→to→type）を除外する
-        if (target === d.path) continue;
-        const edgeKey = `${d.path}->${target}->${type}`;
-        if (relatedSeen.has(edgeKey)) continue;
-        relatedSeen.add(edgeKey);
-        if (!known.has(target) && !placeholders.has(target)) {
-          // 未解決参照はプレースホルダノード（グレー・破線）として可視化
-          const angle = -Math.PI / 2 + phIndex * 0.7;
-          phIndex += 1;
-          const px = (RING_RADIUS_BASE + 120) * Math.cos(angle);
-          const py = (RING_RADIUS_BASE + 120) * Math.sin(angle);
-          const ph = mkNode(
-            target,
-            'rect',
-            { x: px - PLACEHOLDER_W / 2, y: py - PLACEHOLDER_H / 2, width: PLACEHOLDER_W, height: PLACEHOLDER_H },
-            target.split('/').at(-1) ?? target,
-            {
-              fill: 'transparent',
-              stroke: withAlpha(pal.text, 0.4),
-              strokeWidth: 1.5,
-              fontColor: withAlpha(pal.text, 0.7),
-              fontSize: 12,
-              dashed: true,
-              borderRadius: 8,
-            },
-          );
-          ph.url = target;
-          ph.metadata = { path: target, placeholder: 1 };
-          placeholders.set(target, ph);
-        }
-        const rs = relationEdgeStyle(type, pal);
-        edges.push(
-          connectorEdge(`related:${type}:${d.path}->${target}`, d.path, target, {
-            stroke: rs.stroke,
-            strokeWidth: rs.strokeWidth,
-            dashed: rs.dashed,
-            endShape: rs.endShape,
-            label: rs.label,
-          }),
-        );
-      }
-    }
-  }
-  nodes.push(...placeholders.values());
+  const related = relatedEnabled
+    ? collectRelatedEdges(docs, known, pal)
+    : { edges: [], placeholders: new Map<string, GraphNode>() };
+  edges.push(...related.edges);
+  nodes.push(...related.placeholders.values());
 
   // ── 派生エッジ（既定オフ・レイヤー切替） ────────────────────────
   const seen = new Set<string>();
@@ -250,17 +306,7 @@ export function buildNoteGraph(
   }
 
   // ── グループ: category ごと ─────────────────────────────────────
-  const byCategory = new Map<string, string[]>();
-  for (const d of docs) {
-    if (!d.category) continue;
-    const list = byCategory.get(d.category) ?? [];
-    list.push(d.path);
-    byCategory.set(d.category, list);
-  }
-  const groups: GraphGroup[] = [];
-  for (const [category, memberIds] of byCategory) {
-    groups.push({ id: `group:${category}`, memberIds, label: category });
-  }
+  const groups = buildCategoryGroups(docs);
 
   const doc = mkDoc('note-graph', nodes, edges);
   doc.id = 'note-graph';
@@ -280,38 +326,47 @@ type EdgeKind = 'related' | 'body';
 
 const NEIGHBOR_RING_STEP = 280;
 
+/** 近傍グラフノードの見た目。中心は強調、実ノードは種別色、未解決はグレー破線。 */
+function neighborNodeStyle(
+  color: string,
+  ctx: { isCenter: boolean; hasDoc: boolean; theme: NoteGraphTheme },
+): NodeOpts {
+  const { isCenter, hasDoc, theme } = ctx;
+  const { pal, isDark } = theme;
+  if (!hasDoc) {
+    // 未解決（リポジトリ内に存在しない参照先）
+    return {
+      fill: 'transparent',
+      stroke: withAlpha(pal.text, 0.4),
+      strokeWidth: 1.5,
+      fontColor: withAlpha(pal.text, 0.7),
+      fontSize: 12,
+      dashed: true,
+      borderRadius: 8,
+    };
+  }
+  return {
+    fill: withAlpha(color, isDark ? (isCenter ? 0.34 : 0.2) : isCenter ? 0.26 : 0.15),
+    stroke: color,
+    strokeWidth: isCenter ? 2.6 : 2,
+    fontColor: pal.text,
+    fontSize: isCenter ? 14 : 13,
+    fontStyle: isCenter ? 1 : 0,
+    borderRadius: 8,
+  };
+}
+
 /** 中心ドキュメント用ノード（強調）/ 実ノード / プレースホルダを作る。 */
 function makeNeighborNode(
   path: string,
-  doc: NoteGraphDocInput | undefined,
   pt: { x: number; y: number },
-  isCenter: boolean,
-  typeColor: Map<string, string>,
-  pal: ReturnType<typeof thinkingPalette>,
-  isDark: boolean,
+  ctx: { doc: NoteGraphDocInput | undefined; isCenter: boolean; theme: NoteGraphTheme },
 ): GraphNode {
+  const { doc, isCenter, theme } = ctx;
+  const { typeColor, pal } = theme;
   const label = doc?.title ?? (path.split('/').at(-1) ?? path);
   const color = isCenter ? pal.accent : typeColor.get(doc?.type ?? '') ?? pal.accent;
-  const style: NodeOpts = doc
-    ? {
-        fill: withAlpha(color, isDark ? (isCenter ? 0.34 : 0.2) : isCenter ? 0.26 : 0.15),
-        stroke: color,
-        strokeWidth: isCenter ? 2.6 : 2,
-        fontColor: pal.text,
-        fontSize: isCenter ? 14 : 13,
-        fontStyle: isCenter ? 1 : 0,
-        borderRadius: 8,
-      }
-    : {
-        // 未解決（リポジトリ内に存在しない参照先）
-        fill: 'transparent',
-        stroke: withAlpha(pal.text, 0.4),
-        strokeWidth: 1.5,
-        fontColor: withAlpha(pal.text, 0.7),
-        fontSize: 12,
-        dashed: true,
-        borderRadius: 8,
-      };
+  const style: NodeOpts = neighborNodeStyle(color, { isCenter, hasDoc: Boolean(doc), theme });
   const node = mkNode(
     path,
     'rect',
@@ -328,30 +383,23 @@ function makeNeighborNode(
   return node;
 }
 
-/**
- * 現在のドキュメントを中心に据えた近傍グラフを構築する。
- *
- * 発リンク（`related` ∪ 本文 `.md` リンク）と被リンク（バックリンク）を、中心から
- * `hops` ホップの範囲に絞って表示する。グローバル表示の密集を避け、編集中の文脈に
- * 直結した関係を見せる。未解決参照はプレースホルダ化する。
- *
- * @param centerPath 中心に据える root 相対パス（docs に無くてもバックリンクは表示する）。
- */
-export function buildNoteNeighborhood(
-  docs: readonly NoteGraphDocInput[],
-  centerPath: string,
-  opts: NoteNeighborhoodOptions = {},
-): GraphDocument {
-  const isDark = opts.isDark ?? true;
-  const hops = Math.max(1, opts.hops ?? 1);
-  const includeBody = opts.includeBodyLinks ?? true;
-  const pal = thinkingPalette(isDark);
-  const typeColor = buildTypeColorMap(docs, isDark);
-  const byPath = new Map(docs.map((d) => [d.path, d]));
+/** 近傍グラフの有向エッジ 1 本（related 優先で kind を集約する）。 */
+interface NeighborEdge {
+  from: string;
+  to: string;
+  kind: EdgeKind;
+  relType?: RelationType;
+}
 
-  // 全有向エッジ（related 優先で kind を集約）。from/to はパスを分割せず値で保持する
-  // （パスにセパレータ文字が含まれても壊れないようにするため）。改行はパスに現れない。
-  const edgeMap = new Map<string, { from: string; to: string; kind: EdgeKind; relType?: RelationType }>();
+/**
+ * 全有向エッジを集める（related 優先で kind を集約）。from/to はパスを分割せず値で保持する
+ * （パスにセパレータ文字が含まれても壊れないようにするため）。改行はパスに現れない。
+ */
+function collectNeighborEdgeMap(
+  docs: readonly NoteGraphDocInput[],
+  includeBody: boolean,
+): Map<string, NeighborEdge> {
+  const edgeMap = new Map<string, NeighborEdge>();
   const addEdge = (from: string, to: string, kind: EdgeKind, relType?: RelationType): void => {
     if (from === to) return;
     const key = `${from}\n${to}`;
@@ -365,8 +413,11 @@ export function buildNoteNeighborhood(
     }
     if (includeBody) for (const t of d.bodyLinks ?? []) addEdge(d.path, t, 'body');
   }
+  return edgeMap;
+}
 
-  // 無向隣接（バックリンク方向も辿る）
+/** 無向隣接（バックリンク方向も辿る）を作る。 */
+function buildNeighborAdjacency(edgeMap: ReadonlyMap<string, NeighborEdge>): Map<string, Set<string>> {
   const adj = new Map<string, Set<string>>();
   const linkAdj = (a: string, b: string): void => {
     const set = adj.get(a) ?? new Set<string>();
@@ -377,8 +428,15 @@ export function buildNoteNeighborhood(
     linkAdj(from, to);
     linkAdj(to, from);
   }
+  return adj;
+}
 
-  // BFS で hops 内のノードと距離を求める
+/** BFS で hops 内のノードと距離を求める。 */
+function computeHopDistances(
+  adj: ReadonlyMap<string, Set<string>>,
+  centerPath: string,
+  hops: number,
+): Map<string, number> {
   const dist = new Map<string, number>([[centerPath, 0]]);
   let frontier = [centerPath];
   for (let h = 1; h <= hops; h++) {
@@ -393,9 +451,16 @@ export function buildNoteNeighborhood(
     }
     frontier = next;
   }
-  const included = new Set(dist.keys());
+  return dist;
+}
 
-  // 距離ごとにリング配置（中心は原点）
+/** 距離ごとにリング配置する（中心は原点）。 */
+function placeNeighborNodes(
+  dist: ReadonlyMap<string, number>,
+  centerPath: string,
+  ctx: { byPath: ReadonlyMap<string, NoteGraphDocInput>; theme: NoteGraphTheme },
+): GraphNode[] {
+  const { byPath, theme } = ctx;
   const byDist = new Map<number, string[]>();
   for (const [p, dd] of dist) {
     const list = byDist.get(dd) ?? [];
@@ -405,16 +470,27 @@ export function buildNoteNeighborhood(
   const nodes: GraphNode[] = [];
   for (const [dd, paths] of byDist) {
     if (dd === 0) {
-      nodes.push(makeNeighborNode(centerPath, byPath.get(centerPath), { x: 0, y: 0 }, true, typeColor, pal, isDark));
+      nodes.push(
+        makeNeighborNode(centerPath, { x: 0, y: 0 }, { doc: byPath.get(centerPath), isCenter: true, theme }),
+      );
       continue;
     }
     const ring = ringPoints(paths.length, { radius: NEIGHBOR_RING_STEP * dd });
     paths.forEach((p, i) => {
-      nodes.push(makeNeighborNode(p, byPath.get(p), ring[i] ?? { x: 0, y: 0 }, false, typeColor, pal, isDark));
+      nodes.push(
+        makeNeighborNode(p, ring[i] ?? { x: 0, y: 0 }, { doc: byPath.get(p), isCenter: false, theme }),
+      );
     });
   }
+  return nodes;
+}
 
-  // included 内のエッジのみ
+/** included 内のエッジのみを出力する。 */
+function buildNeighborEdges(
+  edgeMap: ReadonlyMap<string, NeighborEdge>,
+  included: ReadonlySet<string>,
+  pal: ReturnType<typeof thinkingPalette>,
+): GraphEdge[] {
   const edges: GraphEdge[] = [];
   let edgeIndex = 0;
   for (const { from, to, kind, relType } of edgeMap.values()) {
@@ -441,6 +517,38 @@ export function buildNoteNeighborhood(
       );
     }
   }
+  return edges;
+}
+
+/**
+ * 現在のドキュメントを中心に据えた近傍グラフを構築する。
+ *
+ * 発リンク（`related` ∪ 本文 `.md` リンク）と被リンク（バックリンク）を、中心から
+ * `hops` ホップの範囲に絞って表示する。グローバル表示の密集を避け、編集中の文脈に
+ * 直結した関係を見せる。未解決参照はプレースホルダ化する。
+ *
+ * @param centerPath 中心に据える root 相対パス（docs に無くてもバックリンクは表示する）。
+ */
+export function buildNoteNeighborhood(
+  docs: readonly NoteGraphDocInput[],
+  centerPath: string,
+  opts: NoteNeighborhoodOptions = {},
+): GraphDocument {
+  const isDark = opts.isDark ?? true;
+  const hops = Math.max(1, opts.hops ?? 1);
+  const includeBody = opts.includeBodyLinks ?? true;
+  const pal = thinkingPalette(isDark);
+  const typeColor = buildTypeColorMap(docs, isDark);
+  const byPath = new Map(docs.map((d) => [d.path, d]));
+
+  const theme: NoteGraphTheme = { typeColor, pal, isDark };
+  const edgeMap = collectNeighborEdgeMap(docs, includeBody);
+  const adj = buildNeighborAdjacency(edgeMap);
+  const dist = computeHopDistances(adj, centerPath, hops);
+  const included = new Set(dist.keys());
+
+  const nodes = placeNeighborNodes(dist, centerPath, { byPath, theme });
+  const edges = buildNeighborEdges(edgeMap, included, pal);
 
   const doc = mkDoc('note-neighborhood', nodes, edges);
   doc.id = 'note-neighborhood';

@@ -72,7 +72,9 @@ export function createMessageBubble(props: MessageBubbleProps): { el: HTMLElemen
       const chip = createCitationChip({
         tag,
         title: sourceTitle,
-        onClick: onCitationClick,
+        // entity タグだけが知識グラフのノードになる。episode / drift は遷移先が無いため
+        // 非クリックのまま（知識グラフ設計書 §3.6 (a)）
+        onClick: tag.startsWith('entity:') ? onCitationClick : undefined,
       });
       citationDestroys.push(chip.destroy);
       contentWrap.appendChild(chip.el);

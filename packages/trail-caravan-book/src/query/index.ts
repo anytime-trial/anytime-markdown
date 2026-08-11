@@ -11,15 +11,42 @@
 
 // DB / logger
 export { openCaravanBookDb } from '../db/connection';
+export { attachTrailDbReadOnly } from '../db/attach';
 export type { CaravanBookDb, OpenCaravanBookDbOptions } from '../db/connection';
 export { noopLogger } from '../logger';
 export type { CaravanLogger } from '../logger';
 
 // 検索
-export { searchCaravanBook, vectorTopK } from '../retrieve/searchCaravanBook';
+export { searchCaravanBook, vectorTopK, fetchGraphContext } from '../retrieve/searchCaravanBook';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from '../retrieve/searchCaravanBook';
+export { hybridSearchCaravanBook, ABSTAIN_COSINE_THRESHOLD } from '../rag/hybridSearchCaravanBook';
+export type { HybridSearchInput, HybridSearchResult } from '../rag/hybridSearchCaravanBook';
+export { isLowInformationEntity } from '../canonical/entityQuality';
+export { shapeSearchResponse, aggregateEdges, fetchEntityAliases } from '../retrieve/shapeSearchResponse';
+export type { SearchDetail, ShapedSearchResult, ShapedEntity, AggregatedEdge } from '../retrieve/shapeSearchResponse';
+
+// コミュニティ要約（T-22）
+export {
+  listCaravanCommunities,
+  reassociateCaravanCommunitySummaries,
+  upsertCaravanCommunitySummaries,
+  fetchCommunityNames,
+} from '../retrieve/communitySummaries';
+export type {
+  CaravanCommunity,
+  CommunitySampleMember,
+  CommunitySummaryUpsert,
+  UpsertCommunitySummariesResult,
+  ListCommunitiesOptions,
+} from '../retrieve/communitySummaries';
+
+// 計画コンテキスト（U2b）
+export { getPlanContext, packPlanContext, collectPlanContext, estimateTokens } from '../retrieve/getPlanContext';
+export type { GetPlanContextInput, PlanContextResult, PlanContextSections } from '../retrieve/getPlanContext';
 
 // バグ履歴
+export { getBugCausality } from '../retrieve/getBugCausality';
+export type { GetBugCausalityInput, GetBugCausalityResult, BugCausalityCard } from '../retrieve/getBugCausality';
 export { listRecurringBugs } from '../retrieve/listRecurringBugs';
 export type { RecurringBugGroup, BugFixSummary } from '../retrieve/listRecurringBugs';
 export { getBugHistory } from '../retrieve/getBugHistory';

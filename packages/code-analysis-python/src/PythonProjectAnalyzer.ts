@@ -33,5 +33,8 @@ export function discoverPythonFiles(root: string, exclude?: Ignore): string[] {
     }
   };
   walk(root);
-  return out.sort();
+  // 走査順がそのままコードグラフのノード・エッジ順として永続化されるため、
+  // 比較はコードユニット順に固定する（localeCompare は既定ロケール依存で、
+  // 同じリポジトリでも実行環境が変わると並びが変わる）。
+  return out.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }

@@ -319,6 +319,97 @@ describe('CaravanApiHandler', () => {
     });
   });
 
+  describe('getFlightReviewFindingSummary', () => {
+    // 共有 seed を汚さないよう専用 DB を作る（分母区分を全部踏むには行の組合せが要る）。
+    let sumTmpDir: string;
+    let sumHandler: CaravanApiHandler;
+
+    beforeAll(() => {
+      sumTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-api-summary-'));
+      const sumDbPath = path.join(sumTmpDir, 'caravan-book.db');
+      const db = new BetterSqlite3CaravanDb({ filePath: sumDbPath });
+      runMigrations(db);
+      db.run(
+        `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+         VALUES ('ent-1', 'Package', 'trail-viewer', 'trail-viewer', ?, ?, ?)`,
+        [TS, TS, TS],
+      );
+      for (const [id, workspace] of [['rev-s', 'anytime-markdown'], ['rev-t', 'anytime-trade']] as const) {
+        db.run(
+          `INSERT INTO caravan_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, workspace, reviewed_at, recorded_at)
+           VALUES (?, 'session', ?, 'ent-1', 'code', 'Session review', ?, ?, ?)`,
+          [id, `sess-${id}#0`, workspace, TS, TS],
+        );
+      }
+      const insert = (
+        id: string, severity: string, targetPath: string | null, targetRepo: string | null,
+        addressedAt: string | null,
+        options: { reviewId?: string; inferredBy?: string | null } = {},
+      ): void => {
+        db.run(
+          `INSERT INTO caravan_review_findings
+             (id, review_id, finding_entity_id, finding_index, target_file_path, target_repo, category, severity, finding_text, addressed_at, target_inferred_by, recorded_at)
+           VALUES (?, ?, 'ent-1', ?, ?, ?, 'logic', ?, 'x', ?, ?, ?)`,
+          [
+            id, options.reviewId ?? 'rev-s', Number(id.slice(-1)), targetPath, targetRepo, severity,
+            addressedAt, options.inferredBy ?? null, TS,
+          ],
+        );
+      };
+      insert('f-1', 'info', null, null, null);            // info（対象外）
+      insert('f-2', 'warn', null, null, null);            // noPath
+      insert('f-3', 'error', '', null, null);             // noPath（空文字も欠落扱い）
+      insert('f-4', 'warn', 'src/a.ts', null, null);      // unresolvedRepo
+      insert('f-5', 'error', 'src/b.ts', 'repo', null);   // tracked・未対処
+      insert('f-6', 'warn', 'src/c.ts', 'repo', TS, { inferredBy: 'basename' }); // tracked・対処済み・推測由来
+      // 別ワークスペース。コミットが取込まれないワークスペースは構造的に追跡対象 0 件で、
+      // 横断集計だと分母だけを押し上げる。
+      insert('f-7', 'warn', null, null, null, { reviewId: 'rev-t' });
+      db.close();
+      sumHandler = new CaravanApiHandler(makeMockLogger(), sumDbPath);
+    });
+
+    afterAll(() => {
+      fs.rmSync(sumTmpDir, { recursive: true, force: true });
+    });
+
+    it('分母を info / 追跡不能（パス欠落・repo 未解決）/ 追跡対象に分けて数える', async () => {
+      const summary = await sumHandler.getFlightReviewFindingSummary();
+      expect(summary).toEqual({
+        total: 7,
+        info: 1,
+        noPath: 3,
+        unresolvedRepo: 1,
+        tracked: 2,
+        addressed: 1,
+        inferred: 1,
+        weakLinked: 0,
+      });
+    });
+
+    // 一覧（getFlightReviewFindings）が workspace で絞れるのに集計だけ横断だと、
+    // 画面の選択と分母が食い違う。コミット未取込のワークスペースは追跡対象 0 件で
+    // 分母だけを押し上げるため、混ざると対処率が実態より低く出る。
+    it('workspace を指定するとそのワークスペースだけを数える', async () => {
+      expect(await sumHandler.getFlightReviewFindingSummary({ workspace: 'anytime-markdown' })).toEqual({
+        total: 6, info: 1, noPath: 2, unresolvedRepo: 1, tracked: 2, addressed: 1, inferred: 1, weakLinked: 0,
+      });
+      expect(await sumHandler.getFlightReviewFindingSummary({ workspace: 'anytime-trade' })).toEqual({
+        total: 1, info: 0, noPath: 1, unresolvedRepo: 0, tracked: 0, addressed: 0, inferred: 0, weakLinked: 0,
+      });
+    });
+
+    it('workspace が空文字なら絞り込まない（未選択と同じ）', async () => {
+      const summary = await sumHandler.getFlightReviewFindingSummary({ workspace: '' });
+      expect(summary?.total).toBe(7);
+    });
+
+    it('DB を開けないときは null（0 件と区別する）', async () => {
+      const h = new CaravanApiHandler(makeMockLogger(), path.join(sumTmpDir, 'no-such.db'));
+      expect(await h.getFlightReviewFindingSummary()).toBeNull();
+    });
+  });
+
   describe('listPipelineRunStatsByDay', () => {
     it('groups runs by (day, scope) and sums duration', async () => {
       const rows = await handler.listPipelineRunStatsByDay({});

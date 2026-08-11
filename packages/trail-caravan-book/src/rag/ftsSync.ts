@@ -1,4 +1,5 @@
 import type { CaravanDbConnection } from '../db/connection/types';
+import { splitIdentifierSubtokens } from './identifierTokens';
 
 export function aliasesJsonToText(aliasesJson: string | null | undefined): string {
   if (!aliasesJson) return '';
@@ -11,6 +12,24 @@ export function aliasesJsonToText(aliasesJson: string | null | undefined): strin
   }
 }
 
+/**
+ * FTS の aliases_text 列に入れる文字列を組み立てる（B1・memory-core spec §7.4）。
+ * aliases に加えて display_name / canonical_name の識別子分割サブトークンを含め、
+ * `blockAlignment` のような部分識別子クエリを unicode61 の索引トークンへ届かせる。
+ * クエリ側の分割（tokenizeForFts5）と同じ splitIdentifierSubtokens を共有する。
+ */
+export function buildEntityAliasesText(
+  displayName: string | null | undefined,
+  canonicalName: string | null | undefined,
+  aliasesJson: string | null | undefined,
+): string {
+  const subtokens = new Set<string>([
+    ...splitIdentifierSubtokens(displayName ?? ''),
+    ...splitIdentifierSubtokens(canonicalName ?? ''),
+  ]);
+  return [aliasesJsonToText(aliasesJson), ...subtokens].filter((s) => s.length > 0).join(' ');
+}
+
 function getRowid(conn: CaravanDbConnection, table: string, id: string): number | null {
   const r = conn.exec(`SELECT rowid FROM ${table} WHERE id = ?`, [id]);
   const row = r[0]?.values[0];
@@ -20,13 +39,13 @@ function getRowid(conn: CaravanDbConnection, table: string, id: string): number 
 
 export function upsertEntityFts(conn: CaravanDbConnection, entityId: string): void {
   const r = conn.exec(
-    `SELECT rowid, display_name, summary, aliases_json
+    `SELECT rowid, display_name, canonical_name, summary, aliases_json
      FROM caravan_entities WHERE id = ?`,
     [entityId],
   );
   const row = r[0]?.values[0];
   if (!row) return;
-  const [rowid, displayName, summary, aliasesJson] = row;
+  const [rowid, displayName, canonicalName, summary, aliasesJson] = row;
   conn.run(`DELETE FROM caravan_entities_fts WHERE rowid = ?`, [rowid]);
   conn.run(
     `INSERT INTO caravan_entities_fts (rowid, display_name, summary, aliases_text)
@@ -35,7 +54,11 @@ export function upsertEntityFts(conn: CaravanDbConnection, entityId: string): vo
       rowid,
       displayName ?? '',
       summary ?? '',
-      aliasesJsonToText(aliasesJson as string | null),
+      buildEntityAliasesText(
+        displayName as string | null,
+        canonicalName as string | null,
+        aliasesJson as string | null,
+      ),
     ],
   );
 }

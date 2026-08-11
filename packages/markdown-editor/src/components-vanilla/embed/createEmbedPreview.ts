@@ -68,6 +68,15 @@ function detectIsDark(el: Element): boolean {
 /** t 未指定時のフォールバック（キーをそのまま返す）。CodeBlockBlockContent と同パターン。 */
 const identityT = (key: string): string => key;
 
+/** 各ビューの再描画キーに共通する接尾辞（variant / 幅 / テーマ） */
+function viewKeySuffix(
+  variant: "card" | "compact",
+  effectiveWidth: string | undefined,
+  isDark: boolean,
+): string {
+  return `${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;
+}
+
 // ===== 内部状態型 =====
 
 interface CurrentView {
@@ -107,6 +116,24 @@ export function createEmbedPreview(
     currentView = { destroy, key };
   }
 
+  /** 引数キーが現在の描画と同一なら再描画をスキップし、異なるときだけ create() をマウントする */
+  function renderKeyed(
+    key: string,
+    create: () => { el: HTMLElement; destroy: () => void },
+  ): void {
+    if (currentView?.key === key) return;
+    const { el, destroy } = create();
+    mount(el, key, destroy);
+  }
+
+  /** プレースホルダを描画する（静的 DOM のため destroy は何もしない） */
+  function renderPlaceholder(key: string, messageKey: string): void {
+    renderKeyed(key, () => ({
+      el: createPlaceholderBox(resolvedT(messageKey)),
+      destroy: () => { /* static placeholder */ },
+    }));
+  }
+
   const handle: EmbedMountHandle = {
     render(
       language: string,
@@ -120,53 +147,44 @@ export function createEmbedPreview(
 
       const url = extractUrl(body);
       if (!url) {
-        const key = `placeholder:no-url`;
-        if (currentView?.key === key) return;
-        const el = createPlaceholderBox(resolvedT("mdEmbedInvalidUrl"));
-        mount(el, key, () => { /* static placeholder */ });
+        renderPlaceholder(`placeholder:no-url`, "mdEmbedInvalidUrl");
         return;
       }
 
       const classified = classifyEmbedUrl(url);
       if (!classified) {
-        const key = `placeholder:unclassified:${url}`;
-        if (currentView?.key === key) return;
-        const el = createPlaceholderBox(resolvedT("mdEmbedUnclassifiedUrl"));
-        mount(el, key, () => { /* static placeholder */ });
+        renderPlaceholder(`placeholder:unclassified:${url}`, "mdEmbedUnclassifiedUrl");
         return;
       }
 
       const isDark = detectIsDark(container);
+      const keySuffix = viewKeySuffix(variant, effectiveWidth, isDark);
 
       if (classified.kind === "youtube") {
-        const key = `youtube:${classified.videoId}:${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;
-        if (currentView?.key === key) return;
-        const { el, destroy } = createYouTubeView(classified.videoId, variant, effectiveWidth, isDark);
-        mount(el, key, destroy);
+        const videoId = classified.videoId;
+        renderKeyed(`youtube:${videoId}:${keySuffix}`, () =>
+          createYouTubeView(videoId, variant, effectiveWidth, isDark));
         return;
       }
 
       if (classified.kind === "figma") {
-        const key = `figma:${classified.path}:${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;
-        if (currentView?.key === key) return;
-        const { el, destroy } = createFigmaView(classified.path, variant, effectiveWidth, isDark);
-        mount(el, key, destroy);
+        const path = classified.path;
+        renderKeyed(`figma:${path}:${keySuffix}`, () =>
+          createFigmaView(path, variant, effectiveWidth, isDark));
         return;
       }
 
       if (classified.kind === "spotify") {
-        const key = `spotify:${classified.type}:${classified.id}:${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;
-        if (currentView?.key === key) return;
-        const { el, destroy } = createSpotifyView(classified.type, classified.id, variant, effectiveWidth, isDark);
-        mount(el, key, destroy);
+        const { type, id } = classified;
+        renderKeyed(`spotify:${type}:${id}:${keySuffix}`, () =>
+          createSpotifyView(type, id, variant, effectiveWidth, isDark));
         return;
       }
 
       if (classified.kind === "drawio") {
-        const key = `drawio:${classified.url}:${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;
-        if (currentView?.key === key) return;
-        const { el, destroy } = createDrawioView(classified.url, variant, effectiveWidth, isDark);
-        mount(el, key, destroy);
+        const drawioUrl = classified.url;
+        renderKeyed(`drawio:${drawioUrl}:${keySuffix}`, () =>
+          createDrawioView(drawioUrl, variant, effectiveWidth, isDark));
         return;
       }
 
@@ -174,36 +192,31 @@ export function createEmbedPreview(
       const providers = getEmbedProviders();
 
       if (!providers) {
-        const key = `placeholder:no-providers:${url}`;
-        if (currentView?.key === key) return;
-        const el = createPlaceholderBox(resolvedT("mdEmbedProvidersMissing"));
-        mount(el, key, () => { /* static placeholder */ });
+        renderPlaceholder(`placeholder:no-providers:${url}`, "mdEmbedProvidersMissing");
         return;
       }
 
       if (classified.kind === "twitter") {
-        const key = `twitter:${classified.url}:${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;
-        if (currentView?.key === key) return;
-        const { el, destroy } = createTwitterView(classified.url, variant, effectiveWidth, providers, isDark);
-        mount(el, key, destroy);
+        const tweetUrl = classified.url;
+        renderKeyed(`twitter:${tweetUrl}:${keySuffix}`, () =>
+          createTwitterView(tweetUrl, variant, effectiveWidth, providers, isDark));
         return;
       }
 
       // OGP カード（kind === "ogp"）
       const baseline = parseBaseline(language);
-      const key = `ogp:${classified.url}:${variant}:${effectiveWidth ?? ""}:${String(isDark)}`;
-      if (currentView?.key === key) return;
-      const { el, destroy } = createOgpCardView(
-        classified.url,
-        variant,
-        effectiveWidth,
-        providers,
-        baseline,
-        onBaselineWrite,
-        isDark,
-        resolvedT,
-      );
-      mount(el, key, destroy);
+      const ogpUrl = classified.url;
+      renderKeyed(`ogp:${ogpUrl}:${keySuffix}`, () =>
+        createOgpCardView(
+          ogpUrl,
+          variant,
+          effectiveWidth,
+          providers,
+          baseline,
+          onBaselineWrite,
+          isDark,
+          resolvedT,
+        ));
     },
 
     destroy(): void {

@@ -66,7 +66,7 @@ export function createGifBlockNodeView({
 
   const dom = document.createElement("div");
   dom.className = "gif-block";
-  dom.setAttribute("data-gif-block", "");
+  dom.dataset.gifBlock = "";
   dom.contentEditable = "false";
   dom.style.position = "relative";
   dom.style.lineHeight = "0";

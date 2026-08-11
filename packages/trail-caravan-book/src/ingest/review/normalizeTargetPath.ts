@@ -19,9 +19,19 @@
  */
 export type TargetPathKind = 'file' | 'directory' | 'unknown';
 
+/**
+ * 実在が確実な拡張子の交替パターン（単一の正）。
+ *
+ * 抽出器（`findingHelpers.ts` の PATH_TOKEN_RE）も同じ集合を使う。かつては両者が
+ * 別々のリストを持っており、`py` / `sh` / `rs` / `go` / `toml` が抽出器側にだけ
+ * 無かった。結果は「正規化は通るのに抽出器が拾わない」非対称で、症状は
+ * 「対象パスが空の指摘」に紛れて異常として現れない。リストは 1 箇所に置く。
+ */
+export const KNOWN_FILE_EXT_SOURCE =
+  'tsx?|jsx?|mts|cts|mjs|cjs|md|sql|jsonc|json|ya?ml|css|scss|html?|txt|sh|py|rs|go|toml|lock|svg|png|jpe?g|gif|ico|vsix';
+
 /** 実在が確実な拡張子（これらは常にファイルとして扱ってよい）。 */
-const KNOWN_FILE_EXT_RE =
-  /\.(?:tsx?|jsx?|mts|cts|mjs|cjs|md|sql|json|jsonc|ya?ml|css|scss|html?|txt|sh|py|rs|go|toml|lock|svg|png|jpe?g|gif|ico|vsix|cjs)$/i;
+const KNOWN_FILE_EXT_RE = new RegExp(String.raw`\.(?:${KNOWN_FILE_EXT_SOURCE})$`, 'i');
 
 export interface NormalizedTargetPath {
   readonly path: string;
@@ -66,9 +76,12 @@ function stripEnclosing(value: string): string {
   return value;
 }
 
-export function normalizeTargetPath(raw: string | null | undefined): NormalizedTargetPath | null {
-  if (raw == null) return null;
-
+/**
+ * 表層のノイズ（囲み文字・行番号サフィックス・`./` 前置・末尾スラッシュ）を落とし、
+ * そもそもパスの形をしていない入力（複数行・空白入り・URL）を弾く。
+ * 判定順序は元の実装のまま保つ（空白判定より先に行番号を落とす等の依存がある）。
+ */
+function sanitizeCandidate(raw: string): string | null {
   // 複数行はパスではない（バッククォート内のシェル実行ログ全体を積んだ誤抽出）。
   if (raw.includes('\n') || raw.includes('\r')) return null;
 
@@ -89,28 +102,45 @@ export function normalizeTargetPath(raw: string | null | undefined): NormalizedT
   value = value.replace(/^\.\//, '').replace(/\/+$/, '');
   if (value === '') return null;
 
+  return value;
+}
+
+/** 正規化済みの値がパスとして受理できるか（長さ・相対参照・glob・先頭ハイフン・セグメント形）。 */
+function isAcceptablePath(value: string): boolean {
+  if (value.length > MAX_PATH_LENGTH) return false;
+  if (
+    value
+      .split('/')
+      .some((segment, index) => segment === '..' || (segment === '.' && index > 0))
+  ) {
+    return false;
+  }
+  if (/[*?[\]]/.test(value)) return false;
+  if (value.startsWith('-')) return false;
+
+  // ディレクトリ区切りも拡張子も持たない単語（`node` / `レビュー対象`）はパスではない。
+  const hasSeparator = value.includes('/');
+  const dotted = DOTTED_TAIL_RE.test(value);
+  if (!hasSeparator && !dotted) return false;
+
+  return true;
+}
+
+export function normalizeTargetPath(raw: string | null | undefined): NormalizedTargetPath | null {
+  if (raw == null) return null;
+
+  const sanitized = sanitizeCandidate(raw);
+  if (sanitized === null) return null;
+
   // 絶対パスは先頭 1 個の `/` だけ残して保持する（剥がさない。上の absolute の注記を参照）。
+  let value = sanitized;
   const absolute = value.startsWith('/');
   if (absolute) {
     value = `/${value.replace(/^\/+/, '')}`;
     if (value === '/') return null;
   }
 
-  if (value.length > MAX_PATH_LENGTH) return null;
-  if (
-    value
-      .split('/')
-      .some((segment, index) => segment === '..' || (segment === '.' && index > 0))
-  ) {
-    return null;
-  }
-  if (/[*?[\]]/.test(value)) return null;
-  if (value.startsWith('-')) return null;
-
-  // ディレクトリ区切りも拡張子も持たない単語（`node` / `レビュー対象`）はパスではない。
-  const hasSeparator = value.includes('/');
-  const dotted = DOTTED_TAIL_RE.test(value);
-  if (!hasSeparator && !dotted) return null;
+  if (!isAcceptablePath(value)) return null;
 
   // 既知拡張子ならファイル確定。ドットは在るが既知拡張子でない（`spec/92.doctrine`）、
   // またはドットが無い（`scripts/post-commit` / `packages/markdown-viewer`）ものは
