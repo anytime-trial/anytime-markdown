@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-11
+
+### Added
+
+- The cooccurrence network viewer can select and highlight a node from the host (`selectNode`), and the card presentation lets you choose how many cards stack vertically.
+
+### Graph Core (graph-core)
+
+- Split high-complexity functions in the DSL parser/serializer, the SVG exporter and the layout presets. No behavior change.
+
 ## [1.2.0] - 2026-08-09
 
 ### Graph Core (graph-core)

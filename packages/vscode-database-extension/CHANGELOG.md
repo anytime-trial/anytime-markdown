@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-08-11
+
+### Changed
+
+- Rebuilt against the updated `trail-activity`, `trail-db` and `graph-core` packages, which received behavior-neutral complexity refactors. The extension itself is unchanged.
+
+### Database Core (database-core / database-viewer)
+
+- Version bump only. No functional changes.
+
 ## [0.3.9] - 2026-08-09
 
 ### Changed

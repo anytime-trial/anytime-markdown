@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-11
+
+### 変更
+
+- DSL のパーサ・シリアライザ、SVG エクスポート、レイアウトプリセット（`barnesHutLayout` / `mindmap` / `noteGraph` / `cooccurrenceFile`）の高複雑度関数を分割した。挙動は変えていない。
+
 ## [1.2.0] - 2026-08-09
 
 ### 追加

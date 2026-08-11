@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-08-11
+
+### 変更
+
+- 拡張側の変更はバージョン更新のみ。本リリースはエディタコアの品質修正を運ぶ。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- 高複雑度関数 28 件を挙動不変で分割した。
+- SonarCloud high 指摘を解消した（`setAttribute` → `dataset`、比較関数なしの `sort`、冗長な `void`、非推奨 DOM API）。
+
 ## [1.21.0] - 2026-08-09
 
 ### 変更

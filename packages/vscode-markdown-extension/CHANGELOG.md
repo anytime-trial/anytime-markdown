@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-08-11
+
+### Changed
+
+- Extension-side changes are limited to the version bump; this release carries editor-core quality fixes.
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- Split 28 high-complexity functions without changing behavior.
+- Fixed the SonarCloud high findings: `setAttribute` to `dataset`, a `sort` without a comparator, a redundant `void`, and a deprecated DOM API.
+
 ## [1.21.0] - 2026-08-09
 
 ### Changed

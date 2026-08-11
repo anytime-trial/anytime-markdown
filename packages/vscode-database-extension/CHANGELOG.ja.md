@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-08-11
+
+### 変更
+
+- 挙動不変の複雑度リファクタが入った `trail-activity` / `trail-db` / `graph-core` を取り込んで再ビルドした。拡張自体の変更はない。
+
+### Database Core (database-core / database-viewer)
+
+- バージョン更新のみ。機能変更はない。
+
 ## [0.3.9] - 2026-08-09
 
 ### 変更

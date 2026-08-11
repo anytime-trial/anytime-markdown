@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-11
+
+### Changed
+
+- Split high-complexity functions in the DSL parser and serializer, the SVG exporter and the layout presets (`barnesHutLayout` / `mindmap` / `noteGraph` / `cooccurrenceFile`). Behavior is unchanged.
+
 ## [1.2.0] - 2026-08-09
 
 ### Added

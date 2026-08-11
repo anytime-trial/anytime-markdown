@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-08-11
+
+### 変更
+
+- 同梱スキル `anytime-analysis` を更新した。知識グラフ検索（`search_caravan_book`）をワークフローへ配線し、記録済みの決定・過去の不具合から grounding を始めるようにした。
+- `agent-core` の高複雑度関数を分割した（transcript 解析・status worker・JSONL spool・section-lock ゲート・stop フック spool）。挙動は変えていない。
+
 ## [1.15.0] - 2026-08-09
 
 ### 変更

@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-11
+
+### Added
+
+- The knowledge graph screen gained search and ego-network display: type an identifier or concept and the matching node is centered with its neighbors.
+- Results of an agent query (`search_caravan_book`) are highlighted and selected on the knowledge graph, so what the agent read is visible on screen.
+- Community summaries are attached in stages and folded into search results and cluster labels.
+- The Execution Records tabs (Bug Fixed / Review / Drift) gained a workspace column, and the knowledge-graph card view lets you choose how many cards stack vertically.
+
+### Changed
+
+- Top-level tabs were reordered: Activity / Execution Records / C4 Model / Knowledge Graph / Pipeline / Trace / Function Tree / Chat.
+
+### Trail Core (trail-activity / trail-server / trail-viewer / trail-caravan-book / mcp-trail)
+
+- Added `get_bug_causality` (causal card for a bug fix) and `get_plan_context` (planning context pack). `search_caravan_book` gained staged disclosure, edge aggregation and an explicit abstain.
+- Review-finding coverage is now reported per denominator, the extraction route is stamped on each finding (`extracted_by`), and bare file names in findings are resolved to a unique path so they can be matched with the commits that address them.
+- Code-derived edges are split into `calls` / `extends` predicates, and a search evaluation harness (golden tasks, facts recovered per 1k tokens) was added.
+
+### Fixed
+
+- Drift entries pointing at files that no longer exist are resolved automatically, and a re-detection no longer silently undoes a human resolution — a recurrence is recorded instead.
+- `search_caravan_book` was returning through a broken path; it now runs the hybrid search it was meant to.
+- SZZ attribution was reversed by a wrong git argument order, and the read-only attach guard matched on the wrong table; both are fixed.
+- Conversation ingest no longer creates unnamed, low-information entities.
+
 ## [1.0.0] - 2026-08-09
 
 ### Added

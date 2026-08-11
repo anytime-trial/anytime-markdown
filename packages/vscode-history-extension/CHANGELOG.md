@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-11
+
+### Changed
+
+- Rebuilt against the updated `trail-activity` package, which received behavior-neutral complexity refactors. The extension itself is unchanged.
+
 ## [0.3.2] - 2026-08-09
 
 ### Changed
