@@ -868,17 +868,23 @@ Phase 0-4 「テスト / Lint / CI 検出」「技術的負債検出」「静的
 
 `additive` モードでは既存エントリを保持して新規分のみ追加。
 
-### 5-3: validate-markdown.sh 実行
+### 5-3: Markdown 検証
+
+> [!IMPORTANT]
+> 旧手順が指定していた `~/.claude/scripts/validate-markdown.sh` は**実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。下記の 2 経路に置き換えた。
+
+`{outputDir}` が mcp-markdown のルート（`ANYTIME_MARKDOWN_ROOT`。未設定ならサーバーの `cwd`。anytime-markdown では `/anytime-markdown`）の**配下にあるか外にあるか**で手段が分かれる。`{outputDir}` の既定は `lep.json` の `workspace.docsPath` で、docs リポジトリ等の別領域を指していることが多い（＝ルート外が既定と考える）。
+
+**ルート配下の場合**: 対象ファイルを列挙し、1 件ずつ `mcp__mcp-markdown__format_markdown(path, mode="fix")` を実行して返り値の `warnings` を集計する。
 
 ```bash
 # bash 既定（globstar 無効）の ** は 1 階層しか展開されないため find で全階層を列挙する
-find {outputDir} -name '*.ja.md' -not -path '*/_eval/*' -print0 | while IFS= read -r -d '' f; do
-    bash ~/.claude/scripts/validate-markdown.sh "$f" 2>&1 | tee -a /tmp/basic-design-validate.log
-done
-grep -c "^NG:" /tmp/basic-design-validate.log
+find {outputDir} -name '*.ja.md' -not -path '*/_eval/*' -print
 ```
 
-NG 件数が 0 でなければ、該当ファイルを 1 度だけ自動修正リトライ（フロントマター・空行・テーブル整形）。再度 NG なら該当ファイル名を提示して中断。
+**ルート外の場合**: `format_markdown` は `Access denied: path outside root directory` を返すため使えない。`anytime-markdown-check` スキルの手順で、(1) frontmatter 必須キーの実在、(2) 意味判断チェックリストを各ファイルへ適用する。
+
+いずれの経路でも、`warnings` または手動確認で NG が出たファイルは 1 度だけ自動修正リトライ（フロントマター・空行・テーブル整形）。再度 NG なら該当ファイル名を提示して中断。
 
 ### 5-4: 完了報告
 
@@ -917,7 +923,7 @@ flowchart TD
     UpdateMap --> RollUp["章 1/2/4/5/6/7/8/9/10/11 ロールアップ<br/>(各テンプレ準拠)"]
     RollUp --> Meta["_meta.json 出力<br/>(aidlc 互換マッピング)"]
     Meta --> Index["章 0 INDEX 生成<br/>(章番号・件数を実値同期)"]
-    Index --> Validate["validate-markdown.sh"]
+    Index --> Validate["Markdown 検証<br/>(format_markdown / 手動)"]
     Validate --> Done["完了報告"]
 ```
 
@@ -1072,7 +1078,7 @@ overall_chapter   = (overall_heuristic + overall_llm) / 2
 | Trail DB の命名済みカバレッジ 30% 未満 | **警告のみ表示して続行**。中断しない |
 | `mcp-trail` サーバ無応答 | 中断。「VS Code 拡張 (Anytime Trail) を起動」 |
 | サブエージェント失敗（章 3 個別） | 該当ファイル生成スキップ + ログ。他コミュニティ続行。最後に失敗一覧を提示 |
-| `validate-markdown.sh` で NG | 自動修正 1 回リトライ。再度 NG なら該当ファイル名提示して中断 |
+| Markdown 検証（5-3）で NG | 自動修正 1 回リトライ。再度 NG なら該当ファイル名提示して中断 |
 | 外部 I/F 抽出 0 件（`interfaceGlobs` マッチなし、または該当ファイルから I/F を 1 件も検出できず） | 章 5 を空テーブルで生成 + 警告 |
 | データ永続化定義 0 件（`schemaGlobs` マッチなし） | 章 4 を「データ永続化未検出」プレースホルダで生成 + 警告（章 4 自体は生成） |
 | ビルドシステム検出 0 件（章 10 用） | §1 を「ビルドシステム未検出」プレースホルダで生成 + 警告。§4 fanIn ファイル一覧は Trail DB から続行 |
@@ -1107,7 +1113,7 @@ overall_chapter   = (overall_heuristic + overall_llm) / 2
 | 3.7 | `/anytime-reverse-spec chapter=10 dry-run` | テンプレ §1〜§6 構造で出力。ビルドシステム検出値・fanIn 上位ファイル・外部依存一覧が空欄でなく埋まる |
 | 3.8 | `/anytime-reverse-spec chapter=11 dry-run` | テンプレ §1〜§7 構造で出力。TODO/FIXME 集計値が grep で再現できる |
 | 4 | `/anytime-reverse-spec chapter=3 community=<one-id> dry-run` | コミュニティ 1 件で §1 目的とスコープ・§2 ユースケース・§7 設計判断・§8 制約までフル展開、フォーマット OK |
-| 5 | `/anytime-reverse-spec chapter=all mode=wash-away`（初回） | 全ファイル生成（章 0〜11 の 12 ファイル + `_meta.json`）、`validate-markdown.sh` 全 OK、`_community-map.json` 整合 |
+| 5 | `/anytime-reverse-spec chapter=all mode=wash-away`（初回） | 全ファイル生成（章 0〜11 の 12 ファイル + `_meta.json`）、5-3 の Markdown 検証が全 OK、`_community-map.json` 整合 |
 | 6 | 同条件で 2 回目 `mode=additive` | 章 3 ファイルは無変更、章 0/1/2/4/5/6/7/8/9/10/11 と `_meta.json` のみ再生成 |
 | 7 | 章 3 ファイルを 1 つ手動編集 → `mode=additive` 再実行 | 手動編集が保護されている |
 | 8 | 章 3 ファイルから `communityId` を削除 → `mode=additive` 再実行 | 警告検出、スキル中断 |
