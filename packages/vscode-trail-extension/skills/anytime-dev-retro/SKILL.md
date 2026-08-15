@@ -74,8 +74,10 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 具体化の取りこぼし `doctrineGap.missedByPromptShape`（指示の型別。申告が空なのに人が modified した判断） | memory(doctrine) | 同一 shape の再出現 / 増加 |
 | 指示不足の申告率 `doctrineGap.instructionGapRatePct` | memory(doctrine) | **0 へ張り付く**（申告の形骸化。上昇は正常） |
 | 申告の読み取り不能 `doctrineGap.unreadableDeclarations` | memory(doctrine) | 1 件以上（他 2 指標の解釈を保留する） |
+| ゲート理由分布 `doctrineGap.escalateReasons` / `gateVerdicts`（全期間・エスカレーション理由コード別件数） | memory(doctrine) | `doctrine_silent` + `no_canon_citation` の比率増加（canon 補完の遅れ）/ `underspecified_instruction` の滞留（解消経路 `resolve_underspecified_points` が使われていない） |
 
 - **具体化観点（DCT-14）の読み方**: `doctrineGap` は**レビューでは拾えない失敗**を測る。主材料は `missedCount`（申告が空＝「この指示だけで結論は一意に定まる」と言い切ったのに、人が `modified` で覆した判断）で、`declaredCount`（申告できた側）は既に運用が働いた記録なので学ぶべきは取りこぼした側にある。`missedByPromptShape` の型は grounding が決定論で付ける**近似**（`terse`=15 文字以下の継続指示 / `question`=疑問符で終わる指示 / `other` / `undeclared`=指示台帳へ未紐付け）で、E-1〜E-3 への当てはめは `missedSamples` の `originPrompt` を読んで判断する。**`available: false`（列未マイグレーション）は 0 件ではなく測定不能**として扱う。正本は `<docsRoot>/proposal/20260807-elaboration-checklist.ja.md`。
+  - **ゲート理由分布（DCT-19）の読み方**: `escalateReasons` のうち `always_human_operation` / `restricted_area` / `severity_high` は設計どおりの人間ゲートで是正対象ではない。是正が効くのは `doctrine_silent` / `no_canon_citation`（→ 該当判断の subject を集計し canon 補完の入力にする）と `underspecified_instruction`（→ 解消経路の運用を確認する）。前回スナップショットとの比率デルタで読む（採択根拠は `<docsRoot>/proposal/20260815-ai-review-approval-intake.ja.md`）。`gateVerdicts` / `escalateReasons` が `null` の場合は列未導入で測定不能。
   - **修正方針の二択は取りこぼしに数えない**。方針の選択は自動選択規約の対象で、`underspecified_points` に書かないことが正しい（2026-08-07 判断）。`missedSamples` に方針選択が覆されただけの判断が混ざっていたら、観点昇格の候補から外す。
 
 - **再発の「2 回」判定**: `recurrence.danglingClusters` は件数ではなく、同一 target の滞留サイクル数（初出 / 2 回目 / 3 回目以降）で扱う。同一 target が**前回スナップショットにも存在**していたら「2 回目」とみなし、R023（constraint メモリ昇格）の発火候補として §4 の提案へ昇格する。grounding はステートレスに現在値のみ出力するため、前回スナップショットとの突合で滞留サイクル数を数えるのは本デルタ比較の責務である。`skillHealth.brokenRefs` 対象の同一スキルが前回にも存在した場合は、R024（スキル本文反映）の発火候補として扱う。
