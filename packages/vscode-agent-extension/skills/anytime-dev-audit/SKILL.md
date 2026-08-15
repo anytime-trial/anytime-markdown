@@ -6,7 +6,7 @@ description: PC 環境（ディレクトリ構造）と Claude Code 設定（CLA
 
 # anytime-dev-audit — セットアップ監査（Claude Code 環境の read-only 診断）
 
-更新日: 2026-08-01
+更新日: 2026-08-15
 
 PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）を read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。`anytime-dev-retro`（Trail DB のデルタ分析・インシデント要件化）が「**開発活動**の健全性」を見るのに対し、本スキルは「**環境・設定**の健全性」を見る（2026-07-14 に `anytime-dev-health` の references から独立スキルへ分離）。Claude Code 標準の `/doctor`（v2.1.205+。旧 `/checkup`）とは役割分担する: インストール健全性・未使用 skill/MCP のコスト対比・CLAUDE.md トリム提案は `/doctor` の実行を推奨事項として提示し、本スキルで再実装しない（本スキルはディレクトリ構造・プロジェクト固有運用まで含む広域監査を担う）。初回実施と是正の実例は 20260713 監査レポート（`<docsRoot>/report/20260713-claude-code-setup-audit.ja.md`） / 是正プラン `plan/20260713-setup-audit-remediation.ja.md`、診断観点の設計と出典は設計書 `spec/90.skill/anytime-dev-audit.ja.md` を参照。
 
@@ -23,7 +23,7 @@ PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）�
 | ディレクトリ階層 | ホーム直下〜プロジェクト群の散らかり・命名不統一・深すぎ/浅すぎ・重複/放置フォルダ・置き場所の一貫性・git リポジトリ全数（ブランチ/最終コミット/90 日放置判定）・キャッシュ肥大（du） |
 | CLAUDE.md | global と各プロジェクト。粒度（200 行/ファイル目安）・推定トークン（chars/4）・重複・常時ロード不要な「手続き」の混入・コードから導出可能な内容（ディレクトリ構造・依存一覧）の混入・複数 CLAUDE.md / rules 間の矛盾指示・AGENTS.md との二重管理（`@import` / symlink で回避しているか）・公式プロンプティング規範との突合（§1.3） |
 | rules/ | パススコープの妥当性。公式は `paths` frontmatter による glob 限定ロードを提供するが、**本環境では機能しない実測（2026-07-13）あり** — 評価前に再実測して有効性を確定し、乖離が残る限り「全文が毎セッションロードされる」前提で粒度を評価する |
-| skills/ | description の発火精度（曖昧/広すぎ/狭すぎ。**先頭 1,536 字で切り詰め**られるため主要ユースケースを先頭に）・本文 500 行超の肥大・スキル間重複・旧 .claude/commands/ の残骸・references/ への段階開示・`allowed-tools` の過剰な事前承認・`disable-model-invocation` / `user-invocable` の使い分け |
+| skills/ | description の発火精度（曖昧/広すぎ/狭すぎ。**先頭 1,536 字で切り詰め**られるため主要ユースケースを先頭に）・本文 500 行超の肥大・スキル間重複・旧 .claude/commands/ の残骸・references/ への段階開示・`allowed-tools` の過剰な事前承認・`disable-model-invocation` / `user-invocable` の使い分け・**競合スキャン**（プロジェクト＋global の全スキルを対象に、スキル間およびスキル↔rules/CLAUDE.md/doctrine の矛盾を 3 種で検出する: 直接矛盾＝「X は必須」対「X は禁止」/ 暗黙矛盾＝数値・手順の論理的不整合 / doctrine 抵触＝承認済み条項との衝突。**初回は報告のみで自動修復しない**。tikalk/adlc-team-skills team-repair の翻案・proposal `20260815-adlc-evals-adoption`） |
 | agents/ | 役割分担・tools の必要最小限化（レビュー系から Edit/Write を外す等）・model 明示（省略は親モデル継承＝高コスト化）・effort 指定・プラグイン提供分との重複 |
 | hooks | PreToolUse 等のガード系の有無（観測系のみなら「強制レイヤー空洞」と判定）・イベント選定の定石（ガード＝PreToolUse／フォーマッタ＝PostToolUse／通知＝Stop・Notification）・exit code 規約（2=ブロック、0+JSON=構造化判定）・timeout 放置・フックスクリプトの入力検証 |
 | output-styles | 有無と CLAUDE.md「応答」節との二重管理リスク |
