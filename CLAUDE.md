@@ -54,7 +54,7 @@
 **手順**
 
 1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` / `target_paths` / `operation_kind` / `underspecified_points` の 4 つを必ず申告する**（前 3 つはいずれかが未申告ならカバレッジゲートは fail-closed で `escalate` に倒し、代行は成立しない）。
-    - **`underspecified_points`（DCT-14・2026-08-07 追加）は「指示から一意に定まらない論点」の事前申告**。ユーザーの代わりに自分で決めようとしている点（指示に無い設計の分岐・扱いが書かれていないケース・指示が沈黙しているスコープ境界）をここへ書く。**空配列で出すことは「この指示だけで結論は一意に定まる」という積極的な宣言**であり、省略はできない（未指定は `underspecified_unknown` で `escalate`）。非空ならゲートは `underspecified_instruction` で `escalate` する（何を作るかが定まっていない承認は、どれだけドクトリンに接地していても代行できない）。再記録はラチェットで、論点の追記は通るが**非空 → 空へは戻せない**。
+    - **`underspecified_points`（DCT-14・2026-08-07 追加）は「指示から一意に定まらない論点」の事前申告**。ユーザーの代わりに自分で決めようとしている点（指示に無い設計の分岐・扱いが書かれていないケース・指示が沈黙しているスコープ境界）をここへ書く。**空配列で出すことは「この指示だけで結論は一意に定まる」という積極的な宣言**であり、省略はできない（未指定は `underspecified_unknown` で `escalate`）。非空ならゲートは `underspecified_instruction` で `escalate` する（何を作るかが定まっていない承認は、どれだけドクトリンに接地していても代行できない）。再記録はラチェットで、論点の追記は通るが**非空 → 空へは戻せず、部分削除も既存申告との和集合へ矯正される**（追記のみ・DCT-19）。
     - **`severity` の申告基準（DCT-19 附記・2026-08-15）**: 次の 6 トリガーに 1 つでも該当したら `high` を申告する（片方向。非該当時の low/medium は従来判断）— セキュリティ境界（認証・認可・サニタイズ）/ 個人情報フロー / 外部契約（外部 API・公開スキーマ）/ 新規パターン導入 / 高リスク値計算 / 実行時ハザード（重いクエリ・ジョブ）。正本は coverage-gate 仕様 §10。
 2. 戻り値の `gate.verdict` で分岐する。
     - **`delegable` かつ自分の判断が `approve`** → **人に聞かずに進める**。直後に `record_delegated_approval` で代行を記録し、応答に「何を代行したか」と接地した条項を 1 行残す（無言で進めない）。

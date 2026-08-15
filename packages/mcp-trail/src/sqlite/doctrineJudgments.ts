@@ -361,6 +361,44 @@ export function ensureAndMigrateDoctrineJudgments(db: Database, caravanDbPath: s
   }
 }
 
+/**
+ * ゲート評価・保存用に、既存判断の申告と今回入力の**和集合**を返す (DCT-19 ラチェット)。
+ *
+ * 部分削除（非空 → 別の非空で既存要素を落とす）を許すと、「解消済みの論点だけを残す
+ * 再記録」で未解消論点を消したままゲートを通過できてしまう（相互レビュー Codex #1）。
+ * DCT-14 時点では非空なら必ず escalate したため実害が無かったが、DCT-19 の
+ * 「全解消で通過」導入により部分削除が実際の迂回路になった。申告は追記のみとする。
+ *
+ * `points === undefined`（未申告）は補完せず素通しする — 補完すると
+ * `underspecified_unknown` の fail-closed 判定（申告義務）が消えるため。
+ * 既存申告の JSON 破損は空として扱う（記録経路は常に配列を書くため実質起きない）。
+ */
+export function mergeDeclaredPoints(
+  db: Database,
+  key: { readonly sessionId: string; readonly subject: string },
+  points: ReadonlyArray<string> | undefined,
+): ReadonlyArray<string> | undefined {
+  if (points === undefined) {
+    return undefined;
+  }
+  const row = db
+    .prepare(
+      `SELECT underspecified_points_json points FROM caravan_doctrine_judgments WHERE session_id = ? AND subject = ?`,
+    )
+    .get(key.sessionId, key.subject) as { points: string } | undefined;
+  if (row === undefined) {
+    return points;
+  }
+  const existing = parseJsonArrayColumn<string>('underspecified_points_json', row.points);
+  const merged = [...existing.value];
+  for (const point of points) {
+    if (!merged.includes(point)) {
+      merged.push(point);
+    }
+  }
+  return merged;
+}
+
 export function recordDoctrineJudgmentDirect(
   db: Database,
   input: DoctrineJudgmentInput,
@@ -371,6 +409,13 @@ export function recordDoctrineJudgmentDirect(
     throw new Error("coverage='covered' requires at least one citation (DCT-9)");
   }
   ensureDoctrineJudgmentsTable(db);
+  // DCT-19 ラチェット: 保存は常に既存申告との和集合（部分削除を許さない）。
+  // SQL 側の CASE（非空 → 空の阻止）は競合時のバックストップとして残す
+  const mergedPoints = mergeDeclaredPoints(
+    db,
+    { sessionId: input.sessionId, subject: input.subject },
+    input.underspecifiedPoints ?? [],
+  );
   const now = new Date().toISOString();
   const judgedAt = input.judgedAt ?? now;
   const citationCount = input.citations.length;
@@ -395,7 +440,9 @@ export function recordDoctrineJudgmentDirect(
        -- 再記録は human_decision / delegated_at もリセットするため、空で再記録できると
        -- 「escalate された判断を空で上書きして代行のガードを全部通す」経路が成立し、
        -- 最初の申告は行ごと消えて監査に残らない (DCT-14)。
-       -- 残る自由度は非空 → 別の非空 (部分削除) だが、どちらもゲートは escalate する
+       -- 非空 → 別の非空 (部分削除) は TS 側の mergeDeclaredPoints が和集合へ矯正済み
+       -- (DCT-19 で「全解消なら通過」が入ったため、部分削除が実際の迂回路になる)。
+       -- 本 CASE は直接 SQL を叩く経路への非空 → 空バックストップとして残す
        underspecified_points_json = CASE
          WHEN json_array_length(underspecified_points_json) > 0
           AND json_array_length(excluded.underspecified_points_json) = 0
@@ -417,7 +464,7 @@ export function recordDoctrineJudgmentDirect(
     resolvedCount,
     input.gate === undefined ? null : input.gate.verdict,
     input.gate === undefined ? null : JSON.stringify(input.gate.reasons),
-    JSON.stringify(input.underspecifiedPoints ?? []),
+    JSON.stringify(mergedPoints ?? []),
     judgedAt,
     now,
     now,

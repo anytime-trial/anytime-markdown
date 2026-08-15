@@ -11,6 +11,7 @@ import { readFileTyped } from '../doctrine/readFile';
 import {
   ensureAndMigrateDoctrineJudgments,
   fetchResolvedPoints,
+  mergeDeclaredPoints,
   recordDoctrineJudgmentDirect,
   type DoctrineJudgmentRecordResult,
 } from '../sqlite/doctrineJudgments';
@@ -60,7 +61,7 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      'Points the human\'s instruction does NOT determine, declared BEFORE asking (DCT-14). Declare here anything you are about to invent on the human\'s behalf (an unstated design fork, an unhandled case, a scope boundary the prompt is silent on). Omitting the field is undecidable and escalates (underspecified_unknown), exactly like omitting severity or operation_kind — pass [] explicitly to claim that the instruction alone fixes the outcome. A non-empty array also escalates: what to build is not yet determined, so no amount of doctrine grounding makes it delegable. Re-recording can add points but cannot empty a non-empty declaration',
+      'Points the human\'s instruction does NOT determine, declared BEFORE asking (DCT-14). Declare here anything you are about to invent on the human\'s behalf (an unstated design fork, an unhandled case, a scope boundary the prompt is silent on). Omitting the field is undecidable and escalates (underspecified_unknown), exactly like omitting severity or operation_kind — pass [] explicitly to claim that the instruction alone fixes the outcome. A non-empty array also escalates: what to build is not yet determined, so no amount of doctrine grounding makes it delegable. Re-recording can add points but never remove them: a declaration that drops previously declared points is corrected to the union (additive-only ratchet, DCT-19)',
     ),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
   workspacePath: workspacePathParam,
@@ -107,13 +108,20 @@ export async function handleRecordDoctrineJudgment(
       sessionId: input.session_id,
       subject: input.subject,
     });
+    // 申告は既存判断との和集合で評価する（部分削除の再記録でゲートを迂回させない —
+    // 相互レビュー Codex #1）。保存側 recordDoctrineJudgmentDirect も同じ和集合を書く
+    const declaredPoints = mergeDeclaredPoints(
+      opened.db,
+      { sessionId: input.session_id, subject: input.subject },
+      input.underspecified_points,
+    );
     const gate = evaluateCoverageGate({
       coverage: input.coverage,
       citations: resolved,
       targetPaths: input.target_paths,
       severity: input.severity,
       operationKind: input.operation_kind,
-      underspecifiedPoints: input.underspecified_points,
+      underspecifiedPoints: declaredPoints,
       resolvedPoints,
       odd: resolveOddConfig({
         workspacePath: workspacePath ?? process.cwd(),

@@ -8,6 +8,7 @@
 import BetterSqlite3, { type Database } from 'better-sqlite3';
 import {
   ensureDoctrineJudgmentsTable,
+  mergeDeclaredPoints,
   recordDoctrineJudgmentDirect,
   recordHumanDecisionDirect,
   recordPointResolutionsDirect,
@@ -154,6 +155,33 @@ describe('doctrine judgments: point resolutions (DCT-19)', () => {
     const rerecorded = recordDoctrineJudgmentDirect(db, judgment());
     expect(rerecorded.id).toBe(id);
     expect(fetchResolvedPoints(db, { id })).toEqual(['論点A']);
+  });
+
+  it('再記録の申告部分削除でゲートを迂回できない（既存申告との和集合で保存する・相互レビュー Codex #1）', () => {
+    const { id } = recordDoctrineJudgmentDirect(db, judgment());
+    recordPointResolutionsDirect(db, { id, resolutions: [{ point: '論点A', answer: '回答A' }] });
+    // 解消済みの論点A だけを残す再記録（未解消の論点B を落とす攻撃経路）
+    recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: ['論点A'] }));
+    const stored = db
+      .prepare(`SELECT underspecified_points_json points FROM caravan_doctrine_judgments WHERE id = ?`)
+      .get(id) as { points: string };
+    // 保存側: 部分削除は許さず和集合になる（ラチェット = 追記のみ）
+    expect((JSON.parse(stored.points) as string[]).sort()).toEqual(['論点A', '論点B']);
+  });
+
+  it('mergeDeclaredPoints はゲート評価用に既存申告と入力の和集合を返す（undefined は素通し）', () => {
+    recordDoctrineJudgmentDirect(db, judgment());
+    const key = { sessionId: 'session-1', subject: '何かの What 承認' };
+    expect([...(mergeDeclaredPoints(db, key, ['論点A']) ?? [])].sort()).toEqual(['論点A', '論点B']);
+    expect([...(mergeDeclaredPoints(db, key, ['論点C']) ?? [])].sort()).toEqual([
+      '論点A',
+      '論点B',
+      '論点C',
+    ]);
+    // 未申告 (undefined) は fail-closed 判定（underspecified_unknown）を保つため補完しない
+    expect(mergeDeclaredPoints(db, key, undefined)).toBeUndefined();
+    // 既存判断が無ければ入力そのまま
+    expect(mergeDeclaredPoints(db, { sessionId: 'none', subject: 'x' }, ['論点A'])).toEqual(['論点A']);
   });
 
   it('listDoctrineJudgmentsBySession が解消記録（論点・回答）を返す', () => {
