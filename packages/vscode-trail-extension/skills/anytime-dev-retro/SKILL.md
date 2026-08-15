@@ -6,7 +6,7 @@ description: 開発の実績データと事故から改善を還流させるふ�
 
 # anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化）
 
-更新日: 2026-08-07
+更新日: 2026-08-15
 
 Trail が蓄積する 3 つのローカル DB を横断分析し、**前回からの変化（デルタ）に基づく**健全性レポートを出力する。変化が閾値を超えたシグナルだけ改善提案に昇格させ、提案書に加えてチケットを起票する（毎回同じ指摘を繰り返さないのが本スキルの肝）。
 
@@ -36,6 +36,8 @@ node .claude/skills/anytime-dev-retro/grounding.cjs > <docsRoot>/report/_signals
 # (2) セッション粒度のコスト grounding（旧 anytime-token-budget）
 node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/report/_signals/token-budget/<YYYYMMDD>.json
 ```
+
+- **(3) 観測経路の突合スモーク**（MCP が使えるセッションのみ。headless ならスキップし、その旨をレポートへ明記する）: mcp-trail `get_doctrine_agreement`（範囲指定なし）を呼び、(a) 返り値の `sourceErrors` が空であること、(b) `total` が DB 直読カウント（`node:sqlite` readOnly で `SELECT COUNT(*) FROM caravan_doctrine_judgments`）と一致することを確認する。`sourceErrors` 非空・件数乖離は**観測経路の故障**としてレポート冒頭に明記し、doctrine 系指標は測定不能として扱う（誤った 0 を真値にしない）。背景: 2026-08-15 に caravan-book.db の malformed で MCP が全指標 0 を返し、DB 実体の 74 件と乖離していた実測（proposal `20260815-adlc-evals-adoption`）。
 
 - `<YYYYMMDD>` は snapshot の `generatedAt` を JST に変換した日付。保存先 `_signals/`・`_signals/token-budget/` は初回未作成のため上記 `mkdir -p` で必ず先に用意する。
 - コスト grounding が cwd 相対で DB を見つけられない場合は引数で明示: `node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs <workspace>/.anytime/trail/db`。
@@ -122,7 +124,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
 - **Flight Record**（`flightRecord`・30 日窓）: outcome 分布（achieved/partial/unachieved/unknown）・自己評価カバレッジ・手戻り平均・ツール失敗率・滞留指示（openOver7d）と、指示単位コスト上位 `topInstructionsByCost30d`（caravan_instruction_sessions × trail.activity_session_costs の突合。セッション粒度のコスト分析を「1 指示にいくら掛かったか」の作業単位へ引き上げる）。`lessonCandidateReviews`（教訓候補を持つ振り返り）は再発シグナルの突合候補として件数を明記する。`source` が `trail(pre-migration)` の場合は移行未完了と明記する。
 - **具体化観点の候補**（`doctrineGap`）: `missedCount` が 1 件以上なら `missedSamples` を**毎回列挙**する（subject / promptShape / originPrompt）。各件は「着手前に聞けたはずの論点」で、§4 の閾値を満たしたら具体化観点への昇格提案＋チケットへ回す。`available: false`（DCT-14 未マイグレーション）・`missedCount` が 0 のときもその旨を明記する（沈黙させない）。`unreadableDeclarations` が 1 件以上なら申告率の解釈を保留する旨を添える。
-- **grounding errors**（あれば）: 測定不能だったシグナル。
+- **評価ケース層**（§4.2）: `grep -rhoE "EVAL-[0-9]+" packages/*/__tests__ | sort -u | wc -l` の件数と前回比、`test.failing`（昇格待ち）の件数。2 回連続で増分 0 なら §4.2 の抽出運用見直しを提案候補にする。
+- **grounding errors**（あれば）: 測定不能だったシグナル。手順 1 (3) の突合スモークで検出した観測経路の故障もここへ含める。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
 
 出力後、`anytime-markdown-check` スキルで検証する。レポートの出力先 `<docsRoot>/report/` は mcp-markdown のルート（`/anytime-markdown`）外のため `format_markdown` は使えない（`Access denied: path outside root directory`）。frontmatter 必須キーの実在確認と同スキルの意味判断チェックリストを手動で適用する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。
@@ -181,6 +184,25 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 `mcp__claude_ai_mcp-cms-remote__create_ticket` が使えない環境では、フォールバックとして VS Code 設定 `anytimeAgent.tickets.directory`（ワークスペースの `.vscode/settings.json`。既定値は `/Shared/anytime-ticket`）が指すチケットリポジトリを解決し、その `.tickets/` 配下へ `anytime-loop-start` スキルと同じ YAML frontmatter + Markdown 本文のチケットを直接作成する。設定値がリポジトリルートを指す場合は直下の `.tickets/` を使い、`.tickets/` 自体を指す場合はそのディレクトリを使う。ファイル名は `T-<連番>-<英数スラッグ>.md` とし、既存 `T-*.md` の最大連番の次を使う。frontmatter には上記 `title` / `status` / `priority` / `assignee` / `workspace` / `creator` と `id` / `created_at` / `updated_at` を書き、本文には概要、起点シグナル、提案書パス、実装前に提案書本体を Read する指示を含める。
 
 レスポンスまたはフォールバック作成で得たチケット ID（`T-N`）をレポート末尾「次アクション候補」に併記する。API 呼び出しに失敗した場合はリトライせずフォールバックを試す。チケットリポジトリを解決できない、または `.tickets/` へ作成できない場合にのみ「未起票（理由）」と記し、提案書 frontmatter を `ticketStatus: "unfiled"` にする。提案を生成しなかった週（閾値未超）はチケットも起票しない。
+
+### 4.2 失敗の 2 分類ルーティングと評価ケース層（EDD 翻案）
+
+出典は proposal `20260815-adlc-evals-adoption`（tikalk/adlc-team-skills の evals-specify / evals-analyze の発想の移植。リポジトリ・外部フレームワークは導入しない）。
+
+**失敗の 2 分類ルーティング**: §3〜§4 で品質シグナル（未対処 finding・取込失敗・doctrine 取りこぼし・再発バグ）を提案へ昇格させるとき、失敗を次の 2 分類へ仕分けて宛先を分ける。分類できない場合は「未分類」と明記する（沈黙させない）。
+
+- **仕様の欠落型**（規約・書式・スキル本文が不足・曖昧・誤り）→ 宛先は**ルール側**: 該当スキル・rules・doctrine の改訂提案。既存の観点昇格（§4 の checklistNoneClusters / doctrineGap）・条文化の経路に乗せる。
+- **汎化の失敗型**（規約は正しいがパーサ・機構が満たせない）→ 宛先は**実装側**: チケット起票（§4.1）。現行実装で満たせない望ましい挙動は、起票前に `test.failing` の評価ケースとして固定する（バックログの機械可読な残し方。実装が追いつくと「予期せず成功」で落ち、通常 test へ昇格させる）。
+
+分類根拠の初回実測（2026-08-15・レビュー取込の対象パス欠落 738 件）: 仕様欠落型 423 件（本文にパスらしき文字列なし＝レビュー書式側）/ 汎化失敗型 315 件（パスはあるが取込めず＝パーサ側）。
+
+**評価ケース層の抽出手順**（実トレース → fixture）:
+
+1. 対象は LLM 依存の取込・判定機構（レビュー取込パーサ・doctrine カバレッジゲート・再発検出）。
+2. `caravan_review_findings` / `caravan_doctrine_judgments` 等の実レコードから失敗・成功の代表例を read-only でサンプルする。
+3. **観測可能な二値の Pass/Fail 条件**を定義する。期待値は憶測で書かず、確定できるものは実測（現行実装への入力）で固定する。
+4. サニタイズ（機密・無関係コードの除去・構造を保存する最小化）して jest fixture 化し、由来の finding id をコメントへ残す。既存例: `packages/trail-caravan-book/__tests__/ingest/review/realTraceEvalCases.test.ts`。
+5. 望ましいが未達のケースは `test.failing` で記録する（手順は上記ルーティングの汎化失敗型）。
 
 ### 5. ガードレール / 申し送り
 
