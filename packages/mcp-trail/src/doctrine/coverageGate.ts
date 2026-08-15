@@ -48,6 +48,12 @@ export interface CoverageGateInput {
    * 明示して初めて「指示から一意に定まる」という宣言になる。
    */
   readonly underspecifiedPoints?: ReadonlyArray<string> | undefined;
+  /**
+   * 解消済み論点の逐語文字列集合 (DCT-19)。`resolve_underspecified_points` で人の回答が
+   * 記録された論点。申告との突合は逐語一致で、未解消の残りだけが規則 2.5 の対象になる。
+   * 未指定は「解消なし」と同義（申告義務の fail-closed は underspecifiedPoints 側が担う）。
+   */
+  readonly resolvedPoints?: ReadonlyArray<string> | undefined;
 }
 
 export interface CoverageGateResult {
@@ -113,7 +119,11 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
     // 「一意に定まると宣言した」に化け、嘘をつかずにゲートを素通りできてしまう
     return escalate('underspecified_unknown');
   }
-  if (input.underspecifiedPoints.length > 0) {
+  // DCT-19: 人の回答が記録された論点は解消済みとして除き、未解消の残りだけで判定する。
+  // 申告列（underspecifiedPoints）自体は書き換えない — 解消は別テーブルの加算のみで
+  // 表現し、「論点が無かった」状態にはならない（ラチェットと監査可能性の維持）
+  const resolved = new Set(input.resolvedPoints ?? []);
+  if (input.underspecifiedPoints.some((point) => !resolved.has(point))) {
     return escalate('underspecified_instruction');
   }
   if (input.coverage === 'conflict') {

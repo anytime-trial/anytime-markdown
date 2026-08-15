@@ -30,6 +30,7 @@ function judgmentView(overrides: Partial<DoctrineJudgmentView> = {}): DoctrineJu
     decidedAt: '2026-08-02T01:05:00.000Z',
     delegatedAt: null,
     underspecifiedPoints: [],
+    pointResolutions: [],
     parseError: null,
     ...overrides,
   };
@@ -189,6 +190,28 @@ describe('buildAcceptanceReview', () => {
     expect(review.summary.delegatedCount).toBe(1);
     expect(review.summary.pendingDecisionCount).toBe(0);
     expect(review.markdown).toContain('（代行後の監査）');
+  });
+
+  it('解消済みの論点は回答を併記し、未解消の論点と区別して表示する（DCT-19）', () => {
+    const review = buildAcceptanceReview({
+      sessionId: 'session-1',
+      judgments: [
+        judgmentView({
+          gateVerdict: 'escalate',
+          gateReasons: ['underspecified_instruction'],
+          humanDecision: null,
+          decidedAt: null,
+          underspecifiedPoints: ['論点A', '論点B'],
+          pointResolutions: [
+            { point: '論点A', answer: '回答A', resolvedAt: '2026-08-15T00:00:00.000Z' },
+          ],
+        }),
+      ],
+      diff: diffSummary(),
+    });
+
+    expect(review.markdown).toContain('指示から定まらない論点（解消済み）: 論点A — 回答: 回答A');
+    expect(review.markdown).toContain('指示から定まらない論点（未解消）: 論点B');
   });
 
   it('ゲート未評価は delegable として扱わず「未評価」と表示する', () => {

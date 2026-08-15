@@ -10,6 +10,7 @@ import { resolveOddConfig } from '../doctrine/oddRoots';
 import { readFileTyped } from '../doctrine/readFile';
 import {
   ensureAndMigrateDoctrineJudgments,
+  fetchResolvedPoints,
   recordDoctrineJudgmentDirect,
   type DoctrineJudgmentRecordResult,
 } from '../sqlite/doctrineJudgments';
@@ -94,24 +95,32 @@ export async function handleRecordDoctrineJudgment(
   );
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  const gate = evaluateCoverageGate({
-    coverage: input.coverage,
-    citations: resolved,
-    targetPaths: input.target_paths,
-    severity: input.severity,
-    operationKind: input.operation_kind,
-    underspecifiedPoints: input.underspecified_points,
-    odd: resolveOddConfig({
-      workspacePath: workspacePath ?? process.cwd(),
-      homeDir: os.homedir(),
-      readFile: readFileTyped,
-    }),
-  });
   // 保存先は caravan-book.db（2026-08-07 に activity.db から移設。旧テーブルは遅延移行で回収）
   const dbPath = resolveCaravanDbPathForWrite({ workspacePath });
   const opened = await openCaravanDb(dbPath, 'readwrite');
   try {
     ensureAndMigrateDoctrineJudgments(opened.db, dbPath);
+    // DCT-19: 同一 (session, subject) の既存判断に記録済みの解消（人の回答）を読み、
+    // 未解消の残りだけで規則 2.5 を評価する。ゲート評価は解消の読み込み後に行う必要が
+    // あるため、DB open より後に置く
+    const resolvedPoints = fetchResolvedPoints(opened.db, {
+      sessionId: input.session_id,
+      subject: input.subject,
+    });
+    const gate = evaluateCoverageGate({
+      coverage: input.coverage,
+      citations: resolved,
+      targetPaths: input.target_paths,
+      severity: input.severity,
+      operationKind: input.operation_kind,
+      underspecifiedPoints: input.underspecified_points,
+      resolvedPoints,
+      odd: resolveOddConfig({
+        workspacePath: workspacePath ?? process.cwd(),
+        homeDir: os.homedir(),
+        readFile: readFileTyped,
+      }),
+    });
     const result = recordDoctrineJudgmentDirect(opened.db, {
       sessionId: input.session_id,
       subject: input.subject,
