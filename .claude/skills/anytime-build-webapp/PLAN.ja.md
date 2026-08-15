@@ -19,7 +19,11 @@ clarity: 92
 
 **Architecture:** 7 本の設定ファイル（markdown / json）で構成。`SKILL.md` がメインオーケストレータで、6 つの Phase を順に実行し、Phase 2 と Phase 5 だけ既存 superpowers（`writing-plans` / `executing-plans`）に委譲、Phase 4.5 で `design-md` スキルを利用する。コードは生成せず、Claude Code が SKILL.md の指示に従って動作する宣言的構成。
 
-**Tech Stack:** Markdown（CommonMark + GFM）/ JSON / YAML frontmatter。Validator は `~/.claude/scripts/validate-markdown.sh` と `jq`。
+**Tech Stack:** Markdown（CommonMark + GFM）/ JSON / YAML frontmatter。Validator は `jq` と Markdown 検証。
+
+> [!IMPORTANT]
+> **本プランは 2026-05-17 時点の記録**で、各 Step の `Run: bash ~/.claude/scripts/validate-markdown.sh ...` は**当時の手順**である。このスクリプトは現在**実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。\
+> 本プランを再実行する場合、対象は `.claude/skills/anytime-build-webapp/` 配下＝mcp-markdown のルート（`/anytime-markdown`）配下なので、各 Step の検証は `mcp__mcp-markdown__format_markdown(path, mode="fix")` を実行して返り値の `warnings` に対応する手順へ読み替える（`anytime-markdown-check` スキル）。
 
 
 ---

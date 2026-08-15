@@ -36,7 +36,7 @@ clarity: 92
 - **add 対象**: ファイル名明示。`git add .` / `-A` / `-a` 禁止
 - **コミットメッセージ**: Conventional Commits (`feat(anytime-build-webapp)` / `refactor(anytime-build-webapp)` / `docs(anytime-build-webapp)`)
 - **Co-Authored-By 行**: 各 commit に `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` を含める
-- **検証コマンド**: `bash ~/.claude/scripts/validate-markdown.sh <file>` を Markdown 変更後に毎回実行
+- **検証コマンド**: Markdown 変更後に毎回検証する。**本プランは 2026-05-17 時点の記録**で、本文中の `bash ~/.claude/scripts/validate-markdown.sh <file>` は当時の手順である。このスクリプトは現在**実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。再実行時は `mcp__mcp-markdown__format_markdown(path, mode="fix")` ＋ `warnings` 対応へ読み替える（対象がルート外の場合は `anytime-markdown-check` の手動チェックリスト）
 - **TOML / JSON 検証**: `python3 -c "import tomllib; tomllib.load(open('<file>','rb'))"` / `jq -e . <file>`
 - **Python 構文検証**: `python3 -m py_compile <file>`（プレースホルダ置換後の妥当性を別途確認する Task を最後に置く）
 - **既存未コミット変更を巻き込まない**: 着手時に `git status --short` で対象外ファイルの変更を確認し、Task ごとに対象ファイルのみ stage する

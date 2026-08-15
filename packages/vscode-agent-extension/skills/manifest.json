@@ -1,5 +1,5 @@
 {
-  "anytime-build-webapp": 3,
+  "anytime-build-webapp": 4,
   "anytime-session-exit": 3,
   "anytime-cross-review": 7,
   "anytime-loop-start": 16,
@@ -7,6 +7,6 @@
   "anytime-dev-audit": 5,
   "anytime-dev-cycle": 17,
   "anytime-impl-test-design": 3,
-  "anytime-analysis": 13,
+  "anytime-analysis": 14,
   "anytime-ux-archeologist": 4
 }
