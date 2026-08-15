@@ -6,6 +6,7 @@ import {
   ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
+  CREATE_DOCTRINE_POINT_RESOLUTIONS,
 } from '@anytime-markdown/trail-activity';
 import { renameLegacyFlightRecordTables } from './instructions';
 import type { ResolvedCitation } from '../doctrine/resolveCitations';
@@ -76,8 +77,14 @@ export interface DoctrineAgreementMetrics {
    * 理由に D1 へ戻すことになる。指示の不足側は `instructionGapRate` が測る。
    */
   readonly agreementRate: number | null;
-  /** 未確定論点を申告した件数 (DCT-14) */
+  /** 未確定論点を申告した件数 (DCT-14)。解消済み (DCT-19) も含む — 申告の事実は消えない */
   readonly underspecified: number;
+  /**
+   * 申告した論点が**すべて解消済み**の判断件数 (DCT-19)。これらは `agreementRate` の
+   * 分母へ戻る（解消後の不一致は指示の不足ではなく較正の失敗であり、解消経由の代行を
+   * 抜き取り監査の対象に含めるため）。
+   */
+  readonly underspecifiedResolved: number;
   /**
    * 申告列を配列として読めなかった件数 (DCT-14)。0 でない間は `agreementRate` /
    * `instructionGapRate` の解釈を保留する。破損行は「申告あり」に畳まず分母に残す
@@ -152,6 +159,8 @@ export function ensureDoctrineJudgmentsTable(db: Database): void {
       db.exec(column.ddl);
     }
   }
+  // DCT-19: 解消記録テーブル。judgments 本体の後に作る（FK が judgments を参照する）
+  db.exec(CREATE_DOCTRINE_POINT_RESOLUTIONS);
 }
 
 /** destructiveMigrateDoctrineJudgmentsFromTrailDb の判別可能な結果。 */
@@ -352,6 +361,44 @@ export function ensureAndMigrateDoctrineJudgments(db: Database, caravanDbPath: s
   }
 }
 
+/**
+ * ゲート評価・保存用に、既存判断の申告と今回入力の**和集合**を返す (DCT-19 ラチェット)。
+ *
+ * 部分削除（非空 → 別の非空で既存要素を落とす）を許すと、「解消済みの論点だけを残す
+ * 再記録」で未解消論点を消したままゲートを通過できてしまう（相互レビュー Codex #1）。
+ * DCT-14 時点では非空なら必ず escalate したため実害が無かったが、DCT-19 の
+ * 「全解消で通過」導入により部分削除が実際の迂回路になった。申告は追記のみとする。
+ *
+ * `points === undefined`（未申告）は補完せず素通しする — 補完すると
+ * `underspecified_unknown` の fail-closed 判定（申告義務）が消えるため。
+ * 既存申告の JSON 破損は空として扱う（記録経路は常に配列を書くため実質起きない）。
+ */
+export function mergeDeclaredPoints(
+  db: Database,
+  key: { readonly sessionId: string; readonly subject: string },
+  points: ReadonlyArray<string> | undefined,
+): ReadonlyArray<string> | undefined {
+  if (points === undefined) {
+    return undefined;
+  }
+  const row = db
+    .prepare(
+      `SELECT underspecified_points_json points FROM caravan_doctrine_judgments WHERE session_id = ? AND subject = ?`,
+    )
+    .get(key.sessionId, key.subject) as { points: string } | undefined;
+  if (row === undefined) {
+    return points;
+  }
+  const existing = parseJsonArrayColumn<string>('underspecified_points_json', row.points);
+  const merged = [...existing.value];
+  for (const point of points) {
+    if (!merged.includes(point)) {
+      merged.push(point);
+    }
+  }
+  return merged;
+}
+
 export function recordDoctrineJudgmentDirect(
   db: Database,
   input: DoctrineJudgmentInput,
@@ -362,6 +409,13 @@ export function recordDoctrineJudgmentDirect(
     throw new Error("coverage='covered' requires at least one citation (DCT-9)");
   }
   ensureDoctrineJudgmentsTable(db);
+  // DCT-19 ラチェット: 保存は常に既存申告との和集合（部分削除を許さない）。
+  // SQL 側の CASE（非空 → 空の阻止）は競合時のバックストップとして残す
+  const mergedPoints = mergeDeclaredPoints(
+    db,
+    { sessionId: input.sessionId, subject: input.subject },
+    input.underspecifiedPoints ?? [],
+  );
   const now = new Date().toISOString();
   const judgedAt = input.judgedAt ?? now;
   const citationCount = input.citations.length;
@@ -386,7 +440,9 @@ export function recordDoctrineJudgmentDirect(
        -- 再記録は human_decision / delegated_at もリセットするため、空で再記録できると
        -- 「escalate された判断を空で上書きして代行のガードを全部通す」経路が成立し、
        -- 最初の申告は行ごと消えて監査に残らない (DCT-14)。
-       -- 残る自由度は非空 → 別の非空 (部分削除) だが、どちらもゲートは escalate する
+       -- 非空 → 別の非空 (部分削除) は TS 側の mergeDeclaredPoints が和集合へ矯正済み
+       -- (DCT-19 で「全解消なら通過」が入ったため、部分削除が実際の迂回路になる)。
+       -- 本 CASE は直接 SQL を叩く経路への非空 → 空バックストップとして残す
        underspecified_points_json = CASE
          WHEN json_array_length(underspecified_points_json) > 0
           AND json_array_length(excluded.underspecified_points_json) = 0
@@ -408,7 +464,7 @@ export function recordDoctrineJudgmentDirect(
     resolvedCount,
     input.gate === undefined ? null : input.gate.verdict,
     input.gate === undefined ? null : JSON.stringify(input.gate.reasons),
-    JSON.stringify(input.underspecifiedPoints ?? []),
+    JSON.stringify(mergedPoints ?? []),
     judgedAt,
     now,
     now,
@@ -449,6 +505,7 @@ interface JudgmentLookupRow {
   readonly gate_verdict: 'delegable' | 'escalate' | null;
   readonly human_decision: HumanDecision | null;
   readonly delegated_at: string | null;
+  readonly underspecified_points_json: string;
 }
 
 /**
@@ -459,7 +516,7 @@ function findJudgmentRow(
   db: Database,
   key: { readonly id?: number; readonly sessionId?: string; readonly subject?: string },
 ): JudgmentLookupRow {
-  const columns = `id, agent_judgment, gate_verdict, human_decision, delegated_at`;
+  const columns = `id, agent_judgment, gate_verdict, human_decision, delegated_at, underspecified_points_json`;
   let row: JudgmentLookupRow | undefined;
   let keyLabel: string;
   if (key.id !== undefined) {
@@ -529,6 +586,134 @@ export function recordDelegatedApprovalDirect(
   return { id: row.id, delegatedAt, alreadyDelegated: false };
 }
 
+export interface PointResolutionRecord {
+  readonly point: string;
+  readonly answer: string;
+  readonly resolvedAt: string;
+  /** 既に解消済みで、今回の呼び出しでは何も更新していない（最初の記録を返した） */
+  readonly alreadyResolved: boolean;
+}
+
+export interface PointResolutionsResult {
+  readonly judgmentId: number;
+  readonly resolutions: readonly PointResolutionRecord[];
+}
+
+/**
+ * DCT-19: 申告済みの未確定論点への人の回答を記録する。coverage-gate 仕様 §9.2。
+ *
+ * 保存しない条件（fail-closed・例外にする）: 対象判断が存在しない / point が申告配列に
+ * 逐語一致で存在しない / answer が空（空白のみを含む）/ 既に人の判断が記録済み。
+ * 1 件でも不正があれば全件保存しない（検証を先に済ませてから挿入する）。
+ *
+ * 同一 (judgment, point) への再呼び出しは **no-op で最初の記録を返す**（`alreadyResolved`）。
+ * 回答・時刻を上書きできると、人の回答という監査記録を後から付け替えられてしまう
+ * （`delegated_at` の再呼び出しと同型）。
+ */
+export function recordPointResolutionsDirect(
+  db: Database,
+  args: {
+    readonly id?: number;
+    readonly sessionId?: string;
+    readonly subject?: string;
+    readonly resolutions: ReadonlyArray<{ readonly point: string; readonly answer: string }>;
+    /** 記録時刻。**MCP ツールからは渡せない**（テストで時刻を固定するための注入点） */
+    readonly resolvedAt?: string;
+  },
+): PointResolutionsResult {
+  ensureDoctrineJudgmentsTable(db);
+  const row = findJudgmentRow(db, args);
+  if (row.human_decision !== null) {
+    throw new Error(
+      'cannot resolve points: human decision already recorded for this judgment (resolution after the decision cannot ground a delegation)',
+    );
+  }
+  const declared = parseJsonArrayColumn<string>(
+    'underspecified_points_json',
+    row.underspecified_points_json,
+  );
+  if (declared.error !== null) {
+    throw new Error(`cannot resolve points: ${declared.error}`);
+  }
+  const declaredSet = new Set(declared.value);
+  for (const resolution of args.resolutions) {
+    if (resolution.answer.trim().length === 0) {
+      throw new Error(
+        `cannot resolve point "${resolution.point}": answer is empty (an answerless resolution would bypass the DCT-14 ratchet)`,
+      );
+    }
+    if (!declaredSet.has(resolution.point)) {
+      throw new Error(
+        `cannot resolve point "${resolution.point}": not declared on this judgment (verbatim match against underspecified_points is required)`,
+      );
+    }
+  }
+  const resolvedAt = args.resolvedAt ?? new Date().toISOString();
+  const selectExisting = db.prepare(
+    `SELECT answer_text, resolved_at FROM caravan_doctrine_point_resolutions WHERE judgment_id = ? AND point_text = ?`,
+  );
+  const insert = db.prepare(
+    `INSERT INTO caravan_doctrine_point_resolutions (judgment_id, point_text, answer_text, resolved_at) VALUES (?, ?, ?, ?)`,
+  );
+  const records: PointResolutionRecord[] = [];
+  const run = db.transaction(() => {
+    for (const resolution of args.resolutions) {
+      const existing = selectExisting.get(row.id, resolution.point) as
+        | { answer_text: string; resolved_at: string }
+        | undefined;
+      if (existing !== undefined) {
+        records.push({
+          point: resolution.point,
+          answer: existing.answer_text,
+          resolvedAt: existing.resolved_at,
+          alreadyResolved: true,
+        });
+        continue;
+      }
+      insert.run(row.id, resolution.point, resolution.answer, resolvedAt);
+      records.push({
+        point: resolution.point,
+        answer: resolution.answer,
+        resolvedAt,
+        alreadyResolved: false,
+      });
+    }
+  });
+  run();
+  return { judgmentId: row.id, resolutions: records };
+}
+
+/**
+ * 判断に紐づく解消済み論点の逐語文字列を返す（ゲート入力 `resolvedPoints` の供給元）。
+ * テーブル不在（旧 DB の読み取り専用経路）は空配列に倒す。
+ */
+export function fetchResolvedPoints(
+  db: Database,
+  key: { readonly id?: number; readonly sessionId?: string; readonly subject?: string },
+): string[] {
+  if (tableColumns(db, 'caravan_doctrine_point_resolutions').size === 0) {
+    return [];
+  }
+  let judgmentId: number;
+  if (key.id !== undefined) {
+    judgmentId = key.id;
+  } else {
+    const row = db
+      .prepare(`SELECT id FROM caravan_doctrine_judgments WHERE session_id = ? AND subject = ?`)
+      .get(key.sessionId, key.subject) as { id: number } | undefined;
+    if (row === undefined) {
+      return [];
+    }
+    judgmentId = row.id;
+  }
+  const rows = db
+    .prepare(
+      `SELECT point_text FROM caravan_doctrine_point_resolutions WHERE judgment_id = ? ORDER BY id ASC`,
+    )
+    .all(judgmentId) as Array<{ point_text: string }>;
+  return rows.map((r) => r.point_text);
+}
+
 /**
  * 受け入れ確認 (DCT-13) の提示物 1・2・4 の供給元。JSON 列のパース失敗は当該
  * レコードを落とさず parseError へ落とす (1 件の破損で提示物全体を失わせない)。
@@ -550,6 +735,12 @@ export interface DoctrineJudgmentView {
   readonly delegatedAt: string | null;
   /** 指示から一意に定まらないと事前申告した論点 (DCT-14)。空 = 一意に定まると宣言した */
   readonly underspecifiedPoints: readonly string[];
+  /** 申告済み論点への人の回答 (DCT-19)。未解消の論点はここに現れない */
+  readonly pointResolutions: ReadonlyArray<{
+    readonly point: string;
+    readonly answer: string;
+    readonly resolvedAt: string;
+  }>;
   /** JSON 列のパース失敗理由。成功時は null */
   readonly parseError: string | null;
 }
@@ -635,6 +826,14 @@ export function listDoctrineJudgmentsBySession(
     underspecified_points_json: string | null;
   }>;
 
+  // 解消記録 (DCT-19)。読み取り専用経路のためテーブル不在は「解消なし」に倒す
+  const hasResolutions = tableColumns(db, 'caravan_doctrine_point_resolutions').size > 0;
+  const selectResolutions = hasResolutions
+    ? db.prepare(
+        `SELECT point_text, answer_text, resolved_at FROM caravan_doctrine_point_resolutions WHERE judgment_id = ? ORDER BY id ASC`,
+      )
+    : null;
+
   return rows.map((row) => {
     const citations = parseJsonArrayColumn<ResolvedCitation>('citations_json', row.citations_json);
     const reasons = parseJsonArrayColumn<string>('gate_reasons_json', row.gate_reasons_json);
@@ -642,6 +841,16 @@ export function listDoctrineJudgmentsBySession(
       'underspecified_points_json',
       row.underspecified_points_json,
     );
+    const pointResolutions =
+      selectResolutions === null
+        ? []
+        : (
+            selectResolutions.all(row.id) as Array<{
+              point_text: string;
+              answer_text: string;
+              resolved_at: string;
+            }>
+          ).map((r) => ({ point: r.point_text, answer: r.answer_text, resolvedAt: r.resolved_at }));
     const errors = [citations.error, reasons.error, underspecified.error].filter(
       (e): e is string => e !== null,
     );
@@ -659,6 +868,7 @@ export function listDoctrineJudgmentsBySession(
       decidedAt: row.decided_at,
       delegatedAt: row.delegated_at,
       underspecifiedPoints: underspecified.value,
+      pointResolutions,
       parseError: errors.length === 0 ? null : errors.join('; '),
     };
   });
@@ -687,6 +897,8 @@ export interface DoctrineAgreementRow {
   readonly gate_verdict: 'delegable' | 'escalate' | null;
   readonly delegated_at: string | null;
   readonly underspecified_points_json: string;
+  /** 解消済み論点の JSON 配列 (DCT-19)。テーブルを持たない旧 DB は '[]' */
+  readonly resolved_points_json: string;
 }
 
 /**
@@ -707,6 +919,12 @@ export function fetchDoctrineAgreementRows(
   const underspecifiedExpr = columns.has('underspecified_points_json')
     ? 'underspecified_points_json'
     : `'[]' AS underspecified_points_json`;
+  // DCT-19: 解消済み論点。テーブルを持たない DB（移行過渡期の activity.db 側等）は
+  // 「解消なし」に倒す（解消を勝手に補って分母を動かさない）
+  const resolvedExpr =
+    tableColumns(db, 'caravan_doctrine_point_resolutions').size > 0
+      ? `COALESCE((SELECT json_group_array(r.point_text) FROM caravan_doctrine_point_resolutions r WHERE r.judgment_id = caravan_doctrine_judgments.id), '[]') AS resolved_points_json`
+      : `'[]' AS resolved_points_json`;
   const conditions: string[] = [];
   const params: string[] = [];
   if (range.since !== undefined) {
@@ -720,7 +938,7 @@ export function fetchDoctrineAgreementRows(
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   return db
     .prepare(
-      `SELECT session_id, subject, agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, ${gateVerdictExpr}, ${delegatedAtExpr}, ${underspecifiedExpr} FROM caravan_doctrine_judgments${where}`,
+      `SELECT session_id, subject, agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, ${gateVerdictExpr}, ${delegatedAtExpr}, ${underspecifiedExpr}, ${resolvedExpr} FROM caravan_doctrine_judgments${where}`,
     )
     .all(...params) as DoctrineAgreementRow[];
 }
@@ -750,7 +968,7 @@ export function mergeDoctrineAgreementRows(
  * どちらにも倒さず、分母には残しつつ (= 一致率は下がる方向にしか動かない)
  * 別カウントで可視化する。
  */
-type DeclarationState = 'empty' | 'declared' | 'unreadable';
+type DeclarationState = 'empty' | 'declared' | 'resolved' | 'unreadable';
 
 function readDeclaration(row: DoctrineAgreementRow): DeclarationState {
   const parsed = parseJsonArrayColumn<string>(
@@ -760,13 +978,27 @@ function readDeclaration(row: DoctrineAgreementRow): DeclarationState {
   if (parsed.error !== null) {
     return 'unreadable';
   }
-  return parsed.value.length > 0 ? 'declared' : 'empty';
+  if (parsed.value.length === 0) {
+    return 'empty';
+  }
+  // DCT-19: 全論点に人の回答が記録済みなら `resolved`。解消記録の破損は「未解消」に倒す
+  // （解消を勝手に補うと一致率の分母が自分に有利に動く）
+  const resolved = parseJsonArrayColumn<string>('resolved_points_json', row.resolved_points_json);
+  if (resolved.error !== null) {
+    return 'declared';
+  }
+  const resolvedSet = new Set(resolved.value);
+  return parsed.value.every((point) => resolvedSet.has(point)) ? 'resolved' : 'declared';
 }
 
 export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]): DoctrineAgreementMetrics {
   const total = rows.length;
   const declarations = new Map(rows.map((r) => [r, readDeclaration(r)] as const));
-  const underspecifiedRows = rows.filter((r) => declarations.get(r) === 'declared');
+  // 申告件数は解消済みを含む（申告の事実は解消では消えない。instructionGapRate も同じ分子）
+  const underspecifiedRows = rows.filter(
+    (r) => declarations.get(r) === 'declared' || declarations.get(r) === 'resolved',
+  );
+  const underspecifiedResolved = rows.filter((r) => declarations.get(r) === 'resolved').length;
   const unreadableDeclarations = rows.filter((r) => declarations.get(r) === 'unreadable').length;
   const decided = rows.filter((r) => r.human_decision !== null).length;
   const delegatedRows = rows.filter((r) => r.delegated_at !== null);
@@ -804,6 +1036,7 @@ export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]
     delegatedAudited,
     agreementRate: agreementTargets.length > 0 ? matched / agreementTargets.length : null,
     underspecified: underspecifiedRows.length,
+    underspecifiedResolved,
     unreadableDeclarations,
     instructionGapRate: total > 0 ? underspecifiedRows.length / total : null,
     escalationRate: total > 0 ? escalations / total : null,

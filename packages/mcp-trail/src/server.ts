@@ -34,6 +34,10 @@ import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift
 import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
 import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
 import {
+  handleResolveUnderspecifiedPoints,
+  ResolveUnderspecifiedPointsInputSchema,
+} from './tools/resolveUnderspecifiedPoints.js';
+import {
   handleListOpenInstructions,
   handleRecordInstruction,
   ListOpenInstructionsInputSchema,
@@ -477,7 +481,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_doctrine_judgment',
-    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths, severity or operation_kind makes the verdict escalate (fail-closed), so always declare all three. Also declare underspecified_points (DCT-14): the points the human\'s instruction does not determine. Leaving it empty is a positive claim that the instruction alone fixes the outcome, and a non-empty array escalates — an approval whose content you had to invent is not delegable no matter how well grounded it is. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always escalate — declare them via operation_kind so the gate enforces it rather than relying on prose. Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation.', inputSchema: {
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths, severity or operation_kind makes the verdict escalate (fail-closed), so always declare all three. Also declare underspecified_points (DCT-14): the points the human\'s instruction does not determine. Leaving it empty is a positive claim that the instruction alone fixes the outcome, and a non-empty array escalates — an approval whose content you had to invent is not delegable no matter how well grounded it is. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always escalate — declare them via operation_kind so the gate enforces it rather than relying on prose. Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation. When the gate escalates with underspecified_instruction, ask the human the declared points, record their answers via resolve_underspecified_points, then re-record this judgment — points with recorded answers no longer escalate (DCT-19).', inputSchema: {
       session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
       subject: RecordDoctrineJudgmentInputSchema.shape.subject,
       judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
@@ -596,8 +600,23 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   server.registerTool(
+    'resolve_underspecified_points',
+    { description: "Record the human's answers to a judgment's declared underspecified_points (DCT-19), so a re-recorded judgment can pass coverage-gate rule 2.5 and become delegable. Each entry's `point` must match a declared point verbatim; `answer` must be the human's actual answer and cannot be empty — an answerless resolution would bypass the DCT-14 ratchet. Refuses (nothing is saved) if the judgment does not exist, a point was not declared, an answer is empty, or a human decision is already recorded. The declared underspecified_points themselves are never rewritten: resolution is additive and auditable. First record wins — re-resolving the same point is a no-op returning the original answer and timestamp (alreadyResolved: true); the timestamp is always server-side now. Typical flow: record_doctrine_judgment escalates with underspecified_instruction → ask the human the declared points → record their answers here → re-record the judgment (same session_id + subject) → if the gate now says delegable and your judgment is approve, delegate via record_delegated_approval.", inputSchema: {
+      id: ResolveUnderspecifiedPointsInputSchema.shape.id,
+      session_id: ResolveUnderspecifiedPointsInputSchema.shape.session_id,
+      subject: ResolveUnderspecifiedPointsInputSchema.shape.subject,
+      resolutions: ResolveUnderspecifiedPointsInputSchema.shape.resolutions,
+      workspacePath: ResolveUnderspecifiedPointsInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleResolveUnderspecifiedPoints(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
     'get_doctrine_agreement',
-    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), delegated / delegatedAudited counts (D2 delegations and their sampling audits), and pending (neither decided nor delegated) count. Also instructionGapRate / underspecified (DCT-14 declarations of points the instruction did not determine; denominator = all judgments) and unreadableDeclarations. Judgments recorded before 2026-08-07 were backfilled as empty declarations and stay in the agreement-rate denominator, so pass since="2026-08-07" when reading instructionGapRate as a live signal. A non-zero unreadableDeclarations means the other two rates are not yet interpretable.', inputSchema: {
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), delegated / delegatedAudited counts (D2 delegations and their sampling audits), and pending (neither decided nor delegated) count. Also instructionGapRate / underspecified (DCT-14 declarations of points the instruction did not determine; denominator = all judgments), underspecifiedResolved (judgments whose declared points are all resolved via resolve_underspecified_points — these re-enter the agreement-rate denominator, DCT-19) and unreadableDeclarations. Judgments recorded before 2026-08-07 were backfilled as empty declarations and stay in the agreement-rate denominator, so pass since="2026-08-07" when reading instructionGapRate as a live signal. A non-zero unreadableDeclarations means the other two rates are not yet interpretable.', inputSchema: {
       since: GetDoctrineAgreementInputSchema.shape.since,
       until: GetDoctrineAgreementInputSchema.shape.until,
       workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,

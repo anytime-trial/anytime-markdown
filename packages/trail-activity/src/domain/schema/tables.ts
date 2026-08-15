@@ -797,6 +797,20 @@ export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON caravan_doctrine_judgments(judged_at)`,
 ];
 
+// DCT-19: 未確定論点の解消記録（1 行 = 1 論点への人の回答）。申告列
+// (underspecified_points_json) は解消後も書き換えず、解消はこのテーブルへの加算のみで
+// 表現する（ラチェット維持・監査可能性）。point_text は申告配列の要素と逐語一致で突合する。
+// answer_text の空文字を CHECK で拒否するのは、回答の無い「解消」がラチェットの実質的な
+// 迂回になるため（coverage-gate 仕様 §9.2）。
+export const CREATE_DOCTRINE_POINT_RESOLUTIONS = `CREATE TABLE IF NOT EXISTS caravan_doctrine_point_resolutions (
+  id INTEGER PRIMARY KEY,
+  judgment_id INTEGER NOT NULL REFERENCES caravan_doctrine_judgments(id) ON DELETE CASCADE,
+  point_text TEXT NOT NULL CHECK (length(point_text) > 0),
+  answer_text TEXT NOT NULL CHECK (length(answer_text) > 0),
+  resolved_at TEXT NOT NULL CHECK (resolved_at GLOB ${TS_GLOB_MS} OR resolved_at GLOB ${TS_GLOB_NO_MS}),
+  UNIQUE (judgment_id, point_text)
+) STRICT`;
+
 // Architectural Drift Detection (管制塔要件 §2.3): 宣言境界（パッケージ）と
 // 実装コミュニティのずれ。コードグラフ解析の完了後に 1 リポジトリ分をまとめて記録する。
 // 仕様は spec/31.trail/03.trail-activity/architectural-drift-detection.ja.md。
