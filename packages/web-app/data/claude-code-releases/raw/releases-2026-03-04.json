@@ -1,0 +1,552 @@
+[
+  {
+    "version": "Sonnet 4.6",
+    "kind": "model",
+    "date": "2026-03-05",
+    "dateConfidence": "explicit",
+    "headline": "Claude Sonnet 4.6公開、1Mトークンコンテキストがβ→GAへ拡大",
+    "highlights": [
+      "1M トークンコンテキスト（ベータ）対応で発表、コーディング・エージェント全般でフロンティア性能",
+      "2026-04-01に1Mトークンコンテキストが標準価格で一般提供（GA）、割増料金・ベータヘッダーを廃止",
+      "Sonnet 4.5/Sonnet 4の1Mベータは2026-04-30終了予定、Sonnet 4/Opus 4のAPI廃止は2026-06-15",
+      "コーディング・エージェント検索の性能向上と低トークン消費を両立"
+    ],
+    "impact": null,
+    "sourceReport": "2026-03-23-daily-research.md",
+    "sourceUrl": "https://platform.claude.com/docs/en/release-notes/overview"
+  },
+  {
+    "version": "2.1.81",
+    "kind": "cli",
+    "date": "2026-03-20",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.81: --bareフラグ・Channels権限リレー追加",
+    "highlights": [
+      "--bare フラグ追加（スクリプト用 -p 呼び出しでフック・LSP・プラグイン同期・スキル走査をスキップ）",
+      "--channels パーミッションリレーでツール承認プロンプトをモバイル転送可能に",
+      "複数セッション同時実行時のOAuthトークンリフレッシュによる再認証ループを修正",
+      "ボイスモードのリトライ失敗時の誤った「ネットワーク確認」メッセージを修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-03-23-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.83",
+    "kind": "cli",
+    "date": "2026-03-25",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.83: CwdChanged/FileChangedフック・環境変数スクラブ追加",
+    "highlights": [
+      "managed-settings.d/ ドロップインディレクトリ追加（ポリシーフラグメントのアルファベット順マージ）",
+      "CwdChanged / FileChanged フックイベント追加（direnv 等のリアクティブ環境管理対応）",
+      "sandbox.failIfUnavailable、CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 追加",
+      "画像貼り付け時のAPI 400エラー・MCPツール呼び出しハング・CJK IME音声入力などを修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-03-25-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.83"
+  },
+  {
+    "version": "2.1.84",
+    "kind": "cli",
+    "date": "2026-03-26",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.84: Windows PowerShellプレビュー・MCPツール説明2KB制限",
+    "highlights": [
+      "Windows向けPowerShellツールをオプトインプレビューとして追加",
+      "MCPツール説明とサーバー指示を2KBに制限しコンテキスト肥大化を防止",
+      "IME合成（CJK入力）のインラインレンダリング修正、macOSキーチェーン読み取り失敗の解消",
+      "部分クローンリポジトリでの起動パフォーマンス問題を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-03-26-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.86",
+    "kind": "cli",
+    "date": "2026-03-27",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.86: X-Claude-Code-Session-Idヘッダー追加",
+    "highlights": [
+      "APIリクエストにX-Claude-Code-Session-Idヘッダー追加（プロキシのセッション単位集約対応）",
+      "Ghostty over SSHでのShift+Enter表示不具合を修正",
+      "長いセッションでCtrl+O（トランスクリプト切替）が数秒フリーズする問題を修正",
+      "worktreeがメインリポジトリ内にネストされている場合のCLAUDE.md重複読込を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-03-28-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.87",
+    "kind": "cli",
+    "date": "2026-03-29",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.87: 非ストリーミングフォールバック改善・MCP接続高速化",
+    "highlights": [
+      "Cowork Dispatchのメッセージ配信バグ修正",
+      "未認証HTTP/SSE MCPサーバー接続時のclaude -p起動が約600ms高速化",
+      "非ストリーミングフォールバックのトークン上限を21k→64k、タイムアウトを120s→300sに引き上げ"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-03-30-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.88",
+    "kind": "cli",
+    "date": "2026-03-30",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.88: CLAUDE.md再注入・CJK履歴破棄バグ修正、MCPブロック不具合等",
+    "highlights": [
+      "ネストされたCLAUDE.mdが長時間セッションで数十回再注入される問題を修正",
+      "CJK・絵文字を含むプロンプト履歴が4KB境界で無音破棄される問題を修正",
+      "1GiB超ファイルへのEditツール使用時のOOMクラッシュ、Windows CRLF二重化を修正",
+      "deniedMcpServers設定がclaude.ai MCPサーバーをブロックしない問題を修正",
+      "リモートセッションでのストリーミング中断時メモリリークとECONNRESETを修正",
+      "VS Codeにレート制限警告バナー追加、/statsのスクリーンショットが16倍高速化"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-03-31-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.88"
+  },
+  {
+    "version": "2.1.89",
+    "kind": "cli",
+    "date": "2026-04-01",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.89: PreToolUse defer・フリッカーフリー描画・PermissionDeniedフック追加",
+    "highlights": [
+      "PreToolUseフックに\"defer\"判定追加、ヘッドレスセッションを一時停止し-p --resumeで再評価可能に",
+      "CLAUDE_CODE_NO_FLICKER=1でフリッカーフリーalt-screenレンダリング",
+      "PermissionDeniedフック追加（{retry: true}で再試行可能）",
+      "StructuredOutputスキーマキャッシュバグ（複数スキーマで約50%失敗）を修正",
+      "CJK/絵文字プロンプト履歴の4KB境界ドロップ、1GiB超ファイルでのEdit OOMクラッシュを修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-03-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.89"
+  },
+  {
+    "version": "2.1.90",
+    "kind": "cli",
+    "date": "2026-04-01",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.90: /powerupコマンド追加",
+    "highlights": [
+      "/powerupコマンド追加（アニメーションデモ付きインタラクティブレッスン）",
+      ".huskyをacceptEditsモードの保護ディレクトリに追加",
+      "レート制限ダイアログの無限ループ・セッションクラッシュを修正",
+      "--resume使用時のプロンプトキャッシュミス修正（v2.1.69からのリグレッション）",
+      "PostToolUse format-on-saveフックによるEdit/Write失敗と、autoモードの境界無視問題を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-04-03-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.90"
+  },
+  {
+    "version": "2.1.91",
+    "kind": "cli",
+    "date": "2026-04-02",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.91: MCP結果永続化オーバーライド追加",
+    "highlights": [
+      "MCPツール結果永続化オーバーライド（_meta[\"anthropic/maxResultSizeChars\"]、最大500K）",
+      "disableSkillShellExecution設定、プラグインbin/配下の実行ファイル対応",
+      "TaskCreatedフック、WorktreeCreateフックのhttpタイプ対応",
+      "CLAUDE_STREAM_IDLE_TIMEOUT_MS、idle-returnプロンプト（75分以上離席後）"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-04-04-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.91"
+  },
+  {
+    "version": "2.1.92",
+    "kind": "cli",
+    "date": "2026-04-04",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.92: エンタープライズセキュリティ強化",
+    "highlights": [
+      "forceRemoteSettingsRefreshポリシー設定（fail-closed、リモート設定取得失敗時は起動拒否）",
+      "Bedrockインタラクティブセットアップウィザード追加",
+      "/costコマンドがモデル別・キャッシュヒット内訳表示に対応",
+      "Writeツールのdiff計算が60%高速化、/tagと/vimコマンドを削除",
+      "Linuxサンドボックスのapply-seccompヘルパー復元、サブエージェント起動失敗等のバグ修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-05-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.94",
+    "kind": "cli",
+    "date": "2026-04-07",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.94: 既定effortレベルがhighに変更",
+    "highlights": [
+      "Amazon Bedrock Mantle対応（CLAUDE_CODE_USE_MANTLE=1）",
+      "API/Bedrock/Vertex/Foundry/Team/Enterpriseユーザーの既定effortレベルがmedium→highに変更",
+      "プラグインスキルのnameフロントマターによる呼び出し名指定に対応",
+      "429レートリミット時のエージェント停止、CJKテキストのUTF-8境界文字化け（U+FFFD）等を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-04-08-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "Mythos Preview",
+    "kind": "model",
+    "date": "2026-04-07",
+    "dateConfidence": "explicit",
+    "headline": "Claude Mythos Preview発表、セキュリティ特化モデルを限定公開（Project Glasswing）",
+    "highlights": [
+      "SWE-bench Verified 93.9%（Opus 4.6は80.8%）、Terminal-Bench 2.0で82%を達成",
+      "全主要OS・ブラウザで多数のゼロデイ脆弱性を自律発見（OpenBSDの27年前の脆弱性含む）",
+      "サイバーセキュリティリスクのため一般公開せず、防御的セキュリティ用途限定のProject Glasswingを開始",
+      "Amazon/Apple/Google/Microsoft/NVIDIA等12社参加、Anthropicが$100Mの利用クレジット提供、計40組織にプレビューアクセス"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-04-08-daily-research.md",
+    "sourceUrl": "https://red.anthropic.com/2026/mythos-preview/"
+  },
+  {
+    "version": "2.1.97",
+    "kind": "cli",
+    "date": "2026-04-08",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.97: MCPメモリリーク修正とBash権限強化",
+    "highlights": [
+      "フォーカスビュートグルCtrl+O追加",
+      "/agentsに実行中インジケータ追加",
+      "MCP HTTP/SSE接続のメモリリーク（約50MB/hr）修正",
+      "Bashツール権限チェック強化・429リトライ最適化"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-10-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.96",
+    "kind": "cli",
+    "date": "2026-04-09",
+    "dateConfidence": "report-date",
+    "headline": "Claude Code v2.1.96: フォーカスビューや/cost内訳表示を追加",
+    "highlights": [
+      "フォーカスビュー切替（Ctrl+O）でNO_FLICKERモード表示",
+      "forceRemoteSettingsRefreshポリシー設定を追加（fail-closed）",
+      "インタラクティブBedrockセットアップウィザード追加",
+      "/costにモデル別・キャッシュヒット内訳を表示",
+      "Writeツールのdiff計算を大規模ファイルで60%高速化"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-04-09-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.98",
+    "kind": "cli",
+    "date": "2026-04-09",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.98: Linuxサンドボックス化とBash権限バイパス修正",
+    "highlights": [
+      "Google Vertex AIセットアップウィザード追加",
+      "CLAUDE_CODE_PERFORCE_MODE環境変数でPerforce連携",
+      "LinuxでPIDネームスペース分離によるサブプロセスサンドボックス化",
+      "セキュリティ修正: Bashツール権限バイパス脆弱性、複合Bashコマンドの権限回避",
+      "MCP OAuth authServerMetadataUrl不具合修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-10-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.100",
+    "kind": "cli",
+    "date": "2026-04-09",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.100: プロンプト再レンダリング74%削減など安定性改善",
+    "highlights": [
+      "プロンプト入力の再レンダリングを約74%削減",
+      "起動メモリを約426KB削減（非カスタムCA証明書ユーザー向け）",
+      "Remote Controlの/pollレートを削減しサーバー負荷を約300分の1に軽減",
+      "--resume時のキャッシュミス・diff消失バグ修正",
+      "フルスクリーンモードのメッセージ二重表示バグ修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-11-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.101",
+    "kind": "cli",
+    "date": "2026-04-10",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.101: /team-onboarding追加とメモリリーク修正",
+    "highlights": [
+      "/team-onboardingコマンド追加（使用履歴からオンボーディングガイド自動生成）",
+      "OS CA証明書ストアをデフォルト信頼に変更（エンタープライズTLSプロキシ対応）",
+      "/ultraplan等リモートセッションがデフォルトクラウド環境を自動作成",
+      "長時間セッションのメモリリーク修正、--resumeのコンテキスト喪失バグ修正"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-12-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.105",
+    "kind": "cli",
+    "date": "2026-04-13",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.105: ワークツリー切替とPreCompactフック対応",
+    "highlights": [
+      "EnterWorktreeにpathパラメータ追加（既存ワークツリーへの切替）",
+      "PreCompactフック新規サポート（コンパクション操作をブロック可能）",
+      "MCPツール結果の永続化サイズ上書き設定（最大500K）追加",
+      "disableSkillShellExecution設定でスキル内インラインシェル実行を無効化可能"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-14-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.107",
+    "kind": "cli",
+    "date": "2026-04-14",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.107: 思考ヒント表示タイミングを改善",
+    "highlights": [
+      "長時間操作中の思考ヒント表示タイミングを早める改善"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-15-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.108",
+    "kind": "cli",
+    "date": "2026-04-14",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.108: /recapセッションリキャップとキャッシュTTL拡張",
+    "highlights": [
+      "ENABLE_PROMPT_CACHING_1Hで1時間プロンプトキャッシュTTLをオプトイン可能に",
+      "FORCE_PROMPT_CACHING_5Mで5分TTLを強制指定可能",
+      "セッションリキャップ機能（/recap）追加、セッション再開時に文脈を復元",
+      "/undoが/rewindのエイリアスとして機能、/modelにモデル切替警告表示"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-15-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.109",
+    "kind": "cli",
+    "date": "2026-04-15",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.109: 拡張思考インジケーターに進捗ヒント追加",
+    "highlights": [
+      "拡張思考（extended thinking）インジケーターにローテーション進捗ヒントを追加"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-15-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.111",
+    "kind": "cli",
+    "date": "2026-04-16",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.111: xhighエフォート対応・/ultrareview追加",
+    "highlights": [
+      "Claude Opus 4.7のxhighエフォートレベルが/effortコマンドで利用可能に",
+      "/ultrareviewコマンド追加（クラウドベース並列マルチエージェントコードレビュー）",
+      "/less-permission-promptsスキル追加（トランスクリプト解析で許可リスト自動提案）",
+      "読み取り専用Bashコマンドからパーミッション要求を削除"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-18-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
+  },
+  {
+    "version": "Opus 4.7",
+    "kind": "model",
+    "date": "2026-04-16",
+    "dateConfidence": "explicit",
+    "headline": "Claude Opus 4.7が一般公開、SWE-bench Verified 87.6%・xhigh effort追加",
+    "highlights": [
+      "SWE-bench Verified 80.8%→87.6%、SWE-bench Pro 64.3%（業界最高水準）",
+      "新エフォートレベルxhigh追加（Claude Codeの/effortコマンドから利用可）、Maxプラン向けAutoモードも提供",
+      "視覚認識能力強化、対応画像サイズ最大3.75メガピクセル（従来比3.25倍）",
+      "価格はOpus 4.6と同じ$5/$25 per Mトークン（新トークナイザーで消費トークン最大35%増の可能性）",
+      "temperature/top_p/top_k使用時に400エラーを返す仕様変更（Adaptive thinkingへ移行推奨）",
+      "Sonnet 3.7・Haiku 3.5が同時に廃止"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-17-daily-research.md",
+    "sourceUrl": "https://www.anthropic.com/news"
+  },
+  {
+    "version": "2.1.113",
+    "kind": "cli",
+    "date": "2026-04-17",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.113: CLIをネイティブバイナリ化・サンドボックス強化",
+    "highlights": [
+      "CLIがバンドルJavaScriptからネイティブClaude Codeバイナリ起動方式へ変更",
+      "sandbox.network.deniedDomains設定追加（ドメイン単位のネットワークブロック）",
+      "/ultrareviewの高速化（並列化・diff stat・起動アニメーション改善）",
+      "行き詰まったサブエージェントを10分後に明確なエラーで失敗させる仕様に変更",
+      "env/sudo/watchでラップされたコマンドへのBash拒否ルール適用、find -exec/-deleteの自動承認禁止"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-18-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
+  },
+  {
+    "version": "2.1.114",
+    "kind": "cli",
+    "date": "2026-04-18",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.114: 権限ダイアログクラッシュを修正",
+    "highlights": [
+      "エージェントチームのティームメイトがツール権限を要求した際の権限ダイアログクラッシュを修正"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-21-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.116",
+    "kind": "cli",
+    "date": "2026-04-20",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.116: 品質劣化3要因の是正と/resume高速化",
+    "highlights": [
+      "アイドルセッションの思考履歴を毎ターン消去してしまうバグを修正",
+      "コーディング品質を下げていた冗長性削減システムプロンプトを除去",
+      "推論努力レベルhigh→mediumへの変更は4/7に別途revert済み",
+      "/resumeが40MB超セッションで最大67%高速化",
+      "Thinkingスピナーがインライン進捗表示（\"still thinking\"等）に変更",
+      "全サブスクライバーの使用制限（Usage Limit）を一斉リセット"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-22-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.117",
+    "kind": "cli",
+    "date": "2026-04-22",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.117: Opus 4.7の1Mコンテキストバグを修正",
+    "highlights": [
+      "Opus 4.7のコンテキストウィンドウ計算バグ修正（200Kを誤使用していたのを正しく1Mに）",
+      "/modelで選択したモデルが再起動後も永続化されるように",
+      "/resumeが大規模な陳腐化セッションの要約提案に対応",
+      "ネイティブビルドでGlob/Grepを内蔵bfs/ugrepに置換し検索速度向上",
+      "agent frontmatterのmcpServersが--agent経由のメインスレッドセッションでも読み込み対応"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-22-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.118",
+    "kind": "cli",
+    "date": "2026-04-23",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.118: Vimビジュアルモード・カスタムテーマ・MCPフック",
+    "highlights": [
+      "Vimビジュアルモード（v/V選択、演算子・視覚フィードバック対応）",
+      "/cost・/statsを/usageコマンドへ統合（後方互換ショートカット維持）",
+      "カスタムテーマ機能（/theme、~/.claude/themes/のJSON、プラグイン配布対応）",
+      "フックからtype: \"mcp_tool\"形式でMCPツールを直接呼び出し可能に",
+      "DISABLE_UPDATES環境変数で全アップデートパスをブロック可能",
+      "WSL環境でWindows側の管理設定を継承するwslInheritsWindowsSettingsポリシー追加"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-04-23-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.119",
+    "kind": "cli",
+    "date": "2026-04-23",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.119: /config設定が~/.claude/settings.jsonへ永続化",
+    "highlights": [
+      "/configのテーマ・エディタモード・verbose等が~/.claude/settings.jsonに永続化",
+      "prUrlTemplate設定でカスタムコードレビューURLを指定可能",
+      "--from-prがGitLab・Bitbucket・GitHub Enterprise のPR URLに対応",
+      "VimモードでESCキー押下時にキュー済みメッセージが引き戻される問題を修正",
+      "Windows Terminal PreviewのShift+Enter誤送信、iTerm2+tmuxのUIジッター、1GiB超ファイルEdit時のOOMクラッシュを修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-04-26-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.120",
+    "kind": "cli",
+    "date": "2026-04-24",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.120: --resume/--continueで即時クラッシュするバグが混入し自動ロールバック",
+    "highlights": [
+      "--resume / --continueフラグでのセッション再開が即時クラッシュ",
+      "Anthropicが自動アップデート機能で影響クライアントをv2.1.119へ自動ロールバック",
+      "手動復旧はclaude install 2.1.119で可能",
+      "4月26日時点でインシデントは解消済み"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-26-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.121",
+    "kind": "cli",
+    "date": "2026-04-28",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.121: MCP alwaysLoad・/skillsフィルター検索・メモリリーク修正",
+    "highlights": [
+      "MCP alwaysLoadオプション追加（trueでツール検索の遅延ロードをスキップ）",
+      "claude plugin pruneで孤立した自動インストール済みプラグイン依存を削除",
+      "/skillsにフィルター検索ボックスを追加",
+      "画像処理での数GB RSSリーク・/usageでの約2GBリークを修正",
+      "Autoモード（Max+Opus 4.7）・xhigh effortレベル・PID namespaceサブプロセスサンドボックスを4月後半に導入（同時期リリース群）",
+      ".claude/skills・agents・commandsへの書込みは--dangerously-skip-permissions時も確認プロンプト省略"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-04-29-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.122",
+    "kind": "cli",
+    "date": "2026-04-28",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.122: Bedrockサービスティア選択、PR URLからのセッション復旧",
+    "highlights": [
+      "環境変数ANTHROPIC_BEDROCK_SERVICE_TIER（default/flex/priority）を追加",
+      "/resume検索ボックスにGitHub・GitLab・BitbucketのPR URLを貼り付けると該当セッションを自動検出",
+      "/mcpでclaude.aiコネクタの重複表示・削除ヒントを追加、OAuth認可メッセージを明確化",
+      "モデル画像処理の最大サイズを2576px→2000pxに修正"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-29-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.123",
+    "kind": "cli",
+    "date": "2026-04-29",
+    "dateConfidence": "explicit",
+    "headline": "Claude Code v2.1.123: OAuth 401リトライループを修正",
+    "highlights": [
+      "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1設定時にOAuth認証が401リトライループで失敗する問題を修正"
+    ],
+    "impact": null,
+    "sourceReport": "2026-04-29-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  }
+]
