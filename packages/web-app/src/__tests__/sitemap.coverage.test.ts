@@ -14,6 +14,7 @@ import { fetchLayoutData } from "../lib/s3Client";
 import { listReports } from "../lib/reportClient";
 import sitemap from "../app/sitemap";
 import { TOPIC_SLUGS, topicPath } from "../app/[locale]/markdown/topics";
+import { SINGLE_SOURCE_ROUTE_PATHS } from "../lib/staticRoutes";
 
 const mockFetchLayoutData = fetchLayoutData as jest.MockedFunction<typeof fetchLayoutData>;
 const mockListReports = listReports as jest.MockedFunction<typeof listReports>;
@@ -22,7 +23,12 @@ const mockListReports = listReports as jest.MockedFunction<typeof listReports>;
 const STATIC_ROUTE_COUNT = 5 + TOPIC_SLUGS.length;
 /** 対応ロケール数（ja / en）。各ルートはロケール分だけ URL を持つ */
 const LOCALE_COUNT = 2;
-const STATIC_PAGE_COUNT = STATIC_ROUTE_COUNT * LOCALE_COUNT;
+/**
+ * 本文が日本語のみの静的ルート（/timeline 等）は ja の 1 URL しか載せないので、
+ * ロケール数を掛けずに足す。掛けてしまうと「en 版がある」と申告する形に戻る
+ */
+const STATIC_PAGE_COUNT =
+  STATIC_ROUTE_COUNT * LOCALE_COUNT + SINGLE_SOURCE_ROUTE_PATHS.length;
 /**
  * 記事・ドキュメントは本文が単一ソース（ja）なので 1 URL だけ掲載する。
  * 両ロケールを載せると 1 本の記事を 2 URL で重複申告することになる。
@@ -135,15 +141,16 @@ describe("sitemap", () => {
       en: "https://www.anytime-trial.com/en/markdown",
       "x-default": "https://www.anytime-trial.com/markdown",
     });
+    // 記事・ドキュメントに加え、本文が日本語のみの静的ルートも単一ソース側に数える
+    const isSingleSource = (url: string) =>
+      url.includes("/report/") ||
+      url.includes("/docs/view") ||
+      SINGLE_SOURCE_ROUTE_PATHS.some((path) => url.endsWith(path));
     // 翻訳のあるルートは全て対応関係を持つ（片方だけ欠けると検索エンジンが別ページ扱いする）
-    const translated = result.filter(
-      (e) => !e.url.includes("/report/") && !e.url.includes("/docs/view"),
-    );
+    const translated = result.filter((e) => !isSingleSource(e.url));
     expect(translated.every((e) => !!e.alternates?.languages)).toBe(true);
     // 単一ソースのページは languages を持たない（翻訳版があると申告しない）
-    const singleSource = result.filter(
-      (e) => e.url.includes("/report/") || e.url.includes("/docs/view"),
-    );
+    const singleSource = result.filter((e) => isSingleSource(e.url));
     expect(singleSource.length).toBeGreaterThan(0);
     expect(singleSource.every((e) => !e.alternates?.languages)).toBe(true);
   });
