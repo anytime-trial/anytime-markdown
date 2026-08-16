@@ -16,7 +16,7 @@ import { routing } from "../i18n/routing";
 import { localeHref } from "../lib/localeAlternates";
 import { fetchLayoutData } from "../lib/s3Client";
 import { listReports } from "../lib/reportClient";
-import { STATIC_ROUTE_PATHS } from "../lib/staticRoutes";
+import { SINGLE_SOURCE_ROUTE_PATHS, STATIC_ROUTE_PATHS } from "../lib/staticRoutes";
 
 const mockFetchLayoutData = fetchLayoutData as jest.MockedFunction<typeof fetchLayoutData>;
 const mockListReports = listReports as jest.MockedFunction<typeof listReports>;
@@ -37,11 +37,27 @@ describe("robots.txt と sitemap の対応", () => {
 
   it("robots の allow が静的ルートを全ロケール分そのまま並べる", () => {
     const rules = robots().rules as { allow: string[] };
-    const expected = STATIC_ROUTE_PATHS.flatMap((path) =>
-      routing.locales.map((locale) => localeHref(path, locale)),
-    );
+    const expected = [
+      ...STATIC_ROUTE_PATHS.flatMap((path) =>
+        routing.locales.map((locale) => localeHref(path, locale)),
+      ),
+      // 本文が単一言語のルートは既定ロケールの 1 URL だけ（sitemap も同じ 1 URL しか載せない）
+      ...SINGLE_SOURCE_ROUTE_PATHS.map((path) => localeHref(path, routing.defaultLocale)),
+    ];
 
     expect([...rules.allow].sort()).toEqual([...expected].sort());
+  });
+
+  it("単一言語ルートを非既定ロケールで allow へ出さない", () => {
+    // 出すと sitemap に無い URL を allow が主張し、2 つ目のテストの集合差分が壊れる。
+    // 「ja だけ」を明示的に固定しておかないと、展開方法を戻したときに気づけない
+    const rules = robots().rules as { allow: string[] };
+    for (const path of SINGLE_SOURCE_ROUTE_PATHS) {
+      for (const locale of routing.locales) {
+        const href = localeHref(path, locale);
+        expect(rules.allow.includes(href)).toBe(locale === routing.defaultLocale);
+      }
+    }
   });
 
   it("sitemap の静的エントリと robots の allow が同じ URL 集合を指す", async () => {

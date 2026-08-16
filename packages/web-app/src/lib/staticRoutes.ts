@@ -35,5 +35,22 @@ export const STATIC_ROUTES: readonly StaticRoute[] = [
   { path: "/privacy/services", changeFrequency: "yearly", priority: 0.3 },
 ];
 
+/**
+ * 本文が日本語のみの静的ルート。
+ *
+ * `STATIC_ROUTES` と分けるのは掲載の仕方が違うため。あちらは 1 パスを全ロケールへ展開して
+ * `alternates.languages` で対応関係を申告するが、本文が 1 言語しか無いページで同じことを
+ * すると、同一内容を 2 URL で重複申告することになる。こちらは ja の 1 URL だけを載せ、
+ * HTML 側は `buildSingleSourceAlternates` が canonical を ja へ向ける。
+ */
+export const SINGLE_SOURCE_ROUTES: readonly StaticRoute[] = [
+  { path: "/timeline", changeFrequency: "weekly", priority: 0.6 },
+];
+
 /** ロケールプレフィックスを含まないパスの一覧（robots の allow はここから展開する） */
 export const STATIC_ROUTE_PATHS: readonly string[] = STATIC_ROUTES.map((route) => route.path);
+
+/** 単一言語ルートのパス一覧（robots では既定ロケールの 1 URL だけを allow する） */
+export const SINGLE_SOURCE_ROUTE_PATHS: readonly string[] = SINGLE_SOURCE_ROUTES.map(
+  (route) => route.path,
+);
