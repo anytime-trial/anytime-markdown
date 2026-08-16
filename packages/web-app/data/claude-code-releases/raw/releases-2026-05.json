@@ -14,7 +14,7 @@
     "sourceUrl": "https://oddguan.com/blog/second-time-same-sandbox-anthropic-claude-code-network-allowlist-bypass-data-exfiltration/"
   },
   {
-    "version": "4.7",
+    "version": "Opus 4.7",
     "kind": "model",
     "date": "2026-04-16",
     "dateConfidence": "explicit",
@@ -253,7 +253,7 @@
     "sourceUrl": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
   },
   {
-    "version": "4.8",
+    "version": "Opus 4.8",
     "kind": "model",
     "date": "2026-05-28",
     "dateConfidence": "explicit",

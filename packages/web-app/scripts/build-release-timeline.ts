@@ -19,7 +19,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { normalizeReleases } from '../src/lib/releaseTimeline/normalize';
+import { normalizeReleasesWithDiagnostics } from '../src/lib/releaseTimeline/normalize';
 import type { DateConfidence, RawRelease, ReleaseKind } from '../src/lib/releaseTimeline/types';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -30,6 +30,8 @@ const OUTPUT_PATH = join(DATA_DIR, 'releases.json');
 const KINDS: readonly ReleaseKind[] = ['cli', 'model'];
 const DATE_CONFIDENCES: readonly DateConfidence[] = ['explicit', 'report-date'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** 系列名の無いモデル版（"5" / "4.8"）。表示側で系列を推測させないため弾く */
+const BARE_NUMBER = /^\d+(\.\d+)*$/;
 
 class RawReleaseError extends Error {}
 
@@ -38,19 +40,27 @@ function assertRawRelease(value: unknown, where: string): RawRelease {
     throw new RawReleaseError(`${where}: オブジェクトではない`);
   }
   const v = value as Record<string, unknown>;
-  const require = (key: string): string => {
+  const requireString = (key: string): string => {
     const field = v[key];
     if (typeof field !== 'string' || field.length === 0) {
       throw new RawReleaseError(`${where}: ${key} が空か文字列でない`);
     }
     return field;
   };
-  const version = require('version');
-  const kind = require('kind');
-  const date = require('date');
-  const dateConfidence = require('dateConfidence');
+  const version = requireString('version');
+  const kind = requireString('kind');
+  const date = requireString('date');
+  const dateConfidence = requireString('dateConfidence');
   if (!KINDS.includes(kind as ReleaseKind)) {
     throw new RawReleaseError(`${where}: kind が不正 (${kind})`);
+  }
+  // 系列名の無いモデル版（"4.8"）を通すと、表示側で系列を推測して補うほかなくなる。
+  // 年表には Opus / Sonnet / Fable / Mythos が併記されており、推測は存在しない製品名を
+  // 作る。抽出した人にしか判断できないので、ここで抽出側へ差し戻す
+  if (kind === 'model' && BARE_NUMBER.test(version.trim())) {
+    throw new RawReleaseError(
+      `${where}: model の version に系列名が無い (${version})。Opus / Sonnet / Haiku / Fable / Mythos を明記する`,
+    );
   }
   if (!DATE_CONFIDENCES.includes(dateConfidence as DateConfidence)) {
     throw new RawReleaseError(`${where}: dateConfidence が不正 (${dateConfidence})`);
@@ -67,10 +77,10 @@ function assertRawRelease(value: unknown, where: string): RawRelease {
     kind: kind as ReleaseKind,
     date,
     dateConfidence: dateConfidence as DateConfidence,
-    headline: require('headline'),
+    headline: requireString('headline'),
     highlights: (highlights ?? []).map(String),
     impact: typeof v.impact === 'string' ? v.impact : null,
-    sourceReport: require('sourceReport'),
+    sourceReport: requireString('sourceReport'),
     sourceUrl: typeof v.sourceUrl === 'string' ? v.sourceUrl : null,
   };
 }
@@ -95,7 +105,14 @@ function loadRaw(): { entries: RawRelease[]; files: string[] } {
 
 function main(): void {
   const { entries: raw, files } = loadRaw();
-  const entries = normalizeReleases(raw);
+  const { entries, dateConflicts } = normalizeReleasesWithDiagnostics(raw);
+  // 矛盾で落とさないのは、どちらの日付が正しいかを機械が決められないため。ただし
+  // 黙って片方を捨てると年表では「そのリリース日だった」ようにしか見えないので必ず出す
+  for (const conflict of dateConflicts) {
+    process.stderr.write(
+      `[build-release-timeline] WARN ${conflict.id}: 複数レポートがリリース日を明記し食い違っている (${conflict.dates.join(' / ')})。先に読んだ日付を採用した\n`,
+    );
+  }
   const payload = {
     // 生成物であることと再生成の起点を成果物自身に持たせる（timestamp は入れない。
     // 内容が変わっていないのに毎回 diff が出るとレビューで差分が読めなくなる）

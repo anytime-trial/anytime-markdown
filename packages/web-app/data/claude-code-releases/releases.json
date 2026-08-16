@@ -8,7 +8,7 @@
     "releases-2026-08-weekly.json"
   ],
   "rawCount": 109,
-  "entryCount": 97,
+  "entryCount": 98,
   "entries": [
     {
       "id": "model-sonnet-4-6",
@@ -977,7 +977,7 @@
       ]
     },
     {
-      "id": "cli-2-1-136",
+      "id": "cli-2-1-136-2-1-138",
       "kind": "cli",
       "version": "2.1.136",
       "versionTo": "2.1.138",
@@ -1249,7 +1249,7 @@
       "id": "cli-2-1-150",
       "kind": "cli",
       "version": "2.1.150",
-      "versionTo": "2.1.157",
+      "versionTo": null,
       "sortKey": [
         2,
         1,
@@ -1265,17 +1265,36 @@
         "skillのコンテキストforkに起因する無限ループを修正",
         "Agent Teamsで非ASCII名のチームメイトがAPI呼び出しに失敗する不具合を修正",
         "Rewindメニューに「Summarize up to here」（要約してコンテキスト圧縮）を追加",
-        "ANTHROPIC_WORKSPACE_IDとclaude agents --cwd <path>を追加",
-        "dynamic workflows: Claudeが書いたスクリプトから数十〜数百のサブエージェントをオーケストレーション、中間結果を検証しつつ中断ジョブを保存済み進捗から再開",
-        "security-guidance plugin: 変更を逐次レビューし脆弱性を検知",
-        "Opus 4.8上のfast mode（$10/$50 per MTok）を追加"
+        "ANTHROPIC_WORKSPACE_IDとclaude agents --cwd <path>を追加"
       ],
       "impact": "high",
       "sources": [
         {
           "report": "2026-05-25-daily-research.md",
           "url": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
-        },
+        }
+      ]
+    },
+    {
+      "id": "cli-2-1-150-2-1-157",
+      "kind": "cli",
+      "version": "2.1.150",
+      "versionTo": "2.1.157",
+      "sortKey": [
+        2,
+        1,
+        150
+      ],
+      "date": "2026-05-28",
+      "dateConfidence": "explicit",
+      "headline": "Week22でdynamic workflowsとsecurity-guidanceプラグインを追加",
+      "highlights": [
+        "dynamic workflows: Claudeが書いたスクリプトから数十〜数百のサブエージェントをオーケストレーション、中間結果を検証しつつ中断ジョブを保存済み進捗から再開",
+        "security-guidance plugin: 変更を逐次レビューし脆弱性を検知",
+        "Opus 4.8上のfast mode（$10/$50 per MTok）を追加"
+      ],
+      "impact": null,
+      "sources": [
         {
           "report": "2026-05-31-daily-research.md",
           "url": "https://code.claude.com/docs/en/whats-new"

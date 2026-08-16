@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 
+import { buildSingleSourceAlternates } from '../../../lib/localeAlternates';
 import {
   RELEASE_ENTRIES,
   RELEASE_PERIOD,
   RELEASE_SOURCE_REPORT_COUNT,
 } from '../../../lib/releaseTimeline/data';
-import { buildSingleSourceAlternates } from '../../../lib/localeAlternates';
 import { socialTitle } from '../../../lib/siteMetadata';
 import LandingHeader from '../components/LandingHeader';
-
 import TimelineBody from './TimelineBody';
 
 const TITLE = 'Claude Code リリース年表';

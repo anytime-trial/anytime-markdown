@@ -9,7 +9,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import releasesJson from '../../data/claude-code-releases/releases.json';
-import { normalizeReleases } from '../lib/releaseTimeline/normalize';
+import { normalizeReleasesWithDiagnostics } from '../lib/releaseTimeline/normalize';
 import type { RawRelease, ReleaseEntry } from '../lib/releaseTimeline/types';
 
 const DATA_DIR = join(__dirname, '..', '..', 'data', 'claude-code-releases');
@@ -40,7 +40,20 @@ describe('releases.json と raw の同期', () => {
   });
 
   it('raw を再正規化した結果が生成物と一致する', () => {
-    expect(dataset.entries).toEqual(normalizeReleases(raw));
+    expect(dataset.entries).toEqual(normalizeReleasesWithDiagnostics(raw).entries);
+  });
+
+  it('リリース日の矛盾を抱えたまま出荷しない', () => {
+    // 生成スクリプトは矛盾を警告するだけで落とさない（機械にはどちらが正しいか決められない）。
+    // 未解決のまま残ると年表は片方の日付を確定値として見せるので、ここで 0 件を固定する
+    expect(normalizeReleasesWithDiagnostics(raw).dateConflicts).toEqual([]);
+  });
+
+  it('model のバージョンが系列名を持つ（存在しない製品名を作らせない）', () => {
+    const bare = dataset.entries.filter(
+      (e) => e.kind === 'model' && /^\d+(\.\d+)*$/.test(e.version),
+    );
+    expect(bare.map((e) => e.version)).toEqual([]);
   });
 
   it('生成物が申告する件数・入力ファイルが実態と一致する', () => {

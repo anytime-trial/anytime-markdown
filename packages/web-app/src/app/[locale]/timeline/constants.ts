@@ -1,4 +1,8 @@
-import type { ReleaseImpact, ReleaseKind } from '../../../lib/releaseTimeline/types';
+import type {
+  MonthlyReleaseCount,
+  ReleaseImpact,
+  ReleaseKind,
+} from '../../../lib/releaseTimeline/types';
 
 /** ブランドの唯一の差し色（design.md §2.1 `--color-accent-amber`）。影響度「高」の強調にだけ使う */
 export const ACCENT_AMBER = '#E8A012';
@@ -52,4 +56,30 @@ export function formatFullDate(date: string): string {
   const matched = DATE_LABEL_PATTERN.exec(date);
   if (!matched) return date;
   return `${matched[1]}年${Number(matched[2])}月${Number(matched[3])}日`;
+}
+
+/**
+ * 先頭月から末尾月までの欠測を 0 件で埋める。
+ *
+ * `summarizeByMonth` は出現した月しかバケットを作らないため、そのまま等間隔で並べると
+ * リリース 0 件の月が軸から消えて前後の月が隣接する。「頻度の推移」を出すグラフで
+ * 空白期間が空白として見えないのは誤読を生む（種別で絞ると容易に欠測が出る）。
+ */
+export function fillMonthGaps(months: readonly MonthlyReleaseCount[]): MonthlyReleaseCount[] {
+  if (months.length === 0) return [];
+  const byMonth = new Map(months.map((m) => [m.month, m]));
+  const sorted = [...byMonth.keys()].sort();
+  const filled: MonthlyReleaseCount[] = [];
+  let [year, month] = sorted[0].split('-').map(Number);
+  const [lastYear, lastMonth] = sorted[sorted.length - 1].split('-').map(Number);
+  while (year < lastYear || (year === lastYear && month <= lastMonth)) {
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    filled.push(byMonth.get(key) ?? { month: key, cli: 0, model: 0 });
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return filled;
 }

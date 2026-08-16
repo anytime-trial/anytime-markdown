@@ -1,5 +1,4 @@
 import releasesJson from '../../../data/claude-code-releases/releases.json';
-
 import { summarizeByMonth } from './normalize';
 import type { MonthlyReleaseCount, ReleaseEntry } from './types';
 
@@ -25,9 +24,15 @@ export const RELEASE_ENTRIES: readonly ReleaseEntry[] = dataset.entries;
 export const RELEASE_MONTHS: readonly MonthlyReleaseCount[] = summarizeByMonth(RELEASE_ENTRIES);
 
 /** 年表が収録している期間（データが空なら null）。見出しの「◯◯〜◯◯」に使う */
-export const RELEASE_PERIOD: { readonly from: string; readonly to: string } | null =
+export const RELEASE_PERIOD: {
+  readonly from: string;
+  readonly to: string;
+} | null =
   RELEASE_ENTRIES.length > 0
-    ? { from: RELEASE_ENTRIES[0].date, to: RELEASE_ENTRIES[RELEASE_ENTRIES.length - 1].date }
+    ? {
+        from: RELEASE_ENTRIES[0].date,
+        to: RELEASE_ENTRIES[RELEASE_ENTRIES.length - 1].date,
+      }
     : null;
 
 /** 抽出元となった日次・週次レポートの実数（重複を除く） */

@@ -3,6 +3,7 @@ import {
   entryId,
   normalizeImpact,
   normalizeReleases,
+  normalizeReleasesWithDiagnostics,
   parseVersionRange,
   summarizeByMonth,
   versionSortKey,
@@ -50,10 +51,11 @@ describe('canonicalVersion', () => {
     expect(canonicalVersion('cli', '2.1.224')).toBe('2.1.224');
   });
 
-  it('model の裸の数値は Opus として補完する（レポート側の省略表記を吸収）', () => {
-    expect(canonicalVersion('model', '5')).toBe('Opus 5');
-    expect(canonicalVersion('model', '4.8')).toBe('Opus 4.8');
-    expect(canonicalVersion('model', '4.7')).toBe('Opus 4.7');
+  it('model の裸の数値へ系列名を補わない（存在しない製品名を作らない）', () => {
+    // 年表には Opus / Sonnet / Fable / Mythos が併記されており系列は 1 つではない。
+    // 補完は推測になるので、ここでは素通りさせて生成スクリプトの検査で落とす
+    expect(canonicalVersion('model', '5')).toBe('5');
+    expect(canonicalVersion('model', '4.8')).toBe('4.8');
   });
 
   it('model のモデル ID 表記を表示名へ寄せる', () => {
@@ -74,15 +76,24 @@ describe('parseVersionRange', () => {
   });
 
   it('ハイフン区切りの範囲表記を分解する', () => {
-    expect(parseVersionRange('2.1.136-2.1.138')).toEqual({ from: '2.1.136', to: '2.1.138' });
+    expect(parseVersionRange('2.1.136-2.1.138')).toEqual({
+      from: '2.1.136',
+      to: '2.1.138',
+    });
   });
 
   it('全角ダッシュ区切りも分解する', () => {
-    expect(parseVersionRange('2.1.150–2.1.157')).toEqual({ from: '2.1.150', to: '2.1.157' });
+    expect(parseVersionRange('2.1.150–2.1.157')).toEqual({
+      from: '2.1.150',
+      to: '2.1.157',
+    });
   });
 
   it('ハイフンを含むモデル ID を範囲と誤読しない', () => {
-    expect(parseVersionRange('Mythos Preview')).toEqual({ from: 'Mythos Preview', to: null });
+    expect(parseVersionRange('Mythos Preview')).toEqual({
+      from: 'Mythos Preview',
+      to: null,
+    });
   });
 });
 
@@ -118,6 +129,10 @@ describe('entryId', () => {
   it('kind が違えば ID も衝突しない', () => {
     expect(entryId('cli', '5')).not.toBe(entryId('model', '5'));
   });
+
+  it('範囲表記は単独版と別の ID になる', () => {
+    expect(entryId('cli', '2.1.150-2.1.157')).not.toBe(entryId('cli', '2.1.150'));
+  });
 });
 
 describe('normalizeReleases', () => {
@@ -143,14 +158,22 @@ describe('normalizeReleases', () => {
   it('統合時に重複する highlight を落とす', () => {
     const entries = normalizeReleases([
       raw({ version: '2.1.90', highlights: ['同じ変更点'] }),
-      raw({ version: '2.1.90', highlights: ['同じ変更点', '別の変更点'], sourceReport: 'r2.md' }),
+      raw({
+        version: '2.1.90',
+        highlights: ['同じ変更点', '別の変更点'],
+        sourceReport: 'r2.md',
+      }),
     ]);
     expect(entries[0].highlights).toEqual(['同じ変更点', '別の変更点']);
   });
 
   it('統合時は explicit な日付を report-date より優先する', () => {
     const entries = normalizeReleases([
-      raw({ version: '2.1.147', date: '2026-05-23', dateConfidence: 'report-date' }),
+      raw({
+        version: '2.1.147',
+        date: '2026-05-23',
+        dateConfidence: 'report-date',
+      }),
       raw({
         version: '2.1.147',
         date: '2026-05-21',
@@ -177,6 +200,21 @@ describe('normalizeReleases', () => {
     expect(entries[0].sortKey).toEqual([2, 1, 136]);
   });
 
+  it('週次まとめの範囲と同じ版の単独リリースを統合しない', () => {
+    // 統合すると片方の記述と日付が消える。両者は別の観測（単発リリースと期間まとめ）
+    const entries = normalizeReleases([
+      raw({ version: '2.1.150', date: '2026-05-23', headline: '単独リリース' }),
+      raw({
+        version: '2.1.150-2.1.157',
+        date: '2026-05-28',
+        headline: '週次まとめ',
+        sourceReport: 'weekly.md',
+      }),
+    ]);
+    expect(entries).toHaveLength(2);
+    expect(entries.map((e) => e.headline)).toEqual(['単独リリース', '週次まとめ']);
+  });
+
   it('cli と model は同じバージョン文字列でも別エントリのまま残す', () => {
     const entries = normalizeReleases([
       raw({ version: '5', kind: 'cli', date: '2026-07-24' }),
@@ -193,6 +231,41 @@ describe('normalizeReleases', () => {
   it('highlights が欠けていても空配列で通す', () => {
     const entries = normalizeReleases([raw({ highlights: null })]);
     expect(entries[0].highlights).toEqual([]);
+  });
+});
+
+describe('normalizeReleasesWithDiagnostics', () => {
+  it('両方が explicit で日付が食い違う統合を矛盾として報告する', () => {
+    const { entries, dateConflicts } = normalizeReleasesWithDiagnostics([
+      raw({ version: '2.1.90', date: '2026-04-01', dateConfidence: 'explicit' }),
+      raw({
+        version: '2.1.90',
+        date: '2026-04-03',
+        dateConfidence: 'explicit',
+        sourceReport: 'r2.md',
+      }),
+    ]);
+    // 先に読んだほうを採用する挙動は変えず、捨てた事実だけを外へ出す
+    expect(entries[0].date).toBe('2026-04-01');
+    expect(dateConflicts).toEqual([{ id: 'cli-2-1-90', dates: ['2026-04-01', '2026-04-03'] }]);
+  });
+
+  it('片方が report-date なら矛盾として数えない（推定日は根拠が弱い）', () => {
+    const { dateConflicts } = normalizeReleasesWithDiagnostics([
+      raw({ version: '2.1.90', date: '2026-04-01', dateConfidence: 'report-date' }),
+      raw({
+        version: '2.1.90',
+        date: '2026-04-03',
+        dateConfidence: 'explicit',
+        sourceReport: 'r2.md',
+      }),
+    ]);
+    expect(dateConflicts).toEqual([]);
+  });
+
+  it('矛盾が無ければ空配列を返す', () => {
+    const { dateConflicts } = normalizeReleasesWithDiagnostics([raw(), raw({ version: '2.1.101' })]);
+    expect(dateConflicts).toEqual([]);
   });
 });
 
