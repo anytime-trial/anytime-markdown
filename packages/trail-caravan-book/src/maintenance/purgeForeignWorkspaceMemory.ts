@@ -27,6 +27,13 @@ export interface ForeignWorkspaceMemoryCounts {
   /** 上記レビューにぶら下がる指摘（caravan_review_findings）。 */
   reviewFindings: number;
   /**
+   * 削除するエピソードを根本原因として指していた **自ワークスペースの** バグ修正行
+   * （caravan_bug_fixes.root_cause_episode_id）。行は消さず参照だけ外す。
+   */
+  detachedBugFixLinks: number;
+  /** 削除するレビューを指していたレビュー実行行（caravan_review_runs.review_id）。同じく参照だけ外す。 */
+  detachedReviewRunLinks: number;
+  /**
    * activity.db に対応セッションが無く、どのワークスペースのものか判定できなかった
    * エピソード数。**削除対象に含めない**（activity.db 側の刈り込みで元が消えただけの
    * 自ワークスペース分を巻き添えにしないため）。
@@ -77,6 +84,8 @@ function emptyCounts(): ForeignWorkspaceMemoryCounts {
     episodeEntities: 0,
     reviews: 0,
     reviewFindings: 0,
+    detachedBugFixLinks: 0,
+    detachedReviewRunLinks: 0,
     unresolvedEpisodes: 0,
   };
 }
@@ -120,6 +129,18 @@ export function countForeignWorkspaceMemory(
       WHERE review_id IN (${FOREIGN_REVIEW_IDS_SQL})`,
     [repoName],
   );
+  counts.detachedBugFixLinks = scalar(
+    db,
+    `SELECT COUNT(*) FROM caravan_bug_fixes
+      WHERE root_cause_episode_id IN (${FOREIGN_EPISODE_IDS_SQL})`,
+    [repoName],
+  );
+  counts.detachedReviewRunLinks = scalar(
+    db,
+    `SELECT COUNT(*) FROM caravan_review_runs
+      WHERE review_id IN (${FOREIGN_REVIEW_IDS_SQL})`,
+    [repoName],
+  );
   return counts;
 }
 
@@ -149,6 +170,24 @@ export function unsafePurgeForeignWorkspaceMemory(
     return deleted;
   }
   const repoName = scope.repoName;
+
+  // 先に「消さない行から消す行への参照」を外す。caravan_bug_fixes.root_cause_episode_id と
+  // caravan_review_runs.review_id は ON DELETE 指定を持たない FK なので、外さずに削除すると
+  // SQLITE_CONSTRAINT_FOREIGNKEY で丸ごと失敗する（本番データで実測: bug_fixes 24 行）。
+  // 行そのものは自ワークスペースの記録なので消さず、参照だけ NULL にする。
+  db.run(
+    `UPDATE caravan_bug_fixes SET root_cause_episode_id = NULL
+      WHERE root_cause_episode_id IN (${FOREIGN_EPISODE_IDS_SQL})`,
+    [repoName],
+  );
+  deleted.detachedBugFixLinks = db.getRowsModified();
+
+  db.run(
+    `UPDATE caravan_review_runs SET review_id = NULL
+      WHERE review_id IN (${FOREIGN_REVIEW_IDS_SQL})`,
+    [repoName],
+  );
+  deleted.detachedReviewRunLinks = db.getRowsModified();
 
   // 削除順は参照の葉から。findings → reviews、edges / episode_entities → episodes。
   db.run(
@@ -182,6 +221,8 @@ export function unsafePurgeForeignWorkspaceMemory(
     `[anytime-memory] purgeForeignWorkspaceMemory: episodes=${deleted.episodes} ` +
       `edges=${deleted.edges} episode_entities=${deleted.episodeEntities} ` +
       `reviews=${deleted.reviews} findings=${deleted.reviewFindings} ` +
+      `detached_bug_fix_links=${deleted.detachedBugFixLinks} ` +
+      `detached_review_run_links=${deleted.detachedReviewRunLinks} ` +
       `(判定不能で残したエピソード=${deleted.unresolvedEpisodes}。FTS 索引は runRagFtsRebuild で再構築が必要)`,
   );
   return deleted;

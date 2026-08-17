@@ -95,6 +95,40 @@ function insertSessionReview(db: BetterSqlite3CaravanDb, id: string, workspace: 
   );
 }
 
+/**
+ * 自ワークスペースのバグ修正行が、他ワークスペースのエピソードを根本原因として
+ * 指している状態。本番データで 24 行実在した（ON DELETE 指定の無い FK）。
+ */
+function insertBugFixPointingAt(
+  db: BetterSqlite3CaravanDb,
+  id: string,
+  episodeId: string,
+): void {
+  insertEntity(db, `${id}-bug`, `bug-${id}`);
+  db.run(
+    `INSERT INTO caravan_bug_fixes
+       (id, commit_sha, bug_entity_id, package, category, subject_summary,
+        root_cause_episode_id, committed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, 'pkg', 'logic', 'subject', ?, ?, ?, ?)`,
+    [id, `sha-${id}`, `${id}-bug`, episodeId, TS, TS, OWN],
+  );
+}
+
+/** レビュー実行行 → レビュー（同じく ON DELETE 指定の無い FK）。 */
+function insertReviewRunPointingAt(
+  db: BetterSqlite3CaravanDb,
+  id: string,
+  reviewId: string,
+): void {
+  db.run(
+    `INSERT INTO caravan_review_runs
+       (id, trigger_kind, target_kind, model, prompt_kind, prompt_hash,
+        started_at, status, review_id, recorded_at)
+     VALUES (?, 'manual', 'code', 'test', 'logic', 'hash', ?, 'success', ?, ?)`,
+    [id, TS, reviewId, TS],
+  );
+}
+
 async function makeFixture(): Promise<{
   memDb: BetterSqlite3CaravanDb;
   trailDb: BetterSqlite3CaravanDb;
@@ -121,6 +155,11 @@ async function makeFixture(): Promise<{
 
   insertSessionReview(memDb, 'rev-own', OWN);
   insertSessionReview(memDb, 'rev-foreign', FOREIGN);
+
+  insertBugFixPointingAt(memDb, 'bugfix-cross', 'ep-foreign');
+  insertBugFixPointingAt(memDb, 'bugfix-local', 'ep-own');
+  insertReviewRunPointingAt(memDb, 'run-cross', 'rev-foreign');
+  insertReviewRunPointingAt(memDb, 'run-local', 'rev-own');
   return { memDb, trailDb };
 }
 
@@ -138,6 +177,8 @@ describe('countForeignWorkspaceMemory', () => {
       episodeEntities: 1,
       reviews: 1,
       reviewFindings: 1,
+      detachedBugFixLinks: 1,
+      detachedReviewRunLinks: 1,
       unresolvedEpisodes: 1,
     });
     trailDb.close();
@@ -177,6 +218,8 @@ describe('unsafePurgeForeignWorkspaceMemory', () => {
     expect(deleted.episodeEntities).toBe(1);
     expect(deleted.reviews).toBe(1);
     expect(deleted.reviewFindings).toBe(1);
+    expect(deleted.detachedBugFixLinks).toBe(1);
+    expect(deleted.detachedReviewRunLinks).toBe(1);
 
     expect(tableIds(memDb, `SELECT id FROM caravan_episodes`)).toEqual(['ep-own', 'ep-unknown']);
     expect(tableIds(memDb, `SELECT id FROM caravan_edges`)).toEqual(['edge-own', 'edge-unknown']);
@@ -185,6 +228,28 @@ describe('unsafePurgeForeignWorkspaceMemory', () => {
 
     // エンティティは共有ノードなので消さない（他ソースの参照を壊さないため）。
     expect(tableIds(memDb, `SELECT id FROM caravan_entities WHERE id = 'ent-1'`)).toEqual(['ent-1']);
+
+    // 自ワークスペースのバグ修正・レビュー実行は行ごと残し、参照だけ外す。
+    expect(tableIds(memDb, `SELECT id FROM caravan_bug_fixes`)).toEqual([
+      'bugfix-cross',
+      'bugfix-local',
+    ]);
+    expect(
+      memDb.exec(
+        `SELECT root_cause_episode_id FROM caravan_bug_fixes WHERE id = 'bugfix-cross'`,
+      )[0].values[0][0],
+    ).toBeNull();
+    expect(
+      memDb.exec(
+        `SELECT root_cause_episode_id FROM caravan_bug_fixes WHERE id = 'bugfix-local'`,
+      )[0].values[0][0],
+    ).toBe('ep-own');
+    expect(
+      memDb.exec(`SELECT review_id FROM caravan_review_runs WHERE id = 'run-cross'`)[0].values[0][0],
+    ).toBeNull();
+    expect(
+      memDb.exec(`SELECT review_id FROM caravan_review_runs WHERE id = 'run-local'`)[0].values[0][0],
+    ).toBe('rev-own');
 
     trailDb.close();
     memDb.close();
@@ -195,6 +260,8 @@ describe('unsafePurgeForeignWorkspaceMemory', () => {
     unsafePurgeForeignWorkspaceMemory({ db: memDb, scope: ownWorkspaceScope(OWN) });
     const second = unsafePurgeForeignWorkspaceMemory({ db: memDb, scope: ownWorkspaceScope(OWN) });
     expect(second.episodes).toBe(0);
+    expect(second.detachedBugFixLinks).toBe(0);
+    expect(second.detachedReviewRunLinks).toBe(0);
     expect(second.edges).toBe(0);
     expect(second.reviews).toBe(0);
     trailDb.close();
