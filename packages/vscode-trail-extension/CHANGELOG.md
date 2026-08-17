@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-17
+
+### Added
+
+- Bundled skills: `anytime-dev-retro` gained an evaluation-case layer with two-way failure routing and a gate-reason distribution report; `anytime-analysis` gained causal-decomposition discipline; the `anytime-reverse-spec` document was corrected.
+
+### Changed
+
+- The extension passes `memory.workspaceScope` from `lep.json` into the caravan-book ingest, so knowledge-graph ingestion can be limited to the current workspace.
+
+### Trail Core (trail-activity / trail-server / trail-caravan-book / mcp-trail)
+
+- Caravan-book ingest can be scoped to the current workspace, with a purge that removes memory already ingested from other workspaces.
+- Added a rebuild utility for the contentless FTS index.
+- `resolve_underspecified_points` (DCT-19) records the human answer per declared point, so a judgment that escalated as underspecified can be re-recorded and delegated.
+- Closed a coverage-gate bypass: partially dropping declared points is now corrected to the union of prior declarations.
+- `get_doctrine_agreement` surfaces read degradation through `sourceErrors` instead of silently returning partial numbers.
+
+### Fixed
+
+- The ingest pipeline clears foreign-key references that have no `ON DELETE` before deleting rows, so deletion no longer fails with a foreign-key violation.
+
 ## [1.1.0] - 2026-08-11
 
 ### Added

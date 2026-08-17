@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-17
+
+### Added
+
+- `caravan_doctrine_point_resolutions`: one row per human answer to a declared underspecified point (DCT-19). The declaration column is never rewritten; a resolution is expressed as an addition only.
+
 ## [1.1.0] - 2026-08-11
 
 ### Changed

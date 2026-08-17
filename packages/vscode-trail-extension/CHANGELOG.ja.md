@@ -6,6 +6,28 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-17
+
+### 追加
+
+- 同梱スキル: `anytime-dev-retro` に評価ケース層と失敗 2 分類ルーティング、ゲート理由分布の観測を追加した。`anytime-analysis` に因果分解の規律を追加し、`anytime-reverse-spec` の記述を修正した。
+
+### 変更
+
+- `lep.json` の `memory.workspaceScope` を拡張から caravan-book の取込へ渡すようにした。知識グラフへの取込対象を自ワークスペースへ限定できる。
+
+### Trail Core (trail-activity / trail-server / trail-caravan-book / mcp-trail)
+
+- caravan-book の取込対象を自ワークスペースへ限定できるようにし、他ワークスペース由来の取込済み memory を除去する purge を追加した。
+- contentless FTS インデックスの再構築ユーティリティを追加した。
+- 未確定論点への回答を論点ごとに記録する `resolve_underspecified_points`（DCT-19）を追加した。指示不足で escalate した判断を再記録して代行へ戻せる。
+- 申告の部分削除によるカバレッジゲート迂回を塞いだ。過去の申告との和集合へ矯正する。
+- `get_doctrine_agreement` の読み取り縮退を `sourceErrors` で可視化した。部分的な数値を黙って返さない。
+
+### 修正
+
+- 取込パイプラインが行削除の前に `ON DELETE` 無しの FK 参照を外すようにした。削除が外部キー違反で落ちなくなった。
+
 ## [1.1.0] - 2026-08-11
 
 ### 追加

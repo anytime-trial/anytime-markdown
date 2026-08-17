@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-08-17
+
+### Changed
+
+- Bundled skills: `anytime-dev-audit` gained a skill-conflict scan; `anytime-analysis` gained causal-decomposition discipline (quantified problem statement, declared decomposition axis, stop once a countermeasure is writable, 3-axis scoring); the `anytime-build-webapp` plan documents were refreshed.
+
 ## [1.15.1] - 2026-08-11
 
 ### Changed

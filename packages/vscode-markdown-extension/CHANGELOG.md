@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.21.2] - 2026-08-17
+
+### Changed
+
+- Bundled skills: `anytime-mermaid` gained an accessibility rule against carrying meaning in color alone; the `anytime-markdown-check` wording was tightened.
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- No changes in this release; the version is kept in sync with the extension.
+
 ## [1.21.1] - 2026-08-11
 
 ### Changed

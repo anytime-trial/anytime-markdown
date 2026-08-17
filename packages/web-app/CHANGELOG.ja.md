@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-08-17
+
+### 追加
+
+- `/timeline` に Claude Code リリース年表ページを追加した。リリースカードとリリース間隔グラフは、`scripts/build-release-timeline.ts` が月次の raw データから生成する正規化済み `releases.json` を読む。ルートは sitemap と robots に登録済み。
+- `releases.json` と生成元の raw データの乖離をテストで検知するようにした。
+
+### 変更
+
+- press の Dispatch 欄の年表リンク名称を「Claude Code リリース年表」にした。
+
+### 修正
+
+- マージ前レビューの warn 7 件と、年表コンポーネントのアクセシビリティの穴を塞いだ。
+
 ## [0.47.1] - 2026-08-11
 
 ### 修正
