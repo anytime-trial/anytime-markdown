@@ -40,6 +40,8 @@ export type {
   ForeignWorkspaceMemoryCounts,
   ForeignWorkspaceMemoryInput,
 } from './maintenance/purgeForeignWorkspaceMemory';
+export { rebuildContentlessFtsIndexes } from './maintenance/rebuildContentlessFts';
+export type { RebuildContentlessFtsResult } from './maintenance/rebuildContentlessFts';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export {

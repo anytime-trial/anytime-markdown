@@ -141,6 +141,38 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     return resolveWorkspaceScope(this.deps.workspaceScopeMode ?? 'own', this.repoName);
   }
 
+  /**
+   * 解決したスコープを 1 行ログする。
+   *
+   * repoName は `basename(gitRoot)` で、gitRoot が渡らない経路では `basename(cwd)` に
+   * なる（openCaravanDbSession のフォールバック）。`ownWorkspaceScope` は空文字しか
+   * 弾けないので、**非空だが実在しない repo 名**は素通りし、取込が恒久的に 0 件になっても
+   * エラーもログも出ない。解決値と、0 件だった場合の実在 repo 一覧を出して、
+   * 「限定した結果 0 件」と「配線ミスで 0 件」を人が区別できるようにする。
+   */
+  private logWorkspaceScope(scope: MemoryWorkspaceScope, targetCount: number): void {
+    if (scope.kind === 'all_workspaces') {
+      this.logger.info('[anytime-memory] workspace scope: all（全ワークスペースを取り込む）');
+      return;
+    }
+    this.logger.info(
+      `[anytime-memory] workspace scope: own (repo=${scope.repoName}, 対象 ${targetCount} 件)`,
+    );
+    if (targetCount > 0) return;
+    try {
+      const rows = this.deps.memDb.db.exec(
+        `SELECT r.repo_name FROM trail.activity_repos r ORDER BY r.repo_name`,
+      );
+      const known = (rows[0]?.values ?? []).map((row) => String(row[0])).join(', ');
+      this.logger.error(
+        `[anytime-memory] workspace scope: repo="${scope.repoName}" に一致する取込対象が 0 件。` +
+          `activity.db に実在する repo: [${known}]（gitRoot の指定を確認すること）`,
+      );
+    } catch (err) {
+      this.logger.error('[anytime-memory] workspace scope: repo 一覧の取得に失敗', err);
+    }
+  }
+
   private save(): void {
     this.deps.memDb.save();
   }
@@ -207,6 +239,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
       );
     }
 
+    this.logWorkspaceScope(workspaceScope, convTotalEstimate);
     this.status?.start('conversation_incremental', convTotalEstimate || undefined);
     let convResult: ScopeResult;
     try {

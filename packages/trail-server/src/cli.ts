@@ -4,7 +4,18 @@ import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { CaravanBookService, PipelineRunLedger, createPipelineRunLedgerFactory } from '@anytime-markdown/trail-caravan-book/pipeline';
-import { type CaravanBookLogSink, type LepStage, getCaravanBookDbPath, getTrailHome, openCaravanBookDb } from '@anytime-markdown/trail-caravan-book';
+import {
+  type CaravanBookLogSink,
+  type LepStage,
+  attachTrailDbReadOnly,
+  countForeignWorkspaceMemory,
+  getCaravanBookDbPath,
+  getTrailHome,
+  openCaravanBookDb,
+  ownWorkspaceScope,
+  rebuildContentlessFtsIndexes,
+  unsafePurgeForeignWorkspaceMemory,
+} from '@anytime-markdown/trail-caravan-book';
 import { ChatBridge } from './caravan-chat/chatBridge';
 import { RebuildScheduler } from './caravan-chat/rebuildScheduler';
 import { TrailDataServer } from './server/TrailDataServer';
@@ -356,6 +367,60 @@ analyzeAllCmd
   .description('Show current analyzeAll pipeline status from the running daemon')
   .action(async () => {
     await callDaemonAnalyzeAll('status');
+  });
+
+const caravanCmd = program
+  .command('caravan')
+  .description('Maintenance commands for the caravan-book knowledge graph');
+
+caravanCmd
+  .command('purge-foreign-workspace')
+  .description(
+    '他ワークスペース由来の記憶（会話・レビュー）を数える。' +
+      '--apply を付けたときだけ削除する（既定は件数の表示のみ）',
+  )
+  .option('--apply', '実際に削除する（不可逆。事前にバックアップを取ること）', false)
+  .option('--repo <name>', '残す側の repo 名（既定は cwd の basename）')
+  .action(async (opts: { apply: boolean; repo?: string }) => {
+    const repoName = opts.repo ?? basename(process.cwd());
+    const trailDbPath = join(TRAIL_HOME, 'db', 'activity.db');
+    const activityPath = existsSync(trailDbPath)
+      ? trailDbPath
+      : join(process.cwd(), '.anytime', 'trail', 'db', 'activity.db');
+    if (!existsSync(activityPath)) {
+      console.error(`activity.db が見つかりません: ${activityPath}`);
+      process.exit(1);
+    }
+
+    const memDb = await openCaravanBookDb(MEMORY_DB_PATH);
+    try {
+      await attachTrailDbReadOnly(memDb.db, activityPath);
+      const scope = ownWorkspaceScope(repoName);
+      const counts = countForeignWorkspaceMemory({ db: memDb.db, scope });
+      console.log(`repo=${repoName} / caravan-book=${MEMORY_DB_PATH}`);
+      console.log(JSON.stringify(counts, null, 2));
+      if (!opts.apply) {
+        console.log('（表示のみ。削除するには --apply を付ける。事前にバックアップを取ること）');
+        return;
+      }
+      const deleted = unsafePurgeForeignWorkspaceMemory({
+        db: memDb.db,
+        scope,
+        logger: { info: (m) => console.log(m), error: (m, e) => console.error(m, e) },
+      });
+      console.log('deleted:', JSON.stringify(deleted, null, 2));
+      // FTS5 索引の再構築は削除した側の責務。ここを飛ばすと消えた行が全文検索に残る。
+      // runRagFtsRebuild は現存行を入れ直すだけで削除済み rowid を落とさないため、
+      // 索引ごと作り直す専用の関数を使う。
+      const fts = rebuildContentlessFtsIndexes(memDb.db, {
+        info: (m) => console.log(m),
+        error: (m, e) => console.error(m, e),
+      });
+      console.log(`fts rebuild: entities=${fts.entities} episodes=${fts.episodes}`);
+      memDb.save();
+    } finally {
+      memDb.close();
+    }
   });
 
 program.parse();

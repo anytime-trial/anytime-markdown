@@ -54,12 +54,35 @@ function insertEpisode(db: BetterSqlite3CaravanDb, id: string, sessionId: string
   );
 }
 
-function insertEntity(db: BetterSqlite3CaravanDb, id: string, name: string): void {
+function insertEntity(
+  db: BetterSqlite3CaravanDb,
+  id: string,
+  name: string,
+  type: 'Concept' | 'Review' | 'ReviewFinding' = 'Concept',
+  validUntil: string | null = null,
+): void {
   db.run(
     `INSERT INTO caravan_entities
-       (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
-     VALUES (?, 'Concept', ?, ?, ?, ?, ?)`,
-    [id, name, name, TS, TS, TS],
+       (id, type, canonical_name, display_name, valid_until,
+        first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, type, name, name, validUntil, TS, TS, TS],
+  );
+}
+
+/** Review / ReviewFinding エンティティを端点に持つエッジ（flagged / addresses 相当）。 */
+function insertReviewEdge(
+  db: BetterSqlite3CaravanDb,
+  id: string,
+  subjectId: string,
+  objectId: string,
+): void {
+  db.run(
+    `INSERT INTO caravan_edges
+       (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at,
+        source_type, source_ref)
+     VALUES (?, ?, 'relates_to', ?, ?, ?, 'review', ?)`,
+    [id, subjectId, objectId, TS, TS, id],
   );
 }
 
@@ -79,7 +102,8 @@ function insertConversationEdge(
 }
 
 function insertSessionReview(db: BetterSqlite3CaravanDb, id: string, workspace: string): void {
-  insertEntity(db, `${id}-entity`, `review-${id}`);
+  insertEntity(db, `${id}-entity`, `review-${id}`, 'Review');
+  insertEntity(db, `${id}-finding-entity`, `finding-${id}`, 'ReviewFinding');
   db.run(
     `INSERT INTO caravan_reviews
        (id, source_kind, source_ref, review_entity_id, target_kind, title,
@@ -91,8 +115,9 @@ function insertSessionReview(db: BetterSqlite3CaravanDb, id: string, workspace: 
     `INSERT INTO caravan_review_findings
        (id, review_id, finding_entity_id, finding_index, finding_text, recorded_at)
      VALUES (?, ?, ?, 0, 'finding', ?)`,
-    [`${id}-f0`, id, `${id}-entity`, TS],
+    [`${id}-f0`, id, `${id}-finding-entity`, TS],
   );
+  insertReviewEdge(db, `${id}-edge`, `${id}-entity`, `${id}-finding-entity`);
 }
 
 /**
@@ -156,6 +181,9 @@ async function makeFixture(): Promise<{
   insertSessionReview(memDb, 'rev-own', OWN);
   insertSessionReview(memDb, 'rev-foreign', FOREIGN);
 
+  // runReviewBackfill の空殻除去による意図的な soft delete（owner 行なし・valid_until あり）。
+  insertEntity(memDb, 'ent-shell-review', 'shell-review', 'Review', TS);
+
   insertBugFixPointingAt(memDb, 'bugfix-cross', 'ep-foreign');
   insertBugFixPointingAt(memDb, 'bugfix-local', 'ep-own');
   insertReviewRunPointingAt(memDb, 'run-cross', 'rev-foreign');
@@ -177,8 +205,13 @@ describe('countForeignWorkspaceMemory', () => {
       episodeEntities: 1,
       reviews: 1,
       reviewFindings: 1,
+      // rev-foreign の Review + ReviewFinding エンティティ（削除で孤立する分）。
+      reviewEntities: 2,
+      reviewEdges: 0,
+      retainedReviewEntities: 0,
       detachedBugFixLinks: 1,
       detachedReviewRunLinks: 1,
+      unresolvedReviews: 0,
       unresolvedEpisodes: 1,
     });
     trailDb.close();
@@ -220,14 +253,29 @@ describe('unsafePurgeForeignWorkspaceMemory', () => {
     expect(deleted.reviewFindings).toBe(1);
     expect(deleted.detachedBugFixLinks).toBe(1);
     expect(deleted.detachedReviewRunLinks).toBe(1);
+    expect(deleted.reviewEntities).toBe(2);
+    expect(deleted.reviewEdges).toBe(1);
 
     expect(tableIds(memDb, `SELECT id FROM caravan_episodes`)).toEqual(['ep-own', 'ep-unknown']);
-    expect(tableIds(memDb, `SELECT id FROM caravan_edges`)).toEqual(['edge-own', 'edge-unknown']);
+    expect(tableIds(memDb, `SELECT id FROM caravan_edges`)).toEqual([
+      'edge-own',
+      'edge-unknown',
+      'rev-own-edge',
+    ]);
     expect(tableIds(memDb, `SELECT id FROM caravan_reviews`)).toEqual(['rev-own']);
     expect(tableIds(memDb, `SELECT id FROM caravan_review_findings`)).toEqual(['rev-own-f0']);
 
-    // エンティティは共有ノードなので消さない（他ソースの参照を壊さないため）。
+    // File / Concept は共有ノードなので消さない（他ソースの参照を壊さないため）。
     expect(tableIds(memDb, `SELECT id FROM caravan_entities WHERE id = 'ent-1'`)).toEqual(['ent-1']);
+
+    // 他ワークスペースのレビュー由来ノードとエッジは知識グラフから消える。
+    // valid_until 付きの空殻（意図的な soft delete）は残す。
+    expect(
+      tableIds(memDb, `SELECT id FROM caravan_entities WHERE type IN ('Review','ReviewFinding')`),
+    ).toEqual(['ent-shell-review', 'rev-own-entity', 'rev-own-finding-entity']);
+    expect(tableIds(memDb, `SELECT id FROM caravan_edges WHERE source_type = 'review'`)).toEqual([
+      'rev-own-edge',
+    ]);
 
     // 自ワークスペースのバグ修正・レビュー実行は行ごと残し、参照だけ外す。
     expect(tableIds(memDb, `SELECT id FROM caravan_bug_fixes`)).toEqual([
@@ -262,6 +310,8 @@ describe('unsafePurgeForeignWorkspaceMemory', () => {
     expect(second.episodes).toBe(0);
     expect(second.detachedBugFixLinks).toBe(0);
     expect(second.detachedReviewRunLinks).toBe(0);
+    expect(second.reviewEntities).toBe(0);
+    expect(second.reviewEdges).toBe(0);
     expect(second.edges).toBe(0);
     expect(second.reviews).toBe(0);
     trailDb.close();
