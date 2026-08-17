@@ -1,3 +1,4 @@
+import { compareOrdinal } from '../../../lib/releaseTimeline/compare';
 import type {
   MonthlyReleaseCount,
   ReleaseImpact,
@@ -68,7 +69,7 @@ export function formatFullDate(date: string): string {
 export function fillMonthGaps(months: readonly MonthlyReleaseCount[]): MonthlyReleaseCount[] {
   if (months.length === 0) return [];
   const byMonth = new Map(months.map((m) => [m.month, m]));
-  const sorted = [...byMonth.keys()].sort();
+  const sorted = [...byMonth.keys()].sort(compareOrdinal);
   const filled: MonthlyReleaseCount[] = [];
   let [year, month] = sorted[0].split('-').map(Number);
   const [lastYear, lastMonth] = sorted[sorted.length - 1].split('-').map(Number);

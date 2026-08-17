@@ -1,3 +1,4 @@
+import { compareOrdinal } from './compare';
 import type {
   MonthlyReleaseCount,
   RawRelease,
@@ -156,7 +157,7 @@ function compareEntries(a: ReleaseEntry, b: ReleaseEntry): number {
   if (a.sortKey) return -1;
   if (b.sortKey) return 1;
   // 序数比較。localeCompare は環境のロケール設定で順序が変わり、生成物が再現しなくなる
-  return a.version < b.version ? -1 : a.version > b.version ? 1 : 0;
+  return compareOrdinal(a.version, b.version);
 }
 
 /** 同じバージョンについて、複数のレポートが別々のリリース日を明記していた状態 */
@@ -198,8 +199,8 @@ export function normalizeReleasesWithDiagnostics(sources: readonly RawRelease[])
   return {
     entries: [...byId.values()].sort(compareEntries),
     dateConflicts: [...conflicts.entries()]
-      .map(([id, dates]) => ({ id, dates: [...dates].sort() }))
-      .sort((a, b) => (a.id < b.id ? -1 : 1)),
+      .map(([id, dates]) => ({ id, dates: [...dates].sort(compareOrdinal) }))
+      .sort((a, b) => compareOrdinal(a.id, b.id)),
   };
 }
 
