@@ -5,6 +5,7 @@
  * E6: Route B — 2 synthetic trail.activity_messages code-reviewer sessions → caravan_reviews/findings
  */
 
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import * as fs from 'fs';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as os from 'os';
@@ -225,6 +226,7 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
 
       try {
         const result = await runReviewIncremental({
+          workspaceScope: allWorkspacesScope(),
           db,
           repoName: REPO,
           reviewDir,
@@ -290,6 +292,7 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
 
       try {
         const result = await runReviewIncremental({
+          workspaceScope: allWorkspacesScope(),
           db,
           repoName: REPO,
           reviewDir: '/nonexistent-path-e2e-123456',

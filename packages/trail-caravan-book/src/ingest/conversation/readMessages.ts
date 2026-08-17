@@ -1,5 +1,6 @@
 import type { CaravanDbConnection } from '../../db/connection/types';
 import type { Message } from '../../canonical/splitEpisodes';
+import type { MemoryWorkspaceScope } from '../workspaceScope';
 import { ingestTargetSql } from './messageFilter';
 
 /**
@@ -19,20 +20,22 @@ import { ingestTargetSql } from './messageFilter';
  */
 export function listSessionIdsSince(
   db: CaravanDbConnection,
-  sinceISO: string
+  sinceISO: string,
+  scope: MemoryWorkspaceScope
 ): string[] {
+  const target = ingestTargetSql(scope, 'm');
   const stmt = db.prepare(
     `SELECT m.session_id, MIN(m.timestamp) AS min_ts
      FROM trail.activity_messages m
      JOIN trail.activity_sessions s ON s.id = m.session_id
      WHERE m.timestamp IS NOT NULL
        AND m.timestamp >= ?
-       AND ${ingestTargetSql('m')}
+       AND ${target.sql}
      GROUP BY m.session_id
      ORDER BY min_ts, m.session_id`
   );
   try {
-    const rows = stmt.all(sinceISO);
+    const rows = stmt.all(sinceISO, ...target.params);
     return rows.map((r) => r['session_id'] as string);
   } finally {
     stmt.free?.();
@@ -48,11 +51,13 @@ export function listSessionIdsSince(
 export function readMessagesForSession(
   db: CaravanDbConnection,
   sessionId: string,
-  sinceISO: string
+  sinceISO: string,
+  scope: MemoryWorkspaceScope
 ): Message[] {
   // trail.activity_messages は assistant 行に text_content、user 行に user_content を
   // 入れている (trail-db importSession の規約)。message_excerpt 列は存在しない
   // ため COALESCE(text_content, user_content) で抽出する。
+  const target = ingestTargetSql(scope, 'm');
   const stmt = db.prepare(
     `SELECT
        m.uuid,
@@ -66,11 +71,11 @@ export function readMessagesForSession(
      WHERE m.session_id = ?
        AND m.timestamp IS NOT NULL
        AND m.timestamp >= ?
-       AND ${ingestTargetSql('m')}
+       AND ${target.sql}
      ORDER BY m.timestamp`
   );
   try {
-    const rows = stmt.all(sessionId, sinceISO);
+    const rows = stmt.all(sessionId, sinceISO, ...target.params);
     const out: Message[] = [];
     for (const row of rows) {
       const rawType = row['type'] as string;
@@ -111,10 +116,11 @@ export function readMessagesForSession(
  */
 export function* readMessagesSince(
   db: CaravanDbConnection,
-  sinceISO: string
+  sinceISO: string,
+  scope: MemoryWorkspaceScope
 ): Generator<{ session_id: string; messages: Message[] }> {
-  const sessionIds = listSessionIdsSince(db, sinceISO);
+  const sessionIds = listSessionIdsSince(db, sinceISO, scope);
   for (const session_id of sessionIds) {
-    yield { session_id, messages: readMessagesForSession(db, session_id, sinceISO) };
+    yield { session_id, messages: readMessagesForSession(db, session_id, sinceISO, scope) };
   }
 }

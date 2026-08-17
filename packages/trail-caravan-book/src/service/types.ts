@@ -12,6 +12,7 @@ import type {
   RunnerStartOptions as BaseRunnerStartOptions,
   RunnerStatus as BaseRunnerStatus,
 } from '../runner/types';
+import type { WorkspaceScopeMode } from '../ingest/workspaceScope';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 // 後方互換: 既存 import パスを維持するため alias で re-export する
@@ -47,6 +48,12 @@ export interface PipelineRunnerContext {
   gitRoot?: string;
   /** 初回 backfill 期間 (日)。省略時は runner 側 default (5)。 */
   backfillDays?: number;
+  /**
+   * 記憶へ昇格させる対象ワークスペース (lep.json `memory.workspaceScope`)。
+   * 'own' = gitRoot のリポジトリのみ / 'all' = activity.db の全ワークスペース。
+   * 省略時は 'own' (CaravanDbSession 側の既定)。
+   */
+  workspaceScopeMode?: WorkspaceScopeMode;
   /** LLM 接続先・モデル (省略時は env / 内蔵既定)。 */
   llm?: CaravanLlmConfig;
   /** Ollama クライアント生成口 (省略時 openCaravanDbSession が createOllamaClient で生成)。 */
@@ -93,6 +100,12 @@ export interface CaravanBookServiceOptions {
    * activity.db から遡って読み込む日数。省略時は 5 日。
    */
   backfillDays?: number;
+  /**
+   * 記憶へ昇格させる対象ワークスペース (lep.json `memory.workspaceScope`)。
+   * 'own' = gitRoot のリポジトリのみ / 'all' = activity.db の全ワークスペース。
+   * 省略時は 'own'。
+   */
+  workspaceScopeMode?: WorkspaceScopeMode;
   /** LLM 接続先・モデル (lep.json から解決した値)。省略時は env / 内蔵既定。 */
   llm?: CaravanLlmConfig;
   /** Ollama クライアント生成口。trail-server が throttle 用 decorator を注入する。 */

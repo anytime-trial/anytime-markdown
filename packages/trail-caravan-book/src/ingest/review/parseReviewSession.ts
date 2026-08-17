@@ -1,4 +1,5 @@
 import type { CaravanDbConnection } from '../../db/connection/types';
+import { workspaceScopeSql, type MemoryWorkspaceScope } from '../workspaceScope';
 import type { ParsedFinding } from './findingHelpers';
 import {
   inferCategory,
@@ -357,11 +358,21 @@ function summarizeFindings(findings: ParsedFinding[], bodyLength: number): strin
 export function parseReviewSessions(input: {
   db: CaravanDbConnection;
   sinceISO: string;
+  /**
+   * 取込対象ワークスペース。activity.db は複数ワークスペースのセッションを持つため、
+   * 絞らないと他ワークスペースの code-reviewer 指摘まで caravan_reviews へ入る。
+   *
+   * 会話取込 (`ingestTargetSql`) と違い `is_sidechain = 0` は**適用しない**。
+   * code-reviewer subagent の出力は sidechain 側にあり、それを落とすと指摘が
+   * 1 件も取れなくなる（`__tests__/ingest/review/parseReviewSession.test.ts` が検査）。
+   */
+  workspaceScope: MemoryWorkspaceScope;
   logger: { warn: (msg: string) => void };
 }): ParsedReviewSession[] {
   const { db, sinceISO, logger } = input;
 
   // 1. Query trail.activity_messages for review-related messages
+  const workspace = workspaceScopeSql(input.workspaceScope, 'm');
   const stmt = db.prepare(
     `SELECT m.uuid, m.session_id, m.type, m.timestamp,
             COALESCE(m.text_content, '') AS text_content,
@@ -371,11 +382,12 @@ export function parseReviewSessions(input: {
        AND (m.subagent_type = 'code-reviewer'
          OR m.subagent_type LIKE '%:code-reviewer'
          OR m.skill IN ('superpowers:requesting-code-review', 'code-review-checklist', 'security-review'))
+       AND ${workspace.sql}
      ORDER BY m.session_id, m.timestamp`,
   );
   const allRows: MsgRow[] = [];
 
-  for (const row of stmt.iterate(sinceISO)) {
+  for (const row of stmt.iterate(sinceISO, ...workspace.params)) {
     allRows.push({
       uuid: row['uuid'] as string,
       session_id: row['session_id'] as string,

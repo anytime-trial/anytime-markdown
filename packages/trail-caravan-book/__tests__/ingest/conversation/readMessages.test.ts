@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { readMessagesSince } from '../../../src/ingest/conversation/readMessages';
 
@@ -62,7 +63,7 @@ describe('readMessagesSince', () => {
     const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     attachAsTrail(memDb, trailDb);
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions).toEqual([]);
   });
 
@@ -76,7 +77,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'msg-b1', 'sess-b', 'user', '2026-05-10T11:00:00.000Z', 'b-user');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions).toHaveLength(2);
 
     const sessA = sessions.find((s) => s.session_id === 'sess-a')!;
@@ -97,7 +98,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'new', 'sess-new', 'user', '2026-05-10T00:00:00.000Z', 'new');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-05-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-05-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions).toHaveLength(1);
     expect(sessions[0].session_id).toBe('sess-new');
   });
@@ -120,7 +121,7 @@ describe('readMessagesSince', () => {
     // 旧実装も yield 形式なので break 自体は可能だが、ここでは結果集合の整合性のみ
     // assert する（ストリーミング性質の検出は不要）。
     const collected: { session_id: string; count: number }[] = [];
-    for (const { session_id, messages } of readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')) {
+    for (const { session_id, messages } of readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())) {
       collected.push({ session_id, count: messages.length });
     }
     expect(collected).toHaveLength(100);
@@ -145,7 +146,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'm-a1', 'aaa-oldest', 'user', '2026-04-16T10:00:00.000Z', 'oldest');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions.map((s) => s.session_id)).toEqual([
       'aaa-oldest',
       'mmm-middle',
@@ -163,7 +164,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'm-z', 'zzz-oldest-uuid', 'user', '2026-04-16T10:00:00.000Z', 'oldest');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions.map((s) => s.session_id)).toEqual([
       'zzz-oldest-uuid',
       'aaa-newest-uuid',
@@ -183,7 +184,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'B2', 'sess-B', 'user', '2026-04-22T00:00:00.000Z', 'B end');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions.map((s) => s.session_id)).toEqual(['sess-A', 'sess-B']);
   });
 
@@ -199,7 +200,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'u2', 'sess-a', 'user', '2026-05-10T10:00:03.000Z', '次はこれ');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions).toHaveLength(1);
     expect(sessions[0].messages.map((m) => m.uuid)).toEqual(['u1', 'u2']);
     expect(sessions[0].messages.map((m) => m.text_excerpt)).toEqual(['これを直して', '次はこれ']);
@@ -214,7 +215,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'g1', 'sess-agent-only', 'assistant', '2026-05-10T11:00:00.000Z', 'a');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions.map((s) => s.session_id)).toEqual(['sess-human']);
   });
 
@@ -232,7 +233,7 @@ describe('readMessagesSince', () => {
     );
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions).toHaveLength(1);
     expect(sessions[0].messages.map((m) => m.uuid)).toEqual(['u1']);
   });
@@ -249,7 +250,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 'main-a', 'sess-mixed', 'assistant', '2026-05-10T10:00:03.000Z', 'main answer');
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions).toHaveLength(1);
     expect(sessions[0].messages.map((m) => m.uuid)).toEqual(['main-u']);
   });
@@ -264,7 +265,7 @@ describe('readMessagesSince', () => {
     insertMsg(trailDb, 's2', 'sess-sub-only', 'assistant', '2026-05-10T11:00:01.000Z', 'sub a', 1);
     attachAsTrail(memDb, trailDb);
 
-    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z', allWorkspacesScope())];
     expect(sessions.map((s) => s.session_id)).toEqual(['sess-main']);
   });
 });

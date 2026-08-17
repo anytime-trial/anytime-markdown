@@ -10,6 +10,7 @@
  */
 
 // sql.js removed
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { startMockOllama, type MockOllamaServer } from './mockOllama';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -177,6 +178,7 @@ describe('E2E: runConversationIncremental', () => {
 
       // ── First run ────────────────────────────────────────────────────────
       const result1 = await runConversationIncremental({
+        workspaceScope: allWorkspacesScope(),
         db: memDb.db,
         ollama,
         logger: silentLogger,
@@ -213,6 +215,7 @@ describe('E2E: runConversationIncremental', () => {
       ]);
 
       const result2 = await runConversationIncremental({
+        workspaceScope: allWorkspacesScope(),
         db: memDb.db,
         ollama,
         logger: silentLogger,
@@ -302,6 +305,7 @@ describe('E2E: runConversationIncremental', () => {
 
       const ollama = createOllamaClient({ baseUrl: mockServer.baseUrl });
       const result = await runConversationIncremental({
+        workspaceScope: allWorkspacesScope(),
         db: memDb.db,
         ollama,
         logger: silentLogger,
@@ -402,6 +406,7 @@ describe('E2E: runConversationIncremental', () => {
       const ollama = createOllamaClient({ baseUrl: mockServer.baseUrl });
 
       const result = await runConversationIncremental({
+        workspaceScope: allWorkspacesScope(),
         db: memDb.db,
         ollama,
         logger: silentLogger,
