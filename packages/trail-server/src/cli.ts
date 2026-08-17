@@ -8,6 +8,7 @@ import {
   type CaravanBookLogSink,
   type LepStage,
   attachTrailDbReadOnly,
+  countDanglingReferences,
   countForeignWorkspaceMemory,
   getCaravanBookDbPath,
   getTrailHome,
@@ -15,6 +16,7 @@ import {
   ownWorkspaceScope,
   rebuildContentlessFtsIndexes,
   unsafePurgeForeignWorkspaceMemory,
+  unsafeRepairDanglingReferences,
 } from '@anytime-markdown/trail-caravan-book';
 import { ChatBridge } from './caravan-chat/chatBridge';
 import { RebuildScheduler } from './caravan-chat/rebuildScheduler';
@@ -412,6 +414,39 @@ caravanCmd
       // FTS5 索引の再構築は削除した側の責務。ここを飛ばすと消えた行が全文検索に残る。
       // runRagFtsRebuild は現存行を入れ直すだけで削除済み rowid を落とさないため、
       // 索引ごと作り直す専用の関数を使う。
+      const fts = rebuildContentlessFtsIndexes(memDb.db, {
+        info: (m) => console.log(m),
+        error: (m, e) => console.error(m, e),
+      });
+      console.log(`fts rebuild: entities=${fts.entities} episodes=${fts.episodes}`);
+      memDb.save();
+    } finally {
+      memDb.close();
+    }
+  });
+
+caravanCmd
+  .command('repair-references')
+  .description(
+    '参照先を失った行（外部キー違反）を数える。--apply を付けたときだけ修復する' +
+      '（既定は件数の表示のみ）',
+  )
+  .option('--apply', '実際に修復する（事前にバックアップを取ること）', false)
+  .action(async (opts: { apply: boolean }) => {
+    const memDb = await openCaravanBookDb(MEMORY_DB_PATH);
+    try {
+      console.log(`caravan-book=${MEMORY_DB_PATH}`);
+      console.log(JSON.stringify(countDanglingReferences(memDb.db), null, 2));
+      if (!opts.apply) {
+        console.log('（表示のみ。修復するには --apply を付ける。事前にバックアップを取ること）');
+        return;
+      }
+      const repaired = unsafeRepairDanglingReferences({
+        db: memDb.db,
+        logger: { info: (m) => console.log(m), error: (m, e) => console.error(m, e) },
+      });
+      console.log('repaired:', JSON.stringify(repaired, null, 2));
+      // caravan_entities を増やしたので contentless FTS5 索引を作り直す。
       const fts = rebuildContentlessFtsIndexes(memDb.db, {
         info: (m) => console.log(m),
         error: (m, e) => console.error(m, e),
