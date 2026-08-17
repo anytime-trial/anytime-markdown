@@ -42,7 +42,7 @@ export interface CreateCaravanAnalyzersOptions {
 /**
  * 7 個の memory analyzer を生成して返す。共有 {@link CaravanWaveSessionProvider} を内部に持ち、
  * 全 analyzer が同じ trail-caravan-book セッションを使う。返り値の `provider` は Wave 3 完了後の
- * `closeIfOpen()` 用に `AnalyzeAllRunner` へ渡す。
+ * `endRun()` 用に `AnalyzeAllRunner` へ渡す。
  *
  * 並び順は dependsOn を満たす (Drift は content の後、Embedding は最後)。
  * `disabledAnalyzerIds` に含まれる analyzer は登録しない (lep.json の `analyzers.<id>.enabled:false`)。

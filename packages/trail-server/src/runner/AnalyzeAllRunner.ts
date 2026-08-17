@@ -316,7 +316,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly openPipelineRunLedger: PipelineRunLedgerFactory | undefined;
 
   // Layer 3 (memory) analyzer (7 個) の error 集約に使う id 一覧。
-  // Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
+  // Wave 3 完了後に provider.endRun() を呼ぶ。
   private readonly caravanAnalyzerIds: readonly string[];
   private readonly caravanSessionProvider: CaravanWaveSessionProvider | null;
   private readonly stage: LepStage;
@@ -621,9 +621,11 @@ export class AnalyzeAllRunner extends BaseRunner {
         }
       }
     } finally {
-      // Wave 3 で開いた trail-caravan-book セッションを必ず閉じる (共有 DB の close)。
+      // run 境界。Wave 3 で開いた trail-caravan-book セッションを必ず閉じ、run スコープ
+      // 状態 (LLM 可用性キャッシュ) も捨てる。捨てないと daemon 起動時の「Ollama 利用不可」
+      // が永久に残り、復旧後も LLM 依存スコープが skip され続ける。
       try {
-        this.caravanSessionProvider?.closeIfOpen();
+        this.caravanSessionProvider?.endRun();
       } catch (err) {
         this.log(`[WARN] memory session close failed: ${err instanceof Error ? err.message : String(err)}`);
       }

@@ -158,13 +158,7 @@ describe('memory analyzers', () => {
     });
   });
 
-  it('LLM 可用性は run ごとに測り直す（closeIfOpen 後に再チェックされる）', async () => {
-    // provider は AnalyzeAllRunner のコンストラクタで 1 度だけ作られ daemon の生存期間
-    // ずっと使われる。可用性を provider の生存期間キャッシュにすると、daemon 起動時に
-    // Ollama が落ちていた場合、その後 Ollama を起動しても daemon を再起動するまで
-    // LLM 依存スコープが永久に skip され続ける（実測: 2026-08-17 に 6 日分の会話取込が
-    // 停止）。CaravanAnalyzerBase の「Ollama 復旧後の次 run で取りこぼしを回収する」
-    // という宣言を満たすには、run 境界（closeIfOpen）で測り直す必要がある。
+  it('LLM 可用性は run 内で 1 回だけ測り、endRun をまたぐと測り直す', async () => {
     const { session } = makeFakeSession();
     let checkerCalls = 0;
     let reachable = false;
@@ -183,7 +177,7 @@ describe('memory analyzers', () => {
     expect((await provider.getAvailability())?.ollama_chat.ok).toBe(false);
     expect(checkerCalls).toBe(1);
     await provider.ensure();
-    provider.closeIfOpen();
+    provider.endRun();
 
     // run 2: Ollama 復旧後
     reachable = true;
