@@ -44,7 +44,7 @@ export class CaravanWaveSessionProvider {
     return this.session;
   }
 
-  /** LLM Pre-flight 結果 (1 回だけ実行・キャッシュ)。checker 未指定なら null。 */
+  /** LLM Pre-flight 結果 (run 内では 1 回だけ実行・キャッシュ)。checker 未指定なら null。 */
   async getAvailability(): Promise<LlmProviderAvailability | null> {
     if (!this.availabilityComputed) {
       this.availabilityComputed = true;
@@ -53,10 +53,23 @@ export class CaravanWaveSessionProvider {
     return this.availability;
   }
 
+  /**
+   * セッションを閉じ、LLM 可用性キャッシュを捨てる。
+   *
+   * `AnalyzeAllRunner` が run の finally で必ず呼ぶため、ここが run 境界になる。
+   * 可用性を捨てるのは、provider が runner のコンストラクタで 1 度だけ作られ daemon の
+   * 生存期間ずっと使われるためである。捨てないと、daemon 起動時に Ollama が落ちていた
+   * 場合の「利用不可」が永久にキャッシュされ、Ollama を起動しても daemon を再起動する
+   * まで LLM 依存スコープが skip され続ける (2026-08-17 実測: 会話取込が 6 日間停止した)。
+   * `CaravanAnalyzerBase` が宣言している「Ollama 復旧後の次 run で取りこぼしを回収する」
+   * を成立させるのはこのリセットである。
+   */
   closeIfOpen(): void {
     const s = this.session;
     this.session = null;
     this.opened = false;
+    this.availability = null;
+    this.availabilityComputed = false;
     if (s) s.close();
   }
 
