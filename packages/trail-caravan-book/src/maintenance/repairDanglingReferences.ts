@@ -1,8 +1,16 @@
 /**
  * 外部キー違反（参照先が実在しない行）を数える／修復する保守処理。
  *
- * caravan-book.db は `PRAGMA foreign_keys = OFF` で初期化されるため、参照先を失った行は
- * エラーにならず蓄積する。実測（2026-08-17）で 163 件あり、内訳は次の 2 種類だった。
+ * FK 強制は**接続単位**の pragma で、通常経路（`db/connection.ts` の `openCaravanBookDb`）は
+ * `PRAGMA foreign_keys = ON` を張る。したがって通常の INSERT では違反行は作れない。
+ * 混入し得るのは次の 2 経路に限られる（今回の 163 件がどちらから来たかは**未特定**）。
+ *
+ * - 12-step rebuild マイグレーションの `foreign_keys = OFF` 区間（004 / 006 / 007 / 011 /
+ *   012 / 013 / 014 / 021 / 023）。`caravan_entities` を作り直す途中で再投入に失敗すると、
+ *   参照元だけが残る
+ * - pragma を張らない外部接続（`sqlite3` CLI の既定は OFF。pragma はファイルに永続しない）
+ *
+ * 実測（2026-08-17）で 163 件あり、内訳は次の 2 種類だった。
  *
  * - `caravan_reviews.review_entity_id` → `caravan_entities` 不在: 162 件
  *   （2026-06-20〜2026-08-05 に記録された行。本文 1.5〜2.6KB を持つ実体のあるレビューで、
@@ -18,7 +26,9 @@
  *   情報を捏造しないため、`display_name` は取込経路が同じ値を書いている `caravan_reviews.title`
  *   を使う。
  * - バグ修正の根本原因リンクは **復元できない**（指す先のエピソードが消えている）ので
- *   NULL にする。行そのものは自ワークスペースの記録なので消さない。
+ *   NULL にする。行そのものは自ワークスペースの記録なので消さない。恒久的な損失にはならず、
+ *   対象エピソードが将来取り込まれれば `linkRootCauseEpisode` の `relinkNullRootCauseEpisodes`
+ *   が増分取込のたびに NULL 行を拾い直す。
  *
  * 数える関数と直す関数を分けるのは purge 系と同じ理由（書き込み前に人へ件数を出すため）。
  */
@@ -38,6 +48,15 @@ export interface DanglingReferenceCounts {
   unreconstructableReviewEntities: number;
   /** 参照先の `caravan_episodes` が無い `caravan_bug_fixes.root_cause_episode_id`。NULL 化で直す。 */
   danglingBugFixEpisodeLinks: number;
+  /**
+   * `PRAGMA foreign_key_check` の総件数。
+   *
+   * 本モジュールが直せるのは上の 2 種類だけで、`ON DELETE` 指定を持たない FK は他にもある
+   * （`caravan_bug_fixes.bug_entity_id` / `caravan_spec_doc_entities.entity_id` /
+   * `caravan_drift_events.subject_entity_id` / `caravan_review_runs.review_id`）。
+   * 総件数を併記しないと、**数えていない種別が「0 件」として表示される**（最も危険な形）。
+   */
+  totalForeignKeyViolations: number;
 }
 
 export interface RepairDanglingReferencesInput {
@@ -105,15 +124,31 @@ function scalar(db: CaravanDbConnection, sql: string): number {
   return (rows[0]?.values?.[0]?.[0] as number | undefined) ?? 0;
 }
 
-/** 外部キー違反を種類別に数える。書き込みはしない。 */
-export function countDanglingReferences(db: CaravanDbConnection): DanglingReferenceCounts {
+/**
+ * 本モジュールが**修復できる**種別を数え、併せて `foreign_key_check` の総件数を返す。
+ * 書き込みはしない。
+ */
+export function countRepairableDanglingReferences(
+  db: CaravanDbConnection,
+): DanglingReferenceCounts {
   const missing = readMissingReviewEntityRows(db);
   const { unreconstructable } = splitReconstructableReviewRows(missing);
   return {
     missingReviewEntities: missing.length,
     unreconstructableReviewEntities: unreconstructable.length,
     danglingBugFixEpisodeLinks: scalar(db, DANGLING_BUGFIX_LINKS_SQL),
+    totalForeignKeyViolations: countForeignKeyViolations(db),
   };
+}
+
+/**
+ * `PRAGMA foreign_key_check` の違反件数。
+ *
+ * 本番規模（380MB / 45k エンティティ）で実測 55ms なので、パイプライン実行のたびに
+ * 呼んでも支障がない。
+ */
+export function countForeignKeyViolations(db: CaravanDbConnection): number {
+  return db.exec('PRAGMA foreign_key_check')[0]?.values?.length ?? 0;
 }
 
 /**
@@ -145,8 +180,7 @@ export function unsafeRepairDanglingReferences(
   try {
     for (const row of reconstructable) {
       // INSERT OR IGNORE は取込経路 (upsertReviewSession / upsertReviewDoc) と同じ。
-      // UNIQUE(type, canonical_name) に別 id が居る場合は黙って何もしない方が安全で、
-      // その状況は splitReconstructableReviewRows の検査を通った行では起き得ない。
+      // 握り潰しは直後の assert で検知するので、ここでは無視で先へ進む。
       db.run(
         `INSERT OR IGNORE INTO caravan_entities
            (id, type, canonical_name, display_name, aliases_json, tags_json, attributes_json,
@@ -155,6 +189,17 @@ export function unsafeRepairDanglingReferences(
         [row.entityId, row.sourceRef, row.title, row.recordedAt, row.recordedAt, row.recordedAt],
       );
       repairedReviewEntities += db.getRowsModified();
+    }
+
+    // INSERT OR IGNORE は UNIQUE だけでなく CHECK 違反・STRICT 型違反も**行ごと黙って捨てる**。
+    // 捨てられると getRowsModified() が 0 を返し、違反が残ったまま「成功」に見える。
+    // 投入件数を assert してから結果を語る（横断制約: INSERT OR IGNORE は黙って捨てる）。
+    if (repairedReviewEntities !== reconstructable.length) {
+      throw new Error(
+        `[anytime-memory] repairDanglingReferences: INSERT OR IGNORE が ` +
+          `${reconstructable.length - repairedReviewEntities} 件を握り潰した ` +
+          `(reconstructable=${reconstructable.length} inserted=${repairedReviewEntities})`,
+      );
     }
 
     db.run(
@@ -180,6 +225,7 @@ export function unsafeRepairDanglingReferences(
     missingReviewEntities: missing.length,
     unreconstructableReviewEntities: unreconstructable.length,
     danglingBugFixEpisodeLinks: nulledBugFixLinks,
+    totalForeignKeyViolations: countForeignKeyViolations(db),
     repairedReviewEntities,
     nulledBugFixLinks,
   };

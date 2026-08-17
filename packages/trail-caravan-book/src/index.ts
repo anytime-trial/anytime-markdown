@@ -41,7 +41,8 @@ export type {
   ForeignWorkspaceMemoryInput,
 } from './maintenance/purgeForeignWorkspaceMemory';
 export {
-  countDanglingReferences,
+  countForeignKeyViolations,
+  countRepairableDanglingReferences,
   unsafeRepairDanglingReferences,
 } from './maintenance/repairDanglingReferences';
 export type { DanglingReferenceCounts } from './maintenance/repairDanglingReferences';
