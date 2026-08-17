@@ -40,6 +40,12 @@ export type {
   ForeignWorkspaceMemoryCounts,
   ForeignWorkspaceMemoryInput,
 } from './maintenance/purgeForeignWorkspaceMemory';
+export {
+  countForeignKeyViolations,
+  countRepairableDanglingReferences,
+  unsafeRepairDanglingReferences,
+} from './maintenance/repairDanglingReferences';
+export type { DanglingReferenceCounts } from './maintenance/repairDanglingReferences';
 export { rebuildContentlessFtsIndexes } from './maintenance/rebuildContentlessFts';
 export type { RebuildContentlessFtsResult } from './maintenance/rebuildContentlessFts';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';

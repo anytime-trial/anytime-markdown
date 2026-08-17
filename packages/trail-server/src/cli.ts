@@ -9,12 +9,14 @@ import {
   type LepStage,
   attachTrailDbReadOnly,
   countForeignWorkspaceMemory,
+  countRepairableDanglingReferences,
   getCaravanBookDbPath,
   getTrailHome,
   openCaravanBookDb,
   ownWorkspaceScope,
   rebuildContentlessFtsIndexes,
   unsafePurgeForeignWorkspaceMemory,
+  unsafeRepairDanglingReferences,
 } from '@anytime-markdown/trail-caravan-book';
 import { ChatBridge } from './caravan-chat/chatBridge';
 import { RebuildScheduler } from './caravan-chat/rebuildScheduler';
@@ -369,6 +371,36 @@ analyzeAllCmd
     await callDaemonAnalyzeAll('status');
   });
 
+/** ファイル名に使える形の UTC タイムスタンプ。 */
+function stampForFileName(): string {
+  return new Date().toISOString().replace(/[:.]/g, '');
+}
+
+/**
+ * 本コマンドが扱えない外部キー違反が残っていれば、件数を出して exit code を 1 にする。
+ * 「数えていない種別が 0 件として表示される」のを避けるための出口。
+ */
+function reportUnhandledViolations(counts: {
+  totalForeignKeyViolations: number;
+  missingReviewEntities: number;
+  danglingBugFixEpisodeLinks: number;
+  unreconstructableReviewEntities: number;
+}): void {
+  const handled = counts.missingReviewEntities + counts.danglingBugFixEpisodeLinks;
+  const unhandled = counts.totalForeignKeyViolations - handled;
+  console.log(`foreign_key_check: total=${counts.totalForeignKeyViolations} handled=${handled} unhandled=${unhandled}`);
+  if (unhandled > 0) {
+    console.error(`本コマンドが扱わない外部キー違反が ${unhandled} 件あります（別途対応が必要）`);
+    process.exitCode = 1;
+  }
+  if (counts.unreconstructableReviewEntities > 0) {
+    console.error(
+      `決定的に復元できない Review エンティティが ${counts.unreconstructableReviewEntities} 件あります`,
+    );
+    process.exitCode = 1;
+  }
+}
+
 const caravanCmd = program
   .command('caravan')
   .description('Maintenance commands for the caravan-book knowledge graph');
@@ -417,6 +449,58 @@ caravanCmd
         error: (m, e) => console.error(m, e),
       });
       console.log(`fts rebuild: entities=${fts.entities} episodes=${fts.episodes}`);
+      memDb.save();
+    } finally {
+      memDb.close();
+    }
+  });
+
+caravanCmd
+  .command('repair-references')
+  .description(
+    '参照先を失った行（外部キー違反）を数える。--apply を付けたときだけ修復する' +
+      '（既定は件数の表示のみ）',
+  )
+  .option('--apply', '実際に修復する（事前にバックアップを取ること）', false)
+  .action(async (opts: { apply: boolean }) => {
+    const memDb = await openCaravanBookDb(MEMORY_DB_PATH);
+    try {
+      console.log(`caravan-book=${MEMORY_DB_PATH}`);
+      const before = countRepairableDanglingReferences(memDb.db);
+      console.log(JSON.stringify(before, null, 2));
+      reportUnhandledViolations(before);
+      if (!opts.apply) {
+        console.log('（表示のみ。修復するには --apply を付ける）');
+        return;
+      }
+
+      // 退避は散文の依頼ではなくコードで担保する（rules/code-quality.md §15）。
+      // VACUUM INTO は WAL を畳んだ整合コピーを 1 文で作る。失敗すれば例外で止まり、
+      // 修復には入らない。better-sqlite3 は書込を即座に永続化するため、
+      // ここを通り過ぎた後には巻き戻す手段が無い。
+      const backupPath = `${MEMORY_DB_PATH}.before-fk-repair-${stampForFileName()}`;
+      memDb.db.run('VACUUM INTO ?', [backupPath]);
+      console.log(`backup=${backupPath}`);
+
+      const repaired = unsafeRepairDanglingReferences({
+        db: memDb.db,
+        logger: { info: (m) => console.log(m), error: (m, e) => console.error(m, e) },
+      });
+      console.log('repaired:', JSON.stringify(repaired, null, 2));
+      // caravan_entities を増やしたので contentless FTS5 索引を作り直す。
+      const fts = rebuildContentlessFtsIndexes(memDb.db, {
+        info: (m) => console.log(m),
+        error: (m, e) => console.error(m, e),
+      });
+      console.log(`fts rebuild: entities=${fts.entities} episodes=${fts.episodes}`);
+
+      // 受入証拠。「直った」を出力で語れるようにする。
+      const after = countRepairableDanglingReferences(memDb.db);
+      const integrity = memDb.db.exec('PRAGMA integrity_check')[0]?.values?.[0]?.[0];
+      console.log(`after: ${JSON.stringify(after)} integrity_check=${String(integrity)}`);
+      reportUnhandledViolations(after);
+      // better-sqlite3 では no-op（COMMIT 済みで既に永続化されている）。sql.js 実装へ
+      // 差し替わったときのために残す。
       memDb.save();
     } finally {
       memDb.close();
