@@ -20,8 +20,14 @@ const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 function makeTrailDb(): BetterSqlite3CaravanDb {
   const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
+  // repo は正規化テーブル側にある（activity_sessions の repo_name 列は Phase H-4 で撤去済み）。
+  // ワークスペース限定はこの JOIN を通るので、fixture もその形にしないと経路を検査できない。
+  db.run(`CREATE TABLE activity_repos (
+    repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE
+  ) STRICT`);
   db.run(`CREATE TABLE activity_sessions (
-    id TEXT PRIMARY KEY, slug TEXT NOT NULL DEFAULT '', repo_name TEXT NOT NULL DEFAULT '',
+    id TEXT PRIMARY KEY, slug TEXT NOT NULL DEFAULT '',
+    repo_id INTEGER REFERENCES activity_repos(repo_id) ON DELETE CASCADE,
     source TEXT NOT NULL DEFAULT 'claude_code'
       CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
@@ -37,8 +43,21 @@ function makeTrailDb(): BetterSqlite3CaravanDb {
   return db;
 }
 
-function insertPair(db: BetterSqlite3CaravanDb, sid: string, ts: string, userText: string): void {
-  db.run(`INSERT INTO activity_sessions (id) VALUES (?)`, [sid]);
+/** repo 名から repo_id を採番（同名は再利用）する。 */
+function repoIdFor(db: BetterSqlite3CaravanDb, repoName: string): number {
+  db.run(`INSERT OR IGNORE INTO activity_repos (repo_name) VALUES (?)`, [repoName]);
+  const rows = db.exec(`SELECT repo_id FROM activity_repos WHERE repo_name = ?`, [repoName]);
+  return rows[0].values[0][0] as number;
+}
+
+function insertPair(
+  db: BetterSqlite3CaravanDb,
+  sid: string,
+  ts: string,
+  userText: string,
+  repoName = 'repo',
+): void {
+  db.run(`INSERT INTO activity_sessions (id, repo_id) VALUES (?, ?)`, [sid, repoIdFor(db, repoName)]);
   db.run(
     `INSERT INTO activity_messages (uuid, session_id, type, timestamp, text_content, user_content) VALUES (?,?,?,?,?,?)`,
     [`${sid}-u`, sid, 'user', ts, null, userText],
@@ -122,6 +141,49 @@ describe('E2E: CaravanDbSession scope methods', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  test.each([
+    { mode: undefined, label: '既定 (未指定 = own)', expectForeign: false },
+    { mode: 'own' as const, label: "'own'", expectForeign: false },
+    { mode: 'all' as const, label: "'all'", expectForeign: true },
+  ])(
+    'runConversation: workspaceScopeMode=$label で他ワークスペースのセッションを取り込むかが決まる',
+    async ({ mode, expectForeign }) => {
+      const memDb = await makeCaravanDb();
+      const trailDb = makeTrailDb();
+      const ts = new Date(Date.now() - 60_000).toISOString().replace(/\.\d{3}Z$/, '.000Z');
+      insertPair(trailDb, 'sess-own', ts, 'I prefer TypeScript', 'repo');
+      insertPair(trailDb, 'sess-foreign', ts, 'I prefer Ruby', 'other-repo');
+      attachTrailDbFromHandle(memDb.db, trailDb);
+
+      // 全エピソードへ同じ抽出結果を返す（どの会話が処理されたかは episodes の session_id で見る）。
+      mock.setResponses(
+        Array.from({ length: 4 }, () => ({
+          generate: JSON.stringify({ summary: 's', entities: [], relations: [], questions: [] }),
+        })),
+      );
+
+      const session = new CaravanDbSession({
+        memDb,
+        ollama: createOllamaClient({ baseUrl: mock.baseUrl }),
+        logger: silentLogger,
+        gitRoot: '/tmp/repo',
+        backfillDays: 36500,
+        ...(mode ? { workspaceScopeMode: mode } : {}),
+      });
+
+      const result = await session.runConversation();
+      expect(result.status).toBe('success');
+
+      const rows = memDb.db.exec(`SELECT DISTINCT session_id FROM caravan_episodes`);
+      const sessionIds = (rows[0]?.values ?? []).map((r) => r[0] as string).sort();
+      expect(sessionIds).toEqual(expectForeign ? ['sess-foreign', 'sess-own'] : ['sess-own']);
+
+      trailDb.close();
+      memDb.close();
+    },
+    30000,
+  );
 
   test('runDrift: empty DB completes without error (LLM-free, pure SQL)', async () => {
     const memDb = await makeCaravanDb();

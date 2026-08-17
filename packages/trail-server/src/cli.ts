@@ -153,6 +153,7 @@ program
       trailDbPath: join(dbStorageDir, 'activity.db'),
       statePath: join(TRAIL_HOME, 'trail-caravan-book-runner.json'),
       backfillDays: lepConfig.memory.conversation.backfillDays,
+      workspaceScopeMode: lepConfig.memory.workspaceScope,
       llm: {
         baseUrl: lepOllama.baseUrl,
         chatModel: ingestGenModel,
@@ -598,6 +599,7 @@ function createCaravanBookService(args: {
   readonly trailDbPath: string;
   readonly statePath: string;
   readonly backfillDays: number;
+  readonly workspaceScopeMode: 'own' | 'all';
   readonly llm: { readonly baseUrl: string; readonly chatModel: string; readonly embedModel: string };
   readonly ollamaFactory: (() => ReturnType<typeof createThrottledOllamaClient>) | undefined;
   readonly logger: Logger;
@@ -611,6 +613,7 @@ function createCaravanBookService(args: {
     ...(args.gitRoot ? { gitRoot: args.gitRoot } : {}),
     statePath: args.statePath,
     backfillDays: args.backfillDays,
+    workspaceScopeMode: args.workspaceScopeMode,
     // lep.json の llm を ingest パイプラインへ通す (baseUrl は openCaravanDbSession
     // が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
     llm: args.llm,

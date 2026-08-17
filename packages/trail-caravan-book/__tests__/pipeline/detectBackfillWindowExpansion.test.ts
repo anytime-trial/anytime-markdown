@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -85,7 +86,7 @@ describe('detectBackfillWindowExpansion', () => {
     insertTrailUserMessage(trailDb, 'm1', 's1', new Date(Date.now() - 5 * DAY).toISOString());
     attachTrailDbFromHandle(memDb, trailDb);
 
-    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 30 });
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 30, workspaceScope: allWorkspacesScope() });
     expect(result.shouldExpand).toBe(false);
     expect(result.reason).toMatch(/no persisted episodes/);
   });
@@ -100,7 +101,7 @@ describe('detectBackfillWindowExpansion', () => {
     attachTrailDbFromHandle(memDb, trailDb);
 
     // 7 日に縮小 → desired_start = 7 日前 > earliest 30 日前
-    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 7 });
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 7, workspaceScope: allWorkspacesScope() });
     expect(result.shouldExpand).toBe(false);
   });
 
@@ -115,7 +116,7 @@ describe('detectBackfillWindowExpansion', () => {
     attachTrailDbFromHandle(memDb, trailDb);
 
     // 60 日に拡張するが、trail には拡張区間のデータがない
-    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60, workspaceScope: allWorkspacesScope() });
     expect(result.shouldExpand).toBe(false);
     expect(result.reason).toMatch(/no ingestable/);
   });
@@ -133,7 +134,7 @@ describe('detectBackfillWindowExpansion', () => {
     attachTrailDbFromHandle(memDb, trailDb);
 
     // 60 日に拡張 → 40 / 35 日前の 2 件が未処理として検出されるはず
-    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60, workspaceScope: allWorkspacesScope() });
     expect(result.shouldExpand).toBe(true);
     expect(result.reason).toMatch(/2 user messages/);
   });
@@ -152,7 +153,7 @@ describe('detectBackfillWindowExpansion', () => {
     preInsertEpisode(memDb, 's-new', 'new1', ts10d);
     attachTrailDbFromHandle(memDb, trailDb);
 
-    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60, workspaceScope: allWorkspacesScope() });
     expect(result.shouldExpand).toBe(false);
   });
 
@@ -171,7 +172,7 @@ describe('detectBackfillWindowExpansion', () => {
     preInsertEpisode(memDb, 's-new', 'new1', ts10d);
     attachTrailDbFromHandle(memDb, trailDb);
 
-    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60, workspaceScope: allWorkspacesScope() });
     expect(result.shouldExpand).toBe(false);
   });
 
@@ -184,7 +185,7 @@ describe('detectBackfillWindowExpansion', () => {
     attachTrailDbFromHandle(memDb, trailDb);
 
     // 30 日のまま (= earliest)
-    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 30 });
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 30, workspaceScope: allWorkspacesScope() });
     expect(result.shouldExpand).toBe(false);
   });
 });

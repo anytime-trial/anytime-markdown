@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { parseReviewSessions } from '../../../src/ingest/review/parseReviewSession';
@@ -114,6 +115,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -150,6 +152,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -188,6 +191,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -224,6 +228,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -245,6 +250,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -281,6 +287,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -322,6 +329,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -357,6 +365,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -392,6 +401,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -426,6 +436,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -466,6 +477,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -495,6 +507,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -522,6 +535,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -560,6 +574,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -597,6 +612,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -647,6 +663,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -680,6 +697,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -712,6 +730,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -747,6 +766,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -795,6 +815,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -823,6 +844,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -851,6 +873,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -878,6 +901,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -911,6 +935,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -940,6 +965,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -981,6 +1007,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -1022,6 +1049,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -1072,6 +1100,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,
@@ -1108,6 +1137,7 @@ describe('parseReviewSessions', () => {
     attachTrailDbFromHandle(mainDb, trailDb);
 
     const results = parseReviewSessions({
+      workspaceScope: allWorkspacesScope(),
       db: mainDb,
       sinceISO: '2026-01-01T00:00:00.000Z',
       logger: silentLogger,

@@ -20,6 +20,8 @@ export interface SerializableCaravanBookConfig {
   readonly gitRoot: string;
   readonly statePath?: string;
   readonly backfillDays?: number;
+  /** 記憶へ昇格させる対象ワークスペース ('own' = gitRoot のリポジトリのみ・既定 / 'all')。 */
+  readonly workspaceScopeMode?: 'own' | 'all';
   readonly llm: {
     readonly baseUrl: string;
     readonly chatModel: string;

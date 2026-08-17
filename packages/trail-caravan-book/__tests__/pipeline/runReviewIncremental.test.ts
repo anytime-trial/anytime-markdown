@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as path from 'path';
 import * as os from 'os';
@@ -176,6 +177,7 @@ describe('runReviewIncremental', () => {
 
     try {
       const result = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -210,6 +212,7 @@ describe('runReviewIncremental', () => {
     const { db, close } = await openTestDb();
     const run = () =>
       runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db, repoName: REPO, reviewDir: dir, ollama: mockOllama, model: 'test', logger: noopLogger,
       });
     const snapshot = () =>
@@ -268,6 +271,7 @@ describe('runReviewIncremental', () => {
     try {
       // First run
       const first = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -279,6 +283,7 @@ describe('runReviewIncremental', () => {
 
       // Second run with identical file
       const second = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -312,6 +317,7 @@ describe('runReviewIncremental', () => {
     try {
       // Use a non-existent reviewDir so Route A is skipped
       const result = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: '/nonexistent-path-abc123',
@@ -340,6 +346,7 @@ describe('runReviewIncremental', () => {
 
     try {
       const result = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -368,6 +375,7 @@ describe('runReviewIncremental', () => {
 
     try {
       const result = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: '/nonexistent-path-xyz987',
@@ -393,6 +401,7 @@ describe('runReviewIncremental', () => {
     try {
       // First normal run
       const first = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -406,6 +415,7 @@ describe('runReviewIncremental', () => {
       // Second run with force=true — should re-parse despite same hash
       // (is_new stays false since the row exists, but findings are cleared/re-inserted)
       const second = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -440,6 +450,7 @@ describe('runReviewIncremental', () => {
     try {
       // First run seeds the review
       const first = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -452,6 +463,7 @@ describe('runReviewIncremental', () => {
 
       // Second run — env-var force=1 → re-parse should succeed without error
       const second = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -493,6 +505,7 @@ describe('runReviewIncremental', () => {
     try {
       // First run — ingests session review
       const first = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: '/nonexistent-force-test',
@@ -504,6 +517,7 @@ describe('runReviewIncremental', () => {
 
       // Second run with force — clears session findings and re-processes
       const second = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: '/nonexistent-force-test',
@@ -532,6 +546,7 @@ describe('runReviewIncremental', () => {
 
     try {
       const result = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
@@ -562,6 +577,7 @@ describe('runReviewIncremental', () => {
 
     try {
       const result = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
         db,
         repoName: REPO,
         reviewDir: dir,
