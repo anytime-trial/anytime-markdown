@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -108,6 +109,7 @@ describe('runConversationBackfill resume', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 5,
@@ -151,6 +153,7 @@ describe('runConversationBackfill resume', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 5,
@@ -187,6 +190,7 @@ describe('runConversationBackfill resume', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 5,
@@ -245,6 +249,7 @@ describe('runConversationBackfill resume', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 5,
@@ -302,6 +307,7 @@ describe('runConversationBackfill resume', () => {
     };
 
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 6,

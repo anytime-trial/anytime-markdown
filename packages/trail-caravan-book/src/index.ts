@@ -21,6 +21,27 @@ export type {
 } from './db/connection/types';
 export type { CaravanLogger } from './logger';
 export { noopLogger } from './logger';
+export {
+  allWorkspacesScope,
+  ownWorkspaceScope,
+  resolveWorkspaceScope,
+  workspaceScopeSql,
+} from './ingest/workspaceScope';
+export type {
+  MemoryWorkspaceScope,
+  SqlPredicate as WorkspaceScopeSqlPredicate,
+  WorkspaceScopeMode,
+} from './ingest/workspaceScope';
+export {
+  countForeignWorkspaceMemory,
+  unsafePurgeForeignWorkspaceMemory,
+} from './maintenance/purgeForeignWorkspaceMemory';
+export type {
+  ForeignWorkspaceMemoryCounts,
+  ForeignWorkspaceMemoryInput,
+} from './maintenance/purgeForeignWorkspaceMemory';
+export { rebuildContentlessFtsIndexes } from './maintenance/rebuildContentlessFts';
+export type { RebuildContentlessFtsResult } from './maintenance/rebuildContentlessFts';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
 export {

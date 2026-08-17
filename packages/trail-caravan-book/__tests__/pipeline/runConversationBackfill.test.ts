@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -94,6 +95,7 @@ describe('runConversationBackfill', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -146,6 +148,7 @@ describe('runConversationBackfill', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -193,6 +196,7 @@ describe('runConversationBackfill', () => {
 
     // First backfill
     const result1 = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -203,6 +207,7 @@ describe('runConversationBackfill', () => {
 
     // Second backfill — same data, same time window, entities already exist
     const result2 = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -227,6 +232,7 @@ describe('runConversationBackfill', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -274,6 +280,7 @@ describe('runConversationBackfill', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -306,6 +313,7 @@ describe('runConversationBackfill', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -346,6 +354,7 @@ describe('runConversationBackfill', () => {
     const ollama = makeValidOllama();
     // First run: window=7 days → processes both sessions
     const r1 = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -362,6 +371,7 @@ describe('runConversationBackfill', () => {
     // but the test asserts the structural improvement: items_skipped stays 0
     // because sess_mid is no longer visited at all (it's filtered out by SQL).
     const r2 = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -414,6 +424,7 @@ describe('runConversationBackfill', () => {
       const ollama = { generate, embeddings: jest.fn() };
 
       const result = await runConversationBackfill({
+        workspaceScope: allWorkspacesScope(),
         db: memDb,
         ollama,
         sinceDays: 7,
@@ -458,6 +469,7 @@ describe('runConversationBackfill', () => {
     };
 
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,
@@ -498,6 +510,7 @@ describe('runConversationBackfill', () => {
     const progressCalls: Array<{ processed: number; failed: number }> = [];
 
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 5,
@@ -537,6 +550,7 @@ describe('runConversationBackfill', () => {
     const totalCalls: number[] = [];
 
     await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 5,
@@ -566,6 +580,7 @@ describe('runConversationBackfill', () => {
     const ollama = makeValidOllama();
     const errors: unknown[] = [];
     const result = await runConversationBackfill({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       sinceDays: 7,

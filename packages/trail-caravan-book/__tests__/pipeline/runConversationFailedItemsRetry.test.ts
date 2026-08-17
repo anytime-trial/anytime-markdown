@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -137,6 +138,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -171,6 +173,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeFailingOllama('this is not json');
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -206,6 +209,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       maxAttempts: 3,
@@ -248,6 +252,7 @@ describe('runConversationFailedItemsRetry', () => {
     }
 
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama: makeValidOllama(),
       logger: silentLogger,
@@ -280,6 +285,7 @@ describe('runConversationFailedItemsRetry', () => {
     insertFailedItem(memDb, 'conversation_backfill', 'sess_empty:msg_empty', 1);
 
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama: makeValidOllama(),
       logger: silentLogger,
@@ -304,6 +310,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -337,6 +344,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeFailingOllama('not json');
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -363,6 +371,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -398,6 +407,7 @@ describe('runConversationFailedItemsRetry', () => {
     try {
       // env-var maxAttempts=2, item is at attempt_count=2 → at cap → skipped
       const result = await runConversationFailedItemsRetry({
+        workspaceScope: allWorkspacesScope(),
         db: memDb,
         ollama,
         logger: silentLogger,
@@ -434,6 +444,7 @@ describe('runConversationFailedItemsRetry', () => {
     process.env['MEMORY_CORE_FAILED_RETRY_MAX'] = 'not-a-number';
     try {
       const result = await runConversationFailedItemsRetry({
+        workspaceScope: allWorkspacesScope(),
         db: memDb,
         ollama,
         logger: silentLogger,
@@ -471,6 +482,7 @@ describe('runConversationFailedItemsRetry', () => {
     process.env['MEMORY_CORE_EXTRACT_CONCURRENCY'] = '4';
     try {
       const result = await runConversationFailedItemsRetry({
+        workspaceScope: allWorkspacesScope(),
         db: memDb,
         ollama,
         logger: silentLogger,
@@ -505,6 +517,7 @@ describe('runConversationFailedItemsRetry', () => {
     const ollama = makeValidOllama();
     let saveCallCount = 0;
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -537,6 +550,7 @@ describe('runConversationFailedItemsRetry', () => {
     const ollama = makeValidOllama();
     // no sourceScope passed → default must cover conversation_incremental
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -566,6 +580,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -591,6 +606,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -620,6 +636,7 @@ describe('runConversationFailedItemsRetry', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationFailedItemsRetry({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,

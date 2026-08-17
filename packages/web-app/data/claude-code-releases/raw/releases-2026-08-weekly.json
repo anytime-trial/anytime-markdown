@@ -1,0 +1,186 @@
+[
+  {
+    "version": "2.1.215",
+    "kind": "cli",
+    "date": "2026-07-19",
+    "dateConfidence": "explicit",
+    "headline": "/verify・/code-review の自動実行を廃止し手動呼び出し限定に",
+    "highlights": [
+      "/verify と /code-review スキルの自動実行を廃止",
+      "手動呼び出しのみに変更（スキル自動化フローに影響）"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-07-25-weekly-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.216",
+    "kind": "cli",
+    "date": "2026-07-20",
+    "dateConfidence": "explicit",
+    "headline": "sandbox.filesystem.disabled 追加・worktree 隔離の重大バグ修正",
+    "highlights": [
+      "sandbox.filesystem.disabled 設定追加（ファイルシステム隔離をスキップしネットワーク egress 制御は維持）",
+      "worktree 隔離サブエージェントが共有チェックアウトへ git をリダイレクトできる重大バグを修正",
+      "AskUserQuestion の待機/説明回答無視バグ修正",
+      "Web アイドルタイムアウト後の同一質問再送バグ修正",
+      "daemon stop --any が stale lockfile 経由で無関係プロセスを終了するバグ修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-07-25-weekly-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.217",
+    "kind": "cli",
+    "date": "2026-07-21",
+    "dateConfidence": "explicit",
+    "headline": "同時サブエージェント上限追加（既定20）・emoji 補完追加",
+    "highlights": [
+      "emoji ショートコード補完追加（:heart: → ❤️、無効化可）",
+      "同時サブエージェント上限を追加（既定20、環境変数で上書き可）",
+      "サブエージェントのネストスポーンを既定無効化",
+      "--max-budget-usd がバックグラウンドサブエージェントを停止しないバグ修正",
+      "CLAUDE.md パスフロントマターの大量 braces による OOM クラッシュ修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-07-25-weekly-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.218",
+    "kind": "cli",
+    "date": "2026-07-22",
+    "dateConfidence": "explicit",
+    "headline": "/code-review をバックグラウンドサブエージェント化",
+    "highlights": [
+      "/code-review をバックグラウンドサブエージェントとして実行するよう変更（会話を汚さない）",
+      "/ultrareview の descriptive 引数失敗バグ修正",
+      "fork-session のコンパクション後 lineage 損失を修正",
+      "Bedrock ARN のゲートウェイ spend メータリング修正",
+      "再試行ループが context-overflow リクエストを再送し続けるバグ修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-07-25-weekly-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.219",
+    "kind": "cli",
+    "date": "2026-07-24",
+    "dateConfidence": "explicit",
+    "headline": "Claude Opus 5 追加・デフォルトモデルに昇格",
+    "highlights": [
+      "claude-opus-5 を追加しデフォルト Opus モデルに昇格（1M コンテキスト）",
+      "sandbox.network.strictAllowlist 設定追加（未登録ホストへの接続を確認なし拒否）",
+      "DirectoryAdded hook 追加（新規 working directory 登録時に発火）",
+      "workflowSizeGuideline 設定キー追加・ネストサブエージェントの stream-json 転送対応",
+      "Opus 4.7 を fast mode から削除"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-07-25-weekly-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "opus-5",
+    "kind": "model",
+    "date": "2026-07-24",
+    "dateConfidence": "explicit",
+    "headline": "Claude Opus 5 リリース——Fable 5 の半額で同等以上の性能",
+    "highlights": [
+      "モデル ID claude-opus-5、価格 $5/M 入力・$25/M 出力（Fable 5 の半額）",
+      "fast mode は $10/M 入力・$50/M 出力（約2.5倍高速）",
+      "1M トークンコンテキスト対応",
+      "Frontier-Bench（agentic coding）・ARC-AGI-3 で Fable 5 を上回るベンチマーク",
+      "Claude Max のデフォルトモデルに昇格"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-07-25-weekly-research.md",
+    "sourceUrl": "https://9to5mac.com/2026/07/24/anthropic-upgrades-claude-with-new-opus-5-model-details-here/"
+  },
+  {
+    "version": "2.1.220",
+    "kind": "cli",
+    "date": "2026-07-25",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正・安定性改善（詳細非公開）",
+    "highlights": [
+      "公式 changelog は詳細を公開せず、バグ修正・安定性改善とのみ記載",
+      "08-01〜08-03 の daily-research 時点でも次バージョンなしの『最新版』として確認済み"
+    ],
+    "impact": "medium",
+    "sourceReport": "2026-07-25-weekly-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.221",
+    "kind": "cli",
+    "date": "2026-08-04",
+    "dateConfidence": "explicit",
+    "headline": "Focus View・Prompt Audit 追加、zsh 権限バイパス修正",
+    "highlights": [
+      "Focus View（Ctrl+Alt+F）追加：ツール実行をターン単位サマリーに折りたたみ表示",
+      "Sandbox Credential Masking 追加（Linux/WSL、認証情報をセンチネルコピーで保護）",
+      "Prompt Audit サブコマンド追加（旧世代モデル向けプロンプトパターンを検出）",
+      "zsh の正規条件式で Bash ツール権限チェックをバイパスできる脆弱性を修正",
+      "Vertex AI Tool Search を復活",
+      "前バージョン v2.1.220 から39のCLI変更を含む"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.221"
+  },
+  {
+    "version": "2.1.222",
+    "kind": "cli",
+    "date": "2026-08-04",
+    "dateConfidence": "explicit",
+    "headline": "ultraplan 機能削除・worktree isolation セキュリティ強化",
+    "highlights": [
+      "ultraplan フィーチャーを完全削除",
+      "worktree 隔離セッションが git -C 等でメインチェックアウトを破壊できた欠陥を修正",
+      "auto-allow hook がバックグラウンドタスクでツール制限をバイパスできたバグを修正",
+      "HTTPS プロキシ背後での起動時接続チェックがハングするバグを修正",
+      "/usage の MCP サーバー使用量過大帰属バグを修正",
+      "リポジトリローカル設定からの Remote Control 有効化を禁止"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.223",
+    "kind": "cli",
+    "date": "2026-08-06",
+    "dateConfidence": "explicit",
+    "headline": "CVE-2026-33068修正・/code-review バックグラウンド化",
+    "highlights": [
+      "CVE-2026-33068 修正：bypassPermissions が org-level 無効化ポリシーを無視していた脆弱性",
+      "/code-review をバックグラウンドサブエージェント化しメインループを非ブロック化",
+      "Workflow sandbox エスケープ修正（サブエージェントがサンドボックス外へ書込可能だった問題）",
+      "Unicode padding によるマルチバイト文字のレイアウト崩れを修正",
+      "19件のCLI変更を含む"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-08-06-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
+  },
+  {
+    "version": "2.1.224",
+    "kind": "cli",
+    "date": "2026-08-07",
+    "dateConfidence": "explicit",
+    "headline": "self-hosted runner正式化・200+サブエージェント上限撤廃",
+    "highlights": [
+      "claude self-hosted-runner コマンド追加（Team/Enterprise public beta）",
+      "Cross-session messaging 正式化（SendMessage + ListAgents、crossSessionInbound/dialogExpiry 設定）",
+      "200件超のサブエージェントスポーン上限を撤廃（1000/Workflow の backstop は維持）",
+      "Sandbox Credential Masking を高度化（JWT クレーム単位マスキング・AWS SigV4 再署名対応）",
+      "Archive plugin source 追加（HTTPS .zip インストール・SHA-256 整合性検証）",
+      "SendMessage 送信失敗時の誤『送信完了』表示バグを修正"
+    ],
+    "impact": "high",
+    "sourceReport": "2026-08-07-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  }
+]

@@ -32,7 +32,7 @@ function runGroundingDoctrineGap(setup) {
  * grounding が参照する列のみ持つ最小 caravan-book.db を <ws>/.anytime/trail/db に作る。
  * activity.db は DB_DIR 解決（activity.db の存在で候補ディレクトリを確定する）のために空で置く。
  */
-function writeCaravanDb(ws, { withColumn, judgments = [], instructions = [] }) {
+function writeCaravanDb(ws, { withColumn, withGateColumns = false, judgments = [], instructions = [] }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
   new DatabaseSync(path.join(dbDir, 'activity.db')).close();
@@ -46,6 +46,7 @@ function writeCaravanDb(ws, { withColumn, judgments = [], instructions = [] }) {
     human_decision TEXT,
     judged_at TEXT NOT NULL
     ${withColumn ? `, underspecified_points_json TEXT NOT NULL DEFAULT '[]'` : ''}
+    ${withGateColumns ? `, gate_verdict TEXT, gate_reasons_json TEXT` : ''}
   )`);
   db.exec(`CREATE TABLE caravan_instructions (id TEXT PRIMARY KEY, summary TEXT, origin_prompt TEXT, started_at TEXT, closed_at TEXT)`);
   db.exec(`CREATE TABLE caravan_instruction_sessions (session_id TEXT PRIMARY KEY, instruction_id TEXT)`);
@@ -55,6 +56,10 @@ function writeCaravanDb(ws, { withColumn, judgments = [], instructions = [] }) {
     if (withColumn) {
       cols.push('underspecified_points_json');
       vals.push(j.points ?? '[]');
+    }
+    if (withGateColumns) {
+      cols.push('gate_verdict', 'gate_reasons_json');
+      vals.push(j.gateVerdict ?? null, j.gateReasons ?? null);
     }
     db.prepare(`INSERT INTO caravan_doctrine_judgments (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...vals);
   });
@@ -132,6 +137,37 @@ describe('grounding doctrineGap (DCT-14)', () => {
       }),
     );
     expect(gap.missedByPromptShape).toEqual({ terse: 1, question: 1, other: 1, undeclared: 1 });
+  });
+
+  it('ゲート理由分布を全期間で数え、列が無い DB は null（測定不能）にする（DCT-19 観測）', () => {
+    const withGate = runGroundingDoctrineGap((ws) =>
+      writeCaravanDb(ws, {
+        withColumn: true,
+        withGateColumns: true,
+        judgments: [
+          { sessionId: 'd1', gateVerdict: 'delegable', gateReasons: '[]' },
+          { sessionId: 'e1', gateVerdict: 'escalate', gateReasons: '["doctrine_silent"]' },
+          { sessionId: 'e2', gateVerdict: 'escalate', gateReasons: '["doctrine_silent"]' },
+          { sessionId: 'e3', gateVerdict: 'escalate', gateReasons: '["underspecified_instruction"]' },
+          // 理由分布は全期間で数える（SINCE で切らない）ことの検査
+          { sessionId: 'old', gateVerdict: 'escalate', gateReasons: '["severity_high"]', judgedAt: '2026-08-01T00:00:00.000Z' },
+          // ゲート未評価（NULL）は分母に入れない
+          { sessionId: 'ungated' },
+        ],
+      }),
+    );
+    expect(withGate.gateVerdicts).toEqual({ delegable: 1, escalate: 4 });
+    expect(withGate.escalateReasons).toEqual({
+      doctrine_silent: 2,
+      underspecified_instruction: 1,
+      severity_high: 1,
+    });
+
+    const withoutGate = runGroundingDoctrineGap((ws) =>
+      writeCaravanDb(ws, { withColumn: true, judgments: [{ sessionId: 's1' }] }),
+    );
+    expect(withoutGate.gateVerdicts).toBeNull();
+    expect(withoutGate.escalateReasons).toBeNull();
   });
 
   it('DCT-14 導入日より前の判断は分母に入れない（バックフィルの空申告で率が薄まらない）', () => {

@@ -1,0 +1,288 @@
+[
+  {
+    "version": "2.1.90",
+    "kind": "cli",
+    "date": "2026-04-01",
+    "dateConfidence": "explicit",
+    "headline": "SOCKS5ホスト名null-byte注入によるサンドボックス回避を無告知で修正",
+    "highlights": [
+      "SOCKS5ホスト名のnull-byte注入によるネットワークsandbox allowlist回避（v2.0.24〜v2.1.89が脆弱）を修正",
+      "CVE発行・セキュリティ勧告・changelog記載なしのサイレント修正だったとセキュリティ研究者が指摘（約130の脆弱リリースが告知なく放置）"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-22-daily-research.md",
+    "sourceUrl": "https://oddguan.com/blog/second-time-same-sandbox-anthropic-claude-code-network-allowlist-bypass-data-exfiltration/"
+  },
+  {
+    "version": "Opus 4.7",
+    "kind": "model",
+    "date": "2026-04-16",
+    "dateConfidence": "explicit",
+    "headline": "Claude Opus 4.7が一般提供開始、コーディングベンチ+13%・価格据え置き",
+    "highlights": [
+      "93タスクのコーディングベンチマークでOpus 4.6比+13%",
+      "価格はOpus 4.6と同じ$5/$25 per MTok（入力/出力）に据え置き",
+      "Claude Codeではxhigh思考レベルとの組み合わせが推奨",
+      "Claude Security（脆弱性スキャン・修正提案、Enterprise向け公開ベータ）を同時発表"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-04-daily-research.md",
+    "sourceUrl": "https://www.anthropic.com/news/claude-opus-4-7"
+  },
+  {
+    "version": "2.1.122",
+    "kind": "cli",
+    "date": "2026-04-28",
+    "dateConfidence": "explicit",
+    "headline": "ANTHROPIC_BEDROCK_SERVICE_TIER環境変数追加、/resumeがPR URL検索に対応",
+    "highlights": [
+      "ANTHROPIC_BEDROCK_SERVICE_TIER環境変数を追加",
+      "/resumeにPR URLを貼り付けて作成セッションを検索可能に"
+    ],
+    "impact": null,
+    "sourceReport": "2026-05-02-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.123",
+    "kind": "cli",
+    "date": "2026-04-29",
+    "dateConfidence": "explicit",
+    "headline": "OAuth認証の401リトライループバグを修正",
+    "highlights": [
+      "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1設定時に発生する401リトライループを修正"
+    ],
+    "impact": null,
+    "sourceReport": "2026-05-02-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.126",
+    "kind": "cli",
+    "date": "2026-05-01",
+    "dateConfidence": "explicit",
+    "headline": "claude project purge追加・WSL2 OAuth貼り付けログイン対応・Windows文字化け修正",
+    "highlights": [
+      "claude project purge [path]コマンド追加（トランスクリプト・タスク・ファイル履歴・設定を一括削除）",
+      "claude auth loginがブラウザコールバック到達不能な環境（WSL2/SSH/コンテナ）でのターミナル貼り付けログインに対応",
+      "--dangerously-skip-permissionsが.claude/.git/.vscode/シェル設定ファイルへの書込プロンプトも自動バイパス",
+      "Windowsでの日本語・韓国語・中国語の文字化けとPowerShell 7検出を修正",
+      "2000px超画像ペーストによるセッションクラッシュを修正（ダウンスケール対処）",
+      "allowManagedDomainsOnly等がsandboxブロック省略時に無視されるセキュリティ問題を修正"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-01-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.136-2.1.138",
+    "kind": "cli",
+    "date": "2026-05-09",
+    "dateConfidence": "explicit",
+    "headline": "Enterprise向けセッション品質サーベイ再有効化とhard_deny設定追加（v2.1.136〜138）",
+    "highlights": [
+      "v2.1.136: OpenTelemetry経由のセッション品質サーベイをEnterprise向けに再有効化",
+      "v2.1.136: settings.autoMode.hard_denyで特定ツール呼び出しを無条件ブロック可能に",
+      "v2.1.136: MCPサーバー・OAuthトークン処理・プラグイン安定性の修正60件以上",
+      "v2.1.137: VS Code拡張のWindows起動失敗バグを修正",
+      "v2.1.138: 内部修正"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-05-11-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "2.1.139",
+    "kind": "cli",
+    "date": "2026-05-11",
+    "dateConfidence": "explicit",
+    "headline": "Agent Viewと/goalコマンドを同時投入、フックexec形式・CLAUDE_PROJECT_DIR追加",
+    "highlights": [
+      "Agent View（claude agentsまたは左矢印キー）で実行中・ブロック中・完了済みセッションを一覧管理",
+      "/goalコマンドで完了条件を宣言し複数ターンにわたり自律実行",
+      "claude plugin details <name>でプラグインの構成・想定トークン消費を表示",
+      "フックにargs: string[]（exec形式）を追加しシェル経由せず直接コマンド起動（shell injection対策）",
+      "MCP stdioサーバーにCLAUDE_PROJECT_DIR環境変数を提供開始",
+      "HTTP/SSE MCPサーバーのメモリリーク（16MB上限が無視される問題）を修正"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-12-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.139"
+  },
+  {
+    "version": "2.1.140",
+    "kind": "cli",
+    "date": "2026-05-13",
+    "dateConfidence": "explicit",
+    "headline": "subagent_typeの表記揺れを許容、/goalのサイレントハングを修正",
+    "highlights": [
+      "subagent_typeパラメータが大文字/区切り文字非依存になり表記揺れ（例: Code Reviewer）を許容",
+      "/goalがフック無効環境（disableAllHooks等）でサイレントにハングせず明示メッセージを表示",
+      "claude --bgのバックグラウンド接続切断（connection dropped mid-request）を解消",
+      "Windowsのwhere.exe同期実行によるイベントループ停止を修正"
+    ],
+    "impact": null,
+    "sourceReport": "2026-05-14-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.143",
+    "kind": "cli",
+    "date": "2026-05-15",
+    "dateConfidence": "explicit",
+    "headline": "プラグイン依存解決強化・projected context cost表示・worktree.bgIsolation追加",
+    "highlights": [
+      "claude plugin disableが依存先のあるプラグインを拒否、enableは推移的依存を強制有効化",
+      "/pluginマーケットプレイス画面でターン毎・呼び出し毎の推定トークンコスト（projected context cost）を表示",
+      "worktree.bgIsolation: \"none\"設定でバックグラウンドセッションがworktreeを作らず作業コピーを直接編集可能に",
+      "markdownテーブル描画・IDE内マウスホイール・/usageスクリーンショット等のUIバグを修正（計33件の変更）"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-17-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.144",
+    "kind": "cli",
+    "date": "2026-05-19",
+    "dateConfidence": "explicit",
+    "headline": "/resumeとバックグラウンドセッションを統合、/modelがセッション限定変更に対応",
+    "highlights": [
+      "/resumeとバックグラウンドセッションを統合",
+      "/modelコマンドの挙動変更（デフォルト変更はdキー、それ以外は現在セッションのみ変更）",
+      "APIスタートアップタイムアウトを75秒から15秒へ短縮",
+      "プラグインブラウズペインに最終更新タイムスタンプを表示"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-05-20-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "2.1.145",
+    "kind": "cli",
+    "date": "2026-05-20",
+    "dateConfidence": "explicit",
+    "headline": "claude agents --jsonでスクリプティング対応、Bash裸変数バイパスを修正",
+    "highlights": [
+      "claude agents --jsonでJSON出力しスクリプティングに対応",
+      "プラグイン検索画面でコマンド・エージェント・スキル・フック・MCP/LSPサーバーを一括表示",
+      "Bashの裸変数代入によるパーミッションプロンプトのバイパスを塞ぐセキュリティ修正"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-05-20-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "2.1.146",
+    "kind": "cli",
+    "date": "2026-05-21",
+    "dateConfidence": "explicit",
+    "headline": "/simplifyを/code-reviewに改名しeffortレベル指定に対応",
+    "highlights": [
+      "/simplifyを/code-reviewに改名、/code-review highのようにeffort level指定が可能に",
+      "Autoモードがユーザー/スキルが明示的に依存する場合はAskUserQuestionを抑制しなくなった",
+      "winget/Microsoft Store経由pwshでPowerShellツールが実行エラーになる問題を修正",
+      "ページネーションMCPサーバーでresources/list等が2ページ目以降を取りこぼす問題を修正"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-05-21-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.147",
+    "kind": "cli",
+    "date": "2026-05-23",
+    "dateConfidence": "report-date",
+    "headline": "/simplifyを/code-review（effortレベル付き）に改名",
+    "highlights": [
+      "/simplifyを/code-reviewに改名、effort level（low/medium/high）指定に対応",
+      "バックグラウンドセッションのアイドル時生存・更新時再起動を改善",
+      "auto-updaterのエラー報告を強化",
+      "プロンプト履歴の連続重複を排除"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-05-23-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.148",
+    "kind": "cli",
+    "date": "2026-05-22",
+    "dateConfidence": "explicit",
+    "headline": "v2.1.147由来のBash exit code 127回帰を修正",
+    "highlights": [
+      "Bashツールが全コマンドでexit code 127を返す回帰（v2.1.147由来）を即修正"
+    ],
+    "impact": "低",
+    "sourceReport": "2026-05-24-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
+  },
+  {
+    "version": "2.1.149",
+    "kind": "cli",
+    "date": "2026-05-22",
+    "dateConfidence": "explicit",
+    "headline": "/usageにスキル・サブエージェント・MCP別のコスト内訳を追加",
+    "highlights": [
+      "/usageがスキル・サブエージェント・プラグイン・MCPサーバー別のコスト内訳（上限消費の要因分解）を表示",
+      "/diff詳細ビューのキーボードナビゲーション（矢印・vimキー）に対応",
+      "GFMタスクリストのチェックボックス（- [ ] / - [x]）描画に対応",
+      "PowerShellの権限バイパス・git worktreeサンドボックス被覆を修正（セキュリティ）"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-25-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases"
+  },
+  {
+    "version": "2.1.150",
+    "kind": "cli",
+    "date": "2026-05-23",
+    "dateConfidence": "explicit",
+    "headline": "worktree sandbox write allowlistの脆弱性修正・skillコンテキストfork無限ループ修正",
+    "highlights": [
+      "git worktreeのsandbox write allowlistがメインリポジトリ全体を許可していたバグを修正（hooks/と設定をdenyへ変更）",
+      "PowerShellのcd..等がsandboxを迂回しワークスペース外を読み書きできた脆弱性を修正",
+      "macOSでfindがファイル記述子を枯渇させホストをクラッシュさせる重大バグを修正",
+      "skillのコンテキストforkに起因する無限ループを修正",
+      "Agent Teamsで非ASCII名のチームメイトがAPI呼び出しに失敗する不具合を修正",
+      "Rewindメニューに「Summarize up to here」（要約してコンテキスト圧縮）を追加",
+      "ANTHROPIC_WORKSPACE_IDとclaude agents --cwd <path>を追加"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-25-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
+  },
+  {
+    "version": "Opus 4.8",
+    "kind": "model",
+    "date": "2026-05-28",
+    "dateConfidence": "explicit",
+    "headline": "Claude Opus 4.8公開、Dynamic Workflowsと安価なFast Modeを同梱",
+    "highlights": [
+      "SWE-bench Verified 64.3%→69.2%、Humanity's Last Exam 54.7%→57.9%に向上",
+      "価格はOpus 4.7から据え置き",
+      "Dynamic Workflows（research preview）: JSオーケストレーションで最大16並列・累計1000エージェント",
+      "Fast Mode: 2.5倍速・約3倍安（$30/$150→$10/M入力・$50/M出力）",
+      "effort制御がLow〜Maxの複数段階に、既定はHigh。/effort ultracodeでxhigh推論+自動workflow化",
+      "コードの欠陥を見逃さず申告する正直性がOpus 4.7比で約4倍改善"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-05-29-daily-research.md",
+    "sourceUrl": "https://www.marktechpost.com/2026/05/28/anthropic-ships-claude-opus-4-8-alongside-dynamic-workflows-and-cheaper-fast-mode-with-workflows-capped-at-1000-subagents/"
+  },
+  {
+    "version": "2.1.150-2.1.157",
+    "kind": "cli",
+    "date": "2026-05-28",
+    "dateConfidence": "explicit",
+    "headline": "Week22でdynamic workflowsとsecurity-guidanceプラグインを追加",
+    "highlights": [
+      "dynamic workflows: Claudeが書いたスクリプトから数十〜数百のサブエージェントをオーケストレーション、中間結果を検証しつつ中断ジョブを保存済み進捗から再開",
+      "security-guidance plugin: 変更を逐次レビューし脆弱性を検知",
+      "Opus 4.8上のfast mode（$10/$50 per MTok）を追加"
+    ],
+    "impact": null,
+    "sourceReport": "2026-05-31-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/whats-new"
+  }
+]

@@ -18,6 +18,16 @@ export const GetDoctrineAgreementInputSchema = z.object({
 
 export type GetDoctrineAgreementInput = z.infer<typeof GetDoctrineAgreementInputSchema>;
 
+export type GetDoctrineAgreementResult = DoctrineAgreementMetrics & {
+  /**
+   * 読み取りに失敗した DB とその理由。空配列なら両 DB を読めている。
+   * fail-open の縮退（片側 DB の読み失敗 → 残る側だけで集計）は維持するが、縮退した事実を
+   * 返り値で運ぶ。stderr ログだけだと、DB 破損時に「全指標 0」が正常値として読まれる
+   * 無言故障になる（2026-08-15 実測: caravan-book.db malformed で 74 件が 0 件に見えた）。
+   */
+  readonly sourceErrors: readonly string[];
+};
+
 /**
  * D2 監視指標の読み出し。**読み取り専用**で開き、ensure・遅延移行を起動しない
  * （監視のつもりの呼び出しが本番 DB のテーブルを DROP しない — getAcceptanceReview と同方針。
@@ -29,13 +39,15 @@ export type GetDoctrineAgreementInput = z.infer<typeof GetDoctrineAgreementInput
  */
 export async function handleGetDoctrineAgreement(
   input: GetDoctrineAgreementInput,
-): Promise<DoctrineAgreementMetrics> {
+): Promise<GetDoctrineAgreementResult> {
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
   const range = {
     ...(input.since === undefined ? {} : { since: input.since }),
     ...(input.until === undefined ? {} : { until: input.until }),
   };
+
+  const sourceErrors: string[] = [];
 
   let caravanRows: DoctrineAgreementRow[] = [];
   try {
@@ -47,6 +59,8 @@ export async function handleGetDoctrineAgreement(
       openedCaravan.close();
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    sourceErrors.push(`caravan-book.db read failed (falling back to activity.db only): ${message}`);
     console.error(
       `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_doctrine_agreement: caravan-book.db read failed (falling back to activity.db only)`,
       err instanceof Error ? err.stack : err,
@@ -64,11 +78,16 @@ export async function handleGetDoctrineAgreement(
       openedTrail.close();
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    sourceErrors.push(`activity.db read failed (using caravan-book.db rows only): ${message}`);
     console.error(
       `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_doctrine_agreement: activity.db read failed (using caravan-book.db rows only)`,
       err instanceof Error ? err.stack : err,
     );
   }
 
-  return aggregateDoctrineAgreement(mergeDoctrineAgreementRows(caravanRows, trailRows));
+  return {
+    ...aggregateDoctrineAgreement(mergeDoctrineAgreementRows(caravanRows, trailRows)),
+    sourceErrors,
+  };
 }

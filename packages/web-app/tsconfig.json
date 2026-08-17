@@ -85,6 +85,7 @@
   },
   "include": [
     "src/**/*",
+    "scripts/**/*.ts",
     "next-env.d.ts",
     ".next/types/**/*.ts",
     "../markdown-editor/src/md.d.ts",

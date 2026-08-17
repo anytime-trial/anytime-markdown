@@ -530,6 +530,31 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       originPrompt: r.originPrompt == null ? null : String(r.originPrompt).replace(/\s+/g, ' ').slice(0, 120),
       points: r.points.map((p) => String(p).slice(0, 100)),
     });
+    // ゲート理由分布（DCT-19 観測・proposal 20260815-ai-review-approval-intake）。
+    // doctrine_silent / no_canon_citation の比率は canon 補完で削れる母集団、
+    // underspecified_instruction は解消経路(resolve_underspecified_points)の利用状況を映す。
+    // 全期間で数える（分布の前回比デルタを取るため。SINCE で切ると母数が薄く比率が暴れる）
+    let gateVerdicts = null;
+    let escalateReasons = null;
+    if (rows(q(djDb, `PRAGMA table_info(caravan_doctrine_judgments)`)).some((c) => c.name === 'gate_reasons_json')) {
+      gateVerdicts = { delegable: 0, escalate: 0 };
+      escalateReasons = {};
+      for (const r of rows(q(djDb, `SELECT gate_verdict verdict, gate_reasons_json reasons FROM caravan_doctrine_judgments WHERE gate_verdict IS NOT NULL`))) {
+        gateVerdicts[r.verdict] = (gateVerdicts[r.verdict] ?? 0) + 1;
+        if (r.verdict !== 'escalate') continue;
+        let parsed = [];
+        try {
+          const v = JSON.parse(r.reasons);
+          if (Array.isArray(v)) parsed = v;
+        } catch (e) {
+          // 破損は理由不明として数える（黙って落とすと分布の分母が verdict と合わなくなる）
+          parsed = [`unreadable(${e instanceof Error ? e.message : 'parse error'})`.slice(0, 60)];
+        }
+        for (const reason of (parsed.length > 0 ? parsed : ['(no reason recorded)'])) {
+          escalateReasons[reason] = (escalateReasons[reason] ?? 0) + 1;
+        }
+      }
+    }
     snapshot.doctrineGap = {
       source: djSource,
       available: true,
@@ -544,6 +569,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       missedByPromptShape: byShape,
       missedSamples: missed.slice(0, 5).map(sample),
       declaredSamples: declared.slice(0, 5).map(sample),
+      // ゲート理由分布（全期間。列未導入の旧 DB は null = 測定不能）
+      gateVerdicts,
+      escalateReasons,
     };
   }
   if (memo.db) memo.db.close();

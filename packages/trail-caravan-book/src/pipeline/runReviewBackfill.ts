@@ -1,5 +1,6 @@
 import type { CaravanDbConnection } from '../db/connection/types';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
+import { allWorkspacesScope } from '../ingest/workspaceScope';
 import { entityId } from '../canonical/entityId';
 import { noopLogger, type CaravanLogger } from '../logger';
 
@@ -65,9 +66,16 @@ export function runReviewBackfill(input: ReviewBackfillInput): ReviewBackfillRes
   };
 
   try {
+    // 走査は**全ワークスペース**で行う。本関数は「既にある caravan_reviews 行の
+    // 空の本文を埋める」一回限りの是正であり、行が既に存在する時点で取込済みだから
+    // である。ここを自ワークスペース限定にすると、他ワークスペース由来の既存行が
+    // 本文の埋まらないまま手順 2 の空殻判定に落ち、レビュー結果として実体のある行を
+    // 「スキル起動の痕跡」として削除してしまう。他ワークスペース由来データの削除は
+    // purgeForeignWorkspaceMemory（件数提示 → 人の承認）が担う別の仕事。
     const sessions = parseReviewSessions({
       db,
       sinceISO: EPOCH,
+      workspaceScope: allWorkspacesScope(),
       logger: { warn: (msg: string) => logger.info(msg) },
     });
     result.parsed_blocks = sessions.length;

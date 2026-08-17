@@ -1,3 +1,4 @@
+import { allWorkspacesScope } from '../../src/ingest/workspaceScope';
 import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
@@ -89,6 +90,7 @@ describe('runConversationIncremental', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -131,6 +133,7 @@ describe('runConversationIncremental', () => {
     // Run1: 1 件処理した後 (2 episode 目の境界) で COOLING 中断。
     let calls = 0;
     const result1 = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -146,6 +149,7 @@ describe('runConversationIncremental', () => {
 
     // Run2: 中断なし → 残り 1 件を処理、Run1 で永続化済みは existingIds で skip。
     const result2 = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -176,6 +180,7 @@ describe('runConversationIncremental', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -220,6 +225,7 @@ describe('runConversationIncremental', () => {
 
     // First run
     const result1 = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -229,6 +235,7 @@ describe('runConversationIncremental', () => {
     // Second run — same trail data, but pipeline_state.last_processed_at is now
     // after these messages, so no new episodes to process
     const result2 = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -269,6 +276,7 @@ describe('runConversationIncremental', () => {
     };
 
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -316,6 +324,7 @@ describe('runConversationIncremental', () => {
     };
 
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -381,6 +390,7 @@ describe('runConversationIncremental', () => {
     };
 
     await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -443,6 +453,7 @@ describe('runConversationIncremental', () => {
     };
 
     await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -491,6 +502,7 @@ describe('runConversationIncremental', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -528,6 +540,7 @@ describe('runConversationIncremental', () => {
 
     const ollama = makeValidOllama();
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -581,6 +594,7 @@ describe('runConversationIncremental', () => {
     const progressCalls: Array<{ processed: number; failed: number }> = [];
 
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: silentLogger,
@@ -613,6 +627,7 @@ describe('runConversationIncremental', () => {
     const ollama = makeValidOllama();
     const errors: unknown[] = [];
     const result = await runConversationIncremental({
+      workspaceScope: allWorkspacesScope(),
       db: memDb,
       ollama,
       logger: { info: () => {}, error: (_msg, err) => { errors.push(err); } },

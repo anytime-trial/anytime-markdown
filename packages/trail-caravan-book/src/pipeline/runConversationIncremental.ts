@@ -5,6 +5,7 @@ import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
 import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type CaravanLogger } from '../logger';
+import type { MemoryWorkspaceScope } from '../ingest/workspaceScope';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 type PipelineStatus = 'success' | 'partial' | 'error';
@@ -324,6 +325,11 @@ async function runIncrementalSession(
 export async function runConversationIncremental(opts: {
   db: CaravanDbConnection;
   ollama: OllamaClient;
+  /**
+   * 取込対象ワークスペース。activity.db は複数ワークスペースのセッションを持つため、
+   * ここで絞らないと他ワークスペースの会話まで記憶へ昇格する。既定値は持たない。
+   */
+  workspaceScope: MemoryWorkspaceScope;
   logger?: CaravanLogger;
   model?: string;
   /** 進捗チェックポイント時に呼ばれる save コールバック (sql.js memDb の disk 書き込み)。 */
@@ -381,7 +387,7 @@ export async function runConversationIncremental(opts: {
 
   // ── 3. Iterate sessions ──────────────────────────────────────────────────
   try {
-    for (const { messages } of readMessagesSince(db, sinceISO)) {
+    for (const { messages } of readMessagesSince(db, sinceISO, opts.workspaceScope)) {
       const signal = await runIncrementalSession(splitEpisodes(messages), ctx, state);
 
       if (signal.kind === 'quarantine') {

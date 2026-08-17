@@ -46,6 +46,7 @@ export class CaravanBookService extends BaseRunner {
       nativeBinding: this.serviceOpts.nativeBinding,
       gitRoot: this.serviceOpts.gitRoot,
       backfillDays: this.serviceOpts.backfillDays,
+      workspaceScopeMode: this.serviceOpts.workspaceScopeMode,
       backupGenerations: this.serviceOpts.backupGenerations,
       backupIntervalDays: this.serviceOpts.backupIntervalDays,
       llm: this.serviceOpts.llm,

@@ -661,6 +661,7 @@ export async function activate(context: vscode.ExtensionContext) {
 								nativeBinding: caravanBookNativeBinding,
 								gitRoot: wsRootForDb,
 								backfillDays: lepConfig.memory.conversation.backfillDays,
+								workspaceScopeMode: lepConfig.memory.workspaceScope,
 								llm: {
 									baseUrl: lepOllama.baseUrl,
 									chatModel: ingestGenModel,

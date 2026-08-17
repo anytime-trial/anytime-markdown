@@ -198,4 +198,51 @@ describe('evaluateCoverageGate', () => {
       expect(result.reasons).toEqual(['odd_registry_invalid']);
     });
   });
+
+  describe('未確定論点の解消（DCT-19）', () => {
+    it('全論点が解消済みなら規則 2.5 を通過し delegable になる', () => {
+      const result = evaluateCoverageGate(
+        input({
+          underspecifiedPoints: ['論点A', '論点B'],
+          resolvedPoints: ['論点A', '論点B'],
+        }),
+      );
+      expect(result).toEqual({ verdict: 'delegable', reasons: [] });
+    });
+
+    it('一部でも未解消の論点が残れば underspecified_instruction で escalate', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: ['論点A', '論点B'], resolvedPoints: ['論点A'] }),
+      );
+      expect(result).toEqual({ verdict: 'escalate', reasons: ['underspecified_instruction'] });
+    });
+
+    it('申告に無い解消済み文字列は判定へ影響しない（申告した論点だけが対象）', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: ['論点A'], resolvedPoints: ['論点X', '論点A'] }),
+      );
+      expect(result.verdict).toBe('delegable');
+    });
+
+    it('突合は逐語一致（前後空白が違えば未解消として escalate）', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: ['論点A'], resolvedPoints: ['論点A '] }),
+      );
+      expect(result.reasons).toEqual(['underspecified_instruction']);
+    });
+
+    it('resolvedPoints 未指定は従来どおり非空申告で escalate（解消なしの既定動作を変えない）', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: ['論点A'], resolvedPoints: undefined }),
+      );
+      expect(result.reasons).toEqual(['underspecified_instruction']);
+    });
+
+    it('解消があっても未申告（undefined）は underspecified_unknown（申告義務は変わらない）', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: undefined, resolvedPoints: ['論点A'] }),
+      );
+      expect(result.reasons).toEqual(['underspecified_unknown']);
+    });
+  });
 });

@@ -1,0 +1,343 @@
+[
+  {
+    "version": "2.1.160",
+    "kind": "cli",
+    "date": "2026-06-02",
+    "dateConfidence": "explicit",
+    "headline": "シェル起動ファイル・ビルド設定ファイルへの書込みに承認ゲート追加",
+    "highlights": [
+      ".zshenv/.zlogin/.bash_login と ~/.config/git/ への書込み前に承認プロンプトを追加",
+      "acceptEditsモードでも.npmrc/.yarnrc*/bunfig.toml等の実行権限系設定への書込みに承認を要求",
+      "サプライチェーン攻撃（設定ファイル経由の任意コード実行）への防御強化が目的"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-02-daily-research.md",
+    "sourceUrl": "https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG.md"
+  },
+  {
+    "version": "2.1.165",
+    "kind": "cli",
+    "date": "2026-06-05",
+    "dateConfidence": "explicit",
+    "headline": "安定性中心のリリース、workflowキーワード誤起動防止設定を追加",
+    "highlights": [
+      "安定性改善が中心のリリース",
+      "\"workflow\"というキーワードで動的ワークフローが誤起動しないよう/configにトリガ設定を追加"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-07-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "2.1.166",
+    "kind": "cli",
+    "date": "2026-06-06",
+    "dateConfidence": "explicit",
+    "headline": "fallbackModel設定追加・denyルールのglob対応拡張",
+    "highlights": [
+      "fallbackModel設定追加。プライマリモデル過負荷/利用不可時に最大3モデルを順次試行（--fallback-modelは対話セッションにも適用）",
+      "denyルールのglobパターン対応を拡張",
+      "JetBrains端末描画不具合・Windows PowerShellのコマンド検証ハングを修正",
+      "ボイスモード認証・バックグラウンドエージェントセッションの不具合修正"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-07-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "2.1.169",
+    "kind": "cli",
+    "date": "2026-06-09",
+    "dateConfidence": "explicit",
+    "headline": "サブエージェントはスキルを自動継承しない仕様を周知・post-sessionフック新設",
+    "highlights": [
+      "サブエージェントは親セッションのスキルを自動継承しないため明示的プリロードが必要と周知",
+      "セッション終了後にログ・アーティファクトを取得できるpost-sessionフックを新設",
+      "新規コンテキストのサブエージェントに差分レビューさせる品質管理パターンが紹介された"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-11-daily-research.md",
+    "sourceUrl": "https://claude-news.today/en/briefings/briefing-2026-06-10/"
+  },
+  {
+    "version": "2.1.170",
+    "kind": "cli",
+    "date": "2026-06-09",
+    "dateConfidence": "explicit",
+    "headline": "Claude Fable 5（Mythosクラス）の一般提供に対応",
+    "highlights": [
+      "Fable 5一般提供開始（6/9）に伴い本バージョンから利用可能に",
+      "既存の一般提供モデルを上回る能力と位置づけ"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-13-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "Fable 5",
+    "kind": "model",
+    "date": "2026-06-09",
+    "dateConfidence": "explicit",
+    "headline": "Claude Fable 5（Mythosクラス）一般提供開始",
+    "highlights": [
+      "Mythosクラスの新モデルとして一般提供開始",
+      "「これまで一般提供したどのモデルをも超える能力」と位置づけ",
+      "v2.1.170から利用可能"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-13-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "2.1.172",
+    "kind": "cli",
+    "date": "2026-06-10",
+    "dateConfidence": "explicit",
+    "headline": "ネストサブエージェント（最大深度5）解禁",
+    "highlights": [
+      "サブエージェントが自身のサブエージェントを最大5階層までネスト起動可能に",
+      "/pluginのマーケットプレイス検索バーを追加",
+      "WebFetchのワイルドカードドメインがサブドメインにマッチしないバグを修正",
+      "長い会話のパフォーマンスを改善"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-13-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.174",
+    "kind": "cli",
+    "date": "2026-06-12",
+    "dateConfidence": "explicit",
+    "headline": "VSCode Account&usageダイアログにskill/agent別トークン内訳を追加",
+    "highlights": [
+      "キャッシュミス・ロングコンテキスト・skill/agentごとの利用内訳を表示",
+      "トークン消費の可視化が向上"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-13-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.176",
+    "kind": "cli",
+    "date": "2026-06-12",
+    "dateConfidence": "explicit",
+    "headline": "セッションタイトル自動生成・MCPエンタープライズポリシー適用バグ修正",
+    "highlights": [
+      "セッションタイトルが会話言語で自動生成されるように",
+      "footerLinksRegexes設定でフッターリンクバッジをサポート",
+      "Bedrock認証情報キャッシュを改善",
+      "allowedMcpServers/deniedMcpServersが接続時に未適用だったバグを修正",
+      "Fable 5へのautoモードフォールバック修正、[1m]サフィックスモデル名の正規化バグ修正"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-15-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.175",
+    "kind": "cli",
+    "date": "2026-06-13",
+    "dateConfidence": "report-date",
+    "headline": "enforceAvailableModels管理設定を追加",
+    "highlights": [
+      "管理者がenforceAvailableModels設定でDefaultモデル選択を制約可能に"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-13-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.178",
+    "kind": "cli",
+    "date": "2026-06-15",
+    "dateConfidence": "explicit",
+    "headline": "Tool(param:value)権限構文とネストされた.claude/対応",
+    "highlights": [
+      "Tool(param:value)構文による細粒度permissionルール（例: Agent(model:opus)でOpusサブエージェントをブロック）",
+      "ネストされた.claude/skills/対応、名前衝突時は<dir>:<name>修飾名で共存",
+      "最寄りの.claude/を優先する階層解決",
+      "autoモードでサブエージェント生成前のクラシファイア事前評価を改善"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-17-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.178"
+  },
+  {
+    "version": "2.1.179",
+    "kind": "cli",
+    "date": "2026-06-17",
+    "dateConfidence": "explicit",
+    "headline": "WSL2スクロール不具合・サブエージェントtranscript表示を修正",
+    "highlights": [
+      "ストリーム途中切断時にrawエラーでなく部分レスポンスを保持",
+      "WSL2のマウスホイールスクロール不具合を修正",
+      "Linuxのサンドボックス設定起因のセッション不能を修正",
+      "サブエージェントtranscriptのツール結果未表示・進捗リアルタイム表示・ctrl+B誤再起動を修正"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-17-daily-research.md",
+    "sourceUrl": "https://releasebot.io/updates/anthropic/claude-code"
+  },
+  {
+    "version": "2.1.181",
+    "kind": "cli",
+    "date": "2026-06-17",
+    "dateConfidence": "explicit",
+    "headline": "/config key=valueによる設定変更・サブエージェントパネル自動非表示",
+    "highlights": [
+      "/config key=valueでプロンプトから直接設定変更が可能に",
+      "アイドル30秒でサブエージェントパネルが自動非表示に",
+      "API切断時の自動リトライを追加"
+    ],
+    "impact": null,
+    "sourceReport": "2026-06-18-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.183",
+    "kind": "cli",
+    "date": "2026-06-19",
+    "dateConfidence": "explicit",
+    "headline": "Autoモードで破壊的Gitコマンドを自動ブロック",
+    "highlights": [
+      "git reset --hard/git checkout -- .等の破壊的GitコマンドをAutoモードで自動ブロック",
+      "非推奨モデル使用時にstderr警告を出力",
+      "WebSearchがサブエージェントで空結果を返すバグを修正",
+      "サブエージェントパネルにアイドル30秒後の自動非表示・最大5行表示上限を追加"
+    ],
+    "impact": "中",
+    "sourceReport": "2026-06-19-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.185",
+    "kind": "cli",
+    "date": "2026-06-20",
+    "dateConfidence": "explicit",
+    "headline": "API待機メッセージの表現改善・タイムアウト延長",
+    "highlights": [
+      "\"No response from API\"から\"Waiting for API response\"へメッセージ表現を改善",
+      "トリガータイミングを10秒から20秒に延長しネットワーク遅延による誤警告を削減"
+    ],
+    "impact": "低",
+    "sourceReport": "2026-06-21-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.186",
+    "kind": "cli",
+    "date": "2026-06-22",
+    "dateConfidence": "explicit",
+    "headline": "respondToBashCommands・MCP CLI認証など33件の変更",
+    "highlights": [
+      "respondToBashCommands: !コマンドのbash出力をClaudeが自動解析・応答（設定で無効化可）",
+      "claude mcp login/logoutでCLIからMCPサーバー認証、--no-browserでSSH環境対応",
+      "/pluginタブにSkillsセクションを追加",
+      "マシンスリープ後のストリーミング失敗（Content block not found等）を修正",
+      "サブエージェントtranscript・Chromeタブグループ分離等の複数修正"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-23-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.187",
+    "kind": "cli",
+    "date": "2026-06-23",
+    "dateConfidence": "explicit",
+    "headline": "sandbox.credentials・org別モデル制限・リモートMCPタイムアウト修正など19件",
+    "highlights": [
+      "sandbox.credentials新設定でサンドボックス化コマンドが認証情報ファイルを読み取れないようブロック（Agentjacking対策）",
+      "org別モデル制限がモデルピッカー・--model・/model・ANTHROPIC_MODEL全てで機能",
+      "リモートMCPツールの5分間無応答ブロックを修正しエラーで中断するよう変更",
+      "CJK文字化け修正・強制終了エージェントのworktreeロックリーク自動クリーンアップ",
+      "CLAUDE_CODE_MAX_RETRIES上限を15に設定、CLAUDE_CODE_RETRY_WATCHDOG使用を推奨"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-24-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.190",
+    "kind": "cli",
+    "date": "2026-06-24",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正のみのマイナーリリース（v2.1.191と同日）",
+    "highlights": [
+      "v2.1.187（6/23）からv2.1.191まで2日間で4バージョンが連続リリースされたうちの1つ",
+      "新機能追加はなくバグ修正のみ"
+    ],
+    "impact": null,
+    "sourceReport": "2026-06-25-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.191",
+    "kind": "cli",
+    "date": "2026-06-24",
+    "dateConfidence": "explicit",
+    "headline": "/rewind追加・CPU使用率37%削減・hooksコンマバグ修正",
+    "highlights": [
+      "/rewindコマンド追加。/clear実行前の会話状態に巻き戻し可能",
+      "ストリーミング中テキスト更新を100msコーレシングしCPU使用率37%削減",
+      "hooksのコンマ区切りマッチャーが無音で発火しないバグを修正",
+      "バックグラウンドエージェント復活バグ・MCPサーバーcapability discoveryのリトライを改善",
+      "MCP OAuthのheadless環境ブラウザポップアップスキップを追加"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-25-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.193",
+    "kind": "cli",
+    "date": "2026-06-25",
+    "dateConfidence": "explicit",
+    "headline": "autoMode全Shell分類・OTELログ・MCP headersHelper自動再認証",
+    "highlights": [
+      "autoMode.classifyAllShellで全Bash/PowerShellコマンドをautoMode分類器経由でルーティング",
+      "claude_code.assistant_response OTELログイベントを追加（デフォルトマスク）",
+      "アイドルバックグラウンドシェルのメモリ圧力自動回収を追加",
+      "MCP headersHelperが401/403エラー時に自動再実行・再接続"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-26-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.195",
+    "kind": "cli",
+    "date": "2026-06-26",
+    "dateConfidence": "explicit",
+    "headline": "fallbackModel設定追加・hookマッチャー完全一致化・クロスセッション権限ハードニング",
+    "highlights": [
+      "fallbackModel設定追加、プライマリモデル過負荷/停止時に最大3代替モデルを順序試行",
+      "ハイフン付きidentifierのhookマッチャーを部分一致から完全一致に修正",
+      "クロスセッションメッセージングの権限ハードニング（他セッションからのメッセージがユーザー権限扱いされないよう修正）",
+      "日本語・中国語・タイ語等の音声ディクテーション自動送信バグを修正",
+      "bgジョブの消失・データ破損バグを修正"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-27-daily-research.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.196",
+    "kind": "cli",
+    "date": "2026-06-30",
+    "dateConfidence": "explicit",
+    "headline": "MCPセキュリティ修正・org default model・/code-review 25%削減",
+    "highlights": [
+      "claude mcp list/getが未審査の.mcp.jsonサーバーを自動承認しないよう修正（セキュリティホール解消）",
+      "org default modelで管理者がチーム全体のデフォルトモデルを設定可能に",
+      "/code-reviewワークフローのクリーンアップファインダー統合でトークン使用量を約25%削減",
+      "streaming watchdogを全プロバイダーでデフォルト有効化（5分無応答で自動中止・再試行）",
+      "バックグラウンドジョブ復帰時の会話永続削除バグを修正"
+    ],
+    "impact": "高",
+    "sourceReport": "2026-06-30-daily-research.md",
+    "sourceUrl": "https://github.com/anthropics/claude-code/releases/tag/v2.1.196"
+  }
+]

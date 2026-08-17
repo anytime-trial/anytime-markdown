@@ -1,11 +1,18 @@
 import type { CaravanDbConnection } from '../db/connection/types';
 import { ingestableMessageSql } from '../ingest/conversation/messageFilter';
+import type { MemoryWorkspaceScope } from '../ingest/workspaceScope';
 
 export interface DetectBackfillWindowExpansionInput {
   /** caravan-book.db への接続。trail DB が "trail" として ATTACH 済みであること。 */
   db: CaravanDbConnection;
   /** 現在 config が要求する backfill 期間 (日)。 */
   sinceDays: number;
+  /**
+   * 取込対象ワークスペース。取込本体と同じ条件で数えないと、限定で取り込まない
+   * 他ワークスペースのメッセージを「未処理」と数え、カーソル reset → 再 backfill
+   * してもエピソードが増えない空転に入る。
+   */
+  workspaceScope: MemoryWorkspaceScope;
 }
 
 export interface DetectBackfillWindowExpansionResult {
@@ -34,7 +41,7 @@ export interface DetectBackfillWindowExpansionResult {
 export function detectBackfillWindowExpansion(
   input: DetectBackfillWindowExpansionInput,
 ): DetectBackfillWindowExpansionResult {
-  const { db, sinceDays } = input;
+  const { db, sinceDays, workspaceScope } = input;
   const desiredStart = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
 
   // 現在カバー済みの最古 episode timestamp
@@ -62,13 +69,14 @@ export function detectBackfillWindowExpansion(
   // reset → 再 backfill してもエピソードが 1 件も増えず earliest が動かない →
   // 次回も同じ判定、という空転になる。実測で user 行 352,212 件中 328,662 件は
   // tool_result の入れ物で本文が空なので、この区間は珍しくない。
+  const ingestable = ingestableMessageSql(workspaceScope);
   const countRows = db.exec(
     `SELECT COUNT(*) AS c
        FROM trail.activity_messages
       WHERE timestamp >= ?
         AND timestamp < ?
-        AND ${ingestableMessageSql()}`,
-    [desiredStart, earliest],
+        AND ${ingestable.sql}`,
+    [desiredStart, earliest, ...ingestable.params],
   );
   const unprocessedCount = (countRows[0]?.values?.[0]?.[0] as number) ?? 0;
 

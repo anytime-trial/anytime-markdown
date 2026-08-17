@@ -5,6 +5,7 @@ import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
 import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { noopLogger, type CaravanLogger } from '../logger';
+import type { MemoryWorkspaceScope } from '../ingest/workspaceScope';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 type PipelineStatus = 'success' | 'partial' | 'error';
@@ -360,6 +361,11 @@ async function processBackfillSession(
 export async function runConversationBackfill(opts: {
   db: CaravanDbConnection;
   ollama: OllamaClient;
+  /**
+   * 取込対象ワークスペース。activity.db は複数ワークスペースのセッションを持つため、
+   * ここで絞らないと他ワークスペースの会話まで記憶へ昇格する。既定値は持たない。
+   */
+  workspaceScope: MemoryWorkspaceScope;
   sinceDays?: number;
   logger?: CaravanLogger;
   model?: string;
@@ -431,7 +437,7 @@ export async function runConversationBackfill(opts: {
 
   // ── 3. Iterate sessions ──────────────────────────────────────────────────
   // Pre-count sessions for progress display
-  const sessionList = [...readMessagesSince(db, sinceISO)];
+  const sessionList = [...readMessagesSince(db, sinceISO, opts.workspaceScope)];
   const totalSessions = sessionList.length;
   const totalEpisodes = sessionList.reduce(
     (sum, { messages }) => sum + splitEpisodes(messages).length, 0

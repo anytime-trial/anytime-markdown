@@ -4,7 +4,7 @@ import { routing } from "../i18n/routing";
 import { localeHref } from "../lib/localeAlternates";
 import { listReports } from "../lib/reportClient";
 import { fetchLayoutData } from "../lib/s3Client";
-import { STATIC_ROUTES } from "../lib/staticRoutes";
+import { SINGLE_SOURCE_ROUTES, STATIC_ROUTES } from "../lib/staticRoutes";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.anytime-trial.com";
@@ -67,13 +67,22 @@ function singleSourcePage(
   ];
 }
 
-const STATIC_PAGES: MetadataRoute.Sitemap = STATIC_ROUTES.flatMap((route) =>
-  expandLocales(route.path, {
-    lastModified: DEPLOYED_AT,
-    changeFrequency: route.changeFrequency,
-    priority: route.priority,
-  }),
-);
+const STATIC_PAGES: MetadataRoute.Sitemap = [
+  ...STATIC_ROUTES.flatMap((route) =>
+    expandLocales(route.path, {
+      lastModified: DEPLOYED_AT,
+      changeFrequency: route.changeFrequency,
+      priority: route.priority,
+    }),
+  ),
+  ...SINGLE_SOURCE_ROUTES.flatMap((route) =>
+    singleSourcePage(route.path, {
+      lastModified: DEPLOYED_AT,
+      changeFrequency: route.changeFrequency,
+      priority: route.priority,
+    }),
+  ),
+];
 
 /** frontmatter の date は自由入力なので、パースできない場合はデプロイ時刻へ縮退する */
 function parseArticleDate(date: string | undefined): Date {

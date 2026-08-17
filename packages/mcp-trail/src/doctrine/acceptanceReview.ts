@@ -26,6 +26,8 @@ export interface AcceptanceEscalation {
    * 出ないと洗い出しへ繋がらない。
    */
   readonly underspecifiedPoints: readonly string[];
+  /** 申告済み論点への人の回答 (DCT-19)。解消済み / 未解消を人が読み分けるために出す */
+  readonly pointResolutions: DoctrineJudgmentView['pointResolutions'];
 }
 
 export interface AcceptanceReviewSummary {
@@ -157,6 +159,7 @@ function collectEscalations(
       byGate: judgment.gateVerdict === 'escalate',
       gateReasons: judgment.gateReasons,
       underspecifiedPoints: judgment.underspecifiedPoints,
+      pointResolutions: judgment.pointResolutions,
     }));
 }
 
@@ -326,7 +329,16 @@ function renderEscalations(escalations: readonly AcceptanceEscalation[]): string
       lines.push(`- カバレッジゲート: エスカレーション — ${reasons}`);
     }
     for (const point of escalation.underspecifiedPoints) {
-      lines.push(`  - 指示から定まらない論点: ${singleLine(point)}`);
+      const resolution = escalation.pointResolutions.find((r) => r.point === point);
+      if (resolution === undefined) {
+        lines.push(`  - 指示から定まらない論点（未解消）: ${singleLine(point)}`);
+      } else {
+        // DCT-19: 解消済みは人の回答まで出す。「何が答えられて何が残っているか」を
+        // 理由コードの読解なしに判別できるようにする（仕様 §9.6）
+        lines.push(
+          `  - 指示から定まらない論点（解消済み）: ${singleLine(point)} — 回答: ${singleLine(resolution.answer)}`,
+        );
+      }
     }
     lines.push('');
   }

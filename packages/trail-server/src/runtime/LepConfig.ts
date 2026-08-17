@@ -116,11 +116,25 @@ export interface LepConversationConfig {
   backfillDays: number;
 }
 
+/**
+ * 記憶（caravan-book）へ昇格させる対象ワークスペース。
+ *
+ * `import_sessions` は `~/.claude/projects/` 配下の全プロジェクトを activity.db へ
+ * 取り込むため、activity.db には他ワークスペースのセッションも入っている。
+ * - `'own'`: gitRoot のリポジトリ名に一致するセッションだけを記憶へ入れる（既定）
+ * - `'all'`: activity.db の全ワークスペースを記憶へ入れる（限定前の従来挙動）
+ */
+export type LepWorkspaceScope = 'own' | 'all';
+
+/** 既定は自ワークスペース限定（2026-08-17 のユーザー判断）。 */
+export const DEFAULT_MEMORY_WORKSPACE_SCOPE: LepWorkspaceScope = 'own';
+
 /** trail-caravan-book 取込・検索のパラメータ群 (旧 config.json `caravan.*` から統合)。 */
 export interface LepCaravanConfig {
   rag: LepRagConfig;
   fts: LepFtsConfig;
   conversation: LepConversationConfig;
+  workspaceScope: LepWorkspaceScope;
 }
 
 export interface LepAnalyzerToggle {
@@ -360,6 +374,7 @@ export interface PartialLepConfig {
     rag?: Partial<LepRagConfig>;
     fts?: Partial<LepFtsConfig>;
     conversation?: Partial<LepConversationConfig>;
+    workspaceScope?: LepWorkspaceScope;
   };
   analyzers?: LepAnalyzersConfig;
   sources?: {
@@ -396,6 +411,7 @@ export const DEFAULT_LEP_CONFIG: LepConfig = {
     rag: { bm25Limit: 30, vecLimit: 30, finalLimit: 12, rrfK: 60 },
     fts: { rebuildIntervalMinutes: 60 },
     conversation: { backfillDays: DEFAULT_CONVERSATION_BACKFILL_DAYS },
+    workspaceScope: DEFAULT_MEMORY_WORKSPACE_SCOPE,
   },
   analyzers: Object.fromEntries(
     KNOWN_ANALYZER_IDS.map((id) => [id, { enabled: true }]),
@@ -495,6 +511,18 @@ function validateCaravanSection(
   }
   if (isPlainObject(raw['conversation']) && typeof raw['conversation']['backfillDays'] === 'number') {
     memory.conversation = { backfillDays: raw['conversation']['backfillDays'] };
+  }
+  const scope = raw['workspaceScope'];
+  if (scope !== undefined) {
+    if (scope === 'own' || scope === 'all') {
+      memory.workspaceScope = scope;
+    } else {
+      // 不正値を既定へ黙って倒さない。'all' のつもりの打ち間違いが警告なしで
+      // 'own' として通ると、取り込まれないことに気づく手がかりが 1 つも残らない。
+      warnings.push(
+        `${sourceLabel}: memory.workspaceScope は 'own' | 'all' である必要があります (無視して既定 '${DEFAULT_MEMORY_WORKSPACE_SCOPE}' を使用)`,
+      );
+    }
   }
   return memory;
 }
@@ -826,6 +854,7 @@ export function mergeLepConfig(base: LepConfig, override: PartialLepConfig): Lep
       conversation: {
         backfillDays: override.memory?.conversation?.backfillDays ?? base.memory.conversation.backfillDays,
       },
+      workspaceScope: override.memory?.workspaceScope ?? base.memory.workspaceScope,
     },
     // analyzers は id 単位で上書き (未指定 id は base を維持)
     analyzers: override.analyzers ? { ...base.analyzers, ...override.analyzers } : { ...base.analyzers },
@@ -1185,7 +1214,7 @@ export function serializeLepConfigWithComments(config: LepConfig): string {
     },
     memory: {
       _comment:
-        'stage が memory を含む(memory/primary+memory/all)時のみ有効。rag=ハイブリッド検索パラメータ / fts=全文索引再構築間隔(分) / conversation=会話バックフィル日数。',
+        'stage が memory を含む(memory/primary+memory/all)時のみ有効。rag=ハイブリッド検索パラメータ / fts=全文索引再構築間隔(分) / conversation=会話バックフィル日数 / workspaceScope=記憶へ入れる対象ワークスペース(own=このリポジトリのセッションのみ・既定 / all=activity.db の全ワークスペース)。',
       rag: {
         _comment:
           'bm25Limit=BM25候補数 / vecLimit=ベクトル候補数 / finalLimit=RRF後の最終件数 / rrfK=RRF平滑化定数',
@@ -1193,6 +1222,7 @@ export function serializeLepConfigWithComments(config: LepConfig): string {
       },
       fts: { ...config.memory.fts },
       conversation: { ...config.memory.conversation },
+      workspaceScope: config.memory.workspaceScope,
     },
     analyzers: Object.fromEntries(
       Object.entries(config.analyzers).map(([id, a]) => [

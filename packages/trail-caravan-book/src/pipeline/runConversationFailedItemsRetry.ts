@@ -5,6 +5,7 @@ import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { ingestTargetSql } from '../ingest/conversation/messageFilter';
 import { noopLogger, type CaravanLogger } from '../logger';
+import type { MemoryWorkspaceScope } from '../ingest/workspaceScope';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 type PipelineStatus = 'success' | 'partial' | 'error';
@@ -110,9 +111,11 @@ function reconstructEpisode(
   db: CaravanDbConnection,
   session_id: string,
   message_uuid_start: string,
+  scope: MemoryWorkspaceScope,
 ): ReconstructOutcome {
   // ATTACHed trail DB から該当 session の messages を取得し、splitEpisodes で
   // 元 episode を再構築する。message_uuid_start が一致する episode を返す。
+  const target = ingestTargetSql(scope, 'm');
   const rows = db.exec(
     `SELECT m.uuid, m.session_id, m.type, m.timestamp,
             COALESCE(SUBSTR(m.text_content, 1, 2048),
@@ -120,9 +123,9 @@ function reconstructEpisode(
                      '') AS text_excerpt
      FROM trail.activity_messages m
      WHERE m.session_id = ? AND m.timestamp IS NOT NULL
-       AND ${ingestTargetSql('m')}
+       AND ${target.sql}
      ORDER BY m.timestamp`,
-    [session_id]
+    [session_id, ...target.params]
   );
   const notFoundOrOutOfScope = (): ReconstructOutcome =>
     messageExistsIgnoringFilter(db, session_id, message_uuid_start)
@@ -248,11 +251,15 @@ type RetryItemSignal =
   | { kind: 'quarantine'; errorDetail: string };
 
 /** バッチ内の item_key から episode を再構築する（同期・DB のみ）。 */
-function reconstructBatch(db: CaravanDbConnection, batch: FailedItemRow[]): ReconstructOutcome[] {
+function reconstructBatch(
+  db: CaravanDbConnection,
+  batch: FailedItemRow[],
+  scope: MemoryWorkspaceScope,
+): ReconstructOutcome[] {
   return batch.map((item) => {
     const parsed = parseItemKey(item.item_key);
     if (!parsed) return { kind: 'not_found' };
-    return reconstructEpisode(db, parsed.session_id, parsed.message_uuid_start);
+    return reconstructEpisode(db, parsed.session_id, parsed.message_uuid_start, scope);
   });
 }
 
@@ -393,6 +400,7 @@ async function retryFailedItemBatches(args: {
   state: RetryState;
   save: (() => void) | undefined;
   logger: CaravanLogger;
+  workspaceScope: MemoryWorkspaceScope;
 }): Promise<PartialReturnPayload | null> {
   const { db, ollama, model, items, extractConcurrency, ledger, state, save, logger } = args;
   const { totals } = state;
@@ -400,7 +408,7 @@ async function retryFailedItemBatches(args: {
   for (let batchStart = 0; batchStart < items.length; batchStart += extractConcurrency) {
     const batch = items.slice(batchStart, batchStart + extractConcurrency);
 
-    const outcomes = reconstructBatch(db, batch);
+    const outcomes = reconstructBatch(db, batch, args.workspaceScope);
     const extracted = await extractBatchFacts({ ollama, model, batch, outcomes, logger });
 
     for (let j = 0; j < batch.length; j++) {
@@ -446,6 +454,12 @@ async function retryFailedItemBatches(args: {
 export async function runConversationFailedItemsRetry(opts: {
   db: CaravanDbConnection;
   ollama: OllamaClient;
+  /**
+   * 取込対象ワークスペース。取込本体と同じ条件で再構築しないと、限定の外に出た
+   * 過去の失敗キーが `not_found`（＝失敗）に見え、3 件並ぶだけで retry スコープが
+   * quarantine で止まる。
+   */
+  workspaceScope: MemoryWorkspaceScope;
   logger?: CaravanLogger;
   model?: string;
   maxAttempts?: number;
@@ -511,6 +525,7 @@ export async function runConversationFailedItemsRetry(opts: {
   try {
     const quarantined = await retryFailedItemBatches({
       db, ollama, model, items, extractConcurrency, ledger, state, save, logger,
+      workspaceScope: opts.workspaceScope,
     });
     if (quarantined !== null) return quarantined;
   } catch (err) {

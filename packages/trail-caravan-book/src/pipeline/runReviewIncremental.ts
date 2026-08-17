@@ -6,6 +6,7 @@ import { PipelineRunLedger } from './PipelineRunLedger';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
 import { entityId } from '../canonical/entityId';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
+import type { MemoryWorkspaceScope } from '../ingest/workspaceScope';
 import { refineCategories } from '../ingest/review/extractFindings';
 import {
   upsertReviewDoc,
@@ -205,6 +206,7 @@ interface ReviewTotals {
 interface RouteContext {
   db: CaravanDbConnection;
   repoName: string;
+  workspaceScope: MemoryWorkspaceScope;
   ollama: OllamaClient;
   model: string;
   logger: CaravanLogger;
@@ -328,6 +330,7 @@ async function runRouteBSessions(acc: ReviewTotals, ctx: RouteContext): Promise<
     const sessions = parseReviewSessions({
       db,
       sinceISO: lastProcessedAt,
+      workspaceScope: ctx.workspaceScope,
       logger: { warn: (msg: string) => logger.info(msg) },
     });
 
@@ -435,6 +438,11 @@ function linkPrecedesStep(acc: ReviewTotals, db: CaravanDbConnection, logger: Ca
 export async function runReviewIncremental(input: {
   db: CaravanDbConnection;
   repoName: string;
+  /**
+   * Route B (レビュー会話セッション) の取込対象ワークスペース。Route A
+   * (review .md) は reviewDir 自体がワークスペース固有なので影響しない。
+   */
+  workspaceScope: MemoryWorkspaceScope;
   reviewDir?: string;
   ollama: OllamaClient;
   model?: string;
@@ -471,7 +479,9 @@ export async function runReviewIncremental(input: {
     itemsFailed: 0,
   };
   const recordedAt = new Date().toISOString();
-  const ctx: RouteContext = { db, repoName, ollama, model, logger, recordedAt, force };
+  const ctx: RouteContext = {
+    db, repoName, workspaceScope: input.workspaceScope, ollama, model, logger, recordedAt, force,
+  };
 
   await runRouteADocs(acc, reviewDir, ctx);
   await runRouteBSessions(acc, ctx);

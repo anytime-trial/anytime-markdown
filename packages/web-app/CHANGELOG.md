@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-08-17
+
+### Added
+
+- `/timeline`: a Claude Code release timeline page. Release cards and a cadence chart read a normalized `releases.json` dataset that `scripts/build-release-timeline.ts` builds from the raw monthly sources; the route is registered in the sitemap and robots rules.
+- A test that fails when `releases.json` drifts from the raw sources it is generated from.
+
+### Changed
+
+- Renamed the timeline link in the press Dispatch section to "Claude Code リリース年表".
+
+### Fixed
+
+- Addressed pre-merge review findings (7 warnings) and accessibility gaps in the timeline components.
+
 ## [0.47.1] - 2026-08-11
 
 ### Fixed

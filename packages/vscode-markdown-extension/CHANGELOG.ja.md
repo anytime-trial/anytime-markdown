@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.21.2] - 2026-08-17
+
+### 変更
+
+- 同梱スキル: `anytime-mermaid` に「色だけに意味を持たせない」アクセシビリティ規則を追加した。`anytime-markdown-check` の記述を整理した。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- 本リリースでの変更はない。バージョンは拡張機能と同期している。
+
 ## [1.21.1] - 2026-08-11
 
 ### 変更

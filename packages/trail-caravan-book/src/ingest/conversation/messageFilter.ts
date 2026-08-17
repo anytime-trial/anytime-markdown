@@ -3,8 +3,14 @@
  * 同じ定義を使うためにここへ集約する（片方だけ変わると母数と処理数が食い違う）。
  */
 
-/** trail.activity_messages に付ける別名。SQL へ埋め込むため、呼び出し実態のリテラルだけを許す。 */
-export type MessagesAlias = 'm';
+import {
+  workspaceScopeSql,
+  type MemoryWorkspaceScope,
+  type MessagesAlias,
+  type SqlPredicate,
+} from '../workspaceScope';
+
+export type { MessagesAlias, SqlPredicate };
 
 const mainThreadOnly = (p: string): string => `${p}is_sidechain = 0`;
 
@@ -43,10 +49,22 @@ const hasText = (p: string): string => `TRIM(COALESCE(${p}text_content, ${p}user
  * `message_uuid_start === message_uuid_end` になる。episode id は
  * `episodeId(session_id, message_uuid_start)` なので、既存エピソードの id は変わらず、
  * 再取込時は existingIds で冪等に skip される。
+ *
+ * 取込ワークスペースの限定（`scope`）もここで合流させる。呼び出し側で条件を足すと、
+ * 取込クエリと母数カウントで別々に足し忘れが起き、この関数を集約した意味が消える。
+ * scope は必須引数にしてあり、既定値は持たない（省略できると配線 1 本の忘れが
+ * 「限定したつもりで全件取込」として無言で成立する）。
  */
-export function ingestTargetSql(alias?: MessagesAlias): string {
+export function ingestTargetSql(
+  scope: MemoryWorkspaceScope,
+  alias?: MessagesAlias,
+): SqlPredicate {
   const prefix = alias ? `${alias}.` : '';
-  return `${humanInput(prefix)} AND ${mainThreadOnly(prefix)}`;
+  const workspace = workspaceScopeSql(scope, alias);
+  return {
+    sql: `${humanInput(prefix)} AND ${mainThreadOnly(prefix)} AND ${workspace.sql}`,
+    params: workspace.params,
+  };
 }
 
 /**
@@ -57,7 +75,11 @@ export function ingestTargetSql(alias?: MessagesAlias): string {
  * SQL 段階で落とすとブロックの切れ目がずれ、同じ会話に対して別 id のエピソードが
  * できてしまう。本文ゼロの除外は splitEpisodes 側（ブロック確定後）で行う。
  */
-export function ingestableMessageSql(alias?: MessagesAlias): string {
+export function ingestableMessageSql(
+  scope: MemoryWorkspaceScope,
+  alias?: MessagesAlias,
+): SqlPredicate {
   const prefix = alias ? `${alias}.` : '';
-  return `${ingestTargetSql(alias)} AND ${hasText(prefix)}`;
+  const target = ingestTargetSql(scope, alias);
+  return { sql: `${target.sql} AND ${hasText(prefix)}`, params: target.params };
 }

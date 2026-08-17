@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { routing } from "../i18n/routing";
 import { localeHref } from "../lib/localeAlternates";
-import { STATIC_ROUTE_PATHS } from "../lib/staticRoutes";
+import { SINGLE_SOURCE_ROUTE_PATHS, STATIC_ROUTE_PATHS } from "../lib/staticRoutes";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.anytime-trial.com";
 
@@ -12,9 +12,11 @@ const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.anytime-trial.
  * sitemap は 1 ルートを全ロケール分の URL へ展開するため、こちらも同じ展開をかける
  * （ja は非プレフィックス・en は /en 配下）。
  */
-const PUBLIC_PATHS = STATIC_ROUTE_PATHS.flatMap(
-  (path) => routing.locales.map((locale) => localeHref(path, locale)),
-);
+const PUBLIC_PATHS = [
+  ...STATIC_ROUTE_PATHS.flatMap((path) => routing.locales.map((locale) => localeHref(path, locale))),
+  // 単一言語ルートは sitemap も既定ロケールの 1 URL しか載せないため、allow も揃える
+  ...SINGLE_SOURCE_ROUTE_PATHS.map((path) => localeHref(path, routing.defaultLocale)),
+];
 
 export default function robots(): MetadataRoute.Robots {
   return {

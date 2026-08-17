@@ -9,6 +9,11 @@ import {
 } from '../pipeline/runConversationBackfill';
 import { detectBackfillWindowExpansion } from '../pipeline/detectBackfillWindowExpansion';
 import { ingestableMessageSql } from '../ingest/conversation/messageFilter';
+import {
+  resolveWorkspaceScope,
+  type MemoryWorkspaceScope,
+  type WorkspaceScopeMode,
+} from '../ingest/workspaceScope';
 import { runConversationIncremental } from '../pipeline/runConversationIncremental';
 import { runConversationFailedItemsRetry } from '../pipeline/runConversationFailedItemsRetry';
 import { runCodeIncremental } from '../pipeline/runCodeIncremental';
@@ -85,6 +90,15 @@ export interface CaravanDbSessionDeps {
   chatModel?: string;
   /** 埋め込みモデル。省略時は `bge-m3` (DEFAULT_EMBED_MODEL)。 */
   embedModel?: string;
+  /**
+   * activity.db から記憶へ昇格させる対象ワークスペース (lep.json `memory.workspaceScope`)。
+   *
+   * `import_sessions` は `~/.claude/projects/` 配下の全プロジェクトを取り込むため、
+   * activity.db には他ワークスペースのセッションも入っている。既定の `'own'` は
+   * `basename(gitRoot)` に一致するリポジトリのセッションだけを記憶へ入れる
+   * (code / bug history / review が既に使っている repoName と同じ値)。
+   */
+  workspaceScopeMode?: WorkspaceScopeMode;
 }
 
 /**
@@ -116,6 +130,49 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     return path.basename(this.deps.gitRoot);
   }
 
+  /**
+   * 会話・レビュー会話の取込対象ワークスペース。
+   *
+   * 未指定を `'own'` へ倒すのは、activity.db が複数ワークスペース分を持つ器であり、
+   * 「設定を書き忘れた」が「他ワークスペースの会話まで記憶へ入る」を意味しないように
+   * するため（広い側を既定にすると、限定の意図が配線 1 本の欠落で無言に消える）。
+   */
+  private get workspaceScope(): MemoryWorkspaceScope {
+    return resolveWorkspaceScope(this.deps.workspaceScopeMode ?? 'own', this.repoName);
+  }
+
+  /**
+   * 解決したスコープを 1 行ログする。
+   *
+   * repoName は `basename(gitRoot)` で、gitRoot が渡らない経路では `basename(cwd)` に
+   * なる（openCaravanDbSession のフォールバック）。`ownWorkspaceScope` は空文字しか
+   * 弾けないので、**非空だが実在しない repo 名**は素通りし、取込が恒久的に 0 件になっても
+   * エラーもログも出ない。解決値と、0 件だった場合の実在 repo 一覧を出して、
+   * 「限定した結果 0 件」と「配線ミスで 0 件」を人が区別できるようにする。
+   */
+  private logWorkspaceScope(scope: MemoryWorkspaceScope, targetCount: number): void {
+    if (scope.kind === 'all_workspaces') {
+      this.logger.info('[anytime-memory] workspace scope: all（全ワークスペースを取り込む）');
+      return;
+    }
+    this.logger.info(
+      `[anytime-memory] workspace scope: own (repo=${scope.repoName}, 対象 ${targetCount} 件)`,
+    );
+    if (targetCount > 0) return;
+    try {
+      const rows = this.deps.memDb.db.exec(
+        `SELECT r.repo_name FROM trail.activity_repos r ORDER BY r.repo_name`,
+      );
+      const known = (rows[0]?.values ?? []).map((row) => String(row[0])).join(', ');
+      this.logger.error(
+        `[anytime-memory] workspace scope: repo="${scope.repoName}" に一致する取込対象が 0 件。` +
+          `activity.db に実在する repo: [${known}]（gitRoot の指定を確認すること）`,
+      );
+    } catch (err) {
+      this.logger.error('[anytime-memory] workspace scope: repo 一覧の取得に失敗', err);
+    }
+  }
+
   private save(): void {
     this.deps.memDb.save();
   }
@@ -131,10 +188,11 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     const { memDb, ollama, backfillDays, chatModel } = this.deps;
     const logger = this.logger;
     const sinceDays = backfillDays ?? DEFAULT_CONVERSATION_BACKFILL_DAYS;
+    const workspaceScope = this.workspaceScope;
 
     // backfill window 拡張検知: cursor を空にして backfill 経路に倒す
     try {
-      const expansion = detectBackfillWindowExpansion({ db: memDb.db, sinceDays });
+      const expansion = detectBackfillWindowExpansion({ db: memDb.db, sinceDays, workspaceScope });
       if (expansion.shouldExpand) {
         logger.info(`Backfill window expanded — ${expansion.reason}`);
         // scope は列挙で絞る。'review_body_backfill' はここでは last_processed_at が
@@ -161,11 +219,15 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     let convTotalEstimate = 0;
     try {
       // ETA の分母は「エピソードになり得る user 行」で数える（取込側と同じ定義）。
+      const ingestable = ingestableMessageSql(workspaceScope);
       const c = memDb.db.prepare(
         `SELECT COUNT(*) AS c FROM trail.activity_messages
-          WHERE timestamp >= ? AND ${ingestableMessageSql()}`,
+          WHERE timestamp >= ? AND ${ingestable.sql}`,
       );
-      const countRow = c.get(lastProcessedAt || '1970-01-01T00:00:00.000Z');
+      const countRow = c.get(
+        lastProcessedAt || '1970-01-01T00:00:00.000Z',
+        ...ingestable.params,
+      );
       convTotalEstimate = (countRow?.['c'] as number) ?? 0;
       c.free?.();
     } catch (err) {
@@ -177,6 +239,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
       );
     }
 
+    this.logWorkspaceScope(workspaceScope, convTotalEstimate);
     this.status?.start('conversation_incremental', convTotalEstimate || undefined);
     let convResult: ScopeResult;
     try {
@@ -185,6 +248,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
         const result = await runConversationBackfill({
           db: memDb.db,
           ollama,
+          workspaceScope,
           model: chatModel,
           sinceDays,
           logger,
@@ -206,6 +270,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
         const result = await runConversationIncremental({
           db: memDb.db,
           ollama,
+          workspaceScope,
           model: chatModel,
           logger,
           save: () => this.save(),
@@ -242,6 +307,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
       const retryResult = await runConversationFailedItemsRetry({
         db: memDb.db,
         ollama,
+        workspaceScope,
         model: chatModel,
         logger,
         save: () => this.save(),
@@ -416,6 +482,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
       const reviewResult = await runReviewIncremental({
         db: memDb.db,
         repoName: this.repoName,
+        workspaceScope: this.workspaceScope,
         reviewDir,
         ollama,
         model,
