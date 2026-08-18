@@ -11,6 +11,8 @@ export {
   toolSignature,
   writeLoopState,
   evaluateEditGate,
+  evaluateWriteConflict,
+  parseBashWriteTargets,
   evaluateEmergencyGate,
   evaluateSectionLockGate,
   evaluateSessionStartGate,

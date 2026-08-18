@@ -72,7 +72,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 
 | 段 | 内容 | 成果物 / 委譲先 | ゲート |
 | --- | --- | --- | --- |
-| 0 | ブランチ確認 | `git branch --show-current` | master/main では作業せず develop 由来の作業ブランチ |
+| 0 | ブランチ確認 | `git branch --show-current` + `.git/anytime/claims` | 永続ブランチ（master/main/develop）では作業せず、着手時に develop 由来の作業ブランチを作る。並行セッションが同一 worktree を保持していれば worktree で分離する |
 | 1 | 提案書（明示指示時のみ） | `anytime-analysis` → `<docsRoot>/proposal/` | ファイル存在 + ユーザー `ok` |
 | 2 | 要件書・機能仕様書の作成・改訂（AI） | `anytime-spec-lookup` + `anytime-markdown-output`（要件定義書・component spec・E2E シナリオ・試験設計書） | ファイル存在 + ユーザー承認（What の確定。実装前で唯一の内容承認。バグ修正 2 案の選択もここ） |
 | 3 | 実装計画の作成（AI・承認不要） | `superpowers:writing-plans` → `<docsRoot>/plan/` | ファイル存在のみ（承認ゲートなし。検証コマンドの実在確認は必須） |
@@ -179,7 +179,7 @@ abstain 出口は `references/stopping-rules-playbook.md` 共通。abstained 返
 
 ## 4. ガードレール
 
-- master/main 上で実装着手しない。
+- 永続ブランチ（master/main/develop）上で実装着手しない。着手時に作業ブランチを作る（コミット時点で気づいても、既に作業ツリーを他セッションと共有した後で worktree 分離の機会は失われている）。
 - proposal / plan / review / spec は `<docsRoot>/` 配下へ出力し、コード repo 内へ置かない。
 - ルート宣言なしに工程を黙って省略しない。
 - 単発ドキュメント作成・レビュー・リリースを本スキルで乗っ取らない。
@@ -192,6 +192,7 @@ abstain 出口は `references/stopping-rules-playbook.md` 共通。abstained 返
 
 | 兆候 | 正す |
 | --- | --- |
+| develop に立ったまま着手した | 段0 は master/main だけでなく永続ブランチ全体が対象。作業ブランチを切るか worktree で分離してから着手する |
 | ルート宣言なしに提案書やレビューを飛ばした | 種別・実施/省略工程・理由を宣言し、上書き可能にする |
 | 新機能なのに段2（What 承認）を飛ばした | 段2 を実施し、要件書・設計書の承認を得てから実装する |
 | 実装計画に承認を求めた・実施内容の承認を待った | 承認対象は What（段2）のみ。プランは AI 成果物として作成のみ、結果確認は受け入れ試験（リリース前の人手のみ試験）に委ねる |
