@@ -580,6 +580,48 @@ describe('parseBashWriteTargets — Bash 経由の書き込み対象を推定す
     expect(parseBashWriteTargets('npm test 2>&1', cwd)).toEqual([]);
   });
 
+  it('リダイレクトの有無で本来の書き込み先を落とさない', () => {
+    // リダイレクト先が引数列に残ると cp / sed -i の対象を at(-1) が取り違える。
+    expect(parseBashWriteTargets('cp a.txt b.txt > /dev/null', cwd)).toEqual(['/repo/b.txt']);
+    // 並び順は「リダイレクト先 → コマンドの書き込み先」。集合として一致すればよい。
+    expect([...parseBashWriteTargets('sed -i "s/x/y/" file.ts > log.txt', cwd)].sort()).toEqual([
+      '/repo/file.ts',
+      '/repo/log.txt',
+    ]);
+  });
+
+  it('fd 付きリダイレクトを書き込み対象にしない', () => {
+    // 2>/dev/null は「書き込みではあるがログ用」。実在しないパス /repo/2>/dev/null を
+    // 共有台帳へ書かないこと（他セッションが読むゴミになる）。
+    expect(parseBashWriteTargets('cp a.txt b.txt 2>/dev/null', cwd)).toEqual(['/repo/b.txt']);
+    expect(parseBashWriteTargets('sed -i "s/a/b/" real.ts 2>/dev/null', cwd)).toEqual([
+      '/repo/real.ts',
+    ]);
+    expect(parseBashWriteTargets('sed -i "s/a/b/" real.ts 2>err.log', cwd)).toEqual([
+      '/repo/real.ts',
+    ]);
+  });
+
+  it('sed -i の複数対象をすべて拾う', () => {
+    expect(parseBashWriteTargets('sed -i "s/a/b/" a.ts b.ts', cwd)).toEqual([
+      '/repo/a.ts',
+      '/repo/b.ts',
+    ]);
+    expect(parseBashWriteTargets('sed -i -e s/a/b/ a.ts b.ts', cwd)).toEqual([
+      '/repo/a.ts',
+      '/repo/b.ts',
+    ]);
+  });
+
+  it('cd で移った先を基準に解決する', () => {
+    expect(parseBashWriteTargets('cd packages/foo && sed -i s/a/b/ src/a.ts', cwd)).toEqual([
+      '/repo/packages/foo/src/a.ts',
+    ]);
+    expect(parseBashWriteTargets('cd /other && echo x > a.ts', cwd)).toEqual(['/other/a.ts']);
+    // 展開が要る cd 先は解決できない。誤ったパスを台帳へ書くより取りこぼす。
+    expect(parseBashWriteTargets('cd "$DIR" && echo x > a.ts', cwd)).toEqual([]);
+  });
+
   it('複数の書き込み先を重複なく返す', () => {
     expect(parseBashWriteTargets('echo x > a.ts; echo y > b.ts; echo z >> a.ts', cwd)).toEqual([
       '/repo/a.ts',
