@@ -437,11 +437,30 @@ function isResolvablePath(token: string): boolean {
   return !token.startsWith('&');
 }
 
+/** 1 つのコマンド。`separator` は直前の区切り（先頭セグメントは undefined）。 */
+interface CommandSegment {
+  readonly text: string;
+  readonly separator: string | undefined;
+}
+
+/** `cd` の効果が後段へ伝わる区切り。`|` と単独の `&` はサブシェルなので伝わらない。 */
+const CD_PROPAGATING_SEPARATORS = new Set([';', '\n', '&&', '||']);
+
 /** 引用符を尊重して `;` `|` `&` `改行` で区切る。クオート内の区切り文字では切らない。 */
-function splitSegments(command: string): string[] {
-  const segments: string[] = [];
+function splitSegments(command: string): CommandSegment[] {
+  const isSeparator = (char: string): boolean =>
+    char === ';' || char === '|' || char === '&' || char === '\n';
+
+  const segments: CommandSegment[] = [];
   let current = '';
+  let separator: string | undefined; // いま組み立てているセグメントの直前の区切り
+  let run = ''; // 連続する区切り文字（`&&` / `||` を 1 つとして扱う）
   let quote: string | null = null;
+
+  const flush = (): void => {
+    if (current.trim() !== '') segments.push({ text: current, separator });
+    current = '';
+  };
 
   for (const char of command) {
     if (quote !== null) {
@@ -454,15 +473,19 @@ function splitSegments(command: string): string[] {
       current += char;
       continue;
     }
-    if (char === ';' || char === '|' || char === '&' || char === '\n') {
-      segments.push(current);
-      current = '';
+    if (isSeparator(char)) {
+      if (run === '') flush();
+      run += char;
       continue;
+    }
+    if (run !== '') {
+      separator = run;
+      run = '';
     }
     current += char;
   }
-  segments.push(current);
-  return segments.filter((segment) => segment.trim() !== '');
+  flush();
+  return segments;
 }
 
 /**
@@ -495,7 +518,11 @@ export function parseBashWriteTargets(command: string, cwd: string): string[] {
   };
 
   for (const segment of splitSegments(scope)) {
-    const tokens = tokenize(segment);
+    // パイプ・バックグラウンドの前段はサブシェルで走るため、そこでの cd は後段へ効かない。
+    if (segment.separator !== undefined && !CD_PROPAGATING_SEPARATORS.has(segment.separator)) {
+      base = cwd;
+    }
+    const tokens = tokenize(segment.text);
     if (tokens[0] === 'cd') {
       const target = tokens[1];
       base =
