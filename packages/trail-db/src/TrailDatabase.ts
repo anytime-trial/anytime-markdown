@@ -48,6 +48,11 @@ export interface DecisionCommentRow {
 
 type DbScalar = string | number | null;
 
+interface AgentMetaFields {
+  agentType: string | null;
+  toolUseId: string | null;
+}
+
 /**
  * importAll() を構成する論理 phase の識別子。
  * UI (OLLAMA panel pipelines) では各 phase が独立した entry として表示される。
@@ -137,7 +142,7 @@ import { ExecFileGitService } from './ExecFileGitService';
 import { JsonlSessionReader } from './JsonlSessionReader';
 import type { RawLine } from './rawLine';
 import { collectClaudeCodeSessionDirs, type ImportAllSessionDir } from './sessionDirs';
-import { buildMessageInsertParams, extractAgentInfo, extractSessionMetaFromLines, parseJsonlLines, type SessionRowMeta } from './sessionImport';
+import { buildMessageInsertParams, extractAgentInfo, extractSessionMetaFromLines, parseJsonlLines, readSubagentMeta, type SessionRowMeta } from './sessionImport';
 export type { ReleaseCoverageRow, ReleaseFileRow, ReleaseRow } from '@anytime-markdown/trail-activity';
 
 declare const __non_webpack_require__: (id: string) => unknown;
@@ -741,21 +746,6 @@ function collectJsonlFilesRecursive(rootDir: string): string[] {
   return results;
 }
 
-
-/**
- * サブエージェント JSONL に隣接する `agent-{agentId}.meta.json` から `agentType` を読む。
- * April 2026 以降に Claude Code が記録する。古いセッションでは存在せず NULL を返す。
- */
-function readSubagentTypeFromMeta(jsonlPath: string): string | null {
-  const metaPath = jsonlPath.replace(/\.jsonl$/, '.meta.json');
-  try {
-    const raw = fs.readFileSync(metaPath, 'utf-8');
-    const meta = JSON.parse(raw) as { agentType?: unknown };
-    return typeof meta.agentType === 'string' && meta.agentType.length > 0 ? meta.agentType : null;
-  } catch {
-    return null;
-  }
-}
 
 // extractSkillName imported from trail-activity (see import at top of file)
 
@@ -3920,7 +3910,11 @@ export class TrailDatabase {
     this.migrateMessageCommitsToUserUuid(db);
     // Phase D-2: subagent_type を既存データに後付けで埋める（_migrations で冪等性確保）。
     // importAll() を待たず init 段階で実行するため、ユーザーが同期未実行でも有効。
-    this.runNonFatalBackfill('backfillSubagentType', () => this.backfillSubagentType());
+    let agentMetaMap: Map<string, AgentMetaFields> | undefined;
+    const collectAgentMetaOnce = (): Map<string, AgentMetaFields> =>
+      agentMetaMap ??= this.collectAgentTypeMap(path.join(os.homedir(), '.claude', 'projects'));
+    this.runNonFatalBackfill('backfillSubagentType', () => this.backfillSubagentType(undefined, collectAgentMetaOnce));
+    this.runNonFatalBackfill('backfillAgentSourceToolUseId', () => this.backfillAgentSourceToolUseId(undefined, collectAgentMetaOnce));
     this.runNonFatalBackfill('backfillSourceToolLinkFields', () => this.backfillSourceToolLinkFields());
     this.runNonFatalBackfill('backfillRepoName_v1', () => this.backfillRepoName_v1());
     this.runNonFatalBackfill('backfillDerivedCounts_v1', () => this.backfillDerivedCounts_v1());
@@ -4358,8 +4352,8 @@ export class TrailDatabase {
    * @internal テスト用に projectsDir を差し替え可能。本番は `~/.claude/projects` を使用。
    */
   /** Step 1 of backfillSubagentType: scan meta.json files and build agent_id → agentType map. */
-  private collectAgentTypeMap(baseDir: string): Map<string, string> {
-    const agentTypeByAgentId = new Map<string, string>();
+  private collectAgentTypeMap(baseDir: string): Map<string, AgentMetaFields> {
+    const agentTypeByAgentId = new Map<string, AgentMetaFields>();
     let projectNames: string[];
     try {
       projectNames = fs.readdirSync(baseDir);
@@ -4382,7 +4376,7 @@ export class TrailDatabase {
   }
 
   private collectAgentTypeMapForSession(
-    agentTypeByAgentId: Map<string, string>,
+    agentTypeByAgentId: Map<string, AgentMetaFields>,
     projectPath: string,
     sessionEntry: string,
   ): void {
@@ -4397,9 +4391,10 @@ export class TrailDatabase {
       const agentId = match[1];
       try {
         const raw = fs.readFileSync(path.join(subagentDir, metaFile), 'utf-8');
-        const meta = JSON.parse(raw) as { agentType?: unknown };
+        const meta = JSON.parse(raw) as { agentType?: unknown; toolUseId?: unknown };
         const agentType = typeof meta.agentType === 'string' && meta.agentType.length > 0 ? meta.agentType : null;
-        if (agentType) agentTypeByAgentId.set(agentId, agentType);
+        const toolUseId = typeof meta.toolUseId === 'string' && meta.toolUseId.length > 0 ? meta.toolUseId : null;
+        if (agentType || toolUseId) agentTypeByAgentId.set(agentId, { agentType, toolUseId });
       } catch (e) {
         this.logger.warn(`[Migration] subagent_type_backfill_v1: skip ${metaFile}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -4407,7 +4402,7 @@ export class TrailDatabase {
   }
 
   /** Step 2 of backfillSubagentType: UPDATE activity_messages by agent_id in a single transaction. */
-  private backfillSubagentTypeByAgentId(db: Database, agentTypeByAgentId: Map<string, string>, phase2Start: number): number {
+  private backfillSubagentTypeByAgentId(db: Database, agentTypeByAgentId: Map<string, AgentMetaFields>, phase2Start: number): number {
     let metaUpdated = 0;
     db.run('BEGIN TRANSACTION');
     try {
@@ -4416,7 +4411,8 @@ export class TrailDatabase {
       );
       try {
         let processed = 0;
-        for (const [agentId, agentType] of agentTypeByAgentId) {
+        for (const [agentId, { agentType }] of agentTypeByAgentId) {
+          if (!agentType) continue;
           updateByAgentId.run([agentType, agentId]);
           metaUpdated++;
           processed++;
@@ -4486,7 +4482,10 @@ export class TrailDatabase {
     return parentUpdated;
   }
 
-  private backfillSubagentType(projectsDir?: string): void {
+  private backfillSubagentType(
+    projectsDir?: string,
+    collectMeta?: () => Map<string, AgentMetaFields>,
+  ): void {
     const db = this.ensureDb();
     db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
     const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'subagent_type_backfill_v1'");
@@ -4502,7 +4501,7 @@ export class TrailDatabase {
     const baseDir = projectsDir ?? path.join(os.homedir(), '.claude', 'projects');
 
     // Step 1: meta.json を集約してメモリ上で agent_id → agentType マップを作る（fs IO のみ、SQL なし）
-    const agentTypeByAgentId = this.collectAgentTypeMap(baseDir);
+    const agentTypeByAgentId = collectMeta?.() ?? this.collectAgentTypeMap(baseDir);
     this.logger.info(`[Migration] subagent_type_backfill_v1: collected ${agentTypeByAgentId.size} agent_id mappings (${Date.now() - startedAt}ms)`);
 
     // Step 2: 単一トランザクションで一括 UPDATE。インデックスありで O(log N)/UPDATE。
@@ -4525,6 +4524,49 @@ export class TrailDatabase {
       `[Migration] subagent_type_backfill_v1: COMPLETED meta=${metaUpdated} parent=${parentUpdated} totalMs=${Date.now() - startedAt}`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('subagent_type_backfill_v1')");
+  }
+
+  private backfillAgentSourceToolUseId(
+    projectsDir?: string,
+    collectMeta?: () => Map<string, AgentMetaFields>,
+  ): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'agent_source_tool_use_id_backfill_v1'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    this.logger.info('[Migration] agent_source_tool_use_id_backfill_v1: starting...');
+    db.run('CREATE INDEX IF NOT EXISTS idx_messages_agent_id ON activity_messages(agent_id)');
+    const baseDir = projectsDir ?? path.join(os.homedir(), '.claude', 'projects');
+    const agentMetaById = collectMeta?.() ?? this.collectAgentTypeMap(baseDir);
+    this.logger.info(`[Migration] agent_source_tool_use_id_backfill_v1: collected ${agentMetaById.size} agent_id mappings (${Date.now() - startedAt}ms)`);
+
+    let processed = 0;
+    db.run('BEGIN TRANSACTION');
+    try {
+      const update = db.prepare(
+        'UPDATE activity_messages SET source_tool_use_id = ? WHERE agent_id = ? AND source_tool_use_id IS NULL',
+      );
+      try {
+        for (const [agentId, { toolUseId }] of agentMetaById) {
+          if (!toolUseId) continue;
+          update.run([toolUseId, agentId]);
+          processed++;
+          if (processed % 500 === 0) {
+            this.logger.info(`[Migration] agent_source_tool_use_id_backfill_v1: agent_id UPDATEs ${processed}/${agentMetaById.size} (${Date.now() - startedAt}ms)`);
+          }
+        }
+      } finally {
+        update.free();
+      }
+      db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('agent_source_tool_use_id_backfill_v1')");
+      db.run('COMMIT');
+    } catch (error) {
+      try { db.run('ROLLBACK'); } catch (rollbackError) { this.logger.error('[Migration] agent_source_tool_use_id_backfill_v1: ROLLBACK failed', rollbackError); }
+      throw error;
+    }
+    this.logger.info(`[Migration] agent_source_tool_use_id_backfill_v1: COMPLETED meta=${processed} totalMs=${Date.now() - startedAt}`);
   }
 
   /**
@@ -5924,7 +5966,15 @@ export class TrailDatabase {
 
     // サブエージェント JSONL の場合は隣接 meta.json から subagent_type を取得し、
     // この JSONL 内の全メッセージに付与する。古いセッションは meta.json なし → NULL のまま。
-    const fileSubagentType = isSubagent ? readSubagentTypeFromMeta(filePath) : null;
+    let subagentMeta: ReturnType<typeof readSubagentMeta> = null;
+    if (isSubagent) {
+      try {
+        subagentMeta = readSubagentMeta(filePath);
+      } catch (error) {
+        this.logger.warn(error instanceof Error ? error.message : String(error));
+      }
+    }
+    const fileSubagentType = subagentMeta?.agentType ?? null;
 
     const parsedRaw = parseJsonlLines(content);
     if (parsedRaw.length === 0) return 0;
@@ -5959,7 +6009,12 @@ export class TrailDatabase {
       // Insert messages
       const msgStmt = db.prepare(INSERT_MESSAGE);
       for (const raw of meta.messagesToInsert) {
-        const params = buildMessageInsertParams(raw, { sessionId, isSubagent, fileSubagentType });
+        const params = buildMessageInsertParams(raw, {
+          sessionId,
+          isSubagent,
+          fileSubagentType,
+          fileSourceToolUseId: subagentMeta?.toolUseId ?? null,
+        });
         msgStmt.run(params);
       }
       msgStmt.free();
