@@ -621,6 +621,8 @@ describe('parseBashWriteTargets — Bash 経由の書き込み対象を推定す
     // パイプの前段はサブシェルで走るので cd は後段へ効かない。
     expect(parseBashWriteTargets('cd /other | sed -i s/a/b/ a.ts', cwd)).toEqual(['/repo/a.ts']);
     expect(parseBashWriteTargets('cd /other || sed -i s/a/b/ a.ts', cwd)).toEqual(['/other/a.ts']);
+    // ';' と改行が連続する複数行表記でも cd は後段へ効く。
+    expect(parseBashWriteTargets('cd /other;\nsed -i s/a/b/ a.ts', cwd)).toEqual(['/other/a.ts']);
     // 展開が要る cd 先は解決できない。誤ったパスを台帳へ書くより取りこぼす。
     expect(parseBashWriteTargets('cd "$DIR" && echo x > a.ts', cwd)).toEqual([]);
   });

@@ -443,8 +443,16 @@ interface CommandSegment {
   readonly separator: string | undefined;
 }
 
-/** `cd` の効果が後段へ伝わる区切り。`|` と単独の `&` はサブシェルなので伝わらない。 */
-const CD_PROPAGATING_SEPARATORS = new Set([';', '\n', '&&', '||']);
+/**
+ * `cd` の効果が後段へ伝わる区切りか。
+ *
+ * `;` と改行は組み合わせ自由（`;\n` も普通の複数行表記）なので落とし、残った演算子が
+ * `&&` / `||` だけなら伝わる。単独の `|`（パイプ）と `&`（バックグラウンド）は前段が
+ * サブシェルで走るため伝わらない。
+ */
+function propagatesCd(separator: string): boolean {
+  return separator.replace(/[;\n]/g, '').replace(/&&|\|\|/g, '') === '';
+}
 
 /** 引用符を尊重して `;` `|` `&` `改行` で区切る。クオート内の区切り文字では切らない。 */
 function splitSegments(command: string): CommandSegment[] {
@@ -519,7 +527,7 @@ export function parseBashWriteTargets(command: string, cwd: string): string[] {
 
   for (const segment of splitSegments(scope)) {
     // パイプ・バックグラウンドの前段はサブシェルで走るため、そこでの cd は後段へ効かない。
-    if (segment.separator !== undefined && !CD_PROPAGATING_SEPARATORS.has(segment.separator)) {
+    if (segment.separator !== undefined && !propagatesCd(segment.separator)) {
       base = cwd;
     }
     const tokens = tokenize(segment.text);
