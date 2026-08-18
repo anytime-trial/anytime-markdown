@@ -143,6 +143,7 @@ describe('collectChecks: skill-integrity（統合・tmp dir）', () => {
       fs.writeFileSync(path.join(skillDir, 'references', f), '# stub\n');
     }
     for (const f of [
+      'delegation-triage.cjs',
       'criteria.cjs',
       'benchmarks.json',
       'ollama-benchmarks.cjs',
