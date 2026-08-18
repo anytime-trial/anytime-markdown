@@ -123,10 +123,8 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 **段4 の実装タスクは Codex 委譲を既定とする。** メイン直執行を選べるのは下表の除外条件に該当する場合だけで、そのときはルート宣言へ除外 ID を明記する。「機械的か」「定型か」を主観で判定しない — どの実装タスクも「設計判断が絡む」と言えば除外できてしまうため、判定は客観入力を `delegation-triage.cjs` へ渡して機械的に決める。
 
 ```bash
-node .claude/skills/anytime-dev-cycle/delegation-triage.cjs \
-  --paths packages/<pkg>/src/foo.ts --files 3 --lines 120 \
-  --severity low --verify "npm test -w anytime-agent"
-# → 実行手段: codex — 除外なし（files=3 lines=120 severity=low verify=ok）
+node .claude/skills/anytime-dev-cycle/delegation-triage.cjs --paths packages/<pkg>/src/foo.ts \
+  --files 3 --lines 120 --severity low --verify "npm test -w anytime-agent"   # → 実行手段: codex — 除外なし
 ```
 
 | ID | 除外条件（該当時のみメイン直執行） | 判定入力 |

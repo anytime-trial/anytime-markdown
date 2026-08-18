@@ -74,9 +74,19 @@ function parseArgs(argv) {
 }
 
 function readPackageJson(packageJsonPath) {
+  let raw;
   try {
-    return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    raw = fs.readFileSync(packageJsonPath, 'utf8');
   } catch {
+    // 不在は探索の正常系（呼び出し元が候補パスを総当たりする）。ログを出さない。
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    // 破損は診断すべき異常。不在と同じ null へ潰すが、識別子付きで stderr へ残す
+    // （stdout は判定結果の契約なので汚さない）。
+    console.error(`[delegation-triage] package.json の解析に失敗: ${packageJsonPath}: ${error.message}`);
     return null;
   }
 }
@@ -124,8 +134,11 @@ function checkVerifyCommand(command, workspace) {
     return { available, checked: true, status: available ? 'ok' : 'ng' };
   }
 
-  const jestMatch = /^npx\s+jest\s+(.+)$/.exec(command.trim());
-  const tscMatch = /^npx\s+tsc\s+(?:--noEmit\s+)?-p\s+(.+)$/.exec(command.trim());
+  // Why not: `(.+)$` で受けない — 対象パスの後ろに続くフラグ（`-p tsconfig.json --noEmit`・
+  // `jest <path> --coverage`）までキャプチャに入り、実在するファイルを不在と誤判定して
+  // E3（検証手段が実行不能）へ倒れる。パス相当の 1 トークンだけを実在チェックに使う。
+  const jestMatch = /^npx\s+jest\s+(\S+)/.exec(command.trim());
+  const tscMatch = /^npx\s+tsc\s+(?:--noEmit\s+)?-p\s+(\S+)/.exec(command.trim());
   const target = jestMatch?.[1] ?? tscMatch?.[1];
   if (target !== undefined) {
     const available = fs.existsSync(path.resolve(workspace, unquote(target)));

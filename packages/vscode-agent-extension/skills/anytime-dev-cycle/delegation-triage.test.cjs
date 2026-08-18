@@ -124,6 +124,31 @@ describe('checkVerifyCommand', () => {
     });
   });
 
+  // リグレッション（マージ前レビュー指摘 1）: 対象パスの後ろに続くフラグまで
+  // キャプチャすると、実在するファイルを不在と誤判定して E3 へ倒れる。
+  it('対象パスの後ろにフラグが続いても実在するパスを ok と判定する', () => {
+    expect(checkVerifyCommand('npx tsc -p tsconfig.json --noEmit', workspace)).toEqual({
+      available: true,
+      checked: true,
+      status: 'ok',
+    });
+    expect(checkVerifyCommand('npx jest tests/unit.test.cjs --coverage', workspace)).toEqual({
+      available: true,
+      checked: true,
+      status: 'ok',
+    });
+  });
+
+  // リグレッション（マージ前レビュー指摘 2）: 破損した package.json を不在と同じ
+  // 無言の null に潰さない（rules/code-quality.md §8 silent catch 禁止）。
+  it('package.json が壊れていたらパスを添えて stderr へ出す', () => {
+    fs.writeFileSync(path.join(workspace, 'packages', 'agent-dir', 'package.json'), '{ broken');
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    expect(checkVerifyCommand('npm run compile -w agent-dir', workspace).available).toBe(false);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('package.json'));
+    spy.mockRestore();
+  });
+
   it('未指定は ng、認識不能な書式は unchecked で通過させる', () => {
     expect(checkVerifyCommand(null, workspace)).toEqual({
       available: false,
