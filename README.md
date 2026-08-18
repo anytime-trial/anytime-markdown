@@ -121,6 +121,65 @@ A set of MCP (Model Context Protocol) servers that give AI agents direct access 
 | `mcp-cms-remote` | Remote CMS access via Cloudflare Workers |
 
 
+### Standalone Setup — Claude Desktop, Claude Code, Cursor
+
+These servers are not published to npm. They run over stdio from a clone of this repository, so any MCP client can use them without installing the VS Code extensions. The Dev Container is not required — Node.js 24 (see `.node-version`) and one `npm install` at the repository root are enough.
+
+```bash
+git clone https://github.com/anytime-trial/anytime-markdown.git
+cd anytime-markdown
+npm install
+```
+
+Then register the servers you want with your client — `claude_desktop_config.json` for Claude Desktop, `.mcp.json` in the project root for Claude Code, `mcp.json` for Cursor. Replace `/path/to/anytime-markdown` with the absolute path of your clone, and `/path/to/your/workspace` with the project you want the server to act on. Those are usually two different directories: the clone supplies the server, the workspace supplies the data.
+
+```json
+{
+  "mcpServers": {
+    "mcp-markdown": {
+      "command": "npx",
+      "args": ["tsx", "--tsconfig", "packages/mcp-markdown/tsconfig.json", "packages/mcp-markdown/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "ANYTIME_MARKDOWN_ROOT": "/path/to/your/workspace" }
+    },
+    "mcp-graph": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-graph/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown"
+    },
+    "mcp-trail": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-trail/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "TRAIL_WORKSPACE_PATH": "/path/to/your/workspace" }
+    },
+    "mcp-cms": {
+      "command": "npx",
+      "args": ["tsx", "--require", "dotenv/config", "packages/mcp-cms/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "DOTENV_CONFIG_PATH": "/path/to/your/.env" }
+    }
+  }
+}
+```
+
+Every variable below is optional. The table gives the fallback each server uses when one is unset.
+
+| Server | Variable | Falls back to | Purpose |
+| --- | --- | --- | --- |
+| `mcp-markdown` | `ANYTIME_MARKDOWN_ROOT` | `process.cwd()` | Workspace root the server reads and writes Markdown under |
+| `mcp-markdown` | `ANYTIME_MARKDOWN_DOC_DB` | `<root>/.anytime/markdown/catalog.db` | Document search index. `search_docs` needs it; build it from the Anytime Markdown extension ("Rebuild Doc Search Index") |
+| `mcp-trail` | `TRAIL_WORKSPACE_PATH` | `process.cwd()`, with a warning on stderr | Workspace whose databases the tools read. Most tools also take `workspacePath` per call, which wins over the variable |
+| `mcp-trail` | `TRAIL_HOME` | `<workspace>/.anytime/trail` | Directory holding the Trail databases |
+| `mcp-trail` | `TRAIL_REPO_NAME` | the single repository recorded in the database, else the workspace directory name | Disambiguates when the database holds several repositories |
+| `mcp-cms` | `DOTENV_CONFIG_PATH` | — | Path to the `.env` carrying the S3 credentials, used together with `--require dotenv/config` |
+| `mcp-cms` | `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | — | Enables `read_google_doc`. When unset, that one tool is simply not registered |
+
+Two servers depend on data produced elsewhere. `mcp-trail` reads the SQLite databases the Anytime Trail extension writes under `.anytime/trail/db/`; if that extension has never analyzed the workspace, its tools return empty results rather than an error, so install and run the extension first if you want real data. `mcp-cms` starts without credentials but every tool call fails until the S3 configuration is in place.
+
+See [SECURITY.md](SECURITY.md) for what these servers read from your machine.
+
+
 ## Project Structure
 
 ```mermaid
@@ -272,3 +331,8 @@ npm run dev
 ```
 
 Open http://localhost:3000 in your browser.
+
+
+## Security
+
+Found a vulnerability? Report it privately — see [SECURITY.md](SECURITY.md) for the reporting channel, the supported versions, and what is in scope. Please do not open a public issue for security problems.

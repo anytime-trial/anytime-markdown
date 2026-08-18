@@ -110,6 +110,64 @@ AI エージェントがプロジェクトの資産に直接アクセスする�
 | `mcp-cms` | S3 上のドキュメント・レポートの管理 |
 | `mcp-cms-remote` | Cloudflare Workers 経由のリモート CMS アクセス |
 
+### スタンドアロン導入 — Claude Desktop ・ Claude Code ・ Cursor
+
+これらのサーバーは npm へ公開していない。本リポジトリのクローンから stdio で起動するため、VS Code 拡張を入れなくても任意の MCP クライアントから利用できる。Dev Container は不要で、Node.js 24（`.node-version` 参照）とリポジトリルートでの `npm install` 1 回で足りる。
+
+```bash
+git clone https://github.com/anytime-trial/anytime-markdown.git
+cd anytime-markdown
+npm install
+```
+
+そのうえで、使いたいサーバーをクライアントへ登録する — Claude Desktop なら `claude_desktop_config.json`、Claude Code ならプロジェクトルートの `.mcp.json`、Cursor なら `mcp.json`。`/path/to/anytime-markdown` はクローンの絶対パス、`/path/to/your/workspace` はサーバーに操作させたいプロジェクトへ置き換える。両者は通常別のディレクトリで、前者がサーバー本体を、後者がデータを供給する。
+
+```json
+{
+  "mcpServers": {
+    "mcp-markdown": {
+      "command": "npx",
+      "args": ["tsx", "--tsconfig", "packages/mcp-markdown/tsconfig.json", "packages/mcp-markdown/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "ANYTIME_MARKDOWN_ROOT": "/path/to/your/workspace" }
+    },
+    "mcp-graph": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-graph/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown"
+    },
+    "mcp-trail": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-trail/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "TRAIL_WORKSPACE_PATH": "/path/to/your/workspace" }
+    },
+    "mcp-cms": {
+      "command": "npx",
+      "args": ["tsx", "--require", "dotenv/config", "packages/mcp-cms/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "DOTENV_CONFIG_PATH": "/path/to/your/.env" }
+    }
+  }
+}
+```
+
+以下の環境変数はいずれも任意。未設定時に各サーバーが何へ倒れるかを併記する。
+
+| サーバー | 変数 | 未設定時 | 用途 |
+| --- | --- | --- | --- |
+| `mcp-markdown` | `ANYTIME_MARKDOWN_ROOT` | `process.cwd()` | Markdown を読み書きする対象のワークスペースルート |
+| `mcp-markdown` | `ANYTIME_MARKDOWN_DOC_DB` | `<root>/.anytime/markdown/catalog.db` | ドキュメント検索インデックス。`search_docs` に必要で、Anytime Markdown 拡張の "Rebuild Doc Search Index" で構築する |
+| `mcp-trail` | `TRAIL_WORKSPACE_PATH` | `process.cwd()`（stderr へ警告を出す） | ツールが読む DB のあるワークスペース。多くのツールは呼び出しごとの `workspacePath` も受け取り、そちらが優先される |
+| `mcp-trail` | `TRAIL_HOME` | `<workspace>/.anytime/trail` | Trail の DB を置くディレクトリ |
+| `mcp-trail` | `TRAIL_REPO_NAME` | DB に記録された唯一のリポジトリ、無ければワークスペースのディレクトリ名 | DB が複数リポジトリを持つ場合の曖昧性解消 |
+| `mcp-cms` | `DOTENV_CONFIG_PATH` | — | S3 の資格情報を持つ `.env` のパス（`--require dotenv/config` と併用） |
+| `mcp-cms` | `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | — | `read_google_doc` を有効化する。未設定ならこのツールだけが登録されない |
+
+2 つのサーバーは他所で生成されたデータに依存する。`mcp-trail` は Anytime Trail 拡張が `.anytime/trail/db/` へ書く SQLite を読むため、拡張が一度もワークスペースを解析していない場合、ツールはエラーではなく空の結果を返す（実データが要るなら先に拡張を導入して実行する）。`mcp-cms` は資格情報が無くても起動するが、S3 の設定が揃うまで全てのツール呼び出しが失敗する。
+
+これらのサーバーがマシン上の何を読むかは [SECURITY.md](SECURITY.ja.md) を参照。
+
 ## プロジェクト構成
 
 ```mermaid
@@ -257,3 +315,7 @@ npm run dev
 ```
 
 ブラウザで http://localhost:3000 にアクセスする。
+
+## セキュリティ
+
+脆弱性を見つけた場合は非公開で報告してください。報告経路・サポート対象バージョン・対象範囲は [SECURITY.ja.md](SECURITY.ja.md) にあります。セキュリティ上の問題を公開 issue に書かないでください。
