@@ -613,6 +613,30 @@ describe('parseBashWriteTargets — Bash 経由の書き込み対象を推定す
     ]);
   });
 
+  it('ディレクトリ宛ての cp / mv は出力ファイルを列挙する', () => {
+    expect(parseBashWriteTargets('cp a.ts b.ts dest/', cwd)).toEqual([
+      '/repo/dest/a.ts',
+      '/repo/dest/b.ts',
+    ]);
+    expect(parseBashWriteTargets('mv a.ts dest/', cwd)).toEqual(['/repo/dest/a.ts']);
+    // -t / --target-directory は書き込み先が先に来る（末尾は入力元）。
+    expect(parseBashWriteTargets('cp -t dest a.ts b.ts', cwd)).toEqual([
+      '/repo/dest/a.ts',
+      '/repo/dest/b.ts',
+    ]);
+    expect(parseBashWriteTargets('cp --target-directory=dest a.ts', cwd)).toEqual([
+      '/repo/dest/a.ts',
+    ]);
+  });
+
+  it('BSD 形式の sed -i "" でスクリプトをファイルと誤認しない', () => {
+    expect(parseBashWriteTargets("sed -i '' 's/a/b/' src/a.ts", cwd)).toEqual(['/repo/src/a.ts']);
+    expect(parseBashWriteTargets("sed -i '' 's/a/b/' a.ts b.ts", cwd)).toEqual([
+      '/repo/a.ts',
+      '/repo/b.ts',
+    ]);
+  });
+
   it('cd で移った先を基準に解決する', () => {
     expect(parseBashWriteTargets('cd packages/foo && sed -i s/a/b/ src/a.ts', cwd)).toEqual([
       '/repo/packages/foo/src/a.ts',

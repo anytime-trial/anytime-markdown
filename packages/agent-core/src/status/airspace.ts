@@ -8,9 +8,10 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 
 // Airspace は善意のエージェント向けの誤操作防止網であり、セキュリティ境界ではない。
 // コマンド分類は文字列の単純なパターン照合なので、npm 経由、alias、変数展開などは対象外。
@@ -573,12 +574,53 @@ export function parseBashWriteTargets(command: string, cwd: string): string[] {
       for (const file of sedInputFiles(args)) add(file);
       continue;
     }
-    if (LAST_ARG_WRITERS.has(command0) && nonFlagArgs.length >= 2) {
-      add(nonFlagArgs.at(-1));
+    if (LAST_ARG_WRITERS.has(command0)) {
+      for (const target of copyTargets(args, nonFlagArgs)) add(target);
     }
   }
 
   return targets;
+}
+
+/**
+ * `cp` / `mv` / `install` の書き込み先を列挙する。
+ *
+ * 宛先がディレクトリなら実際に変わるのは `<dest>/<basename>` であって `<dest>` ではない。
+ * 末尾 1 つだけを見ていると、他セッションが編集中の出力ファイルと突合できない。
+ */
+function copyTargets(args: readonly string[], nonFlagArgs: readonly string[]): string[] {
+  // `-t <dir>` / `--target-directory=<dir>` は宛先が先に来る（末尾は入力元）。
+  const flagIndex = args.findIndex((arg) => arg === '-t' || arg === '--target-directory');
+  const inlineTarget = args.find((arg) => arg.startsWith('--target-directory='));
+  const explicitDir =
+    inlineTarget !== undefined
+      ? inlineTarget.slice('--target-directory='.length)
+      : flagIndex === -1
+        ? null
+        : (args[flagIndex + 1] ?? null);
+
+  if (explicitDir !== null) {
+    const sources = nonFlagArgs.filter((arg) => arg !== explicitDir);
+    return sources.map((source) => `${explicitDir}/${basename(source)}`);
+  }
+
+  if (nonFlagArgs.length < 2) return [];
+  const destination = nonFlagArgs[nonFlagArgs.length - 1];
+  const sources = nonFlagArgs.slice(0, -1);
+  // 宛先がディレクトリと判る形（末尾 `/`・入力元が複数・実在するディレクトリ）だけ展開する。
+  const isDirectory =
+    destination.endsWith('/') || sources.length > 1 || isExistingDirectory(destination);
+  if (!isDirectory) return [destination];
+  return sources.map((source) => `${destination}/${basename(source)}`);
+}
+
+function isExistingDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    // 相対パス・未作成のパスは解決できない（正常系）。ディレクトリでないものとして扱う。
+    return false;
+  }
 }
 
 /** `sed` の引数から入力ファイルだけを取り出す（スクリプト本体と `-e` / `-f` の値を除く）。 */
@@ -589,6 +631,8 @@ function sedInputFiles(args: readonly string[]): string[] {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    // BSD の `sed -i '' 's/a/b/' file`。空のバックアップ拡張子は引数として残るが対象ではない。
+    if (arg === '') continue;
     if (arg.startsWith('-')) {
       if (SCRIPT_FLAGS.has(arg)) {
         hasScriptFlag = true;
