@@ -27,6 +27,7 @@ const REFERENCE_FILES = [
   'task-criteria.md',
 ];
 const DELEGATION_SCRIPTS = [
+  'delegation-triage.cjs',
   'criteria.cjs',
   'benchmarks.json',
   'ollama-benchmarks.cjs',
