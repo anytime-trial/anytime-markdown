@@ -575,7 +575,7 @@ export function parseBashWriteTargets(command: string, cwd: string): string[] {
       continue;
     }
     if (LAST_ARG_WRITERS.has(command0)) {
-      for (const target of copyTargets(args, nonFlagArgs)) add(target);
+      for (const target of copyTargets(args, base)) add(target);
     }
   }
 
@@ -588,7 +588,31 @@ export function parseBashWriteTargets(command: string, cwd: string): string[] {
  * 宛先がディレクトリなら実際に変わるのは `<dest>/<basename>` であって `<dest>` ではない。
  * 末尾 1 つだけを見ていると、他セッションが編集中の出力ファイルと突合できない。
  */
-function copyTargets(args: readonly string[], nonFlagArgs: readonly string[]): string[] {
+function copyTargets(args: readonly string[], base: string): string[] {
+  // 値を取るオプション。消費しないとその値（`install -m 644` の 644）が入力元に混ざり、
+  // 宛先をディレクトリと誤判定して実在しない出力パスを claim する。
+  const VALUE_FLAGS = new Set([
+    '-t',
+    '--target-directory',
+    '-S',
+    '--suffix',
+    '-m',
+    '--mode',
+    '-o',
+    '--owner',
+    '-g',
+    '--group',
+    '--strip-program',
+  ]);
+  const nonFlagArgs: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg.startsWith('-')) {
+      nonFlagArgs.push(arg);
+      continue;
+    }
+    if (VALUE_FLAGS.has(arg)) index += 1;
+  }
   // `-t <dir>` / `--target-directory=<dir>` は宛先が先に来る（末尾は入力元）。
   const flagIndex = args.findIndex((arg) => arg === '-t' || arg === '--target-directory');
   const inlineTarget = args.find((arg) => arg.startsWith('--target-directory='));
@@ -600,8 +624,7 @@ function copyTargets(args: readonly string[], nonFlagArgs: readonly string[]): s
         : (args[flagIndex + 1] ?? null);
 
   if (explicitDir !== null) {
-    const sources = nonFlagArgs.filter((arg) => arg !== explicitDir);
-    return sources.map((source) => `${explicitDir}/${basename(source)}`);
+    return nonFlagArgs.map((source) => `${explicitDir}/${basename(source)}`);
   }
 
   if (nonFlagArgs.length < 2) return [];
@@ -609,16 +632,17 @@ function copyTargets(args: readonly string[], nonFlagArgs: readonly string[]): s
   const sources = nonFlagArgs.slice(0, -1);
   // 宛先がディレクトリと判る形（末尾 `/`・入力元が複数・実在するディレクトリ）だけ展開する。
   const isDirectory =
-    destination.endsWith('/') || sources.length > 1 || isExistingDirectory(destination);
+    destination.endsWith('/') || sources.length > 1 || isExistingDirectory(base, destination);
   if (!isDirectory) return [destination];
   return sources.map((source) => `${destination}/${basename(source)}`);
 }
 
-function isExistingDirectory(path: string): boolean {
+/** `base` 基準で実在するディレクトリか。Node プロセスの cwd ではなく解析対象の基準で見る。 */
+function isExistingDirectory(base: string, path: string): boolean {
   try {
-    return statSync(path).isDirectory();
+    return statSync(resolve(base, path)).isDirectory();
   } catch {
-    // 相対パス・未作成のパスは解決できない（正常系）。ディレクトリでないものとして扱う。
+    // 未作成のパスは解決できない（正常系）。ディレクトリでないものとして扱う。
     return false;
   }
 }

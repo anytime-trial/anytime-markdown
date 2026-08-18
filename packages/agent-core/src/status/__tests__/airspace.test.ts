@@ -627,6 +627,24 @@ describe('parseBashWriteTargets — Bash 経由の書き込み対象を推定す
     expect(parseBashWriteTargets('cp --target-directory=dest a.ts', cwd)).toEqual([
       '/repo/dest/a.ts',
     ]);
+    // 値を取るオプションの値（644）を入力元と数えない。
+    expect(parseBashWriteTargets('install -m 644 src.ts dest.ts', cwd)).toEqual(['/repo/dest.ts']);
+    expect(parseBashWriteTargets('cp -S .bak a.ts dest/', cwd)).toEqual(['/repo/dest/a.ts']);
+  });
+
+  it('実在ディレクトリの判定は渡された cwd を基準にする', () => {
+    const dir = mkdtempSync('/tmp/anytime-copy-');
+    try {
+      mkdirSync(join(dir, 'dest'));
+      // 末尾 / が無くても実在ディレクトリなら出力ファイルを列挙する。
+      expect(parseBashWriteTargets('cp a.ts dest', dir)).toEqual([join(dir, 'dest/a.ts')]);
+      // Node プロセスの cwd ではなく cd 後の基準で見る。
+      expect(parseBashWriteTargets(`cd ${dir} && cp a.ts dest`, '/repo')).toEqual([
+        join(dir, 'dest/a.ts'),
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('BSD 形式の sed -i "" でスクリプトをファイルと誤認しない', () => {
