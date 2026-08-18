@@ -116,6 +116,7 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
    - `ok`（`taskStatus` 省略 or `"completed"`）→ `state` 更新（永続化アダプタ有効なら worker upsert）。
    - `ok` かつ `taskStatus: "abstained"` → **同タスクを別ワーカーへ機械的に再委任しない**（無評価の再委任は too-late の再生産）。`abstainReason` を親が評価し、(a) 前提を修正して再委任 / (b) タスクをスキップして続行 / (c) ユーザーへエスカレーション のいずれかを明示的に選ぶ。判断と理由をログに残す。
    - `error` → `SendMessage(agentId, "返却契約どおり末尾に ```json ブロックだけを出力して")` を **1 回だけ** 再要求。なお `error` なら **`state` を据置し警告ログを出して続行**（silent にしない・A9）。
+4. **終了判定**: 残タスク無し or 親予算到達 → 終了。
 5. **継続 / 回転**: `shouldRotate(返却 subagent_tokens, { threshold, policy, delegatedModel, parentModel })`。`delegatedModel`（起動時に渡した `model`）と `parentModel`（このセッションのモデル）を必ず渡す — 系統が違えば継続はモデル指定を失うため、閾値未満でも `true` が返る。
    - `false` → `SendMessage(agentId, 次タスク)`（同一ワーカー継続・文脈保持）。
    - `true` → `agentId` 破棄 → `Agent(buildSeedPrompt(state, 次タスク) + buildReturnContract(), model=haiku)`（fresh 回転）。
