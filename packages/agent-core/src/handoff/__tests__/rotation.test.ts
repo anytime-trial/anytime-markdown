@@ -2,6 +2,8 @@
 // プラン 20260625-subagent-rotation-impl の T1。相互レビュー採用 A1〜A9 を網羅する。
 import {
   shouldRotate,
+  modelFamily,
+  continuationLosesModelOverride,
   buildSeedPrompt,
   parseRunningState,
   buildReturnContract,
@@ -43,6 +45,33 @@ function validReturn(s: HandoffStructured = structured()): {
   return { handoffVersion: HANDOFF_VERSION, structured: s, narrative: null };
 }
 
+describe('modelFamily', () => {
+  it.each<[string, string | null | undefined, string | null]>([
+    ['完全 ID', 'claude-haiku-4-5-20251001', 'haiku'],
+    ['大文字混じり', ' Claude-SonNet-4 ', 'sonnet'],
+    ['未知の文字列', ' Future-Model-X ', 'future-model-x'],
+    ['null', null, null],
+    ['空文字', '', null],
+    ['空白のみ', '   ', null],
+  ])('%s を正規化する', (_label, value, expected) => {
+    expect(modelFamily(value)).toBe(expected);
+  });
+});
+
+describe('continuationLosesModelOverride', () => {
+  it('同じモデル系統なら false', () => {
+    expect(continuationLosesModelOverride('haiku', 'claude-haiku-4-5-20251001')).toBe(false);
+  });
+
+  it('異なるモデル系統なら true', () => {
+    expect(continuationLosesModelOverride('haiku', 'opus')).toBe(true);
+  });
+
+  it('片方が null なら false', () => {
+    expect(continuationLosesModelOverride(null, 'opus')).toBe(false);
+  });
+});
+
 describe('shouldRotate', () => {
   describe('continue-while-cheap', () => {
     const policy = 'continue-while-cheap' as const;
@@ -62,6 +91,33 @@ describe('shouldRotate', () => {
     it('threshold 省略時は DEFAULT_ROTATION_THRESHOLD を使う', () => {
       expect(shouldRotate(DEFAULT_ROTATION_THRESHOLD - 1, { policy })).toBe(false);
       expect(shouldRotate(DEFAULT_ROTATION_THRESHOLD, { policy })).toBe(true);
+    });
+
+    it('閾値未満でも委譲モデルと親モデルの系統が異なれば回転する', () => {
+      expect(
+        shouldRotate(50_000, {
+          threshold: 120_000,
+          policy,
+          delegatedModel: 'haiku',
+          parentModel: 'opus',
+        }),
+      ).toBe(true);
+    });
+
+    it('委譲モデルと親モデルの系統が同じなら従来どおり閾値で判定する', () => {
+      expect(
+        shouldRotate(50_000, {
+          threshold: 120_000,
+          policy,
+          delegatedModel: 'haiku',
+          parentModel: 'claude-haiku-4-5-20251001',
+        }),
+      ).toBe(false);
+    });
+
+    it('モデル項目を省略した既存呼び出しは従来どおり判定する', () => {
+      expect(shouldRotate(50_000, { threshold: 120_000, policy })).toBe(false);
+      expect(shouldRotate(120_000, { threshold: 120_000, policy })).toBe(true);
     });
 
     // A1: 無効トークンは continue-while-cheap → false

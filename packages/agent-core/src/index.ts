@@ -190,6 +190,8 @@ export type { BuildHandoffOptions } from './handoff/buildHandoff';
 // サブエージェント回転 / 毎タスク compact-seed（RFC 用途 (b)/(c)）の純粋ヘルパ（runtime 非依存）。
 export {
   shouldRotate,
+  continuationLosesModelOverride,
+  modelFamily,
   buildSeedPrompt,
   parseRunningState,
   buildReturnContract,
