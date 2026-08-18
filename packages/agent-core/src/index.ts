@@ -110,6 +110,8 @@ export {
   evaluateBashGate,
   evaluateEditGate,
   evaluateSessionStartGate,
+  evaluateWriteConflict,
+  parseBashWriteTargets,
 } from './status/airspace';
 export type { AirspaceClaim, GitCommandKind, GateVerdict } from './status/airspace';
 export {

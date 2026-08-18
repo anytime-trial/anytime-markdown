@@ -17,10 +17,12 @@ import {
   evaluateBashGate,
   evaluateEditGate,
   evaluateSessionStartGate,
+  evaluateWriteConflict,
   findClaudePid,
   isAirspaceDisabledByCommand,
   isClaimLive,
   listLiveClaims,
+  parseBashWriteTargets,
   parseWorktreeRemoveTarget,
   readProcessStartTime,
   resolveAirspaceDir,
@@ -533,5 +535,74 @@ describe('writeClaim', () => {
     const raw: unknown = JSON.parse(readFileSync(join(claimsDir, 'session-a.json'), 'utf8'));
     expect(typeof raw).toBe('object');
     expect(raw).toMatchObject({ sessionId: 'session-a', file: 'second.ts' });
+  });
+});
+
+describe('parseBashWriteTargets — Bash 経由の書き込み対象を推定する', () => {
+  const cwd = '/repo';
+
+  it('リダイレクト・追記・tee を拾う', () => {
+    expect(parseBashWriteTargets('echo x > src/a.ts', cwd)).toEqual(['/repo/src/a.ts']);
+    expect(parseBashWriteTargets('echo x >> src/a.ts', cwd)).toEqual(['/repo/src/a.ts']);
+    expect(parseBashWriteTargets('echo x >src/a.ts', cwd)).toEqual(['/repo/src/a.ts']);
+    expect(parseBashWriteTargets('echo x | tee -a src/a.ts', cwd)).toEqual(['/repo/src/a.ts']);
+  });
+
+  it('ヒアドキュメントの書き出し先を拾う', () => {
+    expect(parseBashWriteTargets("cat > src/a.ts <<'EOF'\nbody\nEOF", cwd)).toEqual([
+      '/repo/src/a.ts',
+    ]);
+  });
+
+  it('sed -i / cp / mv の書き込み先を拾う', () => {
+    expect(parseBashWriteTargets('sed -i "s/a/b/" src/a.ts', cwd)).toEqual(['/repo/src/a.ts']);
+    expect(parseBashWriteTargets('sed -i.bak -e s/a/b/ src/a.ts', cwd)).toEqual(['/repo/src/a.ts']);
+    // cp / mv は書き込み先（最後の引数）だけが対象。読み取り元は衝突しない。
+    expect(parseBashWriteTargets('cp src/a.ts src/b.ts', cwd)).toEqual(['/repo/src/b.ts']);
+    expect(parseBashWriteTargets('mv src/a.ts src/b.ts', cwd)).toEqual(['/repo/src/b.ts']);
+  });
+
+  it('絶対パスはそのまま、相対パスは cwd 基準で解決する', () => {
+    expect(parseBashWriteTargets('echo x > /other/a.ts', cwd)).toEqual(['/other/a.ts']);
+    expect(parseBashWriteTargets('echo x > ./a.ts', cwd)).toEqual(['/repo/a.ts']);
+  });
+
+  it('推定できない形は返さない（誤検知より偽陰性を選ぶ）', () => {
+    // 変数展開・グロブ・プロセス置換は解決できない。
+    expect(parseBashWriteTargets('echo x > "$OUT"', cwd)).toEqual([]);
+    expect(parseBashWriteTargets('echo x > out/*.ts', cwd)).toEqual([]);
+    expect(parseBashWriteTargets('echo x > /dev/null', cwd)).toEqual([]);
+    expect(parseBashWriteTargets('cat src/a.ts', cwd)).toEqual([]);
+    expect(parseBashWriteTargets('grep -r foo src/', cwd)).toEqual([]);
+    // sed に -i が無ければ書き込まない。
+    expect(parseBashWriteTargets('sed -n 1p src/a.ts', cwd)).toEqual([]);
+    // fd 指定のリダイレクト（2>&1）は書き込み先ではない。
+    expect(parseBashWriteTargets('npm test 2>&1', cwd)).toEqual([]);
+  });
+
+  it('複数の書き込み先を重複なく返す', () => {
+    expect(parseBashWriteTargets('echo x > a.ts; echo y > b.ts; echo z >> a.ts', cwd)).toEqual([
+      '/repo/a.ts',
+      '/repo/b.ts',
+    ]);
+  });
+});
+
+describe('evaluateWriteConflict — claim.files と突合する', () => {
+  it('他セッションの書き込み対象と一致したら warn', () => {
+    const other = claim({ sessionId: 'abcdef123456', files: ['/repo/src/a.ts'] });
+    expect(evaluateWriteConflict(['/repo/src/a.ts'], [other]).kind).toBe('warn');
+    expect(evaluateWriteConflict(['/repo/src/b.ts'], [other])).toEqual({ kind: 'pass' });
+    expect(evaluateWriteConflict([], [other])).toEqual({ kind: 'pass' });
+  });
+
+  it('旧形式の claim.file とも突合する（後方互換）', () => {
+    const legacy = claim({ sessionId: 'abcdef123456', file: '/repo/src/a.ts' });
+    expect(evaluateWriteConflict(['/repo/src/a.ts'], [legacy]).kind).toBe('warn');
+  });
+
+  it('evaluateEditGate は claim.files 側の書き込みとも突合する', () => {
+    const other = claim({ sessionId: 'abcdef123456', files: ['/repo/src/a.ts'] });
+    expect(evaluateEditGate('/repo/src/a.ts', [other]).kind).toBe('warn');
   });
 });

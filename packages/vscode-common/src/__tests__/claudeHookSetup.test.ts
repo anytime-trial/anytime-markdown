@@ -559,6 +559,31 @@ describe('setupClaudeHooks', () => {
     expect(report).toContain('triggeredBy: \'loop-detector\'');
   });
 
+  test('agent-status-report.mjs は bash-start でも書き込み対象を claim へ埋める（proposal 20260818 B-1）', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const report = readScript('agent-status-report.mjs');
+    // bypassPermissions 下では Edit/Write が発火せず file が常に空文字になる。
+    // Bash コマンドから推定した書き込み先を files へ入れて初めて衝突検知が動く。
+    expect(report).toContain('api.parseBashWriteTargets');
+    expect(report).toContain('api.evaluateWriteConflict');
+    expect(report).toContain('files,');
+    // 旧バンドル（関数未搭載）で落ちない後方互換ガード
+    expect(report).toContain("typeof api.parseBashWriteTargets === 'function'");
+    expect(report).toContain("typeof api.evaluateWriteConflict !== 'function'");
+  });
+
+  test('agent-status-report.mjs は構文として解釈できる', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const scriptPath = path.join(tmpHome, '.claude', 'scripts', 'agent-status-report.mjs');
+    const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
+    // 生成物は文字列テンプレートなので、構文の破れはテストでなく実行時にしか出ない。
+    expect(() => execFileSync(process.execPath, ['--check', scriptPath])).not.toThrow();
+  });
+
   test('migrates legacy trail-token-budget.sh: stale hook entry and orphan script removed', () => {
     // 旧名のスクリプトと Stop フックを事前に用意（旧バージョンが登録した状態を再現）
     const scriptsDir = path.join(tmpHome, '.claude', 'scripts');

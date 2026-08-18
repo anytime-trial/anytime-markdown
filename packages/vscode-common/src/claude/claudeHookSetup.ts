@@ -476,6 +476,17 @@ function airspaceVerdict(mode, input, cwd) {
   const editing = mode === 'edit-start';
   const file = (editing && input.tool_input && input.tool_input.file_path) || '';
 
+  // bypassPermissions 運用では「ファイル変更は sed・ヒアドキュメント・短いスクリプトで」と
+  // ハーネスが指示するため edit-start が一度も発火せず、file は常に空文字のままになる。
+  // それだけを見ていると同一ファイル衝突ゲートは原理的に発火しない（2026-08-18 実測: 生存
+  // 3 セッション全員が file:""）。bash-start では書き込み対象をコマンドから推定して埋める。
+  // 旧バンドル（関数未搭載）は skip（fail-open・後方互換）。
+  const bashCommand = (input.tool_input && input.tool_input.command) || '';
+  const files =
+    mode === 'bash-start' && typeof api.parseBashWriteTargets === 'function'
+      ? api.parseBashWriteTargets(bashCommand, cwd)
+      : [];
+
   try {
     api.writeClaim(dir, {
       sessionId,
@@ -484,6 +495,7 @@ function airspaceVerdict(mode, input, cwd) {
       worktree,
       branch: safeBranch(cwd),
       file,
+      files,
       updatedAt: new Date().toISOString(),
     });
   } catch (err) {
@@ -496,9 +508,12 @@ function airspaceVerdict(mode, input, cwd) {
   if (live.length === 0) return null;
 
   if (mode === 'bash-start') {
-    const command = (input.tool_input && input.tool_input.command) || '';
     // cwd を渡す。git worktree remove ../wt のような相対パス指定は cwd 基準で解決する必要がある。
-    return toPreToolUse(api.evaluateBashGate(command, live, worktree, cwd));
+    const gitVerdict = api.evaluateBashGate(bashCommand, live, worktree, cwd);
+    if (gitVerdict.kind !== 'pass') return toPreToolUse(gitVerdict);
+    // 破壊的 git でなくても、他セッションが書いているファイルへ Bash で書き込むなら衝突する。
+    if (files.length === 0 || typeof api.evaluateWriteConflict !== 'function') return null;
+    return toPreToolUse(api.evaluateWriteConflict(files, live));
   }
   if (mode === 'edit-start') {
     return toPreToolUse(api.evaluateEditGate(file, live));

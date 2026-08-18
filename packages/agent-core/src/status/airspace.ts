@@ -21,7 +21,17 @@ export interface AirspaceClaim {
   starttime: string;
   worktree: string;
   branch: string;
+  /** Edit/Write ツールで編集中のファイル。Bash 経由の編集では空になるため files も併せて見る。 */
   file: string;
+  /**
+   * Bash コマンドから推定した書き込み対象（絶対パス）。
+   *
+   * `bypassPermissions` 運用ではファイル変更が `sed -i`・ヒアドキュメント等の Bash 経由になり、
+   * `edit-start` が一度も発火しないため `file` が常に空文字のままになる。それだけを見ていると
+   * 同一ファイル衝突ゲートは原理的に発火しない（2026-08-18 実測: 生存 3 セッション全員が空文字）。
+   * 旧バンドルのクレームには存在しないため optional。
+   */
+  files?: readonly string[];
   updatedAt: string;
 }
 
@@ -391,9 +401,125 @@ export function evaluateEditGate(
   filePath: string,
   liveClaims: readonly AirspaceClaim[],
 ): GateVerdict {
-  const conflict = liveClaims.find((claim) => claim.file === filePath);
-  if (conflict === undefined) return { kind: 'pass' };
-  return { kind: 'warn', reason: buildReason('warn', conflict) };
+  return evaluateWriteConflict([filePath], liveClaims);
+}
+
+/** そのクレームが今この絶対パスへ書いているか。Edit/Write（file）と Bash（files）の両方を見る。 */
+function claimTouchesFile(claim: AirspaceClaim, filePath: string): boolean {
+  if (claim.file !== '' && claim.file === filePath) return true;
+  return claim.files?.includes(filePath) === true;
+}
+
+/**
+ * 書き込み対象の衝突判定。Edit/Write の 1 ファイルにも Bash の推定複数ファイルにも使う。
+ *
+ * 空配列（推定できなかった Bash コマンド）は pass。推定が外れる分には warn が 1 つ増えるだけだが、
+ * 推定を諦めた分は現状どおり検知 0 件のままになる。
+ */
+export function evaluateWriteConflict(
+  filePaths: readonly string[],
+  liveClaims: readonly AirspaceClaim[],
+): GateVerdict {
+  for (const filePath of filePaths) {
+    const conflict = liveClaims.find((claim) => claimTouchesFile(claim, filePath));
+    if (conflict !== undefined) return { kind: 'warn', reason: buildReason('warn', conflict) };
+  }
+  return { kind: 'pass' };
+}
+
+/** 書き込み先を最後の非フラグ引数に取るコマンド（`cp a b` / `mv a b` の b）。 */
+const LAST_ARG_WRITERS = new Set(['cp', 'mv', 'install']);
+
+/** 展開・解決できないパス。推定を諦める（誤検知より偽陰性を選ぶ）。 */
+function isResolvablePath(token: string): boolean {
+  if (token === '' || token.startsWith('-')) return false;
+  if (/[$*?`~\\]/.test(token)) return false;
+  return !token.startsWith('&');
+}
+
+/** 引用符を尊重して `;` `|` `&` `改行` で区切る。クオート内の区切り文字では切らない。 */
+function splitSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+
+  for (const char of command) {
+    if (quote !== null) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === ';' || char === '|' || char === '&' || char === '\n') {
+      segments.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  segments.push(current);
+  return segments.filter((segment) => segment.trim() !== '');
+}
+
+/**
+ * Bash コマンドから書き込み対象になり得る絶対パスを推定する。
+ *
+ * `bypassPermissions` 運用のハーネスは「ファイル変更は sed・ヒアドキュメント・短いスクリプトで」と
+ * 指示するため、Edit/Write を前提にした衝突検知は全て同じ形で無効化される。ここは検知を
+ * 0 件から動かすための推定であり、**セキュリティ境界ではない**（`classifyGitCommand` と同じ
+ * 単純なパターン照合で、alias・変数展開・npm 経由は対象外）。
+ *
+ * 推定が外れても実害は誤検知の warn 1 件にとどまる一方、推定しない限り検知は永久に 0 件になる。
+ * それでも解決できない形（変数展開・グロブ）は返さない — 実在しないパスと衝突しても意味がない。
+ *
+ * ヒアドキュメントは本文を読まない。`<<` を含むコマンドは最初の改行までで打ち切る
+ * （本文中の `>` を書き込み対象と誤読しないため。2 つ目以降のヒアドキュメントは取りこぼす）。
+ */
+export function parseBashWriteTargets(command: string, cwd: string): string[] {
+  const scope = command.includes('<<') ? command.split('\n')[0] : command;
+  const targets: string[] = [];
+
+  const add = (token: string | undefined): void => {
+    if (token === undefined || !isResolvablePath(token)) return;
+    const absolute = resolve(cwd, token);
+    if (absolute.startsWith('/dev/')) return;
+    if (!targets.includes(absolute)) targets.push(absolute);
+  };
+
+  for (const segment of splitSegments(scope)) {
+    const tokens = tokenize(segment);
+
+    for (const [index, token] of tokens.entries()) {
+      // `> path` / `>> path` / `>path` / `>>path`。`2>&1` のような fd 指定は書き込み先ではない。
+      const redirect = /^(>>?)(.*)$/.exec(token);
+      if (redirect !== null) {
+        add(redirect[2] === '' ? tokens[index + 1] : redirect[2]);
+      }
+    }
+
+    const [command0, ...args] = tokens;
+    if (command0 === undefined) continue;
+    const nonFlagArgs = args.filter((arg) => !arg.startsWith('-') && !arg.startsWith('>'));
+
+    if (command0 === 'tee') {
+      for (const arg of nonFlagArgs) add(arg);
+      continue;
+    }
+    // sed は `-i` / `-i.bak` / `--in-place` があるときだけ書き込む。対象は末尾の引数。
+    if (command0 === 'sed' && args.some((arg) => /^(-i|--in-place)/.test(arg))) {
+      add(nonFlagArgs.at(-1));
+      continue;
+    }
+    if (LAST_ARG_WRITERS.has(command0) && nonFlagArgs.length >= 2) {
+      add(nonFlagArgs.at(-1));
+    }
+  }
+
+  return targets;
 }
 
 export function evaluateSessionStartGate(
@@ -545,6 +671,10 @@ function isAirspaceClaim(value: unknown): value is AirspaceClaim {
     typeof candidate.worktree === 'string' &&
     typeof candidate.branch === 'string' &&
     typeof candidate.file === 'string' &&
+    // files は旧バンドルのクレームに存在しない。無い場合は許容し、在る場合だけ型を検査する。
+    (candidate.files === undefined ||
+      (Array.isArray(candidate.files) &&
+        candidate.files.every((entry) => typeof entry === 'string'))) &&
     typeof candidate.updatedAt === 'string'
   );
 }
