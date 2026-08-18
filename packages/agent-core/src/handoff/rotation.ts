@@ -30,17 +30,47 @@ function isValidTokenCount(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+/** モデル名を比較可能な系統名へ正規化する。未知の非空モデル名も正規化して保持する。 */
+export function modelFamily(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return null;
+
+  for (const family of ['haiku', 'sonnet', 'opus', 'fable'] as const) {
+    if (normalized.includes(family)) return family;
+  }
+  return normalized;
+}
+
+/** 継続時に委譲モデルの指定が失われ、親と異なるモデル系統になるかを判定する。 */
+export function continuationLosesModelOverride(
+  delegatedModel: string | null | undefined,
+  parentModel: string | null | undefined,
+): boolean {
+  const delegatedFamily = modelFamily(delegatedModel);
+  const parentFamily = modelFamily(parentModel);
+  if (delegatedFamily === null || parentFamily === null) return false;
+  return delegatedFamily !== parentFamily;
+}
+
 /**
  * fresh subagent へ回転すべきかを判定する（A1/A7）。
  * - `always-fresh`: threshold・トークン値に関わらず常に `true`。
- * - `continue-while-cheap`: 無効トークン（null/undefined/NaN/負数/Infinity）は `false`、
+ * - 委譲モデルと親モデルの系統が異なる: threshold・トークン値に関わらず `true`。
+ * - それ以外: 無効トークン（null/undefined/NaN/負数/Infinity）は `false`、
  *   有効なら `subagentTokens >= (threshold ?? DEFAULT_ROTATION_THRESHOLD)`。
+ * Why not: SendMessage は model を運べず、継続すると委譲時のモデル指定を維持できない。
  */
 export function shouldRotate(
   subagentTokens: number | null | undefined,
-  opts: { threshold?: number; policy: RotationPolicy },
+  opts: {
+    threshold?: number;
+    policy: RotationPolicy;
+    delegatedModel?: string | null;
+    parentModel?: string | null;
+  },
 ): boolean {
   if (opts.policy === 'always-fresh') return true;
+  if (continuationLosesModelOverride(opts.delegatedModel, opts.parentModel)) return true;
   if (!isValidTokenCount(subagentTokens)) return false;
   return subagentTokens >= (opts.threshold ?? DEFAULT_ROTATION_THRESHOLD);
 }
