@@ -642,6 +642,8 @@ describe('parseBashWriteTargets — Bash 経由の書き込み対象を推定す
       expect(parseBashWriteTargets(`cd ${dir} && cp a.ts dest`, '/repo')).toEqual([
         join(dir, 'dest/a.ts'),
       ]);
+      // -T は宛先を通常ファイルとして扱う指定。実在ディレクトリでも展開しない。
+      expect(parseBashWriteTargets('mv -T a.ts dest', dir)).toEqual([join(dir, 'dest')]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

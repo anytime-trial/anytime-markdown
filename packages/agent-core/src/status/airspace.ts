@@ -630,6 +630,8 @@ function copyTargets(args: readonly string[], base: string): string[] {
   if (nonFlagArgs.length < 2) return [];
   const destination = nonFlagArgs[nonFlagArgs.length - 1];
   const sources = nonFlagArgs.slice(0, -1);
+  // `-T` / `--no-target-directory` は宛先を通常ファイルとして扱う指定。実在ディレクトリでも展開しない。
+  if (args.some((arg) => arg === '-T' || arg === '--no-target-directory')) return [destination];
   // 宛先がディレクトリと判る形（末尾 `/`・入力元が複数・実在するディレクトリ）だけ展開する。
   const isDirectory =
     destination.endsWith('/') || sources.length > 1 || isExistingDirectory(base, destination);
