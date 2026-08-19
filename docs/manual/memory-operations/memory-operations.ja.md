@@ -1,257 +1,388 @@
 ---
-title: "メモリ運用手順（Claude メモリ層と開発保存データ一覧）"
+title: "記憶管理マニュアル（Claude Code / Codex と anytime 拡張）"
 date: "2026-07-19"
-updated: "2026-07-19"
+updated: "2026-08-19"
 type: "manual"
 lang: "ja"
-author: "Claude Code v2.1.215 (claude-opus-4-8[1m])"
-skill: "anytime-doc-authoring (2026-07-18)"
+author: "Claude Code v2.1.235 (claude-opus-5[1m])"
+skill: "anytime-doc-authoring (2026-08-09)"
 category: "operations"
-excerpt: "本プロジェクトで Claude Code のメモリ層（CLAUDE.md / rules / skills / Auto Memory）をどう使い分けるかと、開発で生成・蓄積される保存データ（Trail 系 DB・制御ファイル・ドキュメント・チケット・クラウド同期）の所在一覧を定義する。ふりかえりが参照するデータの出所もここで引ける。"
+excerpt: "Claude Code と Codex をコーディングエージェントとして使い、Anytime Agent / Markdown / Trail の 3 拡張を導入したワークスペースで、知識と作業履歴をどこへ書き、どう読ませ、どう棚卸しするかの手順書。記憶を 4 層に分けて層ごとの寿命とロード条件を示し、層を選ぶ判断、各エージェント・各拡張での操作手順、定期メンテナンス、症状別の対処を扱う。"
 related:
     - to: "../dev-operations/dev-operations.ja.md"
       type: "part-of"
-    - to: "/spec/31.trail/04.memory-core/memory-core.ja.md"
-      type: "references"
-    - to: "/spec/31.trail/04.memory-core/memory-core.ja.md"
-      type: "references"
     - to: "/tech/claude-code/claude-code-memory-architecture.ja.md"
       type: "references"
 ---
 
-# メモリ運用手順（Claude メモリ層と開発保存データ一覧）
+# 記憶管理マニュアル（Claude Code / Codex と anytime 拡張）
 
-本書は 2 つの問いに答える。**「この知識をどこに書けばよいか」**（§2〜§4）と、**「あのデータはどこに保存されているか」**（§5〜§7）である。
+コーディングエージェントは毎回まっさらな状態から始まる。前回教えたことを次のセッションへ引き継ぐには、知識を「どこに書けばいつ読まれるか」を知ったうえで置き場所を選ぶ必要がある。本書はその置き場所と、置いたものを読ませる・確かめる・捨てる操作手順を扱う。
 
-前者は Claude Code のメモリ層の使い分け、後者は開発活動で自動的に蓄積される保存データの所在一覧を指す。ふりかえり（`anytime-dev-retro`）が何を読んで結論を出しているかも §7 で引ける。
+対象は、**Claude Code または Codex をエージェントとして使い、Anytime Agent / Anytime Markdown / Anytime Trail の 3 拡張を導入した VS Code ワークスペース**である。拡張を導入していない場合も §4・§5 は使える。
 
-Claude Code 側のメモリ機構そのものの一般解説は [Claude Code のメモリを理解する](/tech/claude-code/claude-code-memory-architecture.ja.md) にある。本書はそれを前提に、**本プロジェクトでの運用**だけを扱う。
+Claude Code のメモリ機構そのものの解説は [Claude Code のメモリを理解する](/tech/claude-code/claude-code-memory-architecture.ja.md) にある。本書はそれを前提に、3 拡張を組み合わせたときの運用手順を定義する。
 
-## 1. 記憶の 3 系統
+## 1. 前提条件
 
-本プロジェクトの「記憶」は、書き手と寿命の違いで 3 系統に分かれる。混同すると「書いたのに読まれない」が起きるため、まずこの区別を押さえる。
+- Claude Code v2.1 以降、または Codex CLI が導入済みであること。
+- 記憶に関わる機能を使うには 3 拡張の役割分担を満たすこと。**セッション・編集・コミット・トークン消費を記録するフックを配るのは Anytime Agent 拡張だけ**であり、Anytime Trail 拡張は記録されたデータを見せる側に回る。Trail の行動可視化を使うなら Agent の併用が要る。
+- Anytime Markdown 拡張のドキュメント検索を使うなら、設定 `anytimeMarkdown.docsRoot` にドキュメントリポジトリの絶対パスを入れておくこと（未設定だと検索インデックスが無効になる）。
+- ワークスペースが Git リポジトリであること。並行セッション検知と Auto Memory のプロジェクト識別が Git リポジトリを基点にする。
 
-| 系統 | 誰が書くか | 読まれ方 | 代表 |
+## 2. 記憶の 4 層
+
+記憶は、**誰が書くか**と**いつ読まれるか**で 4 層に分かれる。混同すると「書いたのに読まれない」が起きるため、まずこの区別を押さえる。
+
+| 層 | 誰が書くか | いつ読まれるか | 実体 |
 | --- | --- | --- | --- |
-| **人が定めるルール** | 人（と AI の提案） | セッション開始時に自動ロード、またはスキル呼出時に展開 | `CLAUDE.md` / `AGENTS.md` / `~/.claude/rules/` / スキル |
-| **AI が貯める知見** | Claude が自律判断 | `MEMORY.md` の索引が自動ロード、詳細はオンデマンド | `~/.claude/projects/-anytime-markdown/memory/` |
-| **機械が記録する実績** | hooks・拡張機能が自動 | 人・AI が分析時に明示的にクエリ | Trail 系 DB（`.anytime/trail/db/`） |
+| **作業メモリ** | セッションそのもの | 常時（セッション終了・圧縮で消える） | コンテキストウィンドウ、セッション履歴 |
+| **法典** | 人 | セッション開始時に自動 / パスマッチ時 / 呼び出し時 | `CLAUDE.md`、`AGENTS.md`、`.claude/rules/`、スキル |
+| **自律知見** | エージェント | 索引が自動ロード、詳細はオンデマンド | `~/.claude/projects/<project>/memory/` |
+| **実績** | 拡張とフック | 人・AI が明示的にクエリしたときだけ | `activity.db`、`caravan-book.db`、`catalog.db` |
+
+上 3 層は Claude Code が持つ機構で、最下層の**実績**が anytime 拡張の追加分である。実績層は自動ではロードされない。**問い合わせて初めて読まれる**という点が上 3 層と決定的に違い、ここを取り違えると「Trail に記録されているのだから AI は知っているはずだ」という誤解を招く。
 
 ```mermaid
 flowchart TD
-    subgraph L1 ["人が定めるルール（手動・永続）"]
-        A1["CLAUDE.md<br/>global + project"]
-        A2["AGENTS.md<br/>ツール中立規約"]
-        A3["~/.claude/rules/<br/>4 ファイル"]
-        A4["スキル<br/>global / project / 同梱"]
+    subgraph L1 ["作業メモリ（揮発）"]
+        A1["コンテキストウィンドウ"]
+        A2["セッション履歴"]
     end
-    subgraph L2 ["AI が貯める知見（自動・永続）"]
-        B1["MEMORY.md<br/>索引・自動ロード"]
-        B2["トピック別メモリ<br/>オンデマンド"]
+    subgraph L2 ["法典（人が書く・永続）"]
+        B1["CLAUDE.md / AGENTS.md"]
+        B2[".claude/rules/"]
+        B3["スキル"]
     end
-    subgraph L3 ["機械が記録する実績（自動・永続）"]
-        C1["activity.db<br/>セッション・コミット・構造"]
-        C2["caravan-book.db<br/>エンティティ・レビュー"]
-        C3["catalog.db<br/>ドキュメント全文"]
+    subgraph L3 ["自律知見（AI が書く・永続）"]
+        C1["MEMORY.md（索引）"]
+        C2["トピック別メモリ"]
     end
-    SESSION["セッション<br/>コンテキストウィンドウ"]
-    RETRO["ふりかえり<br/>anytime-dev-retro"]
+    subgraph L4 ["実績（拡張とフックが記録・永続）"]
+        D1["activity.db"]
+        D2["caravan-book.db"]
+        D3["catalog.db"]
+    end
+    SESSION["セッションのコンテキスト"]
 
-    A1 --> SESSION
-    A2 --> SESSION
-    A3 --> SESSION
-    A4 -.呼出時.-> SESSION
     B1 --> SESSION
-    B2 -.必要時.-> SESSION
-    SESSION -.hooks が記録.-> L3
-    L3 --> RETRO
-    RETRO -.改善提案.-> L1
+    B2 --> SESSION
+    B3 -.-> SESSION
+    C1 --> SESSION
+    C2 -.-> SESSION
+    D1 -.-> SESSION
+    D2 -.-> SESSION
+    D3 -.-> SESSION
+    A1 --- SESSION
+    A2 --> SESSION
 ```
 
-図の実線はセッション開始時の自動ロード、点線はオンデマンドの読み書きを示す。**L3 は自動ロードされない**。分析するときに明示的にクエリして初めて読まれる。
+> 実線はセッション開始時に自動でロードされるもの、点線は要求したときだけロードされるものを示す。
 
-## 2. 知識をどこに書くか
+## 3. 層を選ぶ
 
-新しく分かったことを残すとき、以下の順で判断する。上ほど確実に読まれるが、コンテキストを常時消費する。
+新しく分かったことを残すとき、次の順で置き場所を判断する。上ほど確実に読まれるが、その分コンテキストを常時消費する。
 
-| 残したい内容 | 置き場所 | 根拠 |
+| 残したい内容 | 置き場所 | 読まれ方 |
 | --- | --- | --- |
-| 全プロジェクト共通の作業スタイル・Git 哲学・セキュリティ方針 | `~/.claude/CLAUDE.md` | 全セッションで自動ロード |
-| Claude / Codex 双方が従う規約（リポジトリ構成・出力先・検証コマンド） | `/anytime-markdown/AGENTS.md` | ツール中立規約の単一の正 |
-| 本プロジェクト固有の Claude 補足（discovery 手順・Trail DB・並行検知） | `/anytime-markdown/CLAUDE.md` | 上記 2 つを補完 |
-| 常時適用の品質原則・Git 手続き・外部コンテンツの扱い | `~/.claude/rules/*.md` | CLAUDE.md 肥大化の受け皿 |
-| 特定作業でだけ必要な手順（リリース・レビュー・i18n・UI） | スキル | 呼出時のみ展開しコンテキストを消費しない |
-| 踏んだ罠・失敗パターン・機能の実装経緯 | Auto Memory | Claude が自律的に書き、次セッションで自動想起 |
-| 設計判断・仕様・計画・レビュー結果 | docsRoot 配下のドキュメント | 人が読む正本。§6 |
+| 全プロジェクト共通の作業スタイル・方針 | `~/.claude/CLAUDE.md` | 全セッションで自動ロード |
+| Claude と Codex の双方に守らせたい規約 | ワークスペース直下の `AGENTS.md` | 両エージェントが読む唯一の共通経路 |
+| プロジェクト固有で Claude だけに要る補足 | ワークスペース直下の `CLAUDE.md` | Claude のセッション開始時に自動ロード |
+| 特定のファイル種別にだけ効かせたい規約 | `.claude/rules/*.md`（`paths` フロントマター付き） | 該当ファイルを読んだときにロード |
+| 特定作業でだけ要る手順（リリース・レビュー等） | スキル | 呼び出したときだけ展開される |
+| 踏んだ罠・失敗パターン・経緯 | Auto Memory | 索引が自動ロードされ、詳細はオンデマンド |
+| 設計判断・仕様・計画・レビュー結果 | ドキュメント（`docsRoot` 配下の Markdown） | 検索または明示的な参照で読まれる |
 
-判断に迷う典型は「ルールに書くかスキルに書くか」である。**常時守らせたいなら rules、特定作業でだけ参照させたいならスキル**が原則となる。`~/.claude/rules/code-quality.md` はこの原則に従い、レビュー観点チェックリストを `code-review-checklist` スキルへ移設して常時ロード分を削っている。
+判断に迷う典型は「ルールに書くかスキルに書くか」である。**常時守らせたいならルール、特定作業でだけ参照させたいならスキル**が原則になる。常時ロードされるルールが肥大化すると、そこに書いた全部の遵守率が下がるため、作業限定の手順はスキルへ逃がす。
 
-### 2.1. 現在のルール・スキル構成
+**Codex は `CLAUDE.md` を読まない。** 両方のエージェントに効かせたい規約は `AGENTS.md` に置き、`CLAUDE.md` からはそれを参照する形にする。この分担を崩すと、Codex に委譲した作業だけが規約を外れる。
 
-| 層 | 場所 | 実測（2026-07-19） |
+## 4. Claude Code の記憶を管理する
+
+### 4.1. 何がロードされたか確かめる
+
+1. セッションを開始する。
+2. `/memory` を実行する。
+
+**結果確認**: ロード中のメモリファイルの一覧が表示される。意図したファイルが並んでいなければ、配置場所か `claudeMdExcludes` 設定を見直す。
+
+### 4.2. コンテキストを管理する
+
+| やりたいこと | コマンド | 使いどき |
 | --- | --- | --- |
-| global CLAUDE.md | `~/.claude/CLAUDE.md` | 1 ファイル |
-| global rules | `~/.claude/rules/` | `code-quality.md` / `git-workflow.md` / `pre-merge-review.md` / `untrusted-content.md` |
-| global skills | `~/.claude/skills/` | `code-review-checklist` / `design-md` / `sqlite-table-definition` |
-| project CLAUDE.md | `/anytime-markdown/CLAUDE.md` | 1 ファイル（docsRoot 定義を含む） |
-| project skills | `/anytime-markdown/.claude/skills/` | 31 スキル |
-| 同梱スキル | `packages/vscode-agent-extension/skills/` | 10 スキル + `manifest.json` |
+| 使用量を確認する | `/context` | 残量が気になるとき |
+| 会話を圧縮する | `/compact [残したい内容]` | 使用率が 80% を超えたとき |
+| 会話履歴を消す | `/clear` | 無関係なタスクへ移るとき |
 
-同梱スキルは anytime-agent 拡張が配布・管理する。**手で編集せず**、変更時は `manifest.json` の版数を必ず上げる（同一サイクル内の再変更でも都度）。
+圧縮しても `CLAUDE.md` はディスクから読み直されるので消えない。**消えるのは会話の中だけで伝えた指示**である。残したい指示は会話に留めず `CLAUDE.md` か `.claude/rules/` へ書く。
 
-## 3. Auto Memory の運用
+Anytime Agent 拡張を導入していれば、サイドバーの Agent Mapping ビューがセッションごとのコンテキスト量を表示し、`anytimeAgent.contextWarnTokens`（既定 160,000）を超えたセッションに警告バッジを付ける。バッジが出たら §4.5 の引き継ぎに移る。
 
-Auto Memory は Claude がセッション中に自律的に書く知見の蓄積である。本プロジェクトでは主に「踏んだ罠」「実装した機能の経緯と未完了事項」を記録している。
+### 4.3. 恒久ルールを書く
 
-- **保存先**: `~/.claude/projects/-anytime-markdown/memory/`
-- **実測（2026-07-19）**: 226 ファイル、索引 `MEMORY.md` は 72 行
-- **同一リポジトリの全 worktree で共有される**。worktree ごとに分かれない
+1. 対象を決める。全プロジェクト共通なら `~/.claude/CLAUDE.md`、プロジェクト固有なら直下の `CLAUDE.md`、両エージェント共通なら `AGENTS.md`。
+2. **箇条書きで、具体的に書く。** 「コードを整形する」ではなく「2 スペースインデントを使う」のように、機械的に判定できる粒度にする。
+3. **200 行以下に保つ。** 長いファイルほど個々の指示が守られなくなる。超えたら §4.3.1 でルールを分割するか、作業限定の手順をスキルへ移す。
+4. 複数の `CLAUDE.md` の間で矛盾を作らない。矛盾があるとどちらが採られるか決まらない。
 
-### 3.1. 運用上の制約
+**結果確認**: `/memory` で対象ファイルがロードされていること。次のセッションで指示どおりに動くこと。
 
-Auto Memory には、知らないと「書いたのに読まれない」を招く制約が 3 つある。
+#### 4.3.1. ルールを分割する
 
-1. **索引未登録は認識されない**: メモリファイルを作っても `MEMORY.md` に 1 行追加しなければ、次セッションで存在に気づかれない。作成と索引登録は必ず同時に行う。
-2. **並行セッションには反映されない**: セッション A で追加したメモリは、既に開始済みのセッション B には届かない。新規セッションを開始して初めて読まれる。
-3. **索引には行数とバイト数の二重上限がある**: `MEMORY.md` は**先頭 200 行、または 25KB のいずれか早い方**までが自動ロードされる。行数に余裕があってもバイト数超過で末尾が切り詰められる。完了済み・対応不要になったエントリは `archived-entries-index.md` へ退避し、索引本体を短く保つ。
+`CLAUDE.md` が長くなったら、トピックごとに `.claude/rules/*.md` へ切り出す。フロントマターに `paths` を書くと、該当ファイルを読んだときにだけロードされる。
 
-> **現状の警告（2026-07-19 実測）**: 本プロジェクトの `MEMORY.md` は 72 行 / 27,047 バイト（約 26.4KB）で、**25KB 上限を超過している**。行数は十分余裕があるため気づきにくいが、現行仕様では末尾のエントリが自動ロードされていない可能性がある。1 行あたりの記述が長いことが原因であり、退避（§3.2）と 1 行の短縮が必要である。
+```markdown
+---
+paths:
+  - "src/api/**/*.ts"
+---
 
-重要な設計決定を Auto Memory だけに預けない。**設計判断は docsRoot の設計書へ、常時守らせたい制約は CLAUDE.md か rules へ**二重化する。
+# API 開発ルール
 
-### 3.2. 棚卸しの手順
+- 全エンドポイントで入力バリデーションを行う
+```
 
-索引が長くなったら次を行う。
+`paths` を持たないルールは起動時に常時ロードされる。**常時適用でないものには必ず `paths` を付ける**。
 
-1. `MEMORY.md` を読み、完了済み機能・公開済みリリース・対応不要になった罠のエントリを特定する。
-2. 該当行を `archived-entries-index.md` の索引へ移す（個別ファイルは削除せず残す。詳細が要るときに辿れるようにする）。
-3. 誤りと判明したメモリは、退避でなく削除する。
+#### 4.3.2. 作業限定の手順をスキルにする
 
-## 4. 保存データ一覧: Claude Code 側
+スキルは `.claude/skills/<name>/SKILL.md` に置き、`/name` で呼び出したときだけ展開される。呼ばれない限りコンテキストを消費しないため、リリース手順・レビュー観点・生成テンプレートのような「特定作業でだけ要る長い手順」はここへ置く。
 
-ここから所在一覧に入る。まず Claude Code が生成するデータである。**いずれもマシンローカルで、Git 管理外**である。
+3 拡張はそれぞれ自分のスキルをワークスペースへ配布する（§6.1）。**配布されたスキルを手で編集しない。** 編集しても拡張の更新で上書きされるか、逆に版数ゲートに阻まれて恒久的に古いままになる。
 
-| データ | パス | 内容 | 実測サイズ（2026-07-19） |
-| --- | --- | --- | --- |
-| セッション記録 | `~/.claude/projects/-anytime-markdown/*.jsonl` | 全会話・ツール呼出の生ログ。Trail の取り込み元 | 230 ファイル / 655MB |
-| Auto Memory | `~/.claude/projects/-anytime-markdown/memory/` | 索引 + トピック別メモリ | 226 ファイル |
-| worktree 別セッション記録 | `~/.claude/projects/-anytime-markdown--claude-worktrees-*/` | worktree ごとに別ディレクトリへ分離される | 9 ディレクトリ |
-| global 設定 | `~/.claude/settings.json` | hooks・環境変数・statusLine | — |
-| project 設定 | `/anytime-markdown/.claude/settings.local.json` | プロジェクト固有の権限等 | — |
+### 4.4. Auto Memory を運用する
 
-> **注意**: セッション記録 `*.jsonl` は会話全文を含む。共有・外部送信の対象にしない。
+Auto Memory は、エージェントが「次のセッションで役立つ」と判断した内容を自分で書き残す仕組みである。保存先は `~/.claude/projects/<project>/memory/` で、`<project>` は Git リポジトリから導出される。**同一リポジトリの全 worktree で 1 つのメモリを共有する**（worktree ごとに分かれない）。
 
-### 4.1. 記録を駆動する hooks
+知らないと「書いたのに読まれない」を招く制約が 3 つある。
 
-保存データの多くは `~/.claude/settings.json` の hooks が自動生成する。何がいつ記録されるかはここで決まる。
+1. **索引に登録しないと認識されない。** メモリファイルを作っても、`MEMORY.md` に 1 行足さなければ次のセッションで存在に気づかれない。作成と索引登録は必ず同時に行う。
+2. **開始済みの並行セッションには届かない。** セッション A で足したメモリは、既に走っているセッション B には反映されない。新しいセッションを始めて初めて読まれる。
+3. **索引は先頭 200 行までしかロードされない。** `MEMORY.md` が 200 行を超えると、超えた分は読まれない。この上限は行数で決まるため、**1 行を短くしても上限には効かない**。減らす手段は退避・統合・削除だけである。
 
-| イベント | スクリプト | 記録・作用 |
-| --- | --- | --- |
-| `SessionStart` | `verify-settings-wiring.sh` / `agent-status-report.mjs session-start` | 設定配線の検証、セッション開始の記録 |
-| `UserPromptSubmit` | `session-guard.sh` / `handoff-inject.sh` / `user-feedback.sh` | 並行セッション検知、引き継ぎ注入、ユーザー評価の記録 |
-| `PreToolUse` | `destructive-guard.sh` / `agent-status-report.mjs` | 破壊的操作のブロック、編集・実行の開始記録 |
-| `PostToolUse` | `agent-status-report.mjs` / `commit-tracker.sh` | 編集・実行の終了記録、コミット追跡 |
-| `Stop` | `token-budget.sh` / `safe-point.sh` / `flight-review.sh` | トークン消費の集計、セーフポイント記録、運航後レビュー |
-
-`destructive-guard.sh` だけは記録でなく**ブロック**として働く。`git reset --hard` 等を検知して exit 2 で止める。承認済みの操作は `ANYTIME_ALLOW_DESTRUCTIVE=1` を付けて再実行し、承認の証跡をコマンド列に残す。
-
-## 5. 保存データ一覧: アプリ側（Trail 系 DB）
-
-自アプリ（anytime 拡張群）が蓄積する実績データである。保存先は Trail 拡張の設定に依存するため**固定パスを前提にしない**。`lep.json` の `database.storagePath`（既定 `.anytime/trail/db`）を、`anytimeTrail.workspace.path` が決めるワークスペースルート起点で解決する。
-
-既定構成での実体は `/anytime-markdown/.anytime/trail/db/` である。
-
-| DB | 主なテーブル | 何が入るか | 実測サイズ |
-| --- | --- | --- | --- |
-| `activity.db` | `sessions` / `messages` / `activity_session_costs` / `activity_session_commits` / `activity_commit_files` / `activity_current_code_graphs` / `activity_daily_counts` / `activity_dora_metrics` | セッション・メッセージ・コスト・コミット・コードグラフ | 2.3GB |
-| `caravan-book.db` | `caravan_entities` / `caravan_episodes` / `caravan_edges` / `caravan_reviews` / `caravan_review_findings` / `caravan_drift_events` / `caravan_spec_documents` / `caravan_flight_reviews` / `instructions` / `caravan_instruction_sessions` / `caravan_acceptance_records` / `caravan_doctrine_judgments` | エンティティ・エピソード・関係・レビュー指摘・ドリフト・運航後レビュー・指示台帳・受入台帳・接地判断（Flight Record / 受入台帳 / caravan_doctrine_judgments は 2026-08-07 に activity.db から移設。PR レビューは caravan_reviews の source_kind='pr_comment' へ統合）。FTS 索引を併設 | 690MB |
-| `catalog.db` | `doc` / `catalog_doc_embedding` / `catalog_doc_fts` / `catalog_doc_relation` | ドキュメント本文・埋め込み・全文索引・関係 | 110MB |
-| `activity.db` | `activity_verification_runs` | 検証実行の記録（2026-08-05 に `verification.db` から移設。指示へ `session_id` で結合する） | — |
-| `extension-logs.db` | `extension_logs` | 拡張機能のログ | 4.0MB |
-| `agent-status.db` | `agent_sessions` / `git_activity` | エージェントセッション状態と Git 活動（`.anytime/agent/` 配下） | — |
-
-`activity.db` と `caravan-book.db` には `.bak` / `.kb` 系のバックアップが並置される。実測で `activity.db` 系だけで約 9GB を占めるため、ディスク逼迫時はここを確認する。**削除は必ずユーザー確認を取る**。
-
-### 5.1. 参照の作法
-
-`activity_current_code_graphs.graph_json` の丸読みは約 43 万トークンに達するため禁止する。構造探索は mcp-trail の discovery ツール（`get_important_files` → `get_code_dependencies` / `query_code_graph` / `find_code_path`）を使う。詳細は [`/anytime-markdown/CLAUDE.md`](/anytime-markdown/CLAUDE.md) の discovery 順序に従う。
-
-Trail 拡張には取り込みラグ（数十分〜VS Code リロード）がある。**直近のセッション・コミットは未取込の場合がある**ため、「DB に無い＝起きていない」と判断しない。
-
-## 6. 保存データ一覧: ファイル・ドキュメント・クラウド
-
-DB 以外の保存データである。制御用の状態ファイルと、人が読む正本のドキュメントに分かれる。
-
-### 6.1. 制御・状態ファイル
-
-| パス | 内容 | Git 管理 |
-| --- | --- | --- |
-| `.anytime/trail/lep.json` | Trail の DB 保存先・パイプライン設定。**パス解決の起点** | 対象 |
-| `.anytime/trail/pipeline-status.json` / `*-runner.json` | 解析パイプラインの進捗・実行状態 | 対象外 |
-| `.anytime/agent/claude-session-guard.json` / `agent-worker.json` | セッションガード・ワーカーの状態 | 対象外 |
-| `.anytime/markdown/catalog.db` | markdown 側のドキュメント DB | 対象外 |
-| `.anytime/notes/anytime-note-*.md` + `images/` | Agent Note（人が貼る画像・メモ。`anytime-note` スキルが読む） | 対象 |
-| `.anytime/dev-cycle-preflight.json` | 開発サイクルのプリフライト結果 | 対象外 |
-| `.git/anytime/claims/` | 並行セッションのクレーム台帳（airspace）。**全 worktree で共有** | 対象外 |
-| `.git/anytime/loop-state/` | チケットループの実行状態 | 対象外 |
-| `.vscode/claude-code-status-*.json` | セッションごとの稼働状況。並行検知に使う | 対象外 |
-
-`.git/anytime/` 配下は Git のオブジェクトではなく**共有ディレクトリを間借りした状態置き場**である。worktree をまたいで 1 つを共有する性質を利用しており、worktree ごとに分かれない。
-
-### 6.2. ドキュメント（docsRoot）
-
-`/Shared/anytime-markdown-docs`（コード repo とは別リポジトリ）に置く。
-
-| フォルダ | type | 内容 |
-| --- | --- | --- |
-| `spec/` | spec / test / manual | 設計書・要件・テスト・マニュアル（本書もここ） |
-| `plan/` | plan | 実装計画。3 ファイル以上変更する機能で作成 |
-| `proposal/` | proposal | RFC / ADR / 改善提案 |
-| `review/` | review | レビュー記録。memory-core が ingest する |
-| `report/` | report | 日次・週次調査、分析レポート |
-| `tech/` | tech | 技術解説記事 |
-| `skills/` | — | スキル関連ドキュメント |
-
-各フォルダの `index.[lang].md` は `scripts/gen-spec-index.mjs` が frontmatter から自動生成する。**手で編集せず**、ドキュメントを追加・更新・改名・削除したら再生成する（spec は `npm run spec:index`）。
-
-> **横断制約**: `check_alignment` は別リポジトリ（docsRoot）の docs 更新を検知できない。docs 側の更新確認は docsRoot の `git log` で実測する。
-
-### 6.3. チケット
-
-チケット正本は Git リポジトリ `/Shared/anytime-ticket` の `.tickets/` 配下に 1 チケット 1 Markdown（YAML フロントマター）で置く。解決順は VS Code 設定 `anytimeAgent.tickets.directory` → ワークスペース直下の `.tickets/` → 環境変数 `ANYTIME_TICKETS_DIR` である。
-
-人への質問・確認・承認は、チャットでなくチケット（Comments 追記 + 担当を `user` へ返却）で管理する。チャットの発言はセッションが終われば探しにくくなるが、チケットは残るためである。
-
-### 6.4. クラウド同期（Supabase）
-
-拡張機能の SyncService が `activity.db` の内容を Supabase の `trail_*` テーブルへ**洗い替え（wash-away）**で同期する。同期対象は `trail_sessions` / `trail_messages` / `trail_session_costs` / `trail_commit_files` / `trail_daily_counts` / `trail_releases` / `trail_current_code_graphs` などである。
-
-洗い替え方式のため、**ローカル側が空や欠損の状態で同期するとクラウド側も失われる**。スキーマは `supabase/migrations/001_schema.sql` を直接編集する運用で、マイグレーションファイルを新規追加しない（`supabase-schema-sync` スキル）。
-
-## 7. ふりかえりが読むデータ
-
-`anytime-dev-retro`（ふりかえり）が結論の根拠にするのは、以下の read-only 参照である。「レポートの数値がどこから来たか」を追うときはここを見る。
-
-| 分析対象 | データ源 |
+| やりたいこと | 方法 |
 | --- | --- |
-| セッション実績・コンテキスト・サブエージェント数 | `activity.db` の `sessions`（`message_count` / `peak_context_tokens` / `compact_count` / `sub_agent_count` / `git_branch`） |
-| LLM コスト（セッション×モデル別） | `activity.db` の `activity_session_costs`（`estimated_cost_usd`）。`grounding.token-budget.cjs` が集計 |
-| コミット・変更ファイル | `activity.db` の `activity_session_commits` / `activity_commit_files` |
-| レビュー指摘と対処・バグ化の因果 | `caravan-book.db` の `caravan_reviews` / `caravan_review_findings` |
-| 設計と実装のドリフト | `caravan-book.db` の `caravan_drift_events` / `caravan_spec_documents` |
-| ドキュメントの整合 | `catalog.db` の `doc` / `catalog_doc_relation` |
+| 保存内容を見る | `/memory` でフォルダを開く |
+| オン・オフを切り替える | `/memory` でトグル |
+| 自動化環境で止める | 環境変数 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` |
+| 特定のメモを消す | 該当ファイルを削除し、`MEMORY.md` の該当行も消す |
 
-コスト grounding が cwd 相対で DB を見つけられない場合は、引数でパスを明示する。
+**重要な設計判断を Auto Memory だけに預けない。** Auto Memory はエージェントの判断で書かれる要約であって、人が承認した記録ではない。設計判断はドキュメントへ、常時守らせたい制約は `CLAUDE.md` かルールへ二重化する。
 
-```bash
-node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs /anytime-markdown/.anytime/trail/db
-```
+### 4.5. セッションを跨いで引き継ぐ
 
-レビュー指摘が `caravan_reviews` へ取り込まれるのは、`code-reviewer` subagent 経由か、取込 allowlist に載るスキル経由で実施した場合に限る。素の `/code-review` は記録に残らない（`~/.claude/rules/pre-merge-review.md`）。**記録を残したいレビューでは `superpowers:requesting-code-review` を使う。**
+| 方法 | 確実性 | 適した用途 |
+| --- | --- | --- |
+| `CLAUDE.md` / `AGENTS.md` に書く | 最高 | 規約・手順・重要な設計決定 |
+| `.claude/rules/` に書く | 高 | ファイル種別ごとの規約 |
+| Auto Memory に残す | 中 | 学習した知見・踏んだ罠 |
+| `claude -c` / `/resume` | — | 中断した作業をそのまま再開する |
+| プランファイル | 中 | 複数セッションにまたがる実装作業 |
+| ドキュメント | 低 | 設計書・仕様書（読みに行かせる指示が要る） |
 
-## 8. 運用上の注意
+確実性が「中」以下のものは、エージェントが能動的に読みに行かない限り参照されない。
 
-- **永続データ領域へ書き込むのは、その領域を管理する本番アプリケーションのみ**とする。`~/.claude/**`・`~/.config/**`・`~/.local/share/**` へ作業の副産物を書かない。
-- **Trail の解析 API を `tsconfig` 明示なしで叩かない**。ルート `tsconfig` はソリューション形式のため空プログラムとなり、解析結果が空で洗い替えられてデータを失う実例がある。
-- **DB のバックアップ削除は必ずユーザー確認を取る**。`.bak` / `.kb` 系だけで数 GB を占めるが、無断削除はしない。
-- **Auto Memory と DB は別物**である。Auto Memory は Claude の判断で書かれる要約、DB は hooks と拡張が記録する実績である。片方に無いことを他方の不在の根拠にしない。
+Anytime Agent 拡張を使う場合は、Agent Mapping ビューでセッションを右クリックし **Hand Off to New Session** を選ぶと引き継ぎができる。コンテキストが警告しきい値を超えたセッションを、状態を持ったまま新しいセッションへ渡すための操作である。
+
+## 5. Codex の記憶を管理する
+
+Codex は Claude Code とは別の記憶機構を持つ。共通するのは `AGENTS.md` だけである。
+
+| 対象 | 所在 | 備考 |
+| --- | --- | --- |
+| プロジェクト規約 | ワークスペース直下の `AGENTS.md` | Claude と共有する唯一の経路 |
+| 設定・信頼済みプロジェクト | `~/.codex/config.toml` | `[projects."<path>"] trust_level` |
+| セッション履歴 | `~/.codex/sessions/` | 過去セッションの記録 |
+| スキル | `~/.codex/skills/` | Claude Code のスキルとは別系統 |
+
+**手順**
+
+1. 両エージェントに守らせたい規約を `AGENTS.md` に書く。Codex 専用の追記が要る場合も同じファイルに置き、`CLAUDE.md` からは重複させず参照する。
+2. Codex へ作業を委譲するときは、委譲プロンプトに規約の参照を明示する。**委譲先は `CLAUDE.md` も `.claude/rules/` も継承しない**ため、暗黙に守られることを期待しない。
+3. 委譲先が返した成果は、委譲元が実測で裏取りしてから統合する。「完了しました」という報告は完了の根拠にならない。
+
+**結果確認**: Anytime Agent 拡張の Agent Mapping ビューに Codex セッションが読み取り専用で並ぶ（設定 `anytimeAgent.showCodexSessions`、既定は有効）。表示対象の期間は `anytimeAgent.sessionRetentionDays`（既定 7 日）に従う。
+
+> Codex 側にも自律メモリのストアが用意されているが、環境によっては空のまま蓄積されない。運用の前に実際の中身を確認し、蓄積されていないなら `AGENTS.md` とセッション履歴だけが引き継ぎ経路だと考える。
+
+## 6. Anytime Agent 拡張: セッションと配布物を管理する
+
+Agent 拡張は、**スキルとフックを配る側**であり、**セッションの衝突と暴走を止める側**でもある。記憶の観点では、実績層へデータを流し込む入口を担う。
+
+### 6.1. 同梱スキルの配布と版数ゲート
+
+拡張は起動時に、同梱スキルをワークスペースの `.claude/skills/` へ展開する。展開の可否は `skills/manifest.json` の整数版数と、配置先に記録された版数の比較で決まる。
+
+- 配置先のファイルに手を入れていると、既定では**上書きせず保持する**。
+- 同梱の版数が配置済み版数を上回ったときだけ、差分を破って上書きする。
+
+この性質から、**スキルの内容を変えても manifest の版数を上げなければ、配布済みのワークスペースには永久に届かない**。値が一見ファイル数のような整数なので据え置きやすい点に注意する。
+
+**結果確認**: ワークスペースの `.claude/skills/<name>/SKILL.md` を開き、意図した内容になっていること。
+
+### 6.2. フックが自動で記録すること
+
+拡張はフックスクリプトを `~/.claude/scripts/` へ配置し、Claude Code の設定へ登録する。利用者から見た挙動は次のとおり。
+
+| タイミング | 起きること |
+| --- | --- |
+| セッション開始 | 同じ worktree に他の生存セッションがいれば分離を助言する |
+| 編集ツールの前後 | 編集の開始・終了を記録する（どのセッションがどのファイルを触っているか） |
+| シェル実行の前後 | 実行中の作業ディレクトリを記録する |
+| 全ツールの前 | 緊急停止が発動中ならツール実行を止める |
+| 全ツールの後 | 同じ操作の繰り返し（ループ）を検知して警告する |
+| シェル実行の後 | コミットを検出して記録する |
+| プロンプト送信時 | 経過時間・ターン数の超過を警告し、引き継ぎ文書があれば注入する |
+| セッション終了時 | トークン消費を集計し、HEAD をセーフポイントとして記録する |
+
+**Claude Code が未インストールなら登録自体が行われない。** 記録が一切残らないときは、まずフックが登録されているかを疑う。
+
+### 6.3. 並行セッションの衝突を避ける
+
+同じリポジトリで複数のセッションが動くと、Git のインデックスや作業ツリーを共有して互いの変更を壊す。拡張はセッションごとにクレームファイルを Git の共通ディレクトリ配下へ置き、衝突を検知する。
+
+- **生存判定はプロセスの実在で行う。** クレームの更新時刻が数時間古くても、プロセスが生きていれば衝突相手である。アイドル中のセッションを終了済みと誤判定しない。
+- 判定の単位は **worktree** であり、ブランチ名ではない。別 worktree なら衝突しない。
+
+**手順**
+
+1. 長時間の作業や worktree の作成前に、他セッションの生存を確認する。
+2. 自分以外の生存セッションが同じ worktree を持っていたら、相手の終了を待つか、`git worktree add .worktrees/<name> -b <branch>` で作業領域を分ける。
+3. 危険な Git 操作（作業ツリーの破棄・ブランチの強制削除など）が拒否された場合、拒否理由に相手のセッション ID とブランチが出る。分離してから再実行する。
+
+**既知の落とし穴**: 会話履歴をクリアしてもプロセスは生き続けるため、セッション ID だけが変わって自分の古いクレームと衝突することがある。単独作業なのに恒久的に拒否されるときはこれを疑う。
+
+### 6.4. 画面から確認する
+
+| ビュー | 見えるもの |
+| --- | --- |
+| Agent Mapping | Claude Code / Codex セッションの一覧、コンテキスト量、引き継ぎ操作 |
+| Git Activity | エージェントが実行した Git 操作の履歴（破壊操作の抽出・復旧コマンドのコピー） |
+| Worktree Ownership | どのセッションがどの worktree を使っているか |
+| Work Snapshots | 未コミット作業の非破壊バックアップ（コマンドパレットから開く） |
+
+保持期間は設定で決まる（Git 操作の記録は既定 90 日、スナップショットは既定 7 日）。トークン上限の監視を使う場合は `anytimeAgent.budget.*` に上限値を入れる。
+
+## 7. Anytime Markdown 拡張: 知識の正本を書き、探す
+
+このプロジェクト群は「**知識の正本はベンダー中立な Markdown であり、データベースはそこから導出される検索インデックスにすぎない**」という原則を採る。Markdown 拡張はその正本を書く側と探す側を担う。
+
+### 7.1. 検索インデックスを用意する
+
+1. 設定 `anytimeMarkdown.docsRoot` にドキュメントリポジトリの絶対パスを入れる。ワークスペースの外（共有リポジトリなど）でもよい。
+2. コマンドパレットから `Anytime Markdown: Rebuild Doc Search Index` を実行する。
+3. 以後は `anytimeMarkdown.docSearch.intervalMinutes`（既定 30 分）ごとに自動で再インデックスされる。`0` にすると定期実行が止まり、手動実行だけになる。
+
+インデックスの実体は `catalog.db` で、既定の保存先はワークスペース配下の `.anytime/markdown/` である。保存先は設定で変えられるが、**ワークスペースの外は指定できない**（外を指すと既定へ戻り警告が出る）。
+
+**結果確認**: 検索ツールがエラーにならず結果を返すこと。DB が未生成のうちは、先に再構築を促すエラーが返る。
+
+### 7.2. 探す・読む・書く
+
+拡張は MCP サーバー経由で次の道具を提供する。
+
+| 目的 | 道具 |
+| --- | --- |
+| 全文とメタデータで文書を探す | `search_docs`（キーワード＋種別・言語・カテゴリで絞り込み） |
+| 見出し単位で探す | `search_sections` |
+| 文書の構造だけ取る | `get_outline` / `get_frontmatter` |
+| 必要な節だけ読む | `get_section` |
+| 節やフロントマターを書き換える | `update_section` / `update_frontmatter` |
+| 関連文書をたどる | `doc_backlinks` / `doc_neighbors` |
+| 整形する | `format_markdown` |
+
+**大きな文書を丸ごと読ませない。** 検索で当たりを付け、必要な節だけ取り出す。文書全体を読ませるとコンテキストを浪費し、他の情報が押し出される。
+
+**書き込みには範囲の制約がある。** 検索系はワークスペースの外にある `docsRoot` まで届くが、**書き込み・整形系はワークスペース配下しか触れない**。検索で見つけたパスをそのまま編集ツールへ渡すと拒否されることがある。ワークスペース外の文書は通常のファイル編集で扱う。
+
+### 7.3. フロントマターと索引
+
+フロントマターは表示のための飾りではなく、検索と関連付けの入力である。
+
+| キー | 使われ方 |
+| --- | --- |
+| `type` / `lang` / `category` | 検索の絞り込み条件 |
+| `excerpt` | 検索結果に出る要約。開かずに関連度を判断させる |
+| `related`（型付き） | 関連文書グラフの元データ |
+
+各フォルダの索引 `index.[lang].md` は自動生成物なので手で書かない。文書を追加・更新・改名・削除したら索引を再生成する（コマンドパレットの `Anytime Markdown: Regenerate Doc Folder Indexes`、または索引生成スクリプトの npm scripts）。生成は冪等で、内容が変わらなければ書き込まれない。
+
+## 8. Anytime Trail 拡張: 実績を記録し、引き出す
+
+Trail 拡張は、**エージェントが実際に何をしたか**を記録し、後から引けるようにする。記録の入口はフック（Agent 拡張が配る）、出口は Trail Viewer と MCP の問い合わせツールである。
+
+### 8.1. 何が記録されるか
+
+| 種類 | 中身 |
+| --- | --- |
+| セッションとメッセージ | プロンプト、ツール呼び出し、使ったスキル、時刻 |
+| コミット | セッションとコミット・変更ファイルの対応 |
+| コード構造 | 解析で得た依存グラフ・C4 モデル・コミュニティ |
+| レビュー | レビュー指摘と、それを対処したコミットの対応 |
+| 承認と判断 | 人の承認・AI の判断・指示の単位（どの依頼に属する作業か） |
+
+記録先は 2 つのデータベース（行動と構造を持つもの、知識グラフとレビューを持つもの）で、保存先は拡張の設定で決まる。**固定パスを前提にせず、参照する前に実在を確かめる。**
+
+### 8.2. 過去を引き出す
+
+記録は自動ではロードされない。**問い合わせて初めて読まれる。**
+
+| 知りたいこと | 使う道具 |
+| --- | --- |
+| この件について過去に何が決まったか | 知識グラフの検索（`search_caravan_book`） |
+| このファイルを変えると何に影響するか | 依存の問い合わせ（`get_code_dependencies`） |
+| どこから読み始めるべきか | 重要ファイルの抽出（`get_important_files`） |
+| このファイルと一緒に変わるのはどれか | 共変更の問い合わせ（`get_cochange_partners`） |
+| 未対処のレビュー指摘が残っていないか | 指摘の一覧（`list_unaddressed_review_findings`） |
+| いま継続中の依頼はどれか | 指示の一覧（`list_open_instructions`） |
+
+**手順（バグ修正や調査に着手するとき）**
+
+1. 対象ファイル名・症状のキーワードで知識グラフを検索し、過去の決定・同種の不具合と接続する。
+2. 対象ファイルに未対処のレビュー指摘が残っていないか確認する。
+3. 依存の問い合わせで影響範囲を把握してから、必要な箇所だけソースを読む。
+
+**構造の探索でコードグラフ全体を読み込ませない。** 数十万トークン規模になり、コンテキストを使い切る。
+
+### 8.3. 画面から確認する
+
+`Anytime Trail: Trail ビューアを開く` でブラウザのビューアが開き、セッション一覧・分析・プロンプトの各タブから記録を辿れる。コード構造を見るには先に `Anytime Trail: コード解析` を実行する。
+
+### 8.4. 記録が残らない条件
+
+- **フックが未登録**: Agent 拡張が入っていない、または Claude Code 未インストールの環境では行動が一切記録されない。
+- **取り込みの遅れ**: ログの取り込みには時間差がある。直近の作業がまだ入っていないことがある。
+- **レビューの経路**: レビュー指摘が記録されるのは、記録対象として登録された経路で実施した場合に限る。記録に残したいレビューでは、その経路を使う。
+
+## 9. 定期メンテナンス
+
+| 周期 | 作業 | 判断基準 |
+| --- | --- | --- |
+| セッション終了時 | 無関係なタスクへ移る前に会話履歴をクリアする | 文脈を持ち越すと再読込のコストが乗る |
+| 週次 | `MEMORY.md` の行数を数える | 200 行に近づいたら退避・統合・削除 |
+| 月次 | `CLAUDE.md` の行数を数える | 200 行を超えたらルールかスキルへ分割 |
+| 文書の更新後 | 索引を再生成する | 追加・更新・改名・削除のいずれでも索引は変わる |
+| スキルの変更後 | manifest の版数を上げる | 上げないと配布先へ届かない |
+
+**`MEMORY.md` の棚卸し手順**
+
+1. `MEMORY.md` を読み、完了済み・対応不要になったエントリを特定する。
+2. 該当行を退避用の索引ファイルへ移す（個別ファイルは消さず残し、詳細が要るときに辿れるようにする）。
+3. 誤りと判明したメモリは、退避ではなく削除する。
+
+## 10. トラブルシューティング
+
+| 症状 | 原因 | 対処 |
+| --- | --- | --- |
+| 規約が守られない | 指示が抽象的、ファイルが長い、複数ファイルで矛盾 | `/memory` でロードを確認し、具体化・分割・矛盾の解消を行う |
+| 圧縮したら指示が消えた | 会話の中だけで伝えた指示だった | `CLAUDE.md` かルールへ書き直す |
+| 別セッションで保存したメモリが認識されない | 索引未登録、開始済みセッションには届かない、索引が 200 行超 | 索引登録を確認し、新しいセッションを開始する |
+| Codex だけ規約を外れる | Codex は `CLAUDE.md` を読まない | 規約を `AGENTS.md` へ移す |
+| スキルを直したのに反映されない | manifest の版数が据え置き | 版数を上げて再配布する |
+| 文書検索が使えない | `docsRoot` 未設定、または索引が未生成 | 設定を入れて索引を再構築する |
+| 検索で見つけたファイルを編集できない | ワークスペース外は書き込み対象外 | 通常のファイル編集で扱う |
+| 行動が何も記録されない | フックが未登録 | Agent 拡張の導入と Claude Code の実在を確認する |
+| 直近の作業が記録に出てこない | 取り込みの遅れ | 時間を置くか、取り込みを促してから再確認する |
+| 並行セッションでないのに操作が拒否される | 会話クリアで古いクレームが残った | 自分の古いクレームファイルの削除を検討する |
+
+> **記録の層を取り違えない。** Auto Memory はエージェントが判断して書いた要約、実績のデータベースはフックと拡張が機械的に記録した事実である。**片方に無いことを、もう片方に無い根拠にしない。**

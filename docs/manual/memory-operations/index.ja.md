@@ -16,9 +16,9 @@ excerpt: "マニュアル/memory-operations 配下の frontmatter から自動�
 
 ## 文書
 
-### [メモリ運用手順（Claude メモリ層と開発保存データ一覧）](memory-operations.ja.md) `operations`
+### [記憶管理マニュアル（Claude Code / Codex と anytime 拡張）](memory-operations.ja.md) `operations`
 
-本プロジェクトで Claude Code のメモリ層（CLAUDE.md / rules / skills / Auto Memory）をどう使い分けるかと、開発で生成・蓄積される保存データ（Trail 系 DB・制御ファイル・ドキュメント・チケット・クラウド同期）の所在一覧を定義する。ふりかえりが参照するデータの出…
+Claude Code と Codex をコーディングエージェントとして使い、Anytime Agent / Markdown / Trail の 3 拡張を導入したワークスペースで、知識と作業履歴をどこへ書き、どう読ませ、どう棚卸しするかの手順書。記憶を 4 層に分けて層ごとの寿命とロード条件を示し、層を選ぶ判断、…
 
-関連: part-of → ../dev-operations/dev-operations.ja.md; /spec/31.trail/04.memory-core/memory-core.ja.md; /spec/31.trail/04.memory-core/memory-core.ja.md; /tech/claude-code/claude-code-memory-architecture.ja.md
+関連: part-of → ../dev-operations/dev-operations.ja.md; /tech/claude-code/claude-code-memory-architecture.ja.md
 
