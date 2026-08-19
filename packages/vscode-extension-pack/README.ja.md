@@ -14,6 +14,7 @@
 | [Anytime Markdown](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown) | ライブプレビュー・ダイアグラム・比較モード付き WYSIWYG Markdown エディタ |
 | [Anytime Graph](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-graph) | 物理ベースレイアウト対応のグラフホワイトボードエディタ |
 | [Anytime Trail](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail) | Git リポジトリ管理、ステージング、グラフ、タイムライン |
+| [Anytime Agent](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent) | Claude Code セッションと Ollama バックエンドのステータスパネル |
 
 ## ライセンス
 
