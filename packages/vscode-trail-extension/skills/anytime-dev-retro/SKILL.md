@@ -61,7 +61,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 条文効果 `quality.checklistByRef30d`（章別・30 日窓の観点キー付き指摘件数） | memory | 条文化・改訂した章の件数が減らない（2 回連続はメタ還流対象） |
 | 未解決 drift（`drift.byType` から spec_vs_code を除いて算出。設計書ドリフトは dev-cycle 段5 へ移管） | memory | 上昇 / 新種別出現 |
 | embedding 充足率 `docCore.embeddingCoveragePct` | markdown-catalog | 低下（**`docCore.semanticWired` が false の間は判定しない**。§4 参照） |
-| 意味検索の配線状態 `docCore.semanticWired` | source | true → false（配線が外れた＝本当の劣化） |
+| 意味検索の配線状態 `docCore.semanticWired` | source | true → false（配線が外れた＝本当の劣化）。`null` は走査未完了＝**測定不能**で、false（未配線と確定）と区別する |
 | 孤立 doc `docCore.orphanDocsScoped`（`orphanScopedTypes` = spec / plan に限定） | markdown-catalog | 上昇（`orphanDocs` 全体は索引範囲の拡大で動くため参照値に留める） |
 | cc>15 関数数 `hotspotOver15` と `hotspots` top | trail | 上昇 / 新規高 cc 関数 |
 | SHORTCUT 技術負債 `techDebt.shortcutMarkers` / `techDebt.noTriggerMarkers` | source | 上昇 / no-trigger 増 |
@@ -152,7 +152,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 昇格閾値（いずれか）:
 
 - spec_vs_code 以外で新しい種別の drift が出現、または spec_vs_code を除く未解決 drift が前回比 +20% 以上。
-- `docCore.embeddingCoveragePct` が 90% を下回る、または前回比 10pt 以上低下。**ただし `docCore.semanticWired` が false の間は昇格させない**（消費側が本番経路へ配線されていない機能の在庫状態であり、可用性ではないため）。未配線である事実はレポートへ毎回残す（沈黙させない）。`semanticWired` が true → false へ転じた場合は、配線が外れた＝本当の劣化として昇格させる。
+- `docCore.embeddingCoveragePct` が 90% を下回る、または前回比 10pt 以上低下。**ただし `docCore.semanticWired` が false の間は昇格させない**（消費側が本番経路へ配線されていない機能の在庫状態であり、可用性ではないため）。未配線である事実はレポートへ毎回残す（沈黙させない）。`semanticWired` が true → false へ転じた場合は、配線が外れた＝本当の劣化として昇格させる。**`semanticWired` が `null`（走査上限到達・ディレクトリ読み取り失敗）のときは測定不能**として扱い、充足率も配線状態もデルタ判定に使わない(`errors` に `semanticWired scan incomplete` が積まれる)。
 - `quality.unaddressedFindings` が前回比 +10 以上、または `quality.reviewerEmpty` が増加して全レビューの過半。
 - `hotspots` に前回スナップショットに無い cc>200 の新規関数が出現。
 - `costWindow30d.opusCostSharePct`（30 日窓）が前回比 +5pt 以上、**かつ `costWindow30d.opusCostUsd` が前回比で増加**（AND 条件）。占有率だけが上がり絶対コストが横ばい・減少なら、分母縮小による見かけの上昇としてレポートに明記し、提案へ昇格させない。または `costWindow30d.cacheReadSharePct` が 99% 超で `costWindow30d.sessionsOver1000Msgs`（30 日窓）が増加。累積の `cost.*` では機械的に発火するため窓値で判定する。

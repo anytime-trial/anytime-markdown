@@ -314,23 +314,37 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
 function detectSemanticWired() {
   const NEEDLES = ['embedDocs(', 'embedSections('];
   const OWNER = 'markdown-catalog';
-  const MAX = 20000;
+  // テストから上限到達の分岐を検証できるよう env で上書き可能にする(既定は実運用値)。
+  const MAX = Number(process.env.ANYTIME_SEMANTIC_WIRED_MAX_FILES) > 0
+    ? Number(process.env.ANYTIME_SEMANTIC_WIRED_MAX_FILES)
+    : 20000;
   const root = path.join(process.cwd(), 'packages');
   let scanned = 0;
   let found = false;
+  // 走査を最後までやり切れなかったか(上限到達・読み取り失敗)。やり切れていない走査の
+  // 「見つからなかった」は未配線の証拠にならないため、false でなく null(測定不能)へ倒す。
+  // techDebt スキャナの truncated 明示と同じ規律(上限到達を静かに打ち切ると過小カウントを
+  // 「改善」と誤読する)。ここで誤って false を返すと SKILL.md 側が embeddingCoveragePct を
+  // 閾値から外し、本物の配線切れを見逃す方向に効く。
+  let incomplete = false;
 
   function walkWired(dir) {
-    if (found || scanned >= MAX) return;
+    if (found) return;
+    // 上限到達での打ち切りは、以降のディレクトリを一切見ていないことを意味する。
+    // ここで incomplete を立てないと「走査しきって見つからなかった」と区別できない。
+    if (scanned >= MAX) { incomplete = true; return; }
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (e) {
       snapshot.errors.push(`semanticWired walk failed ${dir}: ${e.message}`);
+      incomplete = true;
       return;
     }
     entries.sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
     for (const ent of entries) {
-      if (found || scanned >= MAX) return;
+      if (found) return;
+      if (scanned >= MAX) { incomplete = true; return; }
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
         if (ent.name === 'node_modules' || ent.name === '__tests__' || ent.name === 'dist') continue;
@@ -344,6 +358,7 @@ function detectSemanticWired() {
         text = fs.readFileSync(full, 'utf8');
       } catch (e) {
         snapshot.errors.push(`semanticWired read failed ${full}: ${e.message}`);
+        incomplete = true;
         continue;
       }
       if (NEEDLES.some((n) => text.includes(n))) { found = true; return; }
@@ -364,7 +379,12 @@ function detectSemanticWired() {
     const src = path.join(root, pkg.name, 'src');
     if (fs.existsSync(src)) walkWired(src);
   }
-  return found;
+  if (found) return true;
+  if (incomplete) {
+    snapshot.errors.push(`semanticWired scan incomplete (scanned=${scanned} max=${MAX}): 未配線と断定せず測定不能として扱う`);
+    return null;
+  }
+  return false;
 }
 
 // ── catalog.db: セマンティック検索充足 ────────────────────────────────────────

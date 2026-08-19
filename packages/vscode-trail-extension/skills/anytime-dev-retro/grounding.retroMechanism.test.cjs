@@ -13,7 +13,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-function runGrounding(setup) {
+function runGrounding(setup, env = {}) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'grounding-retro-'));
   try {
     setup(ws);
@@ -21,6 +21,7 @@ function runGrounding(setup) {
       cwd: ws,
       encoding: 'utf-8',
       timeout: 60000,
+      env: { ...process.env, ...env },
     });
     expect(r.status).toBe(0);
     return JSON.parse(r.stdout);
@@ -164,6 +165,43 @@ describe('docCore.semanticWired（意味検索の配線状態）', () => {
     });
 
     expect(snap.docCore.semanticWired).toBe(false);
+  });
+
+  it('走査上限に達したら false でなく null（測定不能）を返す', () => {
+    const snap = runGrounding((ws) => {
+      new DatabaseSync(path.join(dbDirOf(ws), 'activity.db')).close();
+      writeCatalog(ws);
+      // 呼出の無いファイルを 2 つ置き、上限 1 で走査を打ち切らせる
+      writePkg(ws, 'a-pkg/src/one.ts', 'export const a = 1;\n');
+      writePkg(ws, 'b-pkg/src/two.ts', 'export const b = 2;\n');
+    }, { ANYTIME_SEMANTIC_WIRED_MAX_FILES: '1' });
+
+    // やり切れなかった走査の「見つからない」は未配線の証拠にならない。
+    // false を返すと SKILL.md 側が充足率を閾値から外し、本物の配線切れを見逃す。
+    expect(snap.docCore.semanticWired).toBeNull();
+    expect(snap.errors.some((e) => /semanticWired scan incomplete/.test(e))).toBe(true);
+  });
+
+  it('上限に達しても配線が見つかっていれば true を返す', () => {
+    const snap = runGrounding((ws) => {
+      new DatabaseSync(path.join(dbDirOf(ws), 'activity.db')).close();
+      writeCatalog(ws);
+      writePkg(ws, 'a-pkg/src/one.ts', 'await embedDocs(db);\n');
+      writePkg(ws, 'b-pkg/src/two.ts', 'export const b = 2;\n');
+    }, { ANYTIME_SEMANTIC_WIRED_MAX_FILES: '1' });
+
+    expect(snap.docCore.semanticWired).toBe(true);
+  });
+
+  it('走査しきったうえで見つからなければ false（測定不能と区別する）', () => {
+    const snap = runGrounding((ws) => {
+      new DatabaseSync(path.join(dbDirOf(ws), 'activity.db')).close();
+      writeCatalog(ws);
+      writePkg(ws, 'a-pkg/src/one.ts', 'export const a = 1;\n');
+    });
+
+    expect(snap.docCore.semanticWired).toBe(false);
+    expect(snap.errors.some((e) => /semanticWired scan incomplete/.test(e))).toBe(false);
   });
 
   it('孤立 doc は type 限定版も併せて出す', () => {
