@@ -14,7 +14,7 @@ related:
 
 # 新規アプリ開発環境構築手順（anytime-build-webapp）
 
-新規 Web アプリを [anytime-build-webapp](/spec/90.skill/index.ja.md) スキルで生成できる状態まで、開発環境を構築する手順を定義する。
+新規 Web アプリを anytime-build-webapp スキルで生成できる状態まで、開発環境を構築する手順を定義する。
 
 到達点は次の 2 点である。
 

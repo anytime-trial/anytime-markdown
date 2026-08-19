@@ -10,12 +10,6 @@ excerpt: "Day-to-day operations after the environment setup: structure visibilit
 related:
     - to: "../dev-env-setup/dev-env-setup.en.md"
       type: "depends-on"
-    - to: "/spec/01.process/anytime-development-process.ja.md"
-      type: "references"
-    - to: "/spec/00.requirements/trail-doctrine-requirements.ja.md"
-      type: "references"
-    - to: "/spec/92.doctrine/index.ja.md"
-      type: "references"
 ---
 
 # Development Operations for New Apps (Trail Integration)
@@ -24,14 +18,23 @@ This manual defines how to use the three anytime extensions in daily development
 
 The operating model has four pillars.
 
-- **The process source of truth is the [development process spec](/spec/01.process/anytime-development-process.ja.md)**: follow the four nested loops — spec-driven cycle (Loop A), acceptance testing / release (Loop B), retrospective (Loop C), and phase gates (Loop D). This manual covers the day-to-day operation of Loops A/B/C
-- **The What approval is repositioned as an up-front approval of the doctrine**: the human approves the doctrine (codified tacit knowledge) first (making it canon), and requirements/design-doc approvals within its coverage are delegated to the AI's doctrine-grounded decision (a verbatim quote of the approved clause plus a recorded Rationale). Only doctrine silence, clause conflicts, and out-of-ODD inputs are escalated to the human (source of truth: [doctrine-driven autonomous approval requirements](/spec/00.requirements/trail-doctrine-requirements.ja.md)). There is no approval gate on implementation plans (How) or on execution; only package additions, destructive operations, and releases require case-by-case approval. Bootstrapping the doctrine differs between new and existing development (§0)
+- **The process runs as four nested loops**: spec-driven cycle (Loop A), acceptance testing / release (Loop B), retrospective (Loop C), and phase gates (Loop D). This manual covers the day-to-day operation of Loops A/B/C
+- **The What approval is repositioned as an up-front approval of the doctrine**: the human approves the doctrine (codified tacit knowledge) first (making it canon), and requirements/design-doc approvals within its coverage are delegated to the AI's doctrine-grounded decision (a verbatim quote of the approved clause plus a recorded Rationale). Only doctrine silence, clause conflicts, and out-of-ODD inputs are escalated to the human. There is no approval gate on implementation plans (How) or on execution; only package additions, destructive operations, and releases require case-by-case approval. Bootstrapping the doctrine differs between new and existing development (§0)
 - **Recording is automatic**: Claude Code hooks record sessions, edits, commits, and token consumption into the Trail DB. No manual bookkeeping
 - **Visibility is on demand**: open the C4 viewer (structure/drift) (§3) when needed. Behavior, cost, and quality are confirmed via the retrospective report (§6) (visual Trail Viewer inspection is optional)
 
 ## Overall Flow
 
-The diagram maps the four nested loops of the [development process spec](/spec/01.process/anytime-development-process.ja.md) §3 to the steps (§N) of this manual. Yellow-framed nodes labeled "(human)" are the human (controller) intervention points; everything else is delegated to AI.
+Each of the four loops turns on a different unit.
+
+| Loop | Unit | Entry → exit |
+| --- | --- | --- |
+| A: spec-driven cycle | Task | Writing or revising the requirements/design docs (minor instructions start from the implementation plan) → local merge into develop |
+| B: acceptance testing / release | Release | An artifact already merged into develop → production deployment. **It starts only on an explicit human instruction**, and completing Loop A is not a sufficient condition for release |
+| C: retrospective | On incidents and weekly | Incident detection or the periodic analysis → adopted improvements feed back into Loop A as doc revisions |
+| D: phase gate | Monthly | Aggregated metrics → approval of phase completion and promotion or demotion of the autonomy level |
+
+The diagram below maps these four loops to the steps (§N) of this manual. Yellow-framed nodes labeled "(human)" are the human (controller) intervention points; everything else is delegated to AI.
 
 ```mermaid
 flowchart TD
@@ -60,7 +63,7 @@ flowchart TD
 
 ### Human-in-the-Loop points
 
-Human intervention is limited to the four fixed points above (instruction, out-of-coverage approval, acceptance testing, release) plus doctrine approval (canonization, outside the diagram) and case-by-case approvals during implementation; everything else is delegated to AI (source of truth: process spec §4 and [doctrine-driven autonomous approval requirements](/spec/00.requirements/trail-doctrine-requirements.ja.md) §2).
+Human intervention is limited to the four fixed points above (instruction, out-of-coverage approval, acceptance testing, release) plus doctrine approval (canonization, outside the diagram) and case-by-case approvals during implementation; everything else is delegated to AI.
 
 | Situation | What the human decides |
 | --- | --- |
@@ -92,7 +95,18 @@ Steps that use a skill list it under "Skills used" at the top of the section (bu
 
 **Skills used**: `anytime-reverse-doctrine` — extracts tacit knowledge from code, git history, design docs, and review records into four documents (design philosophy / coding conventions / glossary / process reality); `--delta` produces incremental updates and divergence reports since the last extraction.
 
-This replaces per-item approval of requirements/design docs (the What approval) with an up-front approval of the doctrine (source of truth: [doctrine-driven autonomous approval requirements](/spec/00.requirements/trail-doctrine-requirements.ja.md); the current doctrine corpus lives in [spec/92.doctrine/](/spec/92.doctrine/index.ja.md)). Once the human has approved the doctrine (canonization), individual decisions within its coverage are delegated to the AI's doctrine-grounded decisions, and the human's routine intervention shrinks to two points: the input and the post-completion acceptance review.
+This replaces per-item approval of requirements/design docs (the What approval) with an up-front approval of the doctrine. Once the human has approved the doctrine (canonization), individual decisions within its coverage are delegated to the AI's doctrine-grounded decisions, and the human's routine intervention shrinks to two points: the input and the post-completion acceptance review. **The doctrine draws its authority solely from human approval.** The AI never promotes its own decisions or output into the doctrine without approval (the self-reinforcement loop is cut).
+
+Escalation to the human is limited to these cases.
+
+| Condition | Detail |
+| --- | --- |
+| Doctrine silence | No clause supplies grounds for the decision (the search returns nothing, or the clause is too abstract to settle applicability). Do not fill the gap with plausible generalities |
+| Clause conflict | Several clauses imply conflicting decisions. Do not silently pick one — record it as drift and ask for a ruling |
+| Out of ODD | Even within coverage, inputs touching other repositories, restricted areas, or production settings fall outside the operational design domain |
+| Unapproved doctrine | A decision grounded on a draft that has not been approved is escalated rather than executed autonomously |
+| Unresolvable citation | A decision whose quote does not resolve to a real clause is invalid |
+| Always human | Destructive operations, writes to persistent data, package additions and updates, remote pushes, and production releases — deliberate friction kept on high-severity, irreversible operations |
 
 #### 0-1. Bootstrapping — new vs. existing development
 
@@ -113,7 +127,7 @@ The doctrine is extracted from an existing track record (code, history, review r
 4. **Feedback**: among acceptance-review rejections, those where a correctly grounded decision failed are treated not as decision errors but as doctrine defects (wrong, stale, or under-specified clauses) and fed back as revision drafts
 
 > [!NOTE]
-> Within the staged rollout (D0–D3), the current position is the transition to D1 (recording first). During D1 the intermediate approval stays in place while grounded decisions are recorded in parallel, measuring their agreement rate with the human's decisions. Areas whose agreement rate clears the threshold graduate to low-severity delegation (D2) and then to full delegation within the ODD (D3) (source of truth: requirements doc §5).
+> Within the staged rollout (D0–D3), the current position is the transition to D1 (recording first). During D1 the intermediate approval stays in place while grounded decisions are recorded in parallel, measuring their agreement rate with the human's decisions. Areas whose agreement rate clears the threshold graduate to low-severity delegation (D2) and then to full delegation within the ODD (D3). D2 holds only while the agreement rate stays at or above 0.9; below that it reverts to D1, where the human approves every item.
 
 ### 1. At session start
 
@@ -125,7 +139,7 @@ Start the Dev Container, then start `claude` in a terminal and give development 
 - Open **Anytime Agent → Agent Mapping** in the Activity Bar only when you want to see who is touching what (optional). For handing off a context-heavy session, see §2
 
 > [!NOTE]
-> After a development instruction, requirements/design-doc approvals (the What) within doctrine coverage are delegated to grounded decisions; the human approves **only out-of-coverage escalations** (§0; during D1 the human still approves as before while grounded decisions are recorded in parallel). The implementation plan (How) is created by AI and needs no approval. Permanent requirements are handled as doc revisions; minor task instructions start directly from the implementation plan (source of truth: [process spec](/spec/01.process/anytime-development-process.ja.md) §3).
+> After a development instruction, requirements/design-doc approvals (the What) within doctrine coverage are delegated to grounded decisions; the human approves **only out-of-coverage escalations** (§0; during D1 the human still approves as before while grounded decisions are recorded in parallel). The implementation plan (How) is created by AI and needs no approval. Permanent requirements are handled as doc revisions; minor task instructions start directly from the implementation plan.
 
 ### 2. During development
 
@@ -170,7 +184,7 @@ Re-run the analysis after structural changes (new packages, large refactorings) 
 
 ### 4. Reviews and quality gates
 
-AI completes everything up to the local merge into develop; acceptance testing and release beyond that are human decisions (source of truth: [process spec](/spec/01.process/anytime-development-process.ja.md) §3, §4).
+AI completes everything up to the local merge into develop; acceptance testing and release beyond that are human decisions.
 
 1. **Test design (prepare the verification means before generating)**: secure an observable exit for each task (tests, type check, build, real device/E2E) before implementing. Use `anytime-impl-test-design` to decide which tests to write (closing detection gaps in wiring, mount, and i18n). A task whose verification means cannot be decided is not implemented — decompose it again
 2. **Pre-merge review**: before merging a work branch into develop, run the bundled `anytime-cross-review` skill. Claude and Codex review the same diff independently and adopt the cross-verified findings (so that implementation and verification are not completed by the same model; without the Codex CLI, run a Claude-only code review). Address error/warn findings before merging. Each finding carries a checklist key (a chapter number `§N` from the global `code-review-checklist` skill, or `none` when no chapter applies); `none` findings feed the promotion-candidate aggregation of the weekly retrospective (step 6) as checklist gaps
@@ -192,7 +206,7 @@ Use this to let the AI consume the backlog automatically.
 
 **Skills used** (the periodic-review group: Trail-record analysis + environment/settings diagnosis): `anytime-dev-retro` (cross-cutting health analysis / retrospective over the Trail 3DB; covers behavior/quality plus the session-level cost analysis absorbed from the former `anytime-token-budget` — Opus share, cache_read blowup, session hygiene; escalated signals file both a proposal and a ticket), `anytime-dev-audit` (read-only diagnosis of the PC environment and Claude Code settings — CLAUDE.md / rules / skills / hooks / settings / MCP; the environment/settings side rather than development activity; presents an impact × effort matrix and an optimization plan), `anytime-proposal` (drafting improvement/recurrence-prevention proposals), `anytime-session-exit` (session completion report, ingested into Trail flight reviews as self-assessment).
 
-This is the operation of Loop C, feeding improvements back from actual results and incidents (source of truth: [process spec](/spec/01.process/anytime-development-process.ja.md) §3 Loop C). **Behavior, cost, and quality are confirmed here — through this section's periodic, automatic analysis (the retrospective report) — rather than by on-demand Trail Viewer inspection.** `anytime-dev-retro` cross-analyzes the Trail data (behavior, cost, quality) and escalates only signals above the threshold.
+This is the operation of Loop C, feeding improvements back from actual results and incidents. **Behavior, cost, and quality are confirmed here — through this section's periodic, automatic analysis (the retrospective report) — rather than by on-demand Trail Viewer inspection.** `anytime-dev-retro` cross-analyzes the Trail data (behavior, cost, quality) and escalates only signals above the threshold.
 
 1. **Closing a session**: when wrapping up, run `anytime-session-exit` to output achievement, open items, and next concerns in structured form (this becomes retrospective input)
 2. **When an incident occurs**: the human decides severity and recovery policy → AI drafts the root-cause analysis (why-why-why, 3 levels or more) and prevention measures with `anytime-proposal` → the human decides adoption

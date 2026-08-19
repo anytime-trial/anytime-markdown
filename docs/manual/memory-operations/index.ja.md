@@ -20,5 +20,5 @@ excerpt: "マニュアル/memory-operations 配下の frontmatter から自動�
 
 Claude Code と Codex をコーディングエージェントとして使い、Anytime Agent / Markdown / Trail の 3 拡張を導入したワークスペースで、知識と作業履歴をどこへ書き、どう読ませ、どう棚卸しするかの手順書。記憶を 4 層に分けて層ごとの寿命とロード条件を示し、層を選ぶ判断、…
 
-関連: part-of → ../dev-operations/dev-operations.ja.md; /tech/claude-code/claude-code-memory-architecture.ja.md
+関連: part-of → ../dev-operations/dev-operations.ja.md
 
