@@ -8,9 +8,10 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 
 // Airspace は善意のエージェント向けの誤操作防止網であり、セキュリティ境界ではない。
 // コマンド分類は文字列の単純なパターン照合なので、npm 経由、alias、変数展開などは対象外。
@@ -21,7 +22,17 @@ export interface AirspaceClaim {
   starttime: string;
   worktree: string;
   branch: string;
+  /** Edit/Write ツールで編集中のファイル。Bash 経由の編集では空になるため files も併せて見る。 */
   file: string;
+  /**
+   * Bash コマンドから推定した書き込み対象（絶対パス）。
+   *
+   * `bypassPermissions` 運用ではファイル変更が `sed -i`・ヒアドキュメント等の Bash 経由になり、
+   * `edit-start` が一度も発火しないため `file` が常に空文字のままになる。それだけを見ていると
+   * 同一ファイル衝突ゲートは原理的に発火しない（2026-08-18 実測: 生存 3 セッション全員が空文字）。
+   * 旧バンドルのクレームには存在しないため optional。
+   */
+  files?: readonly string[];
   updatedAt: string;
 }
 
@@ -391,9 +402,277 @@ export function evaluateEditGate(
   filePath: string,
   liveClaims: readonly AirspaceClaim[],
 ): GateVerdict {
-  const conflict = liveClaims.find((claim) => claim.file === filePath);
-  if (conflict === undefined) return { kind: 'pass' };
-  return { kind: 'warn', reason: buildReason('warn', conflict) };
+  return evaluateWriteConflict([filePath], liveClaims);
+}
+
+/** そのクレームが今この絶対パスへ書いているか。Edit/Write（file）と Bash（files）の両方を見る。 */
+function claimTouchesFile(claim: AirspaceClaim, filePath: string): boolean {
+  if (claim.file !== '' && claim.file === filePath) return true;
+  return claim.files?.includes(filePath) === true;
+}
+
+/**
+ * 書き込み対象の衝突判定。Edit/Write の 1 ファイルにも Bash の推定複数ファイルにも使う。
+ *
+ * 空配列（推定できなかった Bash コマンド）は pass。推定が外れる分には warn が 1 つ増えるだけだが、
+ * 推定を諦めた分は現状どおり検知 0 件のままになる。
+ */
+export function evaluateWriteConflict(
+  filePaths: readonly string[],
+  liveClaims: readonly AirspaceClaim[],
+): GateVerdict {
+  for (const filePath of filePaths) {
+    const conflict = liveClaims.find((claim) => claimTouchesFile(claim, filePath));
+    if (conflict !== undefined) return { kind: 'warn', reason: buildReason('warn', conflict) };
+  }
+  return { kind: 'pass' };
+}
+
+/** 書き込み先を最後の非フラグ引数に取るコマンド（`cp a b` / `mv a b` の b）。 */
+const LAST_ARG_WRITERS = new Set(['cp', 'mv', 'install']);
+
+/** 展開・解決できないパス。推定を諦める（誤検知より偽陰性を選ぶ）。 */
+function isResolvablePath(token: string): boolean {
+  if (token === '' || token.startsWith('-')) return false;
+  if (/[$*?`~\\]/.test(token)) return false;
+  return !token.startsWith('&');
+}
+
+/** 1 つのコマンド。`separator` は直前の区切り（先頭セグメントは undefined）。 */
+interface CommandSegment {
+  readonly text: string;
+  readonly separator: string | undefined;
+}
+
+/**
+ * `cd` の効果が後段へ伝わる区切りか。
+ *
+ * `;` と改行は組み合わせ自由（`;\n` も普通の複数行表記）なので落とし、残った演算子が
+ * `&&` / `||` だけなら伝わる。単独の `|`（パイプ）と `&`（バックグラウンド）は前段が
+ * サブシェルで走るため伝わらない。
+ */
+function propagatesCd(separator: string): boolean {
+  return separator.replace(/[;\n]/g, '').replace(/&&|\|\|/g, '') === '';
+}
+
+/** 引用符を尊重して `;` `|` `&` `改行` で区切る。クオート内の区切り文字では切らない。 */
+function splitSegments(command: string): CommandSegment[] {
+  const isSeparator = (char: string): boolean =>
+    char === ';' || char === '|' || char === '&' || char === '\n';
+
+  const segments: CommandSegment[] = [];
+  let current = '';
+  let separator: string | undefined; // いま組み立てているセグメントの直前の区切り
+  let run = ''; // 連続する区切り文字（`&&` / `||` を 1 つとして扱う）
+  let quote: string | null = null;
+
+  const flush = (): void => {
+    if (current.trim() !== '') segments.push({ text: current, separator });
+    current = '';
+  };
+
+  for (const char of command) {
+    if (quote !== null) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (isSeparator(char)) {
+      if (run === '') flush();
+      run += char;
+      continue;
+    }
+    if (run !== '') {
+      separator = run;
+      run = '';
+    }
+    current += char;
+  }
+  flush();
+  return segments;
+}
+
+/**
+ * Bash コマンドから書き込み対象になり得る絶対パスを推定する。
+ *
+ * `bypassPermissions` 運用のハーネスは「ファイル変更は sed・ヒアドキュメント・短いスクリプトで」と
+ * 指示するため、Edit/Write を前提にした衝突検知は全て同じ形で無効化される。ここは検知を
+ * 0 件から動かすための推定であり、**セキュリティ境界ではない**（`classifyGitCommand` と同じ
+ * 単純なパターン照合で、alias・変数展開・npm 経由は対象外）。
+ *
+ * 推定が外れても実害は誤検知の warn 1 件にとどまる一方、推定しない限り検知は永久に 0 件になる。
+ * それでも解決できない形（変数展開・グロブ）は返さない — 実在しないパスと衝突しても意味がない。
+ *
+ * ヒアドキュメントは本文を読まない。`<<` を含むコマンドは最初の改行までで打ち切る
+ * （本文中の `>` を書き込み対象と誤読しないため。2 つ目以降のヒアドキュメントは取りこぼす）。
+ */
+export function parseBashWriteTargets(command: string, cwd: string): string[] {
+  const scope = command.includes('<<') ? command.split('\n')[0] : command;
+  const targets: string[] = [];
+  // `cd` 先を追跡する。追わないと `cd packages/foo && sed -i ... src/a.ts` の書き込み先を
+  // 元の cwd 基準で解決し、実在しないパスを台帳へ書いたうえで本物の衝突を取りこぼす。
+  // 解決できない `cd`（変数展開・グロブ）以降は推定を止める（null）。
+  let base: string | null = cwd;
+
+  const add = (token: string | undefined): void => {
+    if (base === null || token === undefined || !isResolvablePath(token)) return;
+    const absolute = resolve(base, token);
+    if (absolute.startsWith('/dev/')) return;
+    if (!targets.includes(absolute)) targets.push(absolute);
+  };
+
+  for (const segment of splitSegments(scope)) {
+    // パイプ・バックグラウンドの前段はサブシェルで走るため、そこでの cd は後段へ効かない。
+    if (segment.separator !== undefined && !propagatesCd(segment.separator)) {
+      base = cwd;
+    }
+    const tokens = tokenize(segment.text);
+    if (tokens[0] === 'cd') {
+      const target = tokens[1];
+      base =
+        target === undefined || !isResolvablePath(target) || base === null
+          ? null
+          : resolve(base, target);
+      continue;
+    }
+    if (base === null) continue;
+
+    // 1 段目: リダイレクトを引数列から切り離す。残したままだと `cp a b > /dev/null` の
+    // 末尾引数が `/dev/null` になり、本来の書き込み先 `b` を取り違える。
+    const rest: string[] = [];
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
+      // `> path` / `>> path` / `>path` / `2>path` / `2>&1`。
+      const redirect = /^(\d*)(>>?)(.*)$/.exec(token);
+      if (redirect === null) {
+        rest.push(token);
+        continue;
+      }
+      const inlineTarget = redirect[3];
+      const target = inlineTarget === '' ? tokens[index + 1] : inlineTarget;
+      if (inlineTarget === '') index += 1;
+      // fd 番号付き（`2>err.log`）はログ用の書き込みで、衝突検知の対象にしない。
+      if (redirect[1] === '') add(target);
+    }
+
+    const [command0, ...args] = rest;
+    if (command0 === undefined) continue;
+    const nonFlagArgs = args.filter((arg) => !arg.startsWith('-'));
+
+    if (command0 === 'tee') {
+      for (const arg of nonFlagArgs) add(arg);
+      continue;
+    }
+    // sed は `-i` / `-i.bak` / `--in-place` があるときだけ書き込む。対象は残りの入力ファイル全部
+    // （`sed -i s/a/b/ a.ts b.ts` は両方を書き換える）。
+    if (command0 === 'sed' && args.some((arg) => /^(-i|--in-place)/.test(arg))) {
+      for (const file of sedInputFiles(args)) add(file);
+      continue;
+    }
+    if (LAST_ARG_WRITERS.has(command0)) {
+      for (const target of copyTargets(args, base)) add(target);
+    }
+  }
+
+  return targets;
+}
+
+/**
+ * `cp` / `mv` / `install` の書き込み先を列挙する。
+ *
+ * 宛先がディレクトリなら実際に変わるのは `<dest>/<basename>` であって `<dest>` ではない。
+ * 末尾 1 つだけを見ていると、他セッションが編集中の出力ファイルと突合できない。
+ */
+function copyTargets(args: readonly string[], base: string): string[] {
+  // 値を取るオプション。消費しないとその値（`install -m 644` の 644）が入力元に混ざり、
+  // 宛先をディレクトリと誤判定して実在しない出力パスを claim する。
+  const VALUE_FLAGS = new Set([
+    '-t',
+    '--target-directory',
+    '-S',
+    '--suffix',
+    '-m',
+    '--mode',
+    '-o',
+    '--owner',
+    '-g',
+    '--group',
+    '--strip-program',
+  ]);
+  const nonFlagArgs: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg.startsWith('-')) {
+      nonFlagArgs.push(arg);
+      continue;
+    }
+    if (VALUE_FLAGS.has(arg)) index += 1;
+  }
+  // `-t <dir>` / `--target-directory=<dir>` は宛先が先に来る（末尾は入力元）。
+  const flagIndex = args.findIndex((arg) => arg === '-t' || arg === '--target-directory');
+  const inlineTarget = args.find((arg) => arg.startsWith('--target-directory='));
+  const explicitDir =
+    inlineTarget !== undefined
+      ? inlineTarget.slice('--target-directory='.length)
+      : flagIndex === -1
+        ? null
+        : (args[flagIndex + 1] ?? null);
+
+  if (explicitDir !== null) {
+    return nonFlagArgs.map((source) => `${explicitDir}/${basename(source)}`);
+  }
+
+  if (nonFlagArgs.length < 2) return [];
+  const destination = nonFlagArgs[nonFlagArgs.length - 1];
+  const sources = nonFlagArgs.slice(0, -1);
+  // `-T` / `--no-target-directory` は宛先を通常ファイルとして扱う指定。実在ディレクトリでも展開しない。
+  if (args.some((arg) => arg === '-T' || arg === '--no-target-directory')) return [destination];
+  // 宛先がディレクトリと判る形（末尾 `/`・入力元が複数・実在するディレクトリ）だけ展開する。
+  const isDirectory =
+    destination.endsWith('/') || sources.length > 1 || isExistingDirectory(base, destination);
+  if (!isDirectory) return [destination];
+  return sources.map((source) => `${destination}/${basename(source)}`);
+}
+
+/** `base` 基準で実在するディレクトリか。Node プロセスの cwd ではなく解析対象の基準で見る。 */
+function isExistingDirectory(base: string, path: string): boolean {
+  try {
+    return statSync(resolve(base, path)).isDirectory();
+  } catch {
+    // 未作成のパスは解決できない（正常系）。ディレクトリでないものとして扱う。
+    return false;
+  }
+}
+
+/** `sed` の引数から入力ファイルだけを取り出す（スクリプト本体と `-e` / `-f` の値を除く）。 */
+function sedInputFiles(args: readonly string[]): string[] {
+  const SCRIPT_FLAGS = new Set(['-e', '--expression', '-f', '--file']);
+  const positional: string[] = [];
+  let hasScriptFlag = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    // BSD の `sed -i '' 's/a/b/' file`。空のバックアップ拡張子は引数として残るが対象ではない。
+    if (arg === '') continue;
+    if (arg.startsWith('-')) {
+      if (SCRIPT_FLAGS.has(arg)) {
+        hasScriptFlag = true;
+        index += 1; // 次トークンはスクリプト本体で、入力ファイルではない
+      } else if (/^(-e|--expression=|-f|--file=)/.test(arg)) {
+        hasScriptFlag = true;
+      }
+      continue;
+    }
+    positional.push(arg);
+  }
+
+  // `-e` / `-f` が無ければ最初の位置引数がスクリプト本体。
+  return hasScriptFlag ? positional : positional.slice(1);
 }
 
 export function evaluateSessionStartGate(
@@ -545,6 +824,10 @@ function isAirspaceClaim(value: unknown): value is AirspaceClaim {
     typeof candidate.worktree === 'string' &&
     typeof candidate.branch === 'string' &&
     typeof candidate.file === 'string' &&
+    // files は旧バンドルのクレームに存在しない。無い場合は許容し、在る場合だけ型を検査する。
+    (candidate.files === undefined ||
+      (Array.isArray(candidate.files) &&
+        candidate.files.every((entry) => typeof entry === 'string'))) &&
     typeof candidate.updatedAt === 'string'
   );
 }

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /anytime-markdown/
 
 COPY package.json package-lock.json* ./
+COPY scripts/ ./scripts/
 RUN npm ci
 
 # 開発用ステージ

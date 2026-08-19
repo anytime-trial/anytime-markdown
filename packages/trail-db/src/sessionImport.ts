@@ -6,6 +6,7 @@
  * 現れないため、単体で固定できるようにここへ分けている。
  */
 import { extractSkillName } from '@anytime-markdown/trail-activity/domain/engine';
+import fs from 'node:fs';
 
 import { toUTC } from './dateUtils';
 import type { RawContentBlock, RawLine } from './rawLine';
@@ -33,6 +34,36 @@ export interface SessionImportMeta {
 
 /** `sessions` 行の組み立てに要る分だけ。メッセージ本体は含めない。 */
 export type SessionRowMeta = Omit<SessionImportMeta, 'messagesToInsert'>;
+
+export interface SubagentMeta {
+  toolUseId: string | null;
+  agentType: string | null;
+  model: string | null;
+}
+
+/** サブエージェント JSONL に隣接する meta.json を読む。不在は正常系として null を返す。 */
+export function readSubagentMeta(jsonlPath: string): SubagentMeta | null {
+  const metaPath = jsonlPath.replace(/\.jsonl$/i, '.meta.json');
+  let content: string;
+  try {
+    content = fs.readFileSync(metaPath, 'utf-8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw new Error(`Failed to read subagent meta ${metaPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    const raw = JSON.parse(content) as Record<string, unknown>;
+    const nonEmptyString = (value: unknown): string | null =>
+      typeof value === 'string' && value.length > 0 ? value : null;
+    return {
+      toolUseId: nonEmptyString(raw.toolUseId),
+      agentType: nonEmptyString(raw.agentType),
+      model: nonEmptyString(raw.model),
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse subagent meta ${metaPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 
 /** JSONL の本文を 1 行ずつパースする。壊れた行は捨て、残りの取り込みは続ける。 */
 export function parseJsonlLines(content: string): RawLine[] {
@@ -167,7 +198,12 @@ function resolveSystemCommand(subtype: string | undefined): string | null {
 /** `messages` の INSERT へ渡すパラメータ列（列順は INSERT_MESSAGE と 1 対 1）。 */
 export function buildMessageInsertParams(
   raw: RawLine,
-  session: { sessionId: string; isSubagent: boolean; fileSubagentType: string | null },
+  session: {
+    sessionId: string;
+    isSubagent: boolean;
+    fileSubagentType: string | null;
+    fileSourceToolUseId?: string | null;
+  },
 ): unknown[] {
   const textContent = raw.type === 'assistant'
     ? extractTextContent(raw.message?.content) : null;
@@ -192,7 +228,7 @@ export function buildMessageInsertParams(
     raw.cwd ?? null, raw.gitBranch ?? null,
     raw.durationMs ?? null, estimateTokenCount(toolUseResult), agentInfo.description, agentInfo.model,
     raw.permissionMode ?? null, extractSkillName(toolCalls), raw.agentId ?? null,
-    raw.sourceToolAssistantUUID ?? null, raw.sourceToolUseID ?? null,
+    raw.sourceToolAssistantUUID ?? null, raw.sourceToolUseID ?? session.fileSourceToolUseId ?? null,
     resolveSystemCommand(raw.subtype), subagentType,
   ];
 }

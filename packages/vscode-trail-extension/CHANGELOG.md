@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-19
+
+### Trail Core (trail-db / trail-server / trail-caravan-book)
+
+- Task calls and child-agent transcripts are now linked through `source_tool_use_id`, so each delegation can be traced to the child session it produced.
+- Added maintenance that repairs rows whose referent is gone (163 foreign-key violations).
+- LLM availability is measured again per run, so a single failure no longer carries over to later runs.
+- Addressed pre-merge review findings (1 error / 8 warnings).
+
 ## [1.2.0] - 2026-08-17
 
 ### Added

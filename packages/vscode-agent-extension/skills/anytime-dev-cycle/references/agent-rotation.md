@@ -1,6 +1,6 @@
 # サブエージェント回転 / 毎タスク compact-seed（anytime-dev-cycle reference）
 
-更新日: 2026-07-13（旧 `anytime-agent-rotation` スキル本文を統合）
+更新日: 2026-08-18（旧 `anytime-agent-rotation` スキル本文を統合）
 
 複数の段階タスクをサブエージェントに委譲して進めるとき、同一ワーカーを使い続けると文脈が肥大し
 コストが二乗的に膨らむ。本 reference は **肥大を検知したら fresh エージェントへ回転**し、圧縮ステート
@@ -117,7 +117,7 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
    - `ok` かつ `taskStatus: "abstained"` → **同タスクを別ワーカーへ機械的に再委任しない**（無評価の再委任は too-late の再生産）。`abstainReason` を親が評価し、(a) 前提を修正して再委任 / (b) タスクをスキップして続行 / (c) ユーザーへエスカレーション のいずれかを明示的に選ぶ。判断と理由をログに残す。
    - `error` → `SendMessage(agentId, "返却契約どおり末尾に ```json ブロックだけを出力して")` を **1 回だけ** 再要求。なお `error` なら **`state` を据置し警告ログを出して続行**（silent にしない・A9）。
 4. **終了判定**: 残タスク無し or 親予算到達 → 終了。
-5. **継続 / 回転**: `shouldRotate(返却 subagent_tokens, { threshold, policy })`
+5. **継続 / 回転**: `shouldRotate(返却 subagent_tokens, { threshold, policy, delegatedModel, parentModel })`。`delegatedModel`（起動時に渡した `model`）と `parentModel`（このセッションのモデル）を必ず渡す — 系統が違えば継続はモデル指定を失うため、閾値未満でも `true` が返る。
    - `false` → `SendMessage(agentId, 次タスク)`（同一ワーカー継続・文脈保持）。
    - `true` → `agentId` 破棄 → `Agent(buildSeedPrompt(state, 次タスク) + buildReturnContract(), model=haiku)`（fresh 回転）。
 6. 3 へ戻る。
@@ -166,8 +166,25 @@ Claude/拡張文脈では受領した `state` を既存 worker 経路（用途(a
 
 ## コスト注意（threshold 調整の根拠）
 
-- `SendMessage` 継続は **model override を保持せず親モデル（opus）に戻る**（PoC 実測）。継続＝opus だが
-  基底再利用で安い。
+- **`SendMessage` 継続はモデル指定を運べない（構造的制約）**。ツールスキーマが `to` / `message` /
+  `summary` しか持たないため、継続には `model` を渡す手段が無く、以後は**親セッションのモデル**
+  （メイン既定＝高コスト側）で走る。`model=haiku` と宣言した回転ループでも、閾値未満で継続を選んだ
+  瞬間に宣言と実際が食い違い、記録にもそう残らない。
+  - **回避**: モデル指定が意味を持つ場面では継続を選ばない。`shouldRotate` に `delegatedModel` と
+    `parentModel` を渡すと、**系統が食い違う場合は閾値に関係なく `true`（fresh 回転）** を返す
+    （`continuationLosesModelOverride`。系統は haiku / sonnet / opus / fable で比較するため
+    `haiku` と `claude-haiku-4-5-20251001` は同一と扱う）。両モデルを渡さない既存の呼び出しは
+    従来どおり閾値だけで判定する。
+  - 親モデルで走ってよいタスク（＝モデルを下げる意図が無い継続）だけが、継続を選んでよい対象である。
+  - **実測（2026-08-18・activity.db 全 4,199 サブエージェント）**: 1 本の transcript 内でモデルが
+    切り替わったのは 56 件で、うち 55 件は「安いモデル → メイン既定モデル」の向きだった。42 件は
+    切替先が**親セッションの主モデルと完全一致**する（残りはセッション途中でメインのモデルが
+    変わった期のもの）。切替後に走ったのは 951 メッセージ・出力 419K トークン・cache_read 82.9M
+    トークンで、**cache_read が支配的なぶん実コストは出力トークン以上に効く**。
+  - **ただし直近 1 か月は再現していない**。観測された最後の切替は 2026-07-16 で、2026-07-17 以降は
+    0 件（母数は同期間に 499 agent ある）。ハーネスが直ったのか、継続を使う回転自体を使って
+    いないのかは、このデータでは区別できない。**本ガードは予防的なもの**として扱う。なお起動時の
+    `model` 指定は 100% 効いている（meta.json が残る 502 agent で要求モデルと初手の実モデルが全件一致）。
 - サブエージェント基底 ≈ **37K トークンの床**。回転＝haiku で安いが 37K を再払いする。
 - **継続の文脈税**: 継続 resume は累積トランスクリプトを読み直すため、ステップが進むほど 1 回あたりの
   入力が膨らむ（実測 ≈ **28K/ステップ**）。継続が得なのは累積税が回転の床（≈37K）を下回る間だけ。

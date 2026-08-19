@@ -19,6 +19,7 @@ import { attachTrailDbReadOnly } from '../db/attach';
 import { backupCaravanBookDbFile } from '../db/backup';
 import { getCaravanBookDbPath } from '../db/paths';
 import { runAgentRunWatchdog } from '../ingest/review/agentRunWatchdog';
+import { countForeignKeyViolations } from '../maintenance/repairDanglingReferences';
 import { runPipelineWatchdog } from '../pipeline/pipelineWatchdog';
 import { PipelineStatusWriter } from '../status/PipelineStatusWriter';
 import { CaravanDbSession } from './CaravanDbSession';
@@ -83,6 +84,23 @@ export async function openCaravanDbSession(
       logger.info(
         `Pipeline watchdog: ${pipelineWd.stale_runs} stale run(s), ${pipelineWd.stale_states} orphan state(s) cleaned`,
       );
+    }
+
+    // 参照先を失った行の常設検知。実測 55ms（380MB / 45k エンティティ）なので毎 run 回せる。
+    // 2026-06-20〜08-05 に 163 件が 1.5 か月かけて溜まり、その間 1 件も検知されなかった
+    // （症状が「エラー」ではなく「レビュー 162 件が静かにグラフから消える」形のため）。
+    // 直すのは `caravan repair-references`。ここは気づくための計測に徹する。
+    try {
+      const fkViolations = countForeignKeyViolations(memDb.db);
+      if (fkViolations > 0) {
+        logger.error(
+          `[anytime-memory] foreign_key_check: 参照先を失った行が ${fkViolations} 件あります。` +
+            `\`anytime-trail-server caravan repair-references\` で内訳を確認してください`,
+        );
+      }
+    } catch (err) {
+      // 計測の失敗でパイプラインを止めない。ただし黙って飛ばさない。
+      logger.error('[anytime-memory] foreign_key_check の実行に失敗（取込は継続）', err);
     }
   } catch (err) {
     // セットアップ中の失敗は DB を確実に閉じてから re-throw。

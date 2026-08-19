@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-08-19
+
+### Added
+
+- File writes made through Bash are now recorded in the airspace claim, so commands that bypass Edit / Write still surface another session touching the same file.
+- Added a gate that mechanically rejects direct commits to persistent branches (`master` / `main` / `develop`). It only applies to repositories that have a `develop` branch, and exceptions must be declared through the command-line escape hatch.
+
+### Changed
+
+- Bundled skill `anytime-dev-cycle`: stage 4 (implementation) now delegates to Codex by default. The rotation reference records the measured model recovery on continuation, together with a note on how long that measurement holds.
+
+### Fixed
+
+- Fixed six defects in inferring write targets from a Bash command: redirection versus `cd` mismatch, `cd` across a pipe, separator detection for `;` followed by a newline, directory-targeted `cp` / `mv` and BSD `sed -i ""`, option values and existence checks for `cp` / `mv`, and destination expansion under `-T` / `--no-target-directory`.
+- Closed the case where a `SendMessage` continuation dropped the subagent's model override, by accounting for it in the rotation decision.
+
 ## [1.16.0] - 2026-08-17
 
 ### Changed

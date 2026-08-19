@@ -1,5 +1,6 @@
 # Anytime Markdown
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/anytime-trial.anytime-extension-pack?label=VS%20Code%20Marketplace&color=0066b8)](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-extension-pack)[![Installs](https://img.shields.io/visual-studio-marketplace/i/anytime-trial.anytime-extension-pack?label=Installs&color=0066b8)](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-extension-pack)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=alert_status)![Bugs](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=bugs)![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=code_smells)![Coverage](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=coverage)![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=anytime-trial_anytime-markdown&metric=duplicated_lines_density)
 
 [日本語](https://github.com/anytime-trial/anytime-markdown/blob/master/README.ja.md) | [English](https://github.com/anytime-trial/anytime-markdown/blob/master/README.md)
@@ -9,6 +10,8 @@
 AI エージェントは、苛酷な砂漠（開発環境）を往くキャラバン。\
 Markdown の WYSIWYG 編集・差分レビュー、TypeScript プロジェクトのリアルタイム可視化、そして AI セッションの一元管理で、その旅路を安全に見守り導く ― AI 時代の羅針盤となる **3 つの VS Code 拡張** です。
 
+![VS Code 上の Anytime Markdown。AI が編集した箇所がハイライトされた WYSIWYG 編集画面](images/markdown-editor-screen.png)
+
 [**Web サイトを見る**](https://www.anytime-trial.com)
 
 [ブラウザで動く Markdown エディタ](https://www.anytime-trial.com/markdown)（インストール・登録は不要）。記法ごとの解説:
@@ -17,6 +20,38 @@ Markdown の WYSIWYG 編集・差分レビュー、TypeScript プロジェクト
 [KaTeX](https://www.anytime-trial.com/markdown/katex) ·
 [差分](https://www.anytime-trial.com/markdown/diff) ·
 [表](https://www.anytime-trial.com/markdown/table)
+
+## クイックスタート
+
+入口は 3 つある。上から順に軽い。WSL2 と Docker が要るのは 3 番目だけで、拡張のインストールには不要。
+
+### 1. ブラウザで試す
+
+インストールも登録も不要: [Markdown エディタは Web 上で動く](https://www.anytime-trial.com/markdown)。
+
+### 2. VS Code 拡張をインストールする
+
+拡張パックで 7 つまとめて:
+
+```bash
+code --install-extension anytime-trial.anytime-extension-pack
+```
+
+個別に入れる場合:
+
+| 拡張 | 機能 | インストール |
+| --- | --- | --- |
+| [Anytime Markdown](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown) | WYSIWYG Markdown エディタ。ライブプレビュー・作図・差分レビュー | `code --install-extension anytime-trial.anytime-markdown` |
+| [Anytime Trail](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail) | C4 / DSM による構造可視化と AI セッションダッシュボード | `code --install-extension anytime-trial.anytime-trail` |
+| [Anytime Agent](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent) | Claude Code セッションと Ollama バックエンドの状態パネル | `code --install-extension anytime-trial.anytime-agent` |
+| [Anytime Graph](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-graph) | 共起ネットワークエディタ | `code --install-extension anytime-trial.anytime-graph` |
+| [Anytime History](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-history) | Git のステージング・コミットグラフ・タイムライン | `code --install-extension anytime-trial.anytime-history` |
+| [Anytime Sheet](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-sheet) | `.sheet` / `.csv` / `.tsv` のスプレッドシートエディタ | `code --install-extension anytime-trial.anytime-sheet` |
+| [Anytime Database](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-database) | SQLite データベースの閲覧とクエリ | `code --install-extension anytime-trial.anytime-database` |
+
+### 3. ソースからビルドする
+
+コントリビューター向け、および Web アプリをローカルで動かす場合は下の[開発環境のセットアップ](#開発環境のセットアップ)を参照。WSL2 と Docker が要るのはこの経路だけ。
 
 ## 3 つの VS Code 拡張
 
@@ -30,7 +65,9 @@ TypeScript プロジェクトを 1 コマンドで解析し、コードベース
 - **品質の可視化**: エラー発生数・リトライ率・ビルド/テスト失敗率・カバレッジを C4 図にヒートマップで重ね、構造の中で品質弱点を特定
 - **生産性の可視化**: トークン消費・推定コスト・キャッシュヒット率・Four Keys（DORA）指標で AI エージェントの投資対効果を定量評価
 
-> 詳細: [Anytime Trail README](packages/vscode-trail-extension/README.ja.md)
+![Anytime Trail が自動生成した C4 アーキテクチャ図](packages/vscode-trail-extension/images/c4-mermaid.png)
+
+> [**Anytime Trail をインストール**](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail) · [詳細](packages/vscode-trail-extension/README.ja.md)
 
 ### Anytime Markdown — WYSIWYG 編集と差分レビュー
 
@@ -46,6 +83,8 @@ Web ・ VS Code ・ Android の 3 プラットフォームで同じ編集体験�
 - **インラインコメント / アウトライン / 脚注 / セクション自動番号 / 検索・置換**
 - 日本語 / 英語 対応
 
+> [**Anytime Markdown をインストール**](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown) · [詳細](packages/vscode-markdown-extension/README.ja.md)
+
 ### Anytime Agent — AI セッションの可視化と引き継ぎ
 
 複数の Claude Code / Codex セッションを worktree・ブランチをまたいで一覧し、肥大化したセッションを文脈ごと引き継ぐ VS Code 拡張機能。\
@@ -57,7 +96,7 @@ VS Code から離れずにキャラバン全体の隊列を把握できる。
 - **同梱スキル**: ワークスペースの `.claude/skills/` へ `anytime-note` ・ `anytime-cross-review` ・ `anytime-dev-cycle` 等の Claude Code スキルを自動配置
 - **トークン予算**: 日次・セッション単位のトークン上限と警告閾値を設定可能
 
-> 詳細: [Anytime Agent README](packages/vscode-agent-extension/README.ja.md)
+> [**Anytime Agent をインストール**](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent) · [詳細](packages/vscode-agent-extension/README.ja.md)
 
 ## MCP サーバー
 
@@ -70,6 +109,64 @@ AI エージェントがプロジェクトの資産に直接アクセスする�
 | `mcp-trail` | C4 モデル・DSM の操作、要素・グループ・関係の管理 |
 | `mcp-cms` | S3 上のドキュメント・レポートの管理 |
 | `mcp-cms-remote` | Cloudflare Workers 経由のリモート CMS アクセス |
+
+### スタンドアロン導入 — Claude Desktop ・ Claude Code ・ Cursor
+
+これらのサーバーは npm へ公開していない。本リポジトリのクローンから stdio で起動するため、VS Code 拡張を入れなくても任意の MCP クライアントから利用できる。Dev Container は不要で、Node.js 24（`.node-version` 参照）とリポジトリルートでの `npm install` 1 回で足りる。
+
+```bash
+git clone https://github.com/anytime-trial/anytime-markdown.git
+cd anytime-markdown
+npm install
+```
+
+そのうえで、使いたいサーバーをクライアントへ登録する — Claude Desktop なら `claude_desktop_config.json`、Claude Code ならプロジェクトルートの `.mcp.json`、Cursor なら `mcp.json`。`/path/to/anytime-markdown` はクローンの絶対パス、`/path/to/your/workspace` はサーバーに操作させたいプロジェクトへ置き換える。両者は通常別のディレクトリで、前者がサーバー本体を、後者がデータを供給する。
+
+```json
+{
+  "mcpServers": {
+    "mcp-markdown": {
+      "command": "npx",
+      "args": ["tsx", "--tsconfig", "packages/mcp-markdown/tsconfig.json", "packages/mcp-markdown/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "ANYTIME_MARKDOWN_ROOT": "/path/to/your/workspace" }
+    },
+    "mcp-graph": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-graph/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown"
+    },
+    "mcp-trail": {
+      "command": "npx",
+      "args": ["tsx", "packages/mcp-trail/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "TRAIL_WORKSPACE_PATH": "/path/to/your/workspace" }
+    },
+    "mcp-cms": {
+      "command": "npx",
+      "args": ["tsx", "--require", "dotenv/config", "packages/mcp-cms/src/stdio.ts"],
+      "cwd": "/path/to/anytime-markdown",
+      "env": { "DOTENV_CONFIG_PATH": "/path/to/your/.env" }
+    }
+  }
+}
+```
+
+以下の環境変数はいずれも任意。未設定時に各サーバーが何へ倒れるかを併記する。
+
+| サーバー | 変数 | 未設定時 | 用途 |
+| --- | --- | --- | --- |
+| `mcp-markdown` | `ANYTIME_MARKDOWN_ROOT` | `process.cwd()` | Markdown を読み書きする対象のワークスペースルート |
+| `mcp-markdown` | `ANYTIME_MARKDOWN_DOC_DB` | `<root>/.anytime/markdown/catalog.db` | ドキュメント検索インデックス。`search_docs` に必要で、Anytime Markdown 拡張の "Rebuild Doc Search Index" で構築する |
+| `mcp-trail` | `TRAIL_WORKSPACE_PATH` | `process.cwd()`（stderr へ警告を出す） | ツールが読む DB のあるワークスペース。多くのツールは呼び出しごとの `workspacePath` も受け取り、そちらが優先される |
+| `mcp-trail` | `TRAIL_HOME` | `<workspace>/.anytime/trail` | Trail の DB を置くディレクトリ |
+| `mcp-trail` | `TRAIL_REPO_NAME` | DB に記録された唯一のリポジトリ、無ければワークスペースのディレクトリ名 | DB が複数リポジトリを持つ場合の曖昧性解消 |
+| `mcp-cms` | `DOTENV_CONFIG_PATH` | — | S3 の資格情報を持つ `.env` のパス（`--require dotenv/config` と併用） |
+| `mcp-cms` | `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | — | `read_google_doc` を有効化する。未設定ならこのツールだけが登録されない |
+
+2 つのサーバーは他所で生成されたデータに依存する。`mcp-trail` は Anytime Trail 拡張が `.anytime/trail/db/` へ書く SQLite を読むため、拡張が一度もワークスペースを解析していない場合、ツールはエラーではなく空の結果を返す（実データが要るなら先に拡張を導入して実行する）。`mcp-cms` は資格情報が無くても起動するが、S3 の設定が揃うまで全てのツール呼び出しが失敗する。
+
+これらのサーバーがマシン上の何を読むかは [SECURITY.md](SECURITY.ja.md) を参照。
 
 ## プロジェクト構成
 
@@ -218,3 +315,7 @@ npm run dev
 ```
 
 ブラウザで http://localhost:3000 にアクセスする。
+
+## セキュリティ
+
+脆弱性を見つけた場合は非公開で報告してください。報告経路・サポート対象バージョン・対象範囲は [SECURITY.ja.md](SECURITY.ja.md) にあります。セキュリティ上の問題を公開 issue に書かないでください。
