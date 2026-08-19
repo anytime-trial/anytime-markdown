@@ -12,6 +12,7 @@
     "report:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/report レポート ja",
     "plan:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/plan プラン ja",
     "test:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/test 試験設計書 ja",
+    "manual:index": "tsx scripts/gen-spec-index.mjs docs/manual マニュアル ja",
     "check-skills": "node scripts/check-bundled-skills.mjs && node scripts/check-skill-refs.mjs && node scripts/check-skill-manifest-bump.mjs && node scripts/check-skill-inventory.mjs && node scripts/check-shortcut-markers.mjs && node scripts/check-test-collection.mjs && npm run test:scripts",
     "accept:farm": "node scripts/acceptance/farm.mjs",
     "test:scripts": "node --test scripts/*.test.mjs scripts/acceptance/*.test.mjs scripts/export-viewer-dist/*.test.mjs",

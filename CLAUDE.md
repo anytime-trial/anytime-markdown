@@ -13,7 +13,7 @@
 ## ドキュメント保存先（docsRoot）
 
 - docsRoot: /Shared/anytime-markdown-docs
-- 設計書（spec）・提案（proposal）・プラン（plan）・レビュー（review）・レポート（report）等のドキュメントは docsRoot 配下へ出力する（コード repo 内に置かない）。
+- 設計書（spec）・提案（proposal）・プラン（plan）・レビュー（review）・レポート（report）等のドキュメントは docsRoot 配下へ出力する（コード repo 内に置かない）。**例外はマニュアル（type: manual）で、コード repo の `docs/manual/` が正本**（根拠と運用は `AGENTS.md`「ドキュメント出力先」節）。
 - スキル・ドキュメント内の `<docsRoot>` プレースホルダは本節の値に読み替える。スキル本文へ docs リポジトリの絶対パスを直接記載しない（保存先は本節が単一の正）。
 - `anytime-dev-cycle` の preflight.cjs は本節の `- docsRoot:` 行を自動解決する（`--docs-root` 指定時はそちらを優先）。
 
