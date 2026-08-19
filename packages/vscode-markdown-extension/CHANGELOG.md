@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- MCP (mcp-markdown): removed `read_markdown`, `write_markdown`, `grep_markdown`, `compute_diff` and `sanitize_markdown`. Use the agent's built-in Read / Write / Grep and `git diff` instead; the server now exposes 10 tools.
+
+### Changed
+
+- Bundled skills: `anytime-markdown-usage` no longer documents the removed MCP tools.
+
 ## [1.21.2] - 2026-08-17
 
 ### Changed

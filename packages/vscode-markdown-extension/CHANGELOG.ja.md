@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+### Removed
+
+- MCP（mcp-markdown）: `read_markdown` / `write_markdown` / `grep_markdown` / `compute_diff` / `sanitize_markdown` を削除。エージェント組み込みの Read / Write / Grep / `git diff` で代替する（公開ツールは 10 本）。
+
+### Changed
+
+- 同梱スキル: `anytime-markdown-usage` から削除した MCP ツールの記載を除去。
+
 ## [1.21.2] - 2026-08-17
 
 ### 変更

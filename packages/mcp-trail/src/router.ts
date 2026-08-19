@@ -16,21 +16,12 @@ export interface RouteOpts {
 const READ_TOOLS = new Set([
   'get_c4_model',
   'list_elements',
-  'list_relationships',
   'list_groups',
   'list_communities',
   'list_community_nodes',
 ]);
 
 const WRITE_TOOLS = new Set([
-  'add_element',
-  'update_element',
-  'remove_element',
-  'add_group',
-  'update_group',
-  'remove_group',
-  'add_relationship',
-  'remove_relationship',
   'upsert_community_summaries',
   'upsert_community_mappings',
 ]);
@@ -38,7 +29,6 @@ const WRITE_TOOLS = new Set([
 const ANALYZE_TOOLS = new Set([
   'analyze_current_code',
   'analyze_release_code',
-  'analyze_all',
   'get_analyze_status',
 ]);
 
@@ -100,8 +90,6 @@ async function invokeDirectRead(
         return readDirect.getC4ModelDirect(opened.db, repoName);
       case 'list_elements':
         return readDirect.listElementsDirect(opened.db, repoName);
-      case 'list_relationships':
-        return readDirect.listRelationshipsDirect(opened.db, repoName);
       case 'list_groups':
         return readDirect.listGroupsDirect(opened.db, repoName);
       case 'list_communities':
@@ -144,60 +132,6 @@ async function invokeDirectWrite(
           args.mappings as Parameters<typeof writeDirect.upsertCommunityMappingsDirect>[2],
         );
         break;
-      case 'add_element':
-        result = writeDirect.addElementDirect(opened.db, repoName, {
-          type: args.type as string,
-          name: args.name as string,
-          external: (args.external as boolean) ?? false,
-          parentId: (args.parentId as string | null) ?? null,
-          ...(args.description === undefined ? {} : { description: args.description as string }),
-          ...(args.serviceType === undefined ? {} : { serviceType: args.serviceType as string }),
-        });
-        break;
-      case 'update_element':
-        writeDirect.updateElementDirect(
-          opened.db,
-          repoName,
-          args.id as string,
-          args,
-        );
-        result = { id: args.id };
-        break;
-      case 'remove_element':
-        writeDirect.removeElementDirect(opened.db, repoName, args.id as string);
-        result = { id: args.id };
-        break;
-      case 'add_group':
-        result = writeDirect.addGroupDirect(opened.db, repoName, {
-          memberIds: args.memberIds as string[],
-          ...(args.label === undefined ? {} : { label: args.label as string }),
-        });
-        break;
-      case 'update_group':
-        writeDirect.updateGroupDirect(
-          opened.db,
-          repoName,
-          args.id as string,
-          args,
-        );
-        result = { id: args.id };
-        break;
-      case 'remove_group':
-        writeDirect.removeGroupDirect(opened.db, repoName, args.id as string);
-        result = { id: args.id };
-        break;
-      case 'add_relationship':
-        result = writeDirect.addRelationshipDirect(opened.db, repoName, {
-          fromId: args.fromId as string,
-          toId: args.toId as string,
-          ...(args.label === undefined ? {} : { label: args.label as string }),
-          ...(args.technology === undefined ? {} : { technology: args.technology as string }),
-        });
-        break;
-      case 'remove_relationship':
-        writeDirect.removeRelationshipDirect(opened.db, repoName, args.id as string);
-        result = { id: args.id };
-        break;
       default:
         throw new Error(`Unhandled write tool: ${toolName}`);
     }
@@ -230,51 +164,10 @@ async function invokeHttp(
         ...(e.manual ? { manual: true } : {}),
       }));
     }
-    case 'list_relationships':
-      return httpClient.listRelationships(serverUrl, repoName);
     case 'list_groups':
       return httpClient.listGroups(serverUrl, repoName);
     case 'list_communities':
       return httpClient.listCommunities(serverUrl, repoName);
-    case 'add_element':
-      return httpClient.addElement(
-        serverUrl,
-        repoName,
-        args as Parameters<typeof httpClient.addElement>[2],
-      );
-    case 'update_element': {
-      const { id, ...changes } = args as { id: string } & Parameters<typeof httpClient.updateElement>[3];
-      return httpClient.updateElement(serverUrl, repoName, id, changes);
-    }
-    case 'remove_element': {
-      await httpClient.removeElement(serverUrl, repoName, (args as { id: string }).id);
-      return { id: (args as { id: string }).id };
-    }
-    case 'add_group':
-      return httpClient.addGroup(
-        serverUrl,
-        repoName,
-        args as Parameters<typeof httpClient.addGroup>[2],
-      );
-    case 'update_group': {
-      const { id, ...body } = args as { id: string } & Parameters<typeof httpClient.updateGroup>[3];
-      await httpClient.updateGroup(serverUrl, repoName, id, body);
-      return { id };
-    }
-    case 'remove_group': {
-      await httpClient.removeGroup(serverUrl, repoName, (args as { id: string }).id);
-      return { id: (args as { id: string }).id };
-    }
-    case 'add_relationship':
-      return httpClient.addRelationship(
-        serverUrl,
-        repoName,
-        args as Parameters<typeof httpClient.addRelationship>[2],
-      );
-    case 'remove_relationship': {
-      await httpClient.removeRelationship(serverUrl, repoName, (args as { id: string }).id);
-      return { id: (args as { id: string }).id };
-    }
     case 'upsert_community_summaries':
       return httpClient.upsertCommunitySummaries(
         serverUrl,
@@ -297,8 +190,6 @@ async function invokeHttp(
         serverUrl,
         args as { tags?: readonly string[] },
       );
-    case 'analyze_all':
-      return httpClient.analyzeAll(serverUrl);
     case 'get_analyze_status':
       return httpClient.getAnalyzeStatus(serverUrl);
     case 'get_code_dependencies':

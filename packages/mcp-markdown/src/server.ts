@@ -1,16 +1,13 @@
+/// <reference lib="dom" />
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { readMarkdown } from './tools/readMarkdown';
-import { writeMarkdown } from './tools/writeMarkdown';
 import { getOutline } from './tools/getOutline';
 import { getSection } from './tools/getSection';
 import { updateSection } from './tools/updateSection';
-import { sanitize } from './tools/sanitizeMarkdown';
 import { formatMarkdownTool } from './tools/formatMarkdown';
-import { diff } from './tools/computeDiff';
 import { runSearchDocs, runSearchSections, runBacklinks, runNeighbors } from './tools/docSearch';
 import { getFrontmatter, updateFrontmatter } from './tools/frontmatter';
-import { grepMarkdown } from './tools/grepMarkdown';
 
 export interface McpEditorOptions {
   rootDir: string;
@@ -43,30 +40,6 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
     version: '0.8.1',
   });
 
-  registerTool(server, 'read_markdown',
-    'Read a Markdown file and return its content',
-    { path: z.string().describe('Relative path to the Markdown file') },
-    async (args) => {
-      const path = args.path as string;
-      const content = await readMarkdown({ path }, rootDir);
-      return { content: [{ type: 'text' as const, text: content }] };
-    },
-  );
-
-  registerTool(server, 'write_markdown',
-    'Write content to a Markdown file',
-    {
-      path: z.string().describe('Relative path to the Markdown file'),
-      content: z.string().describe('Markdown content to write'),
-    },
-    async (args) => {
-      const path = args.path as string;
-      const content = args.content as string;
-      await writeMarkdown({ path, content }, rootDir);
-      return { content: [{ type: 'text' as const, text: `Written to ${path}` }] };
-    },
-  );
-
   registerTool(server, 'get_outline',
     'Extract heading structure from a Markdown file as a flat list',
     { path: z.string().describe('Relative path to the Markdown file') },
@@ -96,7 +69,7 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
   );
 
   registerTool(server, 'update_section',
-    'Replace a section in a Markdown file identified by its heading. Errors when the heading is ambiguous (same level+text appears more than once) — pass occurrence to pick one. Returns a diff summary (oldLines/newLines/bytesDelta/warnings) — never the full body — so the edit can be verified without a compute_diff round-trip. Warns when content does not start with the heading line (the heading would be removed).',
+    'Replace a section in a Markdown file identified by its heading. Errors when the heading is ambiguous (same level+text appears more than once) — pass occurrence to pick one. Returns a diff summary (oldLines/newLines/bytesDelta/warnings) — never the full body — so the edit can be verified without an extra round-trip. Warns when content does not start with the heading line (the heading would be removed).',
     {
       path: z.string().describe('Relative path to the Markdown file'),
       heading: z.string().describe('Full heading line including # marks (e.g. "## Section Name")'),
@@ -113,20 +86,6 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
     },
   );
 
-  registerTool(server, 'sanitize_markdown',
-    'Normalize and sanitize Markdown content using markdown-core rules',
-    {
-      content: z.string().optional().describe('Markdown content to sanitize'),
-      path: z.string().optional().describe('Relative path to the Markdown file to sanitize'),
-    },
-    async (args) => {
-      const content = args.content as string | undefined;
-      const path = args.path as string | undefined;
-      const result = await sanitize({ content, path }, rootDir);
-      return { content: [{ type: 'text' as const, text: result }] };
-    },
-  );
-
   registerTool(server, 'format_markdown',
     'Format a Markdown file in place to the markdown-check style rules (heading blank lines, block spacing, list indent, trailing whitespace, blank-line collapse, table pipe escape). Returns only a diff summary (changed/rulesApplied/warnings) — never the full body — to save tokens. Fenced code blocks and frontmatter are left untouched; idempotent. Use mode="check" to detect without writing.',
     {
@@ -137,24 +96,6 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
       const path = args.path as string;
       const mode = args.mode as 'fix' | 'check' | undefined;
       const result = await formatMarkdownTool({ path, mode }, rootDir);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  registerTool(server, 'compute_diff',
-    'Compute diff between two Markdown contents or files',
-    {
-      contentA: z.string().optional().describe('First Markdown content'),
-      contentB: z.string().optional().describe('Second Markdown content'),
-      pathA: z.string().optional().describe('Relative path to first Markdown file'),
-      pathB: z.string().optional().describe('Relative path to second Markdown file'),
-    },
-    async (args) => {
-      const contentA = args.contentA as string | undefined;
-      const contentB = args.contentB as string | undefined;
-      const pathA = args.pathA as string | undefined;
-      const pathB = args.pathB as string | undefined;
-      const result = await diff({ contentA, contentB, pathA, pathB }, rootDir);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -257,28 +198,6 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
         rootDir,
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(summary, null, 2) }] };
-    },
-  );
-
-  registerTool(server, 'grep_markdown',
-    'Literal substring search within a single Markdown file. Returns matching lines with line number, enclosing heading, and a snippet (token-cheap alternative to reading the whole file). Patterns are literal (no regex).',
-    {
-      path: z.string().describe('Relative path to the Markdown file'),
-      pattern: z.string().describe('Literal substring to search for (not a regular expression)'),
-      ignoreCase: z.boolean().optional().describe('Case-insensitive match (default false)'),
-      maxMatches: z.number().optional().describe('Max matches to return (default 20)'),
-    },
-    async (args) => {
-      const matches = await grepMarkdown(
-        {
-          path: args.path as string,
-          pattern: args.pattern as string,
-          ignoreCase: args.ignoreCase as boolean | undefined,
-          maxMatches: args.maxMatches as number | undefined,
-        },
-        rootDir,
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(matches, null, 2) }] };
     },
   );
 

@@ -1,8 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { createGraphFile } from '../../tools/createGraph';
-import { addNode } from '../../tools/addNode';
+import { batchImport } from '../../tools/batchImport';
 import { exportSvg } from '../../tools/exportSvg';
 import { exportDrawio } from '../../tools/exportDrawio';
 import { importDrawio } from '../../tools/importDrawio';
@@ -20,9 +19,12 @@ describe('exportSvg', () => {
   });
 
   it('should export graph as SVG string', async () => {
-    await createGraphFile({ path: 'test.graph', name: 'Test' }, tmpDir);
-    await addNode({ path: 'test.graph', type: 'rect', x: 0, y: 0, text: 'A' }, tmpDir);
-    await addNode({ path: 'test.graph', type: 'rect', x: 200, y: 0, text: 'B' }, tmpDir);
+    await batchImport({
+      path: 'test.graph',
+      name: 'Test',
+      nodes: [{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }],
+      edges: [],
+    }, tmpDir);
     const svg = await exportSvg({ path: 'test.graph' }, tmpDir);
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
@@ -41,8 +43,12 @@ describe('exportDrawio', () => {
   });
 
   it('should export graph as draw.io XML', async () => {
-    await createGraphFile({ path: 'test.graph', name: 'Test' }, tmpDir);
-    await addNode({ path: 'test.graph', type: 'rect', x: 0, y: 0, text: 'A' }, tmpDir);
+    await batchImport({
+      path: 'test.graph',
+      name: 'Test',
+      nodes: [{ id: 'a', text: 'A' }],
+      edges: [],
+    }, tmpDir);
     const xml = await exportDrawio({ path: 'test.graph' }, tmpDir);
     expect(xml).toContain('mxGraphModel');
   });

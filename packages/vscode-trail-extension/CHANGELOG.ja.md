@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Removed
+
+- MCP（mcp-trail）: C4 手動編集ツール（`add_element` / `update_element` / `remove_element` / `add_relationship` / `remove_relationship` / `add_group` / `update_group` / `remove_group` / `list_relationships`）・レビュー実行系（`run_review_agent` / `get_review_run_status` / `list_review_runs`）・`analyze_all` を削除。C4 モデルは `analyze_current_code` の自動生成、レビュー実行はエージェント側、セッション取込はデーモンのパイプラインが担う（公開ツールは 44 本）。
+
 ## [1.3.0] - 2026-08-19
 
 ### Trail Core (trail-db / trail-server / trail-caravan-book)

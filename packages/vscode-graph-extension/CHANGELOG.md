@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Removed
+
+- MCP (mcp-graph): removed the single-item CRUD tools (`add_node`, `add_edge`, `update_node`, `remove_node`, `remove_edge`, `list_nodes`) and `create_graph`. Create diagrams with `batch_import` and edit them via `read_graph` → `write_graph`; the server now exposes 8 tools.
+
 ## [1.2.1] - 2026-08-11
 
 ### Added

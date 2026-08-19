@@ -21,10 +21,12 @@ anytime 拡張は 4 系統のサーバーを提供する。
 
 | サーバー | 担当 | ツール数 |
 | --- | --- | --- |
-| `mcp-markdown` | ドキュメントを探す・読む・書く・整える | 15 |
-| `mcp-trail` | コード構造の探索、過去の経緯、レビュー・承認の記録 | 57 |
-| `mcp-graph` | 図（`.graph`）と共起ネットワーク（`.cooc.json`）の作成と変換 | 15 |
+| `mcp-markdown` | ドキュメントを探す・読む・書く・整える | 10 |
+| `mcp-trail` | コード構造の探索、過去の経緯、レビュー・承認の記録 | 44 |
+| `mcp-graph` | 図（`.graph`）と共起ネットワーク（`.cooc.json`）の作成と変換 | 8 |
 | `mcp-cms` / `mcp-cms-remote` | S3 への文書・レポートの公開、Google ドキュメントの読み取り | 7 / 11 |
+
+組み込みツール（Read / Write / Grep / `git diff`）で足りる操作は MCP ツールとして提供しない。2026-08-19 に、この方針と 5 ヶ月間の利用実測に基づき 25 ツールを削減した（経緯は docs リポジトリの `proposal/20260819-mcp-tool-consolidation.ja.md`）。
 
 ## 1. 前提条件
 
@@ -81,19 +83,16 @@ MCP サーバーは標準入出力でつながる子プロセスとして動く�
 | --- | --- | --- |
 | 探す | `search_docs` | 全文（FTS5）とメタデータ（種別・言語・カテゴリ）で文書を検索し、パス・タイトル・要約・抜粋を返す |
 | 探す | `search_sections` | 見出しセクション単位で検索し、パス・見出し・階層・抜粋を返す |
-| 探す | `grep_markdown` | 単一ファイル内をリテラル文字列で検索する（正規表現は使えない） |
 | 構造を取る | `get_outline` | 見出し構造だけを平坦なリストで返す |
 | 構造を取る | `get_frontmatter` | 本文を返さずフロントマターだけを返す |
 | 部分を読む | `get_section` | 指定した見出しの本文だけを取り出す |
-| 全文を読む | `read_markdown` | ファイル全文を返す |
 | 部分を書く | `update_section` | 指定した見出しのセクションを置き換え、差分の要約だけを返す |
 | 部分を書く | `update_frontmatter` | 本文に触れずフロントマターのキーを追加・削除する |
-| 全文を書く | `write_markdown` | ファイルへ内容を書き込む |
 | 整える | `format_markdown` | 見出し前後の空行・ブロック間隔・リストのインデント・末尾空白・テーブルのパイプを整える。冪等で、コードブロックとフロントマターには触れない |
-| 整える | `sanitize_markdown` | Markdown を正規化・無害化する |
-| 比べる | `compute_diff` | 2 つの Markdown（内容またはファイル）の差分を計算する |
 | 辿る | `doc_backlinks` | 指定した文書へリンクしている文書を、関係の種別つきで返す |
 | 辿る | `doc_neighbors` | 関係グラフを指定ホップ数だけ辿り、関連文書のパスを返す |
+
+全文の読み書き・単一ファイル内の文字列検索・差分の計算は、組み込みの Read / Write / Grep / `git diff` で行う（2026-08-19 に `read_markdown` / `write_markdown` / `grep_markdown` / `compute_diff` / `sanitize_markdown` を削除した）。
 
 **大きな文書を丸ごと読ませない。** `search_docs` で当たりを付け、`get_outline` で構造を掴み、`get_section` で必要な節だけ取り出す。これが基本の順序である。
 
@@ -101,7 +100,7 @@ MCP サーバーは標準入出力でつながる子プロセスとして動く�
 
 ## 4. mcp-trail — 構造と経緯を引き出す
 
-`mcp-trail` は、コードの構造と、そこに至るまでの経緯を問い合わせるためのサーバーである。57 のツールを用途別に示す。
+`mcp-trail` は、コードの構造と、そこに至るまでの経緯を問い合わせるためのサーバーである。44 のツールを用途別に示す。
 
 ### 4.1. コード構造を探索する（読み取り）
 
@@ -134,10 +133,9 @@ MCP サーバーは標準入出力でつながる子プロセスとして動く�
 | `list_unaddressed_review_findings` | 未対処のレビュー指摘を、重大度・経過日数・対象ファイル・カテゴリで絞って一覧する |
 | `get_review_history` | レビュー履歴を指摘つきで返す。指摘がバグへ発展した関係も含められる |
 | `link_review_to_commit` | 指摘を特定のコミットで対処済みとして結びつける |
-| `run_review_agent` | レビューの実行を登録し、実行 ID を即座に返す |
-| `get_review_run_status` | 実行 ID からレビューの進行状況を取得する |
-| `list_review_runs` | レビュー実行の履歴を絞り込んで一覧する |
 | `list_review_target_hints` | ドリフト・バグ修正・未レビューのファイルから、優先してレビューすべき対象を提案する |
+
+レビューの実行そのものはエージェント側（`code-reviewer` subagent 経由）が担う。MCP からの実行登録（旧 `run_review_agent` / `get_review_run_status` / `list_review_runs`）は 2026-08-19 に削除した。
 
 ### 4.4. 承認と判断を記録する
 
@@ -173,11 +171,11 @@ MCP サーバーは標準入出力でつながる子プロセスとして動く�
 | `resolve_drift` | ドリフトを解決済みとしてメモつきで記録する |
 | `list_boundary_drift` | 複数パッケージにまたがるコミュニティや、多数のコミュニティへ分裂したパッケージを警告として返す |
 
-### 4.7. C4 モデルを参照・編集する
+### 4.7. C4 モデルを参照する
 
-参照は `get_c4_model`（モデル全体）、`list_elements` / `list_relationships` / `list_groups`（ID 確認用の一覧）。
+参照は `get_c4_model`（モデル全体）、`list_elements` / `list_groups`（ID 確認用の一覧）。
 
-編集は `add_element` / `update_element` / `remove_element`（要素）、`add_relationship` / `remove_relationship`（関係）、`add_group` / `update_group` / `remove_group`（視覚的なグループ）。要素を消すと、それに紐づく関係も消える。グループを消しても所属要素は残る。
+C4 モデルの正は `analyze_current_code` の自動生成である。MCP からの手動編集ツール（要素・関係・グループの追加・変更・削除）は、利用が手動構築期（2026-04）に限られていたため 2026-08-19 に削除した。
 
 ### 4.8. 解析を実行する
 
@@ -185,8 +183,9 @@ MCP サーバーは標準入出力でつながる子プロセスとして動く�
 | --- | --- |
 | `analyze_current_code` | C4 モデルとコードグラフの解析を起動する |
 | `analyze_release_code` | リリース別の解析を行う。既存のリリース別グラフを**全削除してから**再生成する |
-| `analyze_all` | セッションログを取り込み、コミット・リリース・カバレッジをデータベースへ書き込む |
 | `get_analyze_status` | 進行中の解析の種別と開始時刻を返す |
+
+セッションログの取り込み（旧 `analyze_all`）はデーモンのパイプラインが自走しており、MCP からの起動導線は 2026-08-19 に削除した。
 
 これらは拡張のデータサーバーが起動していないと動かない。解析は対象規模によっては長時間かかる。
 
@@ -208,13 +207,13 @@ MCP サーバーは標準入出力でつながる子プロセスとして動く�
 
 | 目的 | ツール |
 | --- | --- |
-| 読み書き | `read_graph` / `write_graph` / `create_graph` |
-| ノード操作 | `add_node`（グリッドに合わせて配置）/ `update_node` / `remove_node` / `list_nodes` |
-| エッジ操作 | `add_edge` / `remove_edge`（ノードを消すと接続エッジも消える） |
+| 読み書き | `read_graph` / `write_graph` |
 | 一括生成 | `batch_import`（ノードとエッジの構造化データからまとめて生成） |
 | 書き出し | `export_svg` / `export_drawio` |
 | 取り込み | `import_drawio` |
 | 共起ネットワーク | `write_cooccurrence` / `read_cooccurrence` |
+
+図の作成は `batch_import`（新規一括生成）と `read_graph` → `write_graph`（既存の編集）で行う。ノード・エッジ単発の CRUD ツールと `create_graph` は、往復が多くエージェント利用に不向きだったため 2026-08-19 に削除した。
 
 **扱えるパスと拡張子が制限されている。** 書き込み先はワークスペース配下に限られ、範囲外は拒否される。図のツールは `.graph`、共起ネットワークのツールは `.cooc.json` しか受け付けない。
 

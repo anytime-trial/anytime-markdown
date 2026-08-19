@@ -23,18 +23,14 @@ describe('mcp-markdown integration', () => {
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it('should list all 15 tools (8 editor + 4 markdown-catalog search + 3 markdown helpers)', async () => {
+  it('should list all 10 tools', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
     // editor tools
-    expect(names).toContain('read_markdown');
-    expect(names).toContain('write_markdown');
     expect(names).toContain('get_outline');
     expect(names).toContain('get_section');
     expect(names).toContain('update_section');
-    expect(names).toContain('sanitize_markdown');
     expect(names).toContain('format_markdown');
-    expect(names).toContain('compute_diff');
     // markdown-catalog search tools
     expect(names).toContain('search_docs');
     expect(names).toContain('search_sections');
@@ -43,8 +39,7 @@ describe('mcp-markdown integration', () => {
     // markdown helper tools (Phase 2)
     expect(names).toContain('get_frontmatter');
     expect(names).toContain('update_frontmatter');
-    expect(names).toContain('grep_markdown');
-    expect(tools).toHaveLength(15);
+    expect(tools).toHaveLength(10);
   });
 
   it('should get and update frontmatter without touching the body', async () => {
@@ -61,21 +56,6 @@ describe('mcp-markdown integration', () => {
     const updated = await fs.readFile(path.join(tmpDir, 'fm.md'), 'utf-8');
     expect(updated).toContain('status: published');
     expect(updated).toContain('body stays');
-  });
-
-  it('should grep markdown with enclosing heading', async () => {
-    await fs.writeFile(path.join(tmpDir, 'g.md'), '# Top\n## Section A\nfind me here\n');
-    const result = await client.callTool({ name: 'grep_markdown', arguments: { path: 'g.md', pattern: 'find me' } });
-    const matches = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
-    expect(matches).toHaveLength(1);
-    expect(matches[0].heading).toBe('Section A');
-    expect(matches[0].line).toBe(3);
-  });
-
-  it('should write and read markdown', async () => {
-    await client.callTool({ name: 'write_markdown', arguments: { path: 'test.md', content: '# Hello' } });
-    const result = await client.callTool({ name: 'read_markdown', arguments: { path: 'test.md' } });
-    expect((result.content as Array<{ type: string; text: string }>)[0].text).toBe('# Hello');
   });
 
   it('should get outline', async () => {
@@ -104,32 +84,4 @@ describe('mcp-markdown integration', () => {
     expect(updated).toContain('Keep');
   });
 
-  it('should compute diff', async () => {
-    const result = await client.callTool({
-      name: 'compute_diff',
-      arguments: { contentA: '# A\nold\n', contentB: '# A\nnew\n' },
-    });
-    const diff = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
-    expect(diff.blocks.length).toBeGreaterThan(0);
-  });
-
-  it('should return error for non-existent file', async () => {
-    const result = await client.callTool({ name: 'read_markdown', arguments: { path: 'missing.md' } });
-    expect(result.isError).toBe(true);
-  });
-
-  it('should return error for path traversal', async () => {
-    const result = await client.callTool({ name: 'read_markdown', arguments: { path: '../evil.md' } });
-    expect(result.isError).toBe(true);
-  });
-
-  it('should sanitize markdown content', async () => {
-    const result = await client.callTool({
-      name: 'sanitize_markdown',
-      arguments: { content: '# Heading\n\n<script>alert(1)</script>\n' },
-    });
-    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
-    expect(typeof text).toBe('string');
-    expect(text).not.toContain('<script>');
-  });
 });
