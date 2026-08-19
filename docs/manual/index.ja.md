@@ -12,11 +12,12 @@ excerpt: "マニュアル 配下の frontmatter から自動生成したフォ�
 > このファイルは `scripts/gen-spec-index.mjs` が frontmatter から生成する。手で編集しない。
 > 関係は各ファイルの frontmatter `related`（型付き）が単一ソース。型: references / depends-on / implements / part-of / supersedes / refines。
 
-総数: 5 件
+総数: 6 件
 
 ## サブフォルダ
 
 - [dev-env-setup/](dev-env-setup/index.ja.md) — 2 件
 - [dev-operations/](dev-operations/index.ja.md) — 2 件
+- [mcp-tools/](mcp-tools/index.ja.md) — 1 件
 - [memory-operations/](memory-operations/index.ja.md) — 1 件
 
