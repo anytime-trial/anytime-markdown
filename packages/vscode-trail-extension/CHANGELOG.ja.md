@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-19
+
+### Trail Core (trail-db / trail-server / trail-caravan-book)
+
+- Task 呼び出しと子エージェントの transcript を `source_tool_use_id` で結ぶようにした。どの委譲がどの子セッションに対応するかを追跡できる。
+- 参照先を失った行（外部キー違反 163 件）を修復する保守処理を追加した。
+- LLM の可用性を run ごとに測り直すようにした。一度の失敗が以降の run へ持ち越されない。
+- マージ前レビュー指摘（error 1 / warn 8）を対処した。
+
 ## [1.2.0] - 2026-08-17
 
 ### 追加
