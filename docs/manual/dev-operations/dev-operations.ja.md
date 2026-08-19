@@ -1,10 +1,11 @@
 ---
 title: "新規アプリ開発運用手順（Trail 連携）"
 date: "2026-07-17"
-updated: "2026-08-02"
+updated: "2026-08-19"
 type: "manual"
 lang: "ja"
 author: "Claude Code v2.1.212"
+skill: "anytime-doc-authoring (2026-08-19)"
 category: "operations"
 excerpt: "開発環境構築後の日常運用手順。Anytime Trail による構造の可視化とふりかえり（行動・コスト・品質分析）、Anytime Agent によるセッション管理と同梱スキル運用、Anytime Markdown による AI 協調編集、ドクトリン駆動自律承認（What 承認の代行。立ち上げは新規開発と既開発で異なる）、マージ前レビュー・受入ファーム（機械受入とリスクルーティング）・ふりかえりまでの開発サイクルを定義する。"
 related:
@@ -14,7 +15,7 @@ related:
 
 # 新規アプリ開発運用手順（Trail 連携）
 
-[開発環境構築](../dev-env-setup/dev-env-setup.ja.md)完了後の日常開発で、anytime 拡張 3 種をどう使い回すかを定義する。
+[開発環境構築](../dev-env-setup/dev-env-setup.ja.md)を終えると、AI が実装し人が承認する日々が始まる。問題は、その承認をどこへ置くかである。生成物を 1 件ずつ人が見れば AI の速度は人の可処分時間で頭打ちになり、逆に何も見なければ品質の責任を負う者がいなくなる。ここでは承認を個々の成果物から先にドクトリンへ移し、人の介在を入口と出口の決まった場面とドクトリンの承認に絞る。
 
 運用の骨子は次の 4 点である。
 
@@ -188,7 +189,9 @@ TypeScript プロジェクト（`tsconfig.json` 必須）のアーキテクチ�
 develop へのローカルマージまでは AI が完結し、その先の受け入れ試験・リリースは人が判断する。
 
 1. **テスト設計（検証手段は生成の前に用意する）**: 各タスクの出口を観測できる手段（テスト・型チェック・ビルド・実機/E2E）を実装前に確保する。`anytime-impl-test-design` で「どのテストを書くか」を決める（配線・mount・i18n の検知ギャップを塞ぐ）。検証手段を決められないタスクは実装に入らず分解し直す
+
 2. **マージ前レビュー**: 作業ブランチを develop へマージする前に、同梱スキル `anytime-cross-review` を実行する。Claude と Codex が同一 diff を独立レビューし、相互検証した合意指摘を採用する（実装と検証を同一モデルで完結させないため。Codex CLI 未導入なら Claude 単独のコードレビューを実施）。error / warn を対処してからマージする。レビュー指摘には観点キー（global スキル `code-review-checklist` の章番号 `§N`、該当章が無ければ `none`）を付す。`none` は観点の穴として週次ふりかえりの昇格候補集計（手順 6）の入力になる
+
 3. **受入ファーム（機械受入・AI）**: develop マージ後に `npm run accept:farm -- --commit <マージコミット SHA>` を実行する。次を機械判定し、結果を受入台帳（caravan-book.db `caravan_acceptance_records`。2026-08-07 に activity.db から移設）へ記録する。台帳へ記録できない pass は成功扱いにしない（exit 2 = not_run・スプール再送）
 
    - **E2E / VRT ファーム**: Playwright の受入シナリオとダーク/ライト両モードの視覚回帰。flaky は隔離（quarantine.json）+ 再現チケット自動起票
@@ -200,6 +203,7 @@ develop へのローカルマージまでは AI が完結し、その先の受�
    > 現状注記（2026-07-19）: 基盤 S1〜S5 は実装済みだが、farm の本番初回実行（本番 activity.db への記録・`ACCEPTANCE_TICKETS_DIR` の指定）は承認待ち、各スライスの実機受入も未実施である。ollama 未導入のため VLM 前処理は skip 縮退で動作する。
 
 4. **受け入れ試験（人）**: ファームが `human` 経路へ振り分けた変更と抜き取り対象について、人手のみ試験（実 IME・実プリンタ・主観品質・実機回帰）を実施し、合否を台帳（`caravan_acceptance_records` の commit × human）へ記録する。ファーム green でも VRT 差分あり画面は目視確認する。AI はテスト設計まで（実施・判定は人）。不合格は開発サイクル（ループ A）へ差し戻す
+
 5. **リリース（人の明示指示のみ）**: 受け入れ試験に合格した候補のみ、人のリリース指示・承認を経て本番リリース（バージョン bump・公開・デプロイ）を実行する。AI はリモート push・公開を自発しない
 
 ### 5. チケット駆動の自動実行（任意）
@@ -218,8 +222,11 @@ develop へのローカルマージまでは AI が完結し、その先の受�
 担当が `user` へ戻ったことをチャットサービスへ片方向 webhook で通知する（要件 AL-7 / UR-11。採択提案 `proposal/20260719-ticket-notification-channel.ja.md`）。チケット一覧をポーリングしなくても回答待ちに気づける。
 
 - **仕組み**: チケットリポジトリのローカルクローンの post-commit hook が、直前のコミットで `assignee` が `user` へ遷移したチケットを検知し、`NotificationChannel`（設定で切替。初期実装は LINE Messaging API push）へ送信する。通知は best-effort で、失敗してもコミット・ループは止まらない。本文はチケット id・タイトル・コミット件名・ボードリンクのみ（チケット本文は外部へ送らない）
+
 - **セットアップ**（クローンごとに 1 回）:
+
   1. hook 配線: `git -C <ticketRepo> config core.hooksPath <コードリポジトリ>/scripts/ticket-hooks`
+
   2. 設定ファイル: `<ticketRepo>/.git/anytime/notify.json` を作成する（`.git/` 配下のためコミットされない。webhook URL・トークン等の秘密はここにのみ置く）:
 
      ```json
@@ -228,6 +235,7 @@ develop へのローカルマージまでは AI が完結し、その先の受�
        "line": { "channelAccessToken": "<LINE チャネルアクセストークン>", "to": "<送信先 userId>" },
        "ticketsBoardUrl": "https://<web-app>/tickets"
      }
+     
      ```
 
   3. LINE 側の準備: LINE Developers で Messaging API チャネルを作成し、長期チャネルアクセストークンを発行、通知先の userId（自分の LINE アカウントがチャネルを友だち追加した際の Webhook もしくはチャネルコンソールで確認）を取得する
@@ -237,7 +245,7 @@ develop へのローカルマージまでは AI が完結し、その先の受�
 
 **利用スキル**（定期の点検一群: Trail 記録の分析 + 環境・設定の診断）: `anytime-dev-retro`（Trail 3DB 横断の健全性分析・ふりかえり。行動・品質に加え、旧 `anytime-token-budget` を統合したセッション粒度のコスト分析＝Opus 比率・cache_read 膨張・セッション衛生も担う。閾値超シグナルは提案書＋チケットを起票）・`anytime-dev-audit`（PC 環境・Claude Code 設定＝CLAUDE.md / rules / skills / hooks / settings / MCP の read-only 診断。開発活動でなく環境・設定側の点検。影響度×工数マトリクスと最適化プランを提示）・`anytime-proposal`（改善提案・再発防止策の提案書起草）・`anytime-session-exit`（セッション完了報告。Trail の運航後レビューへ自己評価として取込）。
 
-開発の実績と事故から改善を還流させるループ C の運用である。**行動・コスト・品質の確認は、Trail Viewer の随時目視ではなく本節の定期・自動分析（ふりかえりレポート）で行う**。`anytime-dev-retro` が Trail データ（行動・コスト・品質）を横断分析し、閾値超のシグナルだけ改善へつなぐ。
+**行動・コスト・品質の確認は、Trail Viewer の随時目視ではなく定期・自動の分析で行う。** `anytime-dev-retro` が Trail の記録を横断分析し、閾値を超えたシグナルだけを改善へつなぐ。事故から出た再発防止策も、週次分析から出た改善も、要件書・設計書の改訂としてループ A へ戻る。
 
 1. **セッションの締め**: 作業を締める時に `anytime-session-exit` で達成度・未解決事項・次回の懸念点を構造化出力する（ふりかえりの入力になる）
 2. **インシデント発生時**: 人が重大度と復旧方針を決定 → AI が原因分析（why-why-why 3 段以上）と再発防止策を `anytime-proposal` で起草 → 人が採否を判断する
@@ -249,15 +257,15 @@ develop へのローカルマージまでは AI が完結し、その先の受�
 
 | 項目 | 内容 |
 | --- | --- |
-| Trail DB の場所 | 既定はワークスペースの `.vscode/activity.db`（設定 `anytimeTrail.database.storagePath` で変更可） |
-| バックアップ | `activity.db` と同じ場所に gzip 世代バックアップ `.bak.N.gz` を保持（設定 `backupGenerations`、1〜10 世代） |
+| Trail DB の場所 | 既定はワークスペースの `.anytime/trail/db/activity.db`（`lep.json` の `database.storagePath` で変更可。旧設定 `anytimeTrail.database.storagePath` は廃止）。同じディレクトリに知識グラフの `caravan-book.db` が並ぶ |
+| バックアップ | `activity.db` と同じ場所に gzip 世代バックアップ `.bak.N.gz` を保持（設定 `anytimeDatabase.backup.generations`、既定 1・最大 10 世代）。2 GiB を超える DB は圧縮に失敗するため非圧縮の `.bak.N` で残る |
 | チーム統合 | ローカル SQLite を Supabase / PostgreSQL へ同期し、複数開発者のデータを統合できる |
 | git 管理 | `activity.db` と `.anytime/` はローカル記録のため、リポジトリの `.gitignore` に含める |
 
 > [!WARNING]
 > Supabase Free プランの下り転送（egress）は月 5GB で、超過するとプロジェクト全体がサービス制限され trail 系 API が停止する。web-app の trail 系 API は既定 10 分のサーバー内 TTL キャッシュで転送量を抑制しており、環境変数 `TRAIL_API_CACHE_TTL_MS`（ミリ秒）で調整、`0` で無効化できる。このため Supabase 同期直後の反映は最大 TTL 分遅れる。使用量はダッシュボードの Usage（EGRESS / DATABASE SIZE）で定期確認する。
 
-## 結果確認（運用が回っているかのチェックリスト)
+## 結果確認（運用が回っているかのチェックリスト）
 
 - [ ] Agent Mapping に現在のセッションが表示され、コミット・ブランチが hover で確認できる
 - [ ] Trail Viewer の Sessions タブに当日のセッションとコミットが記録されている
