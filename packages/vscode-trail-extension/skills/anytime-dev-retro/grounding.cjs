@@ -83,6 +83,10 @@ function summarizeCost(cost) {
   return {
     byModel: cost.map((r) => ({ model: r.model, sessions: r.sessions, cost: r.cost })),
     totalCost: Math.round(totalCost * 100) / 100,
+    // 占有率(比)だけでは分母の縮小で上昇し「増加=悪化」を誤判定する(2026-08-19 実測:
+    // 占有率 53.7->62.4% の一方で Opus 絶対コストは 11,766->11,431 USD と微減)。
+    // 昇格閾値を「占有率 +5pt かつ絶対増」の AND 条件にするための絶対値を併記する。
+    opusCostUsd: Math.round((opus ? opus.cost || 0 : 0) * 100) / 100,
     opusCostSharePct: pct(opus ? opus.cost || 0 : 0, totalCost),
     cacheReadSharePct: pct(totalCacheRead, totalCacheRead + totalInput),
   };
@@ -119,6 +123,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   snapshot.costWindow30d = {
     windowDays: WINDOW_DAYS,
     totalCost: wCost.totalCost,
+    opusCostUsd: wCost.opusCostUsd,
     opusCostSharePct: wCost.opusCostSharePct,
     cacheReadSharePct: wCost.cacheReadSharePct,
     // 累積 sessionsOver1000Msgs と同じ算定方法(messages GROUP BY)を窓内に限定して整合させる
@@ -232,6 +237,18 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     bugToReviewRatio: reviewFindings > 0 ? Math.round((bugFixes / reviewFindings) * 10) / 10 : null,
     findingsBySeverity: rows(q(db, 'SELECT severity, COUNT(*) c FROM caravan_review_findings GROUP BY severity')),
     addressedFindings: num(q(db, 'SELECT COUNT(*) c FROM caravan_review_findings WHERE addressed_commit_sha IS NOT NULL'), 'c'),
+    // 重大度別の対処率。info は対処任意のため全体の対処率は実態より悪く出る
+    // (2026-08-19 実測: 未対処 1,117 件のうち 589 件=47.6% が info)。
+    // 全体だけを見ると閾値が毎回発火し、提案の量産がチケット滞留を増やす。
+    bySeverity: rows(q(db, `SELECT severity,
+              COUNT(*) total,
+              SUM(CASE WHEN addressed_commit_sha IS NOT NULL THEN 1 ELSE 0 END) addressed
+            FROM caravan_review_findings GROUP BY severity ORDER BY total DESC`)).map((r) => ({
+      severity: r.severity,
+      total: r.total,
+      addressed: r.addressed,
+      addressedPct: pct(r.addressed, r.total),
+    })),
     unaddressedFindings: num(q(db, 'SELECT COUNT(*) c FROM caravan_review_findings WHERE addressed_commit_sha IS NULL'), 'c'),
     reviewsTotal: num(q(db, 'SELECT COUNT(*) c FROM caravan_reviews'), 'c'),
     reviewerEmpty: num(q(db, "SELECT COUNT(*) c FROM caravan_reviews WHERE reviewer = '' OR reviewer IS NULL"), 'c'),
@@ -286,6 +303,70 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
+/**
+ * 意味検索(searchSemantic)が本番経路へ配線されているかを決定論で判定する。
+ *
+ * embedding の生成は embedDocs()/embedSections() の呼出でしか起きない。所有パッケージ
+ * (markdown-catalog)自身とテストを除いて呼出が 1 件も無ければ、embedding は本番では
+ * 決して補充されない = 未配線である。2026-08-19 実測で本番呼出元は 0 件だった。
+ * 走査は packages/<pkg>/src 配下の .ts/.cjs/.mjs に限り、最初の一致で打ち切る。
+ */
+function detectSemanticWired() {
+  const NEEDLES = ['embedDocs(', 'embedSections('];
+  const OWNER = 'markdown-catalog';
+  const MAX = 20000;
+  const root = path.join(process.cwd(), 'packages');
+  let scanned = 0;
+  let found = false;
+
+  function walkWired(dir) {
+    if (found || scanned >= MAX) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (e) {
+      snapshot.errors.push(`semanticWired walk failed ${dir}: ${e.message}`);
+      return;
+    }
+    entries.sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+    for (const ent of entries) {
+      if (found || scanned >= MAX) return;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (ent.name === 'node_modules' || ent.name === '__tests__' || ent.name === 'dist') continue;
+        walkWired(full);
+        continue;
+      }
+      if (!/\.(ts|cjs|mjs)$/.test(ent.name) || /\.test\./.test(ent.name)) continue;
+      scanned += 1;
+      let text;
+      try {
+        text = fs.readFileSync(full, 'utf8');
+      } catch (e) {
+        snapshot.errors.push(`semanticWired read failed ${full}: ${e.message}`);
+        continue;
+      }
+      if (NEEDLES.some((n) => text.includes(n))) { found = true; return; }
+    }
+  }
+
+  let pkgs;
+  try {
+    pkgs = fs.readdirSync(root, { withFileTypes: true });
+  } catch (e) {
+    // packages/ を読めない環境では 0 件(=未配線)と断定せず測定不能を返す
+    snapshot.errors.push(`semanticWired scan failed ${root}: ${e.message}`);
+    return null;
+  }
+  for (const pkg of pkgs.sort((x, y) => (x.name < y.name ? -1 : 1))) {
+    if (found) break;
+    if (!pkg.isDirectory() || pkg.name === OWNER) continue;
+    const src = path.join(root, pkg.name, 'src');
+    if (fs.existsSync(src)) walkWired(src);
+  }
+  return found;
+}
+
 // ── catalog.db: セマンティック検索充足 ────────────────────────────────────────
 {
   const { db, error } = open(resolveDocDbPath());
@@ -298,10 +379,24 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     relations: num(q(db, 'SELECT COUNT(*) c FROM catalog_doc_relation'), 'c'),
     embeddings,
     embeddingCoveragePct: pct(embeddings, docs),
+    // 充足率は「在庫」であって可用性ではない。消費側(searchSemantic)が本番経路へ
+    // 配線されていなければ 0% でも実害は無く、閾値を発火させると誤った是正
+    // (消費者のいない embedding の一括生成)へ進む。SKILL.md 側は semanticWired が
+    // false の間このメトリクスを昇格閾値から外す(未配線である事実は毎回レポートへ残す)。
+    semanticWired: detectSemanticWired(),
     orphanDocs: num(
       q(db, 'SELECT COUNT(*) c FROM catalog_doc WHERE path NOT IN (SELECT from_path FROM catalog_doc_relation UNION SELECT to_path FROM catalog_doc_relation)'),
       'c',
     ),
+    // 相互参照が設計上期待される type に限定した孤立件数。日次リサーチ等の
+    // そもそもリンクを持たない doc を数え続けると、この指標は永久に警告を出す。
+    orphanDocsScoped: num(
+      q(db, `SELECT COUNT(*) c FROM catalog_doc
+              WHERE type IN ('spec','plan')
+                AND path NOT IN (SELECT from_path FROM catalog_doc_relation UNION SELECT to_path FROM catalog_doc_relation)`),
+      'c',
+    ),
+    orphanScopedTypes: ['spec', 'plan'],
   };
 
   if (db) db.close();
@@ -782,10 +877,15 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       // ペアリングは同一ファイル内で「直前の未ペア見積(同一モデル)」(LIFO)。
       const ESTIMATE_RE = /^- 委譲見積: \[([^\]]+)\] out≈(\d+(?:\.\d+)?)k \/ wall≈(\d+(?:\.\d+)?)m \/ カテゴリ=(\S+)/;
       const ACTUAL_RE = /^- 委譲実測: \[([^\]]+)\] out≈(\d+(?:\.\d+)?)k \/ wall≈(\d+(?:\.\d+)?)m(?=\s|$)/;
+      // 委譲を「見送った」判断(anytime-dev-cycle §3 の除外 ID 付き記録)。委譲結果だけでは
+      // 委譲の質しか測れず、量(委譲率)が測れない。記録の無い見送りは主観の除外と区別できない。
+      const DECLINED_RE = /^- 委譲見送り: \[(E\d+)\]/;
       const emptyTally = () => ({ 採用: 0, 差し戻し: 0, abstain: 0 });
       const byVersion = {};
       const byModel = {};
       let recorded = 0;
+      let declined = 0;
+      const declinedByExclusion = {};
       let estRecorded = 0;
       let actRecorded = 0;
       const pairs = []; // { category, model, estOutK, estWallM, actOutK, actWallM }
@@ -803,6 +903,12 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
             byVersion[v][outcome] += 1;
             byModel[model] = byModel[model] ?? emptyTally();
             byModel[model][outcome] += 1;
+            continue;
+          }
+          const dec = DECLINED_RE.exec(line);
+          if (dec) {
+            declined += 1;
+            declinedByExclusion[dec[1]] = (declinedByExclusion[dec[1]] ?? 0) + 1;
             continue;
           }
           const est = ESTIMATE_RE.exec(line);
@@ -859,10 +965,20 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
         unpairedActuals: actRecorded - pairs.length,
         referenceClass,
       };
-      snapshot.delegation = { docsRoot, recorded, byVersion, byModel, estimates };
+      // delegationRatePct: 委譲した / (委譲した + 見送った)。判断が 1 件も記録されて
+      // いない場合は 0% でなく null(測定不能)。0% は「全部見送った」を意味してしまう。
+      const decisions = recorded + declined;
+      snapshot.delegation = {
+        docsRoot, recorded, declined, declinedByExclusion,
+        delegationRatePct: decisions > 0 ? pct(recorded, decisions) : null,
+        byVersion, byModel, estimates,
+      };
     } else {
       // docs root 未解決・plan 不在は測定不能 null(0 件と区別し「記録ゼロ」と誤読させない)
-      snapshot.delegation = { docsRoot, recorded: null, byVersion: null, byModel: null, estimates: null };
+      snapshot.delegation = {
+        docsRoot, recorded: null, declined: null, declinedByExclusion: null,
+        delegationRatePct: null, byVersion: null, byModel: null, estimates: null,
+      };
     }
   } catch (e) {
     snapshot.errors.push(`delegation scan failed: ${e.message}`);

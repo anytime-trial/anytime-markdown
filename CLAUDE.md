@@ -1,6 +1,6 @@
 # CLAUDE.md（anytime-markdown プロジェクト固有）
 
-更新日: 2026-08-05
+更新日: 2026-08-19
 
 > 汎用の作業スタイル・Git 哲学・サブエージェント方針・応答ルールは `~/.claude/CLAUDE.md`（global）に従う。\
 > ツール中立な規約（リポジトリ構成・ドキュメント正本の位置づけ・出力先・モノレポ構造・Git 基本）は `AGENTS.md`（Claude / Codex 共通）に従う。\
@@ -59,7 +59,7 @@
 2. 戻り値の `gate.verdict` で分岐する。
     - **`delegable` かつ自分の判断が `approve`** → **人に聞かずに進める**。直後に `record_delegated_approval` で代行を記録し、応答に「何を代行したか」と接地した条項を 1 行残す（無言で進めない）。
     - **それ以外**（`escalate` / 自分の判断が `reject` / `escalate`）→ 従来どおり AskUserQuestion で人へ聞き、回答の**直後**に `record_human_decision` で実際の判断（approve/reject/modified）を記録する。
-    - **`escalate` の理由が `underspecified_instruction` のとき（DCT-19・2026-08-15）**: AskUserQuestion に申告した論点を含めて聞き、人が What 全体でなく**論点に回答した**場合は `resolve_underspecified_points` で回答を論点ごとに記録 →（回答で確定した内容で）同一 subject の判断を**再記録**する。解消済み論点は規則 2.5 を通過するため、他規則も通れば `delegable` になり代行できる。回答の無い解消は記録できない（空回答拒否）。正本は coverage-gate 仕様 §9。
+    - **`escalate` の理由が `underspecified_instruction` のとき（DCT-19・2026-08-15）**: **AskUserQuestion の質問を、申告した論点と 1 対 1 に対応させる**（論点 1 つ = 質問 1 つ。4 問上限に収まらない場合だけ論点を束ねる）。What 全体を 1 問で聞くと回答が論点へ紐づかず、`resolve_underspecified_points` を呼べないまま代行が永久に成立しない（2026-08-19 実測: `underspecified` 28 件に対し解消は 2 件のみ・DCT-14 以降の代行は 0 件）。回答を得たら `resolve_underspecified_points` で論点ごとに記録 →（回答で確定した内容で）同一 subject の判断を**再記録**する、までを 1 セットとして必ず実行する。解消済み論点は規則 2.5 を通過するため、他規則も通れば `delegable` になり代行できる。回答の無い解消は記録できない（空回答拒否）。正本は coverage-gate 仕様 §9。
 3. **常に人へ聞く操作は `operation_kind` でゲートに申告する**（global `~/.claude/CLAUDE.md`「承認の対象」の例外項目）。`code_change` 以外（`dependency_change` / `destructive_git` / `remote_push` / `production_release` / `persistent_data_write`）はゲートが `always_human_operation` で必ず `escalate` する。**これらを散文の遵守に頼らないのは、パッケージ追加・push・リリース・破壊的 git がパスに現れず `target_paths` では原理的に表現できないため**である。ワークスペース内の設定・依存マニフェスト（`package.json` / `package-lock.json` / `.mcp.json` / `.claude/settings*` / `.git/` / `.github/`）はパスで表現できるので制限領域として `restricted_area` で escalate する。
 4. 記録失敗（TrailDataServer 未起動・DB 不在等）は承認フローを止めず、失敗した事実を応答に 1 行残す（silent skip 禁止）。**ただし代行の記録に失敗した場合は代行しない**（記録の無い代行は監査できないため、人へ聞く側へ倒す）。
 5. session_id は airspace クレームファイル（`.git/anytime/claims/`）の自セッション ID を使う。
