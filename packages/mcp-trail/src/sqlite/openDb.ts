@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
-import { loadBetterSqlite3 } from '../internal/loadBetterSqlite3';
+import { openBetterSqlite3 } from '../internal/loadBetterSqlite3';
 
 export interface OpenedDb {
   readonly db: Database;
@@ -14,6 +14,15 @@ export interface OpenedDb {
   save(): void;
   /** Database を close する */
   close(): void;
+}
+
+export interface OpenDbOptions {
+  /**
+   * バンドル済み `better_sqlite3.node` を探す基点。既定は
+   * `internal/loadBetterSqlite3` の `__dirname`（バンドル後は拡張の `dist/`）。
+   * dist レイアウトを模した回帰テストだけが上書きする。
+   */
+  readonly baseDir?: string;
 }
 
 /**
@@ -29,12 +38,15 @@ export interface OpenedDb {
 export async function openTrailDb(
   dbPath: string,
   mode: 'readonly' | 'readwrite',
+  options: OpenDbOptions = {},
 ): Promise<OpenedDb> {
   if (!fs.existsSync(dbPath)) {
     throw new Error(`activity.db not found: ${dbPath}`);
   }
-  const Ctor = loadBetterSqlite3();
-  const db = new Ctor(dbPath, { readonly: mode === 'readonly' });
+  const db = openBetterSqlite3(dbPath, {
+    readonly: mode === 'readonly',
+    ...(options.baseDir === undefined ? {} : { baseDir: options.baseDir }),
+  });
   return wrapOpenedDb(db, dbPath, mode);
 }
 
@@ -57,6 +69,7 @@ export async function openTrailDb(
 export async function openCaravanDb(
   dbPath: string,
   mode: 'readonly' | 'readwrite',
+  options: OpenDbOptions = {},
 ): Promise<OpenedDb> {
   if (!fs.existsSync(dbPath)) {
     // 移行前ワークスペース（旧名 trail.db のみ実在）も既存ワークスペースとして扱う。
@@ -68,8 +81,10 @@ export async function openCaravanDb(
       throw new Error(`caravan-book.db not found: ${dbPath}`);
     }
   }
-  const Ctor = loadBetterSqlite3();
-  const db = new Ctor(dbPath, { readonly: mode === 'readonly' });
+  const db = openBetterSqlite3(dbPath, {
+    readonly: mode === 'readonly',
+    ...(options.baseDir === undefined ? {} : { baseDir: options.baseDir }),
+  });
   if (mode === 'readwrite') {
     // WAL は前提でなく実装で担保する（新規作成直後は既定の DELETE ジャーナルのため）。
     const journalMode = String(db.pragma('journal_mode = WAL', { simple: true }));
