@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
 import { resolveDbPath, resolveCaravanDbPath, resolveCaravanDbPathForWrite, resolveWorkspacePath } from '../dbPath';
 import { openCaravanDb, openTrailDb } from '../sqlite/openDb';
+import { describeDbOpenFailure } from '../sqlite/dbOpenError';
 import {
   closeInstructionDirect,
   continueInstructionDirect,
@@ -150,10 +151,11 @@ export async function handleListOpenInstructions(
   // 「テーブルが無い = 宣言ゼロ」（空配列）と「両 DB とも読めない = 不明」を混同しない。
   // 後者を空配列で返すと、進行中の指示を放置したまま新規宣言が積まれる偽陰性になる
   if (caravanFailed !== null && trailFailed !== null) {
+    // 原因が native binary の解決なら 2 つの DB は同じ理由で落ちている。
+    // 「両方読めなかった」ではなく共通の原因を 1 度で返す（dbOpenError.ts 参照）。
     throw new Error(
-      `list_open_instructions: both caravan-book.db and activity.db unreadable (workspace=${workspacePath}): ${String(
-        caravanFailed instanceof Error ? caravanFailed.message : caravanFailed,
-      )}`,
+      `list_open_instructions: both caravan-book.db and activity.db unreadable (workspace=${workspacePath}): ` +
+        describeDbOpenFailure(caravanFailed),
     );
   }
 

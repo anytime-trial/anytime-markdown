@@ -6,6 +6,24 @@ const path = require('path');
 const webpack = require('webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 
+/**
+ * vendored CJS（better-sqlite3 / bindings / file-uri-to-path）を dist へコピーする
+ * pattern に `info` として渡す。CopyPlugin が emit した asset も webpack の asset
+ * パイプラインを通るため、`--mode production`（= npm run package / VSIX ビルド）では
+ * TerserPlugin の対象になる。bindings.js の getFileName は
+ *
+ *   Error.captureStackTrace(dummy);
+ *   dummy.stack;              // ← prepareStackTrace を発火させるためだけの参照
+ *
+ * という副作用の無い property 参照でスタックを組み立てており、minify するとこの 1 行が
+ * 落ちて prepareStackTrace が一度も呼ばれない。結果 fileName は undefined のままとなり
+ * `Cannot read properties of undefined (reading 'indexOf')` で native binary の解決が
+ * **必ず**失敗する。dev ビルド（webpack 単体）では minify されないため再現せず、
+ * VSIX でだけ全 DB 機能が死ぬ。minimized: true は「この asset は処理済み」と申告して
+ * minimizer をスキップさせる（copy-webpack-plugin 公式の回避策）。
+ */
+const KEEP_VENDORED_CJS_UNMINIFIED = { minimized: true };
+
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
 /**
@@ -143,6 +161,7 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../../node_modules/better-sqlite3'),
           to: path.resolve(__dirname, 'dist/node_modules/better-sqlite3'),
+          info: KEEP_VENDORED_CJS_UNMINIFIED,
           // ビルド時専用のファイルは dist (= VSIX) に含めない。
           // - .node: ホスト Node 用にビルドされ VS Code Node (v22) と不一致に
           //   なりやすいため除外し、prebuilt-vscode/ から別途上書きコピーする。
@@ -169,10 +188,12 @@ const extensionConfig = {
         {
           from: path.resolve(__dirname, '../../node_modules/bindings'),
           to: path.resolve(__dirname, 'dist/node_modules/bindings'),
+          info: KEEP_VENDORED_CJS_UNMINIFIED,
         },
         {
           from: path.resolve(__dirname, '../../node_modules/file-uri-to-path'),
           to: path.resolve(__dirname, 'dist/node_modules/file-uri-to-path'),
+          info: KEEP_VENDORED_CJS_UNMINIFIED,
         },
         // tree-sitter wasm（Python コードグラフ解析用）を dist/wasm/ に同梱する。
         {
