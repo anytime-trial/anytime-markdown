@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.17.1] - 2026-08-20
+
+### Changed
+
+- Bundled skill `anytime-dev-audit`: added a procedure for pruning the `MEMORY.md` index, and corrected its limit from a byte count to a line count (200 lines).
+
 ## [1.17.0] - 2026-08-19
 
 ### Added

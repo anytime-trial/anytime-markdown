@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.48.1] - 2026-08-20
+
+### Changed
+
+- Replaced the Anytime Control image with the icon design shared with the Anytime Trail extension.
+
 ## [0.48.0] - 2026-08-17
 
 ### Added

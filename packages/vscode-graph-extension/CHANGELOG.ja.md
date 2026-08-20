@@ -6,9 +6,19 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-20
+
 ### Removed
 
 - MCP（mcp-graph）: 単発 CRUD ツール（`add_node` / `add_edge` / `update_node` / `remove_node` / `remove_edge` / `list_nodes`）と `create_graph` を削除。図の新規作成は `batch_import`、編集は `read_graph` → `write_graph` で行う（公開ツールは 8 本）。
+
+### 変更
+
+- Marketplace アイコンを Anytime 拡張で共通のラクダ + ダイヤ型デザインへ差し替えた。
+
+### Graph Core (graph-core)
+
+- 本リリースでの変更なし。拡張機能とバージョンを同期するための更新。
 
 ## [1.2.1] - 2026-08-11
 

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/mcp-markdown",
-  "version": "1.21.2",
+  "version": "1.22.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",

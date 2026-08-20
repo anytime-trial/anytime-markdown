@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-20
+
 ### 変更
 
 - 同梱拡張を Anytime Markdown / Anytime Graph / Anytime Trail / Anytime Agent の 4 つへ絞った。Anytime Sheet・Anytime Database・Anytime History は同梱対象外となり、個別にインストールする。
