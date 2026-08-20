@@ -52,7 +52,6 @@ describe('READ tools: SQLite direct (no probe)', () => {
   const READ_CASES: Array<[string, jest.SpyInstance | null, unknown]> = [
     ['get_c4_model', null, { model: { elements: [], relationships: [] } }],
     ['list_elements', null, []],
-    ['list_relationships', null, []],
     ['list_groups', null, []],
     ['list_communities', null, { communities: [] }],
   ];
@@ -60,7 +59,6 @@ describe('READ tools: SQLite direct (no probe)', () => {
   test.each([
     ['get_c4_model', 'getC4ModelDirect', { model: {} }],
     ['list_elements', 'listElementsDirect', []],
-    ['list_relationships', 'listRelationshipsDirect', []],
     ['list_groups', 'listGroupsDirect', []],
     ['list_communities', 'listCommunitiesDirect', { communities: [] }],
     ['list_community_nodes', 'listCommunityNodesDirect', { communities: [] }],
@@ -87,62 +85,6 @@ describe('WRITE tools: probe alive → HTTP', () => {
     jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(true);
   });
 
-  test('add_element → httpClient.addElement', async () => {
-    const spy = jest.spyOn(httpClient, 'addElement').mockResolvedValue({ id: 'el-1' });
-    const args = { type: 'Service', name: 'MyService', external: false, parentId: null };
-    await route('add_element', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, args);
-  });
-
-  test('update_element → httpClient.updateElement', async () => {
-    const spy = jest.spyOn(httpClient, 'updateElement').mockResolvedValue({ id: 'el-1' });
-    const args = { id: 'el-1', name: 'Updated' };
-    await route('update_element', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, 'el-1', { name: 'Updated' });
-  });
-
-  test('remove_element → httpClient.removeElement, returns { id }', async () => {
-    const spy = jest.spyOn(httpClient, 'removeElement').mockResolvedValue(undefined);
-    const result = await route('remove_element', { id: 'el-1' }, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, 'el-1');
-    expect(result).toEqual({ id: 'el-1' });
-  });
-
-  test('add_group → httpClient.addGroup', async () => {
-    const spy = jest.spyOn(httpClient, 'addGroup').mockResolvedValue({ id: 'g-1' });
-    const args = { memberIds: ['a', 'b'], label: 'G' };
-    await route('add_group', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, args);
-  });
-
-  test('update_group → httpClient.updateGroup, returns { id }', async () => {
-    const spy = jest.spyOn(httpClient, 'updateGroup').mockResolvedValue(undefined);
-    const result = await route('update_group', { id: 'g-1', label: 'new' }, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, 'g-1', { label: 'new' });
-    expect(result).toEqual({ id: 'g-1' });
-  });
-
-  test('remove_group → httpClient.removeGroup, returns { id }', async () => {
-    const spy = jest.spyOn(httpClient, 'removeGroup').mockResolvedValue(undefined);
-    const result = await route('remove_group', { id: 'g-1' }, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, 'g-1');
-    expect(result).toEqual({ id: 'g-1' });
-  });
-
-  test('add_relationship → httpClient.addRelationship', async () => {
-    const spy = jest.spyOn(httpClient, 'addRelationship').mockResolvedValue({ id: 'r-1' });
-    const args = { fromId: 'a', toId: 'b', label: 'uses' };
-    await route('add_relationship', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, args);
-  });
-
-  test('remove_relationship → httpClient.removeRelationship, returns { id }', async () => {
-    const spy = jest.spyOn(httpClient, 'removeRelationship').mockResolvedValue(undefined);
-    const result = await route('remove_relationship', { id: 'r-1' }, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL, MOCK_REPO, 'r-1');
-    expect(result).toEqual({ id: 'r-1' });
-  });
-
   test('upsert_community_summaries → httpClient.upsertCommunitySummaries', async () => {
     const spy = jest.spyOn(httpClient, 'upsertCommunitySummaries').mockResolvedValue({ updated: 2 });
     const summaries = [{ communityId: 1, name: 'n', summary: 's' }];
@@ -167,68 +109,6 @@ describe('WRITE tools: probe dead → SQLite direct', () => {
     jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
   });
 
-  test('add_element → writeDirect.addElementDirect', async () => {
-    const spy = jest.spyOn(writeDirect, 'addElementDirect').mockReturnValue({ id: 'el-1' });
-    const args = { type: 'Service', name: 'S', external: false, parentId: null };
-    await route('add_element', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, {
-      type: 'Service',
-      name: 'S',
-      external: false,
-      parentId: null,
-    });
-    expect(mockClose).toHaveBeenCalledTimes(1);
-  });
-
-  test('update_element → writeDirect.updateElementDirect', async () => {
-    const spy = jest.spyOn(writeDirect, 'updateElementDirect').mockReturnValue(undefined);
-    const args = { id: 'el-1', name: 'X' };
-    await route('update_element', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, 'el-1', args);
-  });
-
-  test('remove_element → writeDirect.removeElementDirect, returns { id }', async () => {
-    const spy = jest.spyOn(writeDirect, 'removeElementDirect').mockReturnValue(undefined);
-    const result = await route('remove_element', { id: 'el-2' }, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, 'el-2');
-    expect(result).toEqual({ id: 'el-2' });
-  });
-
-  test('add_group → writeDirect.addGroupDirect', async () => {
-    const spy = jest.spyOn(writeDirect, 'addGroupDirect').mockReturnValue({ id: 'g-1' });
-    const args = { memberIds: ['x'] };
-    await route('add_group', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, { memberIds: ['x'] });
-  });
-
-  test('update_group → writeDirect.updateGroupDirect', async () => {
-    const spy = jest.spyOn(writeDirect, 'updateGroupDirect').mockReturnValue(undefined);
-    const args = { id: 'g-1', label: 'L' };
-    await route('update_group', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, 'g-1', args);
-  });
-
-  test('remove_group → writeDirect.removeGroupDirect, returns { id }', async () => {
-    const spy = jest.spyOn(writeDirect, 'removeGroupDirect').mockReturnValue(undefined);
-    const result = await route('remove_group', { id: 'g-2' }, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, 'g-2');
-    expect(result).toEqual({ id: 'g-2' });
-  });
-
-  test('add_relationship → writeDirect.addRelationshipDirect', async () => {
-    const spy = jest.spyOn(writeDirect, 'addRelationshipDirect').mockReturnValue({ id: 'r-1' });
-    const args = { fromId: 'a', toId: 'b' };
-    await route('add_relationship', args, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, { fromId: 'a', toId: 'b' });
-  });
-
-  test('remove_relationship → writeDirect.removeRelationshipDirect, returns { id }', async () => {
-    const spy = jest.spyOn(writeDirect, 'removeRelationshipDirect').mockReturnValue(undefined);
-    const result = await route('remove_relationship', { id: 'r-2' }, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, 'r-2');
-    expect(result).toEqual({ id: 'r-2' });
-  });
-
   test('upsert_community_summaries → writeDirect.upsertCommunitySummariesDirect', async () => {
     const spy = jest.spyOn(writeDirect, 'upsertCommunitySummariesDirect').mockReturnValue({ updated: 1 });
     const summaries = [{ communityId: 2, name: 'n', summary: 's' }];
@@ -241,34 +121,6 @@ describe('WRITE tools: probe dead → SQLite direct', () => {
     const mappings = [{ communityId: 2, mappings: [] }];
     await route('upsert_community_mappings', { mappings }, BASE_OPTS);
     expect(spy).toHaveBeenCalledWith(mockDb, MOCK_REPO, mappings);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// WRITE tools — forceDirect: true → probe skipped, SQLite direct
-// ---------------------------------------------------------------------------
-
-describe('WRITE tools: forceDirect → probe skipped, SQLite direct', () => {
-  test('add_element with forceDirect: true skips probe', async () => {
-    const probeSpy = jest.spyOn(probe, 'probeServerAlive');
-    const writeSpy = jest.spyOn(writeDirect, 'addElementDirect').mockReturnValue({ id: 'el-3' });
-    const args = { type: 'DB', name: 'Postgres', external: false, parentId: null };
-    await route('add_element', args, { ...BASE_OPTS, forceDirect: true });
-    expect(probeSpy).not.toHaveBeenCalled();
-    expect(writeSpy).toHaveBeenCalledWith(mockDb, MOCK_REPO, {
-      type: 'DB',
-      name: 'Postgres',
-      external: false,
-      parentId: null,
-    });
-  });
-
-  test('remove_group with forceDirect: true skips probe', async () => {
-    const probeSpy = jest.spyOn(probe, 'probeServerAlive');
-    const writeSpy = jest.spyOn(writeDirect, 'removeGroupDirect').mockReturnValue(undefined);
-    await route('remove_group', { id: 'g-99' }, { ...BASE_OPTS, forceDirect: true });
-    expect(probeSpy).not.toHaveBeenCalled();
-    expect(writeSpy).toHaveBeenCalledWith(mockDb, MOCK_REPO, 'g-99');
   });
 });
 
@@ -300,12 +152,6 @@ describe('ANALYZE tools: probe alive → HTTP', () => {
     expect(spy).toHaveBeenCalledWith(SERVER_URL, { tags: ['v1.19.1'] });
   });
 
-  test('analyze_all → httpClient.analyzeAll', async () => {
-    const spy = jest.spyOn(httpClient, 'analyzeAll').mockResolvedValue({ status: 'started' } as never);
-    await route('analyze_all', {}, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL);
-  });
-
   test('get_analyze_status → httpClient.getAnalyzeStatus', async () => {
     const spy = jest.spyOn(httpClient, 'getAnalyzeStatus').mockResolvedValue({ running: false } as never);
     await route('get_analyze_status', {}, BASE_OPTS);
@@ -322,7 +168,7 @@ describe('ANALYZE tools: probe dead → throw', () => {
     jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
   });
 
-  test.each(['analyze_current_code', 'analyze_release_code', 'analyze_all', 'get_analyze_status'])(
+  test.each(['analyze_current_code', 'analyze_release_code', 'get_analyze_status'])(
     '%s with server dead → throws',
     async (toolName) => {
       await expect(route(toolName, {}, BASE_OPTS)).rejects.toThrow(
@@ -362,19 +208,13 @@ describe('DB close called on error in direct read', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// DB close called on error in direct write
-// ---------------------------------------------------------------------------
-
 describe('DB close called on error in direct write', () => {
-  beforeEach(() => {
-    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
-  });
-
   test('db.close() is called even when write function throws', async () => {
-    jest.spyOn(writeDirect, 'addElementDirect').mockImplementation(() => { throw new Error('write error'); });
-    const args = { type: 'Service', name: 'X', external: false, parentId: null };
-    await expect(route('add_element', args, BASE_OPTS)).rejects.toThrow('write error');
+    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
+    jest.spyOn(writeDirect, 'upsertCommunitySummariesDirect').mockImplementation(() => { throw new Error('write error'); });
+
+    const summaries = [{ communityId: 2, name: 'n', summary: 's' }];
+    await expect(route('upsert_community_summaries', { summaries }, BASE_OPTS)).rejects.toThrow('write error');
     expect(mockClose).toHaveBeenCalledTimes(1);
   });
 });
@@ -405,8 +245,8 @@ describe('router internal: unhandled tool throws in direct paths', () => {
 describe('WRITE tools: save() is called after successful direct write', () => {
   test('save() and close() both called on success', async () => {
     jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
-    jest.spyOn(writeDirect, 'removeRelationshipDirect').mockReturnValue(undefined);
-    await route('remove_relationship', { id: 'r-x' }, BASE_OPTS);
+    jest.spyOn(writeDirect, 'upsertCommunitySummariesDirect').mockReturnValue({ updated: 1 });
+    await route('upsert_community_summaries', { summaries: [] }, BASE_OPTS);
     expect(mockSave).toHaveBeenCalledTimes(1);
     expect(mockClose).toHaveBeenCalledTimes(1);
   });

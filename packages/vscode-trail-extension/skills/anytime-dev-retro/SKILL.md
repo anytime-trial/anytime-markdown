@@ -6,7 +6,7 @@ description: 開発の実績データと事故から改善を還流させるふ�
 
 # anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化）
 
-更新日: 2026-08-15
+更新日: 2026-08-19
 
 Trail が蓄積する 3 つのローカル DB を横断分析し、**前回からの変化（デルタ）に基づく**健全性レポートを出力する。変化が閾値を超えたシグナルだけ改善提案に昇格させ、提案書に加えてチケットを起票する（毎回同じ指摘を繰り返さないのが本スキルの肝）。
 
@@ -50,20 +50,24 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | メトリクス | 源 | 悪化方向 |
 | --- | --- | --- |
 | Opus コスト占有率 `costWindow30d.opusCostSharePct` | trail | 上昇 |
+| Opus 絶対コスト `costWindow30d.opusCostUsd` | trail | 上昇（占有率が比であることの裏取り。分母縮小と真の増加を分ける） |
 | cache_read 占有率 `costWindow30d.cacheReadSharePct` | trail | 上昇 |
 | 1000msg 超セッション数 `costWindow30d.sessionsOver1000Msgs` | trail | 上昇 |
 | 未対処 finding `quality.unaddressedFindings` | memory | 上昇 |
+| 重大度別の対処率 `quality.bySeverity`（severity ごとの total / addressed / addressedPct） | memory | error・warn の `addressedPct` 低下（`info` は対処任意のため判定に使わない） |
 | reviewer 空 `quality.reviewerEmpty` | memory | 上昇 |
 | bug:review 比 `quality.bugToReviewRatio` | memory | 上昇 |
 | 観点の穴 `quality.checklistNone` / クラスタ `quality.checklistNoneClusters`（checklist_ref='none' のカテゴリ×パッケージ束・2 件以上） | memory | 新規クラスタ出現 / 増加（null は列未マイグレーション＝測定不能） |
 | 条文効果 `quality.checklistByRef30d`（章別・30 日窓の観点キー付き指摘件数） | memory | 条文化・改訂した章の件数が減らない（2 回連続はメタ還流対象） |
 | 未解決 drift（`drift.byType` から spec_vs_code を除いて算出。設計書ドリフトは dev-cycle 段5 へ移管） | memory | 上昇 / 新種別出現 |
-| embedding 充足率 `docCore.embeddingCoveragePct` | markdown-catalog | 低下 |
-| 孤立 doc `docCore.orphanDocs` | markdown-catalog | 上昇 |
+| embedding 充足率 `docCore.embeddingCoveragePct` | markdown-catalog | 低下（**`docCore.semanticWired` が false の間は判定しない**。§4 参照） |
+| 意味検索の配線状態 `docCore.semanticWired` | source | true → false（配線が外れた＝本当の劣化）。`null` は走査未完了＝**測定不能**で、false（未配線と確定）と区別する |
+| 孤立 doc `docCore.orphanDocsScoped`（`orphanScopedTypes` = spec / plan に限定） | markdown-catalog | 上昇（`orphanDocs` 全体は索引範囲の拡大で動くため参照値に留める） |
 | cc>15 関数数 `hotspotOver15` と `hotspots` top | trail | 上昇 / 新規高 cc 関数 |
 | SHORTCUT 技術負債 `techDebt.shortcutMarkers` / `techDebt.noTriggerMarkers` | source | 上昇 / no-trigger 増 |
 | スキル健全性 `skillHealth.brokenRefs` / `staleOver90` / `unused30d` | source+trail | 上昇 |
 | スキル発火変化 `skillHealth.usageWindows`（2 窓比較）× `skillHealth.manifestVersions` | source+trail | 版数バンプ（改訂）後に n30 が prev30 比で半減・ゼロ化 |
+| 委譲率（量） `delegation.delegationRatePct`（委譲 ÷（委譲＋見送り）・`declinedByExclusion` に除外 ID 別内訳） | docs(plan) | 低下（安いモデルへ流す仕事の総量が減っている。記録 0 件は `null`＝測定不能） |
 | 委任成績 `delegation.byVersion`（雛形版数別の 採用/差し戻し/abstain） | docs(plan) | 差し戻し率の上昇 |
 | 委任成績(モデル別) `delegation.byModel`（実行系/モデル別の 採用/差し戻し/abstain） | docs(plan) | 特定モデルの差し戻し率の上昇 |
 | 見積り予実 `delegation.estimates.referenceClass`（カテゴリ×モデル別の 実測中央値・誤差比中央値） | docs(plan) | n≥5 の組で誤差比中央値が 2.0 超 or 0.5 未満（系統的な過小/過大見積り） |
@@ -87,6 +91,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - 各メトリクスを **新規発生 / 悪化 / 改善 / 横ばい** に分類する。
 - 前回スナップショットが無い（初回）場合は全メトリクスを「初期値」として記録し、デルタ比較はスキップする。
 - **累積指標を増加判定に使わない**: コスト・セッション系は `cost.*`（全期間累積）ではなく `costWindow30d.*`（直近 30 日窓）でデルタを見る。`cost.opusCostSharePct` / `cost.cacheReadSharePct` / `activity.sessionsOver1000Msgs` は全期間累積で**単調増加しかせず**、「増加＝悪化」判定が活動のある限り構造的に発火する（偽陽性）。`cost.*` は現状値の参照用に残す。新メトリクスを追加する際は「累積か期間か・悪化判定と整合するか」を必ず確認する。
+
+- **比の指標は絶対値と対で読む**: 占有率は分子が動かなくても分母の他方が縮めば上がる。2026-08-19 実測では `costWindow30d.opusCostSharePct` が 53.7% → 62.4%（+8.7pt）だった一方、`costWindow30d.opusCostUsd` は 11,766 → 11,431 USD と**減っていた**（非 Opus が -32% 縮んだ結果）。占有率だけで昇格させると、既に縮んでいる委譲側をさらに削る誤った是正へ進む。累積か期間かと同じく、比か絶対値かを必ず確認する。
 
 **コスト詳細メトリクス**（`grounding.token-budget.cjs` 出力。`report/_signals/token-budget/` の前回スナップショットと比較）: 集計レベルの `costWindow30d.*`（上表）と別に、セッション粒度で以下を比較する。
 
@@ -121,7 +127,16 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **コスト詳細**（`grounding.token-budget.cjs` 出力。集計レベルの cost glance を超える深掘り）: モデル別コスト内訳 `byModel`（model / sessions / cost / cacheRead。Opus 比率を強調）・コスト上位セッション `topSessions`（session / cost / messageCount / peakContextTokens / compactCount / gitBranch / hygieneFlag）・セッション衛生 `hygiene`（expensiveNoCompact 等）・週次トレンド `trend.weekly`。狙いは RC2（Opus メインの超長大セッションが `/clear`・`/compact` なしで継続し `cache_read` が「文脈サイズ×ターン数」で二乗膨張する）の継続監視。
 - **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
 - **再発シグナル**（`recurrence.danglingClusters` / `recurrence.uncoveredBugFiles`）: dangling target は全件を滞留サイクル数（初出 / 2 回目 / 3 回目以降）付きで列挙する。参照元が 3 件以上の target は `priority: high` 相当として扱う。
-- **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
+- **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) **起票済みチケットの滞留点検**（下記）。(c) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
+
+    **起票済みチケットの滞留点検**: 提案が起票されるようになっても、チケットが `backlog` から動かなければシグナルは悪化し続ける（2026-08-19 実測: T-10 が 18 日・T-18 / T-19 が 14 日滞留する間に `review_unfixed` drift が 81 → 203 件へ増えた一方、完了した T-17 は平均 compact を 4.7 → 7.9 へ反転させた）。次を毎回行う。
+
+    - チケットリポジトリ（VS Code 設定 `anytimeAgent.tickets.directory`。既定 `/Shared/anytime-ticket`）の `.tickets/*.md` から、`status: backlog` かつ `creator: anytime-dev-retro` のチケットを**滞留日数付きで全件再掲**する。件数で丸めない。
+    - 同一チケットが 2 回のレトロを跨いで `backlog` のままなら、「次アクション候補」の**先頭**（新規提案より上）に置く。
+    - 滞留チケットの対象シグナルが同期間に**悪化していれば**その事実を併記する。悪化していない滞留は優先度を下げてよい（全件を警告で埋めるとレポートが読まれなくなる）。
+    - 同一シグナルに対する新規提案は作らない（重複提案は滞留を増やすだけ）。
+
+    チケットリポジトリはワークスペース外にあり `lep.json` にパス定義が無いため、集計は grounding では行わずレポート作成時の手順として実施する。
 - **Flight Record**（`flightRecord`・30 日窓）: outcome 分布（achieved/partial/unachieved/unknown）・自己評価カバレッジ・手戻り平均・ツール失敗率・滞留指示（openOver7d）と、指示単位コスト上位 `topInstructionsByCost30d`（caravan_instruction_sessions × trail.activity_session_costs の突合。セッション粒度のコスト分析を「1 指示にいくら掛かったか」の作業単位へ引き上げる）。`lessonCandidateReviews`（教訓候補を持つ振り返り）は再発シグナルの突合候補として件数を明記する。`source` が `trail(pre-migration)` の場合は移行未完了と明記する。
 - **具体化観点の候補**（`doctrineGap`）: `missedCount` が 1 件以上なら `missedSamples` を**毎回列挙**する（subject / promptShape / originPrompt）。各件は「着手前に聞けたはずの論点」で、§4 の閾値を満たしたら具体化観点への昇格提案＋チケットへ回す。`available: false`（DCT-14 未マイグレーション）・`missedCount` が 0 のときもその旨を明記する（沈黙させない）。`unreadableDeclarations` が 1 件以上なら申告率の解釈を保留する旨を添える。
 - **評価ケース層**（§4.2）: `grep -rhoE "EVAL-[0-9]+" packages/*/__tests__ | sort -u | wc -l` の件数と前回比、`test.failing`（昇格待ち）の件数。2 回連続で増分 0 なら §4.2 の抽出運用見直しを提案候補にする。
@@ -137,10 +152,10 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 昇格閾値（いずれか）:
 
 - spec_vs_code 以外で新しい種別の drift が出現、または spec_vs_code を除く未解決 drift が前回比 +20% 以上。
-- `docCore.embeddingCoveragePct` が 90% を下回る、または前回比 10pt 以上低下。
+- `docCore.embeddingCoveragePct` が 90% を下回る、または前回比 10pt 以上低下。**ただし `docCore.semanticWired` が false の間は昇格させない**（消費側が本番経路へ配線されていない機能の在庫状態であり、可用性ではないため）。未配線である事実はレポートへ毎回残す（沈黙させない）。`semanticWired` が true → false へ転じた場合は、配線が外れた＝本当の劣化として昇格させる。**`semanticWired` が `null`（走査上限到達・ディレクトリ読み取り失敗）のときは測定不能**として扱い、充足率も配線状態もデルタ判定に使わない(`errors` に `semanticWired scan incomplete` が積まれる)。
 - `quality.unaddressedFindings` が前回比 +10 以上、または `quality.reviewerEmpty` が増加して全レビューの過半。
 - `hotspots` に前回スナップショットに無い cc>200 の新規関数が出現。
-- `costWindow30d.opusCostSharePct`（30 日窓）が前回比 +5pt 以上、または `costWindow30d.cacheReadSharePct` が 99% 超で `costWindow30d.sessionsOver1000Msgs`（30 日窓）が増加。累積の `cost.*` では機械的に発火するため窓値で判定する。
+- `costWindow30d.opusCostSharePct`（30 日窓）が前回比 +5pt 以上、**かつ `costWindow30d.opusCostUsd` が前回比で増加**（AND 条件）。占有率だけが上がり絶対コストが横ばい・減少なら、分母縮小による見かけの上昇としてレポートに明記し、提案へ昇格させない。または `costWindow30d.cacheReadSharePct` が 99% 超で `costWindow30d.sessionsOver1000Msgs`（30 日窓）が増加。累積の `cost.*` では機械的に発火するため窓値で判定する。
 - **コスト詳細（セッション粒度・`grounding.token-budget.cjs`）**: `totals.opusCostSharePct` が 90% 超かつ前回比 +3pt 以上（Opus 偏重の進行）、または `trend.last7dCost` が `trend.prior7dCost` の +30% 以上（コスト急増）、または `hygiene.expensiveNoCompact` が前回比 +5 以上／高コストセッションの過半が compact 未使用、または `topSessions` に前回スナップショットに無い `hygieneFlag='expensive-no-compact'` の新規セッションが出現、または `totals.top15SessionsCostSharePct` が前回比 +5pt 以上（少数セッションへの集中）。提案の方向は RC2 の恒久/暫定対策（モデル委譲徹底・セッション衛生通知・retention）に紐付ける。
 - **衛生行動の減衰**: `hygiene.windows` で `avgSubAgents` または `avgCompacts` が `prior30to60d` → `prior7to30d` → `last7d` と単調に低下し、かつ `avgMessages` が横ばい（最大窓比 ±20% 以内）。セッションが小さくなった結果ではなく畳む行動が消えたことを意味する。件数が 20 未満の窓を含む場合は判定しない（少数標本）。
 - `techDebt.noTriggerMarkers` が前回比 +5 以上、または `techDebt.noTriggerSharePct` が 50% 超（昇格経路なき簡略化が支配的）。

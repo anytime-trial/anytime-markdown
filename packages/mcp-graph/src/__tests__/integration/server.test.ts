@@ -27,19 +27,12 @@ describe('mcp-graph integration', () => {
     return (result.content as Array<{ type: string; text: string }>)[0].text;
   }
 
-  it('should list all 15 tools', async () => {
+  it('should list all 8 tools', async () => {
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(15);
+    expect(tools).toHaveLength(8);
     const names = tools.map((t) => t.name);
     expect(names).toContain('read_graph');
     expect(names).toContain('write_graph');
-    expect(names).toContain('create_graph');
-    expect(names).toContain('add_node');
-    expect(names).toContain('update_node');
-    expect(names).toContain('remove_node');
-    expect(names).toContain('add_edge');
-    expect(names).toContain('remove_edge');
-    expect(names).toContain('list_nodes');
     expect(names).toContain('export_svg');
     expect(names).toContain('export_drawio');
     expect(names).toContain('import_drawio');
@@ -48,38 +41,16 @@ describe('mcp-graph integration', () => {
     expect(names).toContain('read_cooccurrence');
   });
 
-  it('should create graph, add nodes, add edge, export SVG', async () => {
-    // Create
-    await client.callTool({ name: 'create_graph', arguments: { path: 'test.graph', name: 'E2E' } });
-
-    // Add nodes
-    const n1Result = await client.callTool({
-      name: 'add_node',
-      arguments: { path: 'test.graph', type: 'rect', x: 0, y: 0, text: 'Start' },
-    });
-    const n1 = JSON.parse(getText(n1Result));
-
-    const n2Result = await client.callTool({
-      name: 'add_node',
-      arguments: { path: 'test.graph', type: 'rect', x: 200, y: 0, text: 'End' },
-    });
-    const n2 = JSON.parse(getText(n2Result));
-
-    // Add edge
+  it('should batch import a graph and export it', async () => {
     await client.callTool({
-      name: 'add_edge',
+      name: 'batch_import',
       arguments: {
         path: 'test.graph',
-        type: 'line',
-        from: { nodeId: n1.id, x: 0, y: 0 },
-        to: { nodeId: n2.id, x: 0, y: 0 },
+        name: 'E2E',
+        nodes: [{ id: 'start', text: 'Start' }, { id: 'end', text: 'End' }],
+        edges: [{ fromId: 'start', toId: 'end' }],
       },
     });
-
-    // List nodes
-    const listResult = await client.callTool({ name: 'list_nodes', arguments: { path: 'test.graph' } });
-    const nodes = JSON.parse(getText(listResult));
-    expect(nodes).toHaveLength(2);
 
     // Export SVG
     const svgResult = await client.callTool({ name: 'export_svg', arguments: { path: 'test.graph' } });

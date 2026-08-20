@@ -22,11 +22,9 @@ import {
 import { ExplainDriftInputSchema, handleExplainDrift } from './tools/explainDrift.js';
 import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHistory.js';
 import { GetReviewHistoryInputSchema, handleGetReviewHistory } from './tools/getReviewHistory.js';
-import { GetReviewRunStatusInputSchema, handleGetReviewRunStatus } from './tools/getReviewRunStatus.js';
 import { type FileAnalysisEntry, type ImportantFilesFilter,selectImportantFiles } from './tools/importantFiles.js';
 import { handleLinkReviewToCommit,LinkReviewToCommitInputSchema } from './tools/linkReviewToCommit.js';
 import { handleListRecurringBugs,ListRecurringBugsInputSchema } from './tools/listRecurringBugs.js';
-import { handleListReviewRuns,ListReviewRunsInputSchema } from './tools/listReviewRuns.js';
 import { handleListReviewTargetHints,ListReviewTargetHintsInputSchema } from './tools/listReviewTargetHints.js';
 import { handleListUnaddressedReviewFindings,ListUnaddressedReviewFindingsInputSchema } from './tools/listUnaddressedReviewFindings.js';
 import { toCodeGraphNodeId } from './tools/nodeId.js';
@@ -54,7 +52,6 @@ import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './t
 import { handleGetThreatFramework, GetThreatFrameworkInputSchema } from './tools/getThreatFramework.js';
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
-import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchCaravanBook,SearchCaravanBookInputSchema } from './tools/searchCaravanBook.js';
 import { handleGetBugCausality, GetBugCausalityInputSchema } from './tools/getBugCausality.js';
 import { handleGetPlanContext, GetPlanContextInputSchema } from './tools/getPlanContext.js';
@@ -70,8 +67,6 @@ export interface McpTrailOptions {
   serverUrl?: string;
   repoName?: string;
 }
-
-const elementTypeEnum = z.enum(['person', 'system', 'container', 'component']);
 
 const commonParams = {
   repoName: z.string().optional().describe('Repository name (default: basename of cwd)'),
@@ -123,146 +118,12 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   server.registerTool(
-    'add_element',
-    { description: 'Add a manual C4 element (person, system, container, or component) to the architecture model', inputSchema: {
-      type: elementTypeEnum.describe('Element type'),
-      name: z.string().describe('Element name'),
-      description: z.string().optional().describe('Element description'),
-      external: z.boolean().default(false).describe('Whether this is an external element'),
-      parentId: z.string().nullable().default(null).describe('Parent element ID (system for container, container for component)'),
-      serviceType: z.string().optional().describe('Service type identifier (e.g. "supabase", "postgresql")'),
-      ...commonParams,
-    }, },
-    async ({ type, name, description, external, parentId, serviceType, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('add_element', { type, name, description, external, parentId, serviceType }, opts);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'update_element',
-    { description: 'Update a manual C4 element', inputSchema: {
-      id: z.string().describe('Element ID to update'),
-      name: z.string().optional().describe('New name'),
-      description: z.string().optional().describe('New description'),
-      external: z.boolean().optional().describe('New external flag'),
-      serviceType: z.string().optional().describe('New service type'),
-      ...commonParams,
-    }, },
-    async ({ id, name, description, external, serviceType, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const args: Record<string, unknown> = { id };
-      if (name !== undefined) args.name = name;
-      if (description !== undefined) args.description = description;
-      if (external !== undefined) args.external = external;
-      if (serviceType !== undefined) args.serviceType = serviceType;
-      const result = await route('update_element', args, opts);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'remove_element',
-    { description: 'Remove a manual C4 element (and its associated relationships)', inputSchema: {
-      id: z.string().describe('Element ID to remove'),
-      ...commonParams,
-    }, },
-    async ({ id, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      await route('remove_element', { id }, opts);
-      return { content: [{ type: 'text' as const, text: `Removed element ${id}` }] };
-    },
-  );
-
-  server.registerTool(
-    'list_relationships',
-    { description: 'List all manual C4 relationships with their IDs. Useful for finding relationship IDs before removing them.', inputSchema: { ...commonParams } },
-    async ({ repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('list_relationships', { repoName }, opts);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'add_relationship',
-    { description: 'Add a relationship between two C4 elements', inputSchema: {
-      fromId: z.string().describe('Source element ID'),
-      toId: z.string().describe('Target element ID'),
-      label: z.string().optional().describe('Relationship label (e.g. "Uses", "Calls", "Reads from")'),
-      technology: z.string().optional().describe('Technology used (e.g. "REST API", "gRPC", "PostgreSQL")'),
-      ...commonParams,
-    }, },
-    async ({ fromId, toId, label, technology, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('add_relationship', { fromId, toId, label, technology }, opts);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'remove_relationship',
-    { description: 'Remove a relationship between C4 elements', inputSchema: {
-      id: z.string().describe('Relationship ID to remove'),
-      ...commonParams,
-    }, },
-    async ({ id, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      await route('remove_relationship', { id }, opts);
-      return { content: [{ type: 'text' as const, text: `Removed relationship ${id}` }] };
-    },
-  );
-
-  server.registerTool(
     'list_groups',
     { description: 'List all manual C4 groups with their IDs and member element IDs.', inputSchema: { ...commonParams } },
     async ({ repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
       const result = await route('list_groups', { repoName }, opts);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'add_group',
-    { description: 'Create a visual group for a set of C4 elements', inputSchema: {
-      memberIds: z.array(z.string()).min(2).describe('Element IDs to include in the group (minimum 2)'),
-      label: z.string().optional().describe('Optional label for the group'),
-      ...commonParams,
-    }, },
-    async ({ memberIds, label, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const result = await route('add_group', { memberIds, label }, opts);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'update_group',
-    { description: 'Update the label or members of a group', inputSchema: {
-      id: z.string().describe('Group ID to update'),
-      label: z.string().nullable().optional().describe('New label (null to clear)'),
-      memberIds: z.array(z.string()).min(2).optional().describe('New member list (minimum 2)'),
-      ...commonParams,
-    }, },
-    async ({ id, label, memberIds, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      await route('update_group', { id, memberIds, label }, opts);
-      return { content: [{ type: 'text' as const, text: `Updated group ${id}` }] };
-    },
-  );
-
-  server.registerTool(
-    'remove_group',
-    { description: 'Remove a visual group (members are not deleted)', inputSchema: {
-      id: z.string().describe('Group ID to remove'),
-      ...commonParams,
-    }, },
-    async ({ id, repoName, serverUrl }) => {
-      const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      await route('remove_group', { id }, opts);
-      return { content: [{ type: 'text' as const, text: `Removed group ${id}` }] };
     },
   );
 
@@ -310,16 +171,6 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     async ({ serverUrl, tags }) => {
       const opts = buildRouteOpts({ serverUrl }, options);
       const result = await route('analyze_release_code', { tags }, opts);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'analyze_all',
-    { description: 'Import all Trail data (Claude Code JSONL sessions, commits, releases, coverage) from ~/.claude/projects. Equivalent to "Anytime Trail: 全データ解析" command.', inputSchema: { ...commonParams } },
-    async ({ serverUrl }) => {
-      const opts = buildRouteOpts({ serverUrl }, options);
-      const result = await route('analyze_all', {}, opts);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -661,48 +512,6 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   // -------------------------------------------------------------------------
   //  Review agent tools (trail-caravan-book)
   // -------------------------------------------------------------------------
-
-  server.registerTool(
-    'run_review_agent',
-    { description: 'Register a review agent run request and return a run_id immediately (actual agent execution is delegated)', inputSchema: {
-      trigger_kind: RunReviewAgentInputSchema.shape.trigger_kind,
-      target_kind: RunReviewAgentInputSchema.shape.target_kind,
-      target_refs: RunReviewAgentInputSchema.shape.target_refs,
-      prompt_kind: RunReviewAgentInputSchema.shape.prompt_kind,
-      model: RunReviewAgentInputSchema.shape.model,
-      workspacePath: RunReviewAgentInputSchema.shape.workspacePath,
-    }, },
-    async (args) => {
-      const result = await handleRunReviewAgent(args);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'get_review_run_status',
-    { description: 'Get the status of a review agent run by run_id', inputSchema: { run_id: GetReviewRunStatusInputSchema.shape.run_id, workspacePath: GetReviewRunStatusInputSchema.shape.workspacePath } },
-    async (args) => {
-      const result = await handleGetReviewRunStatus(args);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
-    'list_review_runs',
-    { description: 'List review agent runs with optional filters for trigger_kind, status, target_kind, model, and since', inputSchema: {
-      trigger_kind: ListReviewRunsInputSchema.shape.trigger_kind,
-      status: ListReviewRunsInputSchema.shape.status,
-      target_kind: ListReviewRunsInputSchema.shape.target_kind,
-      model: ListReviewRunsInputSchema.shape.model,
-      since: ListReviewRunsInputSchema.shape.since,
-      limit: ListReviewRunsInputSchema.shape.limit,
-      workspacePath: ListReviewRunsInputSchema.shape.workspacePath,
-    }, },
-    async (args) => {
-      const result = await handleListReviewRuns(args);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
 
   server.registerTool(
     'list_review_target_hints',

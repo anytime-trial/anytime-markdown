@@ -1,5 +1,4 @@
 import { handleListReviewTargetHints } from '../../tools/listReviewTargetHints';
-import { handleGetReviewRunStatus } from '../../tools/getReviewRunStatus';
 
 /**
  * ツール引数の `workspacePath` が DB パス解決まで届くことを固定する。
@@ -19,7 +18,6 @@ jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openCaravanBookDb: jest.fn().mockResolvedValue({ db: {}, close: jest.fn() }),
   listReviewTargetHints: jest.fn().mockReturnValue([]),
-  getReviewRunStatus: jest.fn().mockReturnValue(null),
 }));
 
 describe('workspacePath の受け渡し', () => {
@@ -31,12 +29,6 @@ describe('workspacePath の受け渡し', () => {
     await handleListReviewTargetHints({ workspacePath: '/ws/alpha' });
 
     expect(mockResolveCaravanDbPath).toHaveBeenCalledWith({ workspacePath: '/ws/alpha' });
-  });
-
-  test('別ツール（get_review_run_status）でも同じ経路で渡る', async () => {
-    await handleGetReviewRunStatus({ run_id: 'run-1', workspacePath: '/ws/beta' });
-
-    expect(mockResolveCaravanDbPath).toHaveBeenCalledWith({ workspacePath: '/ws/beta' });
   });
 
   test('省略時は undefined を渡し、解決側（resolveWorkspacePath）へ委ねる', async () => {

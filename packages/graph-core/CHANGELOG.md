@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-20
+
+### Changed
+
+- Version bumped to stay in sync with the graph release set. No functional change in this package.
+
 ## [1.2.1] - 2026-08-11
 
 ### Changed

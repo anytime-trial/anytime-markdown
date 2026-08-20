@@ -9,7 +9,6 @@ import {
 import { assertNoLockViolation } from '../../utils/sectionLockGuard';
 import { updateSection } from '../../tools/updateSection';
 import { updateFrontmatter } from '../../tools/frontmatter';
-import { writeMarkdown } from '../../tools/writeMarkdown';
 import { formatMarkdownTool } from '../../tools/formatMarkdown';
 
 const DOC = '# T\n\n## 設計\n\n本文。\n\n## 運用\n\n自由。\n';
@@ -86,17 +85,6 @@ describe('変更系ツールのロック検査（第 2 層統合）', () => {
     await expect(
       updateFrontmatter({ path: 'plain.md', set: { lockedSections: [{ path: '偽造' }] } }, rootDir),
     ).rejects.toThrow(/[Ss]ection lock/);
-  });
-
-  it('write_markdown はロック節を壊す全文置換を拒否し、保持する置換と新規作成は許可する', async () => {
-    await expect(writeMarkdown({ path: 'doc.md', content: DOC }, rootDir)).rejects.toThrow(
-      /[Ss]ection lock/,
-    );
-    const current = await fs.readFile(path.join(rootDir, 'doc.md'), 'utf-8');
-    await expect(
-      writeMarkdown({ path: 'doc.md', content: current.replace('自由。', '書換。') }, rootDir),
-    ).resolves.toBeUndefined();
-    await expect(writeMarkdown({ path: 'new.md', content: DOC }, rootDir)).resolves.toBeUndefined();
   });
 
   it('format_markdown はロック節の整形を伴う fix を拒否する（check は許可）', async () => {

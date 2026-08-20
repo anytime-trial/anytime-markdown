@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-20
+
+### Removed
+
+- MCP（mcp-trail）: C4 手動編集ツール（`add_element` / `update_element` / `remove_element` / `add_relationship` / `remove_relationship` / `add_group` / `update_group` / `remove_group` / `list_relationships`）・レビュー実行系（`run_review_agent` / `get_review_run_status` / `list_review_runs`）・`analyze_all` を削除。C4 モデルは `analyze_current_code` の自動生成、レビュー実行はエージェント側、セッション取込はデーモンのパイプラインが担う（公開ツールは 44 本）。
+
+### 変更
+
+- 同梱スキル `anytime-dev-retro`: 計器の誤警報を止め、滞留と委譲量を測れるようにした。走査が完了しなかった場合の `semanticWired` は false ではなく null を返す。
+- Marketplace アイコンを web-app の `icon.svg` のデザインへ統一した。
+
+### Trail Core (trail-activity)
+
+- 本リリースでの変更なし。拡張機能とバージョンを同期するための更新。
+
 ## [1.3.0] - 2026-08-19
 
 ### Trail Core (trail-db / trail-server / trail-caravan-book)

@@ -2,13 +2,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { readGraph } from './tools/readGraph';
 import { writeGraph } from './tools/writeGraph';
-import { createGraphFile } from './tools/createGraph';
-import { addNode } from './tools/addNode';
-import { updateNode } from './tools/updateNode';
-import { removeNode } from './tools/removeNode';
-import { addEdge } from './tools/addEdge';
-import { removeEdge } from './tools/removeEdge';
-import { listNodes } from './tools/listNodes';
 import { exportSvg } from './tools/exportSvg';
 import { exportDrawio } from './tools/exportDrawio';
 import { importDrawio } from './tools/importDrawio';
@@ -20,13 +13,6 @@ export interface McpGraphOptions {
   rootDir: string;
 }
 
-const nodeTypeEnum = z.enum(['rect', 'ellipse', 'sticky', 'text', 'diamond', 'parallelogram', 'cylinder', 'doc', 'frame', 'image']);
-const edgeTypeEnum = z.enum(['line', 'connector']);
-const endpointSchema = z.object({
-  nodeId: z.string().optional(),
-  x: z.number(),
-  y: z.number(),
-});
 const noteSchema = z
   .string()
   .optional()
@@ -128,100 +114,6 @@ export function createMcpServer(options: McpGraphOptions): McpServer {
       const doc = JSON.parse(docStr);
       await writeGraph({ path, document: doc }, rootDir);
       return { content: [{ type: 'text' as const, text: `Written to ${path}` }] };
-    },
-  );
-
-  registerTool(server, 'create_graph',
-    'Create a new empty graph document',
-    {
-      path: z.string().describe('Relative path for the new .graph file'),
-      name: z.string().describe('Name of the graph document'),
-    },
-    async ({ path, name }) => {
-      const doc = await createGraphFile({ path, name }, rootDir);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(doc, null, 2) }] };
-    },
-  );
-
-  registerTool(server, 'add_node',
-    'Add a node to a graph document (with grid snap)',
-    {
-      path: z.string().describe('Relative path to the .graph file'),
-      type: nodeTypeEnum.describe('Node type'),
-      x: z.number().describe('X coordinate'),
-      y: z.number().describe('Y coordinate'),
-      text: z.string().optional().describe('Node text'),
-      width: z.number().optional().describe('Node width'),
-      height: z.number().optional().describe('Node height'),
-      metadata: z.record(z.union([z.string(), z.number()])).optional()
-        .describe('データ駆動スタイリング用メタデータ'),
-    },
-    async ({ path, type, x, y, text, width, height, metadata }) => {
-      const node = await addNode({ path, type, x, y, text, width, height, metadata }, rootDir);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(node, null, 2) }] };
-    },
-  );
-
-  registerTool(server, 'update_node',
-    'Update properties of a node in a graph document',
-    {
-      path: z.string().describe('Relative path to the .graph file'),
-      nodeId: z.string().describe('ID of the node to update'),
-      changes: z.string().describe('JSON string of properties to update'),
-    },
-    async ({ path, nodeId, changes }) => {
-      const node = await updateNode({ path, nodeId, changes: JSON.parse(changes) }, rootDir);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(node, null, 2) }] };
-    },
-  );
-
-  registerTool(server, 'remove_node',
-    'Remove a node and its connected edges from a graph document',
-    {
-      path: z.string().describe('Relative path to the .graph file'),
-      nodeId: z.string().describe('ID of the node to remove'),
-    },
-    async ({ path, nodeId }) => {
-      await removeNode({ path, nodeId }, rootDir);
-      return { content: [{ type: 'text' as const, text: `Removed node ${nodeId}` }] };
-    },
-  );
-
-  registerTool(server, 'add_edge',
-    'Add an edge between two nodes in a graph document',
-    {
-      path: z.string().describe('Relative path to the .graph file'),
-      type: edgeTypeEnum.describe('Edge type'),
-      from: endpointSchema.describe('Source endpoint'),
-      to: endpointSchema.describe('Target endpoint'),
-      label: z.string().optional().describe('Edge label'),
-      weight: z.number().min(0).max(1).optional()
-        .describe('エッジの重み（0-1）'),
-    },
-    async ({ path, type, from, to, label, weight }) => {
-      const edge = await addEdge({ path, type, from, to, label, weight }, rootDir);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(edge, null, 2) }] };
-    },
-  );
-
-  registerTool(server, 'remove_edge',
-    'Remove an edge from a graph document',
-    {
-      path: z.string().describe('Relative path to the .graph file'),
-      edgeId: z.string().describe('ID of the edge to remove'),
-    },
-    async ({ path, edgeId }) => {
-      await removeEdge({ path, edgeId }, rootDir);
-      return { content: [{ type: 'text' as const, text: `Removed edge ${edgeId}` }] };
-    },
-  );
-
-  registerTool(server, 'list_nodes',
-    'List all nodes in a graph document with summary info',
-    { path: z.string().describe('Relative path to the .graph file') },
-    async ({ path }) => {
-      const nodes = await listNodes({ path }, rootDir);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(nodes, null, 2) }] };
     },
   );
 

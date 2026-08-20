@@ -8,7 +8,7 @@
 ## リポジトリ構成
 
 - プライマリリポジトリ: 本リポジトリ（`/anytime-markdown/`）。VS Code ワークスペースのメイン。
-- docs リポジトリ（`<docsRoot>`）— ドキュメント出力先（`/anytime-markdown/` 内には出力しない）。実パスは `CLAUDE.md` の「ドキュメント保存先（docsRoot）」節（`- docsRoot: <path>` 行）が単一の正で、本ファイル・各スキル内の `<docsRoot>` はその値に読み替える。独立 Git リポジトリのため完了時に `git status` で確認。Git ルールは両リポジトリに適用。
+- docs リポジトリ（`<docsRoot>`）— ドキュメント出力先（`/anytime-markdown/` 内には出力しない。唯一の例外はマニュアル。「ドキュメント出力先」節を参照）。実パスは `CLAUDE.md` の「ドキュメント保存先（docsRoot）」節（`- docsRoot: <path>` 行）が単一の正で、本ファイル・各スキル内の `<docsRoot>` はその値に読み替える。独立 Git リポジトリのため完了時に `git status` で確認。Git ルールは両リポジトリに適用。
 
 > [!NOTE]
 > 知識の正本（source of truth）は `<docsRoot>/` 配下の Markdown（ベンダー中立な可搬形式）である。Trail DB（`activity.db` / `caravan-book.db` / `catalog.db`）・各種 memory は、その正本から導出される検索インデックスと位置づける（Open Knowledge Format の「プラットフォームでなく形式」原則）。知識をチャットや DB に閉じ込めず、可搬な Markdown へ外部化することを優先する。
@@ -22,6 +22,7 @@
 - プランファイル: `<docsRoot>/plan/*.md`（3 ファイル以上変更する機能で作成し、承認後に実装）。
 - レビュー: `<docsRoot>/review/`。
 - 提案: `<docsRoot>/proposal/`。
+- **マニュアル（type: manual）は例外的に本リポジトリの `docs/manual/` に置く**（2026-08-19 移設）。利用者が実利用時に参照する手順書であり、共有ボリューム `<docsRoot>` を持たない環境でもリポジトリのチェックアウトだけで読める必要があるため。索引は `npm run manual:index` で再生成する。マニュアル同士のリンクは相対パス、`<docsRoot>` 側の設計書への参照は `/spec/...` 表記のまま残す（コードリポジトリ単体では解決できないリンクである点は許容する）。
 - ドキュメントの構文・フロントマター・整形は `anytime-markdown-output` 規約（`packages/vscode-markdown-extension/skills/anytime-markdown-output/SKILL.md`）に従う。
 - type（spec/tech/test/manual/proposal/plan/review/report）ごとの記載内容（何を書くか）・component spec の記載ルールは `anytime-doc-authoring` 規約（`packages/vscode-markdown-extension/skills/anytime-doc-authoring/SKILL.md`）に従う。
 - 各フォルダ（type フォルダ＋全サブフォルダ）に予約索引 `index.[lang].md` を置く（OKF 段階開示・フォルダ別 index）。`scripts/gen-spec-index.mjs` で frontmatter から自動生成する（手書き禁止）。運用詳細（再生成必須の条件・type 別コマンド）は `anytime-doc-authoring` 規約 §1.2。

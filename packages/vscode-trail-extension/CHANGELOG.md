@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-20
+
+### Removed
+
+- MCP (mcp-trail): removed the manual C4 editing tools (`add_element`, `update_element`, `remove_element`, `add_relationship`, `remove_relationship`, `add_group`, `update_group`, `remove_group`, `list_relationships`), the review-run tools (`run_review_agent`, `get_review_run_status`, `list_review_runs`) and `analyze_all`. The C4 model is produced by `analyze_current_code`, reviews run through the agent-side reviewer, and session import runs in the daemon pipeline; the server now exposes 44 tools.
+
+### Changed
+
+- Bundled skill `anytime-dev-retro`: stopped the instrument's false alarms and made stalled work and delegation volume measurable. A scan that did not complete now reports `semanticWired` as null instead of false.
+- Replaced the Marketplace icon with the design taken from the web-app `icon.svg`.
+
+### Trail Core (trail-activity)
+
+- No changes in this release; the version is kept in sync with the extension.
+
 ## [1.3.0] - 2026-08-19
 
 ### Trail Core (trail-db / trail-server / trail-caravan-book)

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-20
+
+### Changed
+
+- Narrowed the extension pack to Anytime Markdown, Anytime Graph, Anytime Trail, and Anytime Agent. Anytime Sheet, Anytime Database, and Anytime History are no longer bundled and must be installed individually.
+- Aligned the manifest `description` and the README table with the bundled extensions.
+
 ## [0.5.2] - 2026-08-03
 
 ### Changed
