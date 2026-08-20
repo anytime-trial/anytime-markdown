@@ -208,6 +208,17 @@ describe('DB close called on error in direct read', () => {
   });
 });
 
+describe('DB close called on error in direct write', () => {
+  test('db.close() is called even when write function throws', async () => {
+    jest.spyOn(probe, 'probeServerAlive').mockResolvedValue(false);
+    jest.spyOn(writeDirect, 'upsertCommunitySummariesDirect').mockImplementation(() => { throw new Error('write error'); });
+
+    const summaries = [{ communityId: 2, name: 'n', summary: 's' }];
+    await expect(route('upsert_community_summaries', { summaries }, BASE_OPTS)).rejects.toThrow('write error');
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // invokeDirectRead: Unhandled read tool throws (line 101 coverage)
 // invokeDirectWrite: Unhandled write tool throws (line 191 coverage)

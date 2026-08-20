@@ -1,7 +1,7 @@
 # @anytime-markdown/mcp-trail
 
 Anytime Trail（VS Code 拡張）の Trail DB (`activity.db`) を MCP 経由で操作するためのサーバー。\
-C4 モデル要素・関係・グループの CRUD と、コード解析パイプラインの起動を MCP ツールとして公開します。
+C4 モデルの参照と、コード解析パイプラインの起動を MCP ツールとして公開します。
 
 [English](./README.md) | 日本語
 
@@ -72,41 +72,14 @@ DB パスの解決先:
 | ツール | 用途 |
 | --- | --- |
 | `get_c4_model` | 現在の C4 モデル全体（要素・関係・グループ）を取得する |
-| `list_elements` | C4 要素の ID / type / name 一覧を簡略表示する。関係追加前の ID 確認に有用 |
-| `list_relationships` | 手動定義の C4 関係を ID 付きで一覧する。削除前の ID 確認に有用 |
-| `list_groups` | 手動定義のグループを ID と所属要素付きで一覧する |
-
-
-### 4.2 C4 要素の編集
-
-| ツール | 主要パラメータ | 用途 |
-| --- | --- | --- |
-| `add_element` | `type`（`person` / `system` / `container` / `component`）/ `name` / `parentId` / `description?` / `external?` / `serviceType?` | 手動 C4 要素を追加する |
-| `update_element` | `id` / 任意の `name` / `description` / `external` / `serviceType` | 既存要素を更新する |
-| `remove_element` | `id` | 要素を削除する（関連する関係も削除される） |
-
-
-### 4.3 C4 関係の編集
-
-| ツール | 主要パラメータ | 用途 |
-| --- | --- | --- |
-| `add_relationship` | `fromId` / `toId` / `label?` / `technology?` | 2 つの C4 要素間に関係を追加する |
-| `remove_relationship` | `id` | 関係を削除する |
+| `list_elements` | C4 要素の ID / type / name 一覧を簡略表示する |
+| `list_groups` | グループを ID と所属要素付きで一覧する |
 
 > [!NOTE]
-> 関係に関する更新ツールはありません。変更したい場合は削除 + 再追加で対応します。
+> C4 モデルの正は `analyze_current_code` の自動生成です。MCP からの手動編集ツール（要素・関係・グループの追加・変更・削除と `list_relationships`）は、利用が手動構築期（2026-04）に限られていたため 2026-08-19 に削除しました。
 
 
-### 4.4 C4 グループの編集
-
-| ツール | 主要パラメータ | 用途 |
-| --- | --- | --- |
-| `add_group` | `memberIds`（2 件以上）/ `label?` | 視覚的なグループを作成する。要素自体は変更しない |
-| `update_group` | `id` / `memberIds?`（2 件以上）/ `label?`（`null` でクリア） | グループのラベルや所属要素を更新する |
-| `remove_group` | `id` | グループを削除する。所属要素は削除されない |
-
-
-### 4.5 解析パイプライン起動
+### 4.2 解析パイプライン起動
 
 VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ処理を HTTP 経由で起動します。VS Code 拡張が稼働中である必要があります。\
 並行起動は `analysisInProgress` で排他制御され、進行中の場合は `409 Conflict` が返ります。
@@ -115,15 +88,17 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 | --- | --- | --- |
 | `analyze_current_code` | `workspacePath?` / `tsconfigPath?` / `includeProgress?`（既定 `true`） | C4 / コードグラフ解析を起動する。`Anytime Trail: コード解析` 相当。`includeProgress = true` のとき WebSocket 進捗ログを応答に同梱する |
 | `analyze_release_code` | （共通のみ） | リリース別 C4 / コードグラフ解析。`activity_release_code_graphs` を全削除して再生成する。`Anytime Trail: リリース別コード解析` 相当 |
-| `analyze_all` | （共通のみ） | `~/.claude/projects` から JSONL を取り込み、コミット・リリース・カバレッジを Trail DB に書き込む。`Anytime Trail: 全データ解析` 相当 |
 | `get_analyze_status` | （共通のみ） | 現在進行中の解析タスク種別と開始時刻を取得する |
+
+> [!NOTE]
+> セッションログの取り込み（旧 `analyze_all`）はデーモンのパイプラインが自走するため、MCP からの起動導線は 2026-08-19 に削除しました。
 
 > [!IMPORTANT]
 > `analyze_current_code` の `includeProgress` を有効化すると、Node 22 のグローバル `WebSocket` でサーバーに接続し `analysis-progress` イベントを購読します。\
 > 結果オブジェクトに `progressLog: { phase, percent, ts }[]` が追加されます。WS 利用不可環境では空配列で返ります。
 
 
-### 4.6 コミュニティ命名・mapping 書き込み
+### 4.3 コミュニティ命名・mapping 書き込み
 
 `anytime-reverse-engineer` スキルから AI 生成結果を Trail DB に保存する用途。\
 拡張プロセスの `TrailDataServer` を経由するため、スキルと拡張で in-memory DB が分裂する事故（過去 sql.js 採用時に発生）を回避できる。
@@ -139,7 +114,7 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 > 書き込み完了後、TrailDataServer は `model-updated` を WebSocket 通知するため、Trail Viewer 側のキャッシュも自動再取得される（Reload Window 不要）。
 
 
-### 4.7 ドリフト検出（trail-caravan-book）
+### 4.4 ドリフト検出（trail-caravan-book）
 
 設計仕様とコード実装の乖離（ドリフト）を管理する。\
 trail-caravan-book DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きする。TrailDataServer は不要。
@@ -151,19 +126,17 @@ trail-caravan-book DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書�
 | `resolve_drift` | `event_id` / `resolution_note` / `resolved_at?` | ドリフトイベントを解決済みとしてマークし、解決メモを記録する |
 
 
-### 4.8 レビューエージェント（trail-caravan-book）
-
-AI レビューエージェントの実行管理とレビュー対象の優先順位付け。
+### 4.5 レビュー対象の優先順位付け（trail-caravan-book）
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
-| `run_review_agent` | `trigger_kind`（`mcp` 固定）/ `target_kind`（`spec`/`code`/`package`/`mixed`）/ `target_refs` / `prompt_kind`（`a11y`/`security`/`perf`/`spec_drift`/`naming`/`logic`/`multi`）/ `model?` | レビュー実行リクエストを登録し `run_id` を即時返す |
-| `get_review_run_status` | `run_id` | `run_review_agent` が返した `run_id` で実行ステータスを取得する |
-| `list_review_runs` | `trigger_kind?` / `status?` / `target_kind?` / `model?` / `since?` / `limit?` | レビュー実行履歴をフィルタ付きで一覧する |
 | `list_review_target_hints` | `limit?` | ドリフトイベント・バグ修正・未レビューファイルに基づく優先レビュー対象候補を返す |
 
+> [!NOTE]
+> レビューの実行そのものはエージェント側（`code-reviewer` subagent 経由）が担います。MCP からの実行登録（旧 `run_review_agent` / `get_review_run_status` / `list_review_runs`）は 2026-08-19 に削除しました。
 
-### 4.9 バグ履歴（trail-caravan-book）
+
+### 4.6 バグ履歴（trail-caravan-book）
 
 コミット単位のバグ修正履歴と繰り返しバグのパターン分析。
 
@@ -173,7 +146,7 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `list_recurring_bugs` | `package?` / `file_path?` / `caused_by_entity_id?` / `windowDays?` / `minCount?` | 一定期間内に繰り返し発生しているバググループを一覧する |
 
 
-### 4.10 レビュー所見（trail-caravan-book）
+### 4.7 レビュー所見（trail-caravan-book）
 
 レビュー結果の追跡と対応済みコミットのリンク管理。
 
@@ -184,7 +157,7 @@ AI レビューエージェントの実行管理とレビュー対象の優先�
 | `link_review_to_commit` | `finding_id` / `commit_sha` / `addressed_at?` / `override_auto?` | レビュー所見を特定コミットで対応済みとしてマークし、`addresses` エッジを挿入する |
 
 
-### 4.11 メモリグラフ検索（trail-caravan-book）
+### 4.8 メモリグラフ検索（trail-caravan-book）
 
 trail-caravan-book に蓄積されたエンティティ・関係・会話エピソードをクエリで検索する。\
 `OLLAMA_BASE_URL` 未設定時はキーワードマッチのみ（ベクトル検索なし）。
@@ -194,7 +167,7 @@ trail-caravan-book に蓄積されたエンティティ・関係・会話エピ�
 | `search_caravan_book` | `query` / `entity_types?` / `source_type?` / `since?` / `limit?` / `hops?` | メモリグラフでクエリに関連するエンティティ・関係・会話エピソードを検索する。`hops=1` でグラフ隣接ノードまで展開 |
 
 
-### 4.12 コード構造 discovery（読み取り）
+### 4.9 コード構造 discovery（読み取り）
 
 コードグラフの事前計算結果を低トークンで返し、`Read` / `Grep` での構造把握を畳む。`TrailDataServer` 起動が前提（未起動時はエラー）。グラフ未解析時は先に `analyze_current_code` を実行する。
 
@@ -216,18 +189,11 @@ trail-caravan-book に蓄積されたエンティティ・関係・会話エピ�
 引数: { repoName: "anytime-markdown" }
 ```
 
-### 5.2 手動 C4 要素の追加
+### 5.2 C4 要素一覧の確認
 
 ```
-ツール: mcp__mcp-trail__add_element
-引数: {
-  type: "container",
-  name: "Cache Layer",
-  parentId: "sys_anytime-markdown",
-  description: "Redis ベースのアプリケーションキャッシュ",
-  serviceType: "redis",
-  repoName: "anytime-markdown"
-}
+ツール: mcp__mcp-trail__list_elements
+引数: { repoName: "anytime-markdown" }
 ```
 
 ### 5.3 解析の起動と進捗確認
