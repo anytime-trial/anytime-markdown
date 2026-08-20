@@ -1,10 +1,11 @@
 ---
 title: "Development Operations for New Apps (Trail Integration)"
 date: "2026-07-17"
-updated: "2026-08-02"
+updated: "2026-08-19"
 type: "manual"
 lang: "en"
 author: "Claude Code v2.1.212"
+skill: "anytime-doc-authoring (2026-08-19)"
 category: "operations"
 excerpt: "Day-to-day operations after the environment setup: structure visibility and the retrospective (behavior/cost/quality analysis) with Anytime Trail, session management and bundled skills with Anytime Agent, AI-collaborative editing with Anytime Markdown, doctrine-driven autonomous approval (delegated What approvals; bootstrapping differs between new and existing development), and the pre-merge review and retrospective cycle."
 related:
@@ -14,7 +15,7 @@ related:
 
 # Development Operations for New Apps (Trail Integration)
 
-This manual defines how to use the three anytime extensions in daily development after the [environment setup](../dev-env-setup/dev-env-setup.en.md) is complete.
+Once the [environment setup](../dev-env-setup/dev-env-setup.en.md) is done, the AI implements and the human approves, day after day. The question is where to put that approval. Review every artifact one by one and the AI's throughput is capped by the hours the human has; review nothing and no one carries responsibility for quality. What follows moves approval off the individual artifact and onto the doctrine, ahead of time, so the human is left with a fixed set of moments at the entry and the exit, plus the approval of the doctrine itself.
 
 The operating model has four pillars.
 

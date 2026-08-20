@@ -1,10 +1,11 @@
 ---
 title: "新規アプリ開発環境構築手順（anytime-build-webapp）"
 date: "2026-07-17"
-updated: "2026-07-19"
+updated: "2026-08-19"
 type: "manual"
 lang: "ja"
 author: "Claude Code v2.1.212"
+skill: "anytime-doc-authoring (2026-08-19)"
 category: "setup"
 excerpt: "VS Code Dev Container 上で anytime-build-webapp スキルを使い新規 Web アプリを生成できる状態まで開発環境を構築する手順。Ubuntu（WSL2）・Docker Desktop のインストールから、Git/GitHub 認証（SSH 鍵・GH_TOKEN）・Claude Code・Dev Container 定義・anytime 拡張 3 種のインストールまでを順に整える。追加セットアップとして Google Drive「アプリで開く」連携・Google Drive Reader（サービスアカウント）・チケットループ・Supabase リモート同期の設定手順を含む。"
 related:
@@ -14,7 +15,7 @@ related:
 
 # 新規アプリ開発環境構築手順（anytime-build-webapp）
 
-新規 Web アプリを anytime-build-webapp スキルで生成できる状態まで、開発環境を構築する手順を定義する。
+アプリの生成そのものは 1 コマンドで終わる。手間がかかるのはその手前で、Windows・WSL ホスト・Dev Container の三層にまたがる認証とマウントの配線が一つでも欠けていると、コンテナが起動して最後の一歩に達するまで失敗が表に出ない。そこで下の層から順に配線し、各手順の末尾に置いた確認コマンドが通ってから次へ進む。
 
 到達点は次の 2 点である。
 
@@ -86,8 +87,6 @@ flowchart TD
 
    ```powershell
    wsl --install -d Ubuntu
-   
-   
    ```
 
 2. 案内に従い Windows を再起動する。再起動後に Ubuntu が自動起動するので、UNIX ユーザー名とパスワードを設定する
@@ -96,8 +95,6 @@ flowchart TD
 
    ```powershell
    wsl --update
-   
-   
    ```
 
 4. バージョンを確認する。
@@ -105,8 +102,6 @@ flowchart TD
    ```powershell
    wsl -l -v
    # Ubuntu の VERSION が 2 であること
-   
-   
    ```
 
    VERSION が 1 の場合は WSL2 へ変換する: `wsl --set-version Ubuntu 2`
@@ -115,8 +110,6 @@ flowchart TD
 
    ```bash
    node --version   # v20 以上であること
-   
-   
    ```
 
 ### 2. Docker Desktop のインストール（Windows 側）
@@ -131,8 +124,6 @@ flowchart TD
 
    ```bash
    docker info   # エラーなく出力されれば連携完了（Docker daemon 稼働）
-   
-   
    ```
 
 > [!NOTE]
@@ -161,8 +152,6 @@ code --install-extension ms-vscode-remote.remote-containers
    ```bash
    git config --global user.name "<ユーザー名>"
    git config --global user.email "<メールアドレス>"
-   
-   
    ```
 
 2. **SSH 鍵の生成と GitHub 登録**（anytime-lab のクローンは SSH 経由のため必須）
@@ -170,8 +159,6 @@ code --install-extension ms-vscode-remote.remote-containers
    ```bash
    ssh-keygen -t ed25519 -C "<メールアドレス>"
    cat ~/.ssh/id_ed25519.pub
-   
-   
    ```
 
    公開鍵を GitHub の Settings &gt; SSH and GPG keys &gt; New SSH key に登録し、疎通を確認する。
@@ -180,8 +167,6 @@ code --install-extension ms-vscode-remote.remote-containers
    ssh -T git@github.com
    # "Hi <ユーザー名>! You've successfully authenticated..." が表示されれば成功
    # （シェルは割り当てられないため終了コードは 1 になる。これが正常）
-   
-   
    ```
 
    > [!NOTE]
@@ -194,8 +179,6 @@ code --install-extension ms-vscode-remote.remote-containers
    ```bash
    echo 'export GH_TOKEN=<トークン値>' >> ~/.bashrc
    source ~/.bashrc
-   
-   
    ```
 
    Dev Container 定義の `containerEnv` に `"GH_TOKEN": "${localEnv:GH_TOKEN}"` を書くことで、コンテナ内へ自動伝播する（手順 6 のサンプル参照）。
@@ -205,8 +188,6 @@ code --install-extension ms-vscode-remote.remote-containers
    ```bash
    gh auth login
    gh repo view anytime-trial/anytime-lab   # アクセス権の確認
-   
-   
    ```
 
 ### 5. Claude Code の準備（WSL ホスト側）
@@ -224,8 +205,6 @@ claude    # 初回起動でログイン（サブスクリプションまたは A
 
    ```bash
    mkdir -p ~/projects/<app-name>
-   
-   
    ```
 
    > [!IMPORTANT]
@@ -258,8 +237,6 @@ claude    # 初回起動でログイン（サブスクリプションまたは A
      },
      "forwardPorts": [3000]
    }
-   
-   
    ```
 
    必須要素の役割は次のとおり。
@@ -353,7 +330,7 @@ claude
 
 ### 10. Google Drive「アプリで開く」連携（web-app）
 
-Drive UI のコンテキストメニュー「アプリで開く」および「新規」から web-app の Markdown エディタを起動するための設定である。コード側（`?state=` の解析・読み込み経路・`drive.install` スコープ）は実装済みで、本節が扱うのは**コードだけでは Drive のメニューに項目が出ない**ために必要な GCP コンソールと Google Workspace Marketplace の設定である。GCP プロジェクトのオーナー権限を持つ担当者が操作する。
+コードを実装し終えても、Drive の右クリックメニューにエディタは現れない。Drive UI 統合は、GCP コンソールでの登録と Google Workspace Marketplace への掲載を経て初めてメニューに出るためである。`?state=` の解析・読み込み経路・`drive.install` スコープはすでに実装済みなので、残るのはコンソール側の設定になる。操作には GCP プロジェクトのオーナー権限が要る。
 
 > [!NOTE]
 > GCP コンソールと Marketplace SDK の画面文言・導線は Google 側の更新で変わりうる。本節の項目名は 2026-07 時点のもので、見つからない場合は同義の項目を探す。

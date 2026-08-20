@@ -1,10 +1,11 @@
 ---
 title: "Development Environment Setup for New Apps (anytime-build-webapp)"
 date: "2026-07-17"
-updated: "2026-07-18"
+updated: "2026-08-19"
 type: "manual"
 lang: "en"
 author: "Claude Code v2.1.212"
+skill: "anytime-doc-authoring (2026-08-19)"
 category: "setup"
 excerpt: "Procedure for preparing a development environment where a new web app can be generated with the anytime-build-webapp skill on a VS Code Dev Container: from installing Ubuntu (WSL2) and Docker Desktop, through Git/GitHub authentication (SSH key, GH_TOKEN), Claude Code, the Dev Container definition, and the three anytime extensions."
 related:
@@ -14,7 +15,7 @@ related:
 
 # Development Environment Setup for New Apps (anytime-build-webapp)
 
-This manual defines the setup procedure that brings a machine to the state where a new web app can be generated with the anytime-build-webapp skill.
+Generating the app itself takes a single command. The work sits before it: the authentication and the mounts that span Windows, the WSL host, and the Dev Container. If any one of them is missing, nothing fails until the container is already running and only the last step remains. So the wiring is built from the bottom layer up, and each step closes with a command that confirms it before the next begins.
 
 The goal is the following two points.
 
