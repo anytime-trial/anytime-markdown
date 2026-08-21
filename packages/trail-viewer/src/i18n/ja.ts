@@ -599,6 +599,7 @@ export const ja: TrailI18n = {
   'caravan.runs.status.success': '成功',
   'caravan.runs.status.partial': '部分成功',
   'caravan.runs.status.error': 'エラー',
+  'caravan.runs.status.skipped': '未起動',
   'caravan.chat.placeholder': '質問を入力 (Enter で送信、Shift+Enter で改行、Esc で停止)',
   'caravan.chat.send': '送信',
   'caravan.chat.abort': '停止',

@@ -60,10 +60,18 @@ FROM caravan_pipeline_runs;
 DROP TABLE caravan_pipeline_runs;
 ALTER TABLE caravan_pipeline_runs__new RENAME TO caravan_pipeline_runs;
 
--- 索引は DROP TABLE で消えるため作り直す。名前は 017 が付けた実体名を維持する
+-- 公式 12-step の step 9（PRAGMA foreign_key_check）は置かない。この表は参照される側で、
+-- 子（caravan_pipeline_run_logs.run_id）が見る id を値ごとそのまま移し替えているため、
+-- 入れ替えで参照整合が崩れる経路が無い。既存の 12-step migration（004 / 006 / 011 / 021）も
+-- 同じ判断で省いている。
+
+-- 索引は DROP TABLE で消えるため作り直す。次の 2 本は 017 が付けた実体名をそのまま維持する
 -- （023 の改名は索引名を変えていない）。
 CREATE INDEX IF NOT EXISTS idx_pipeline_runs_started ON caravan_pipeline_runs(started_at);
 CREATE INDEX IF NOT EXISTS idx_pipeline_runs_wave ON caravan_pipeline_runs(wave, started_at);
+
+-- こちらは**新規追加**。「この scope は最後にいつ何の状態で走ったか」「skip が何件続いたか」を
+-- 引くのが本 migration の目的で、その問い合わせは scope + status で絞って started_at 順に読む。
 CREATE INDEX IF NOT EXISTS idx_pipeline_runs_scope_status ON caravan_pipeline_runs(scope, status, started_at);
 
 COMMIT;

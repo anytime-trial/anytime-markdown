@@ -62,3 +62,50 @@ describe('buildStackedChartData', () => {
     expect(result.dayWorstStatus.get('2026-05-15')).toBe('error');
   });
 });
+
+// マージ前レビュー（2026-08-21）で検出: migration 035 が status へ 'skipped' を足した際、
+// サーバ側 CASE の ELSE 0 と rankToStatus の既定が組み合わさって skip が 'running' に
+// 化けていた。同型の取りこぼしを画面集計側でも塞ぐ。
+describe('buildStackedChartData: skipped status', () => {
+  const dayRow = (
+    day: string,
+    scope: string,
+    worstStatus: CaravanPipelineRunStatsByDayRow['worstStatus'],
+  ): CaravanPipelineRunStatsByDayRow => ({
+    day,
+    scope,
+    wave: 'memory',
+    runs: 1,
+    durationSec: 0,
+    itemsProcessed: 0,
+    worstStatus,
+  });
+
+  it('skipped しか無い日は skipped を返す（running に化けない）', () => {
+    const { dayWorstStatus } = buildStackedChartData([dayRow('2026-08-21', 'review_incremental', 'skipped')]);
+    expect(dayWorstStatus.get('2026-08-21')).toBe('skipped');
+  });
+
+  it('skipped は success より優先され、partial / error には負ける', () => {
+    expect(
+      buildStackedChartData([
+        dayRow('2026-08-21', 'a', 'success'),
+        dayRow('2026-08-21', 'b', 'skipped'),
+      ]).dayWorstStatus.get('2026-08-21'),
+    ).toBe('skipped');
+
+    expect(
+      buildStackedChartData([
+        dayRow('2026-08-21', 'a', 'skipped'),
+        dayRow('2026-08-21', 'b', 'partial'),
+      ]).dayWorstStatus.get('2026-08-21'),
+    ).toBe('partial');
+
+    expect(
+      buildStackedChartData([
+        dayRow('2026-08-21', 'a', 'skipped'),
+        dayRow('2026-08-21', 'b', 'error'),
+      ]).dayWorstStatus.get('2026-08-21'),
+    ).toBe('error');
+  });
+});

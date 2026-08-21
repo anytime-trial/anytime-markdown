@@ -225,7 +225,7 @@ export interface CaravanFlightReviewFindingSummary {
   readonly weakLinked: number;
 }
 
-export type CaravanPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
+export type CaravanPipelineRunStatus = 'error' | 'partial' | 'success' | 'running' | 'skipped';
 
 export interface CaravanPipelineRunStatsByDayRow {
   readonly day: string;

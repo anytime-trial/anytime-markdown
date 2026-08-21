@@ -225,7 +225,7 @@ export interface FlightReviewFindingSummary {
   weakLinked: number;
 }
 
-export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
+export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running' | 'skipped';
 
 export interface PipelineRunStatsByDayRow {
   day: string;
@@ -1448,8 +1448,9 @@ export class CaravanApiHandler {
                 COALESCE(SUM(duration_ms), 0) / 1000 AS duration_sec,
                 COALESCE(SUM(items_processed), 0) AS items_processed,
                 MAX(CASE status
-                      WHEN 'error'   THEN 3
-                      WHEN 'partial' THEN 2
+                      WHEN 'error'   THEN 4
+                      WHEN 'partial' THEN 3
+                      WHEN 'skipped' THEN 2
                       WHEN 'success' THEN 1
                       WHEN 'running' THEN 0
                       ELSE 0
@@ -1462,10 +1463,17 @@ export class CaravanApiHandler {
       );
       if (!result[0]) return [];
       const { columns, values } = result[0];
+      // 'skipped' を success より上へ置くのは、起動しなかった scope を「その日は正常」と
+      // 読ませないため。網羅性チェックを付けて、status を増やしたときに必ずここが
+      // コンパイルエラーになるようにする（rank 0 へ落ちて 'running' に化ける事故を防ぐ）。
       const rankToStatus = (n: number): PipelineRunStatus => {
-        if (n === 3) return 'error';
-        if (n === 2) return 'partial';
-        return n === 1 ? 'success' : 'running';
+        switch (n) {
+          case 4: return 'error';
+          case 3: return 'partial';
+          case 2: return 'skipped';
+          case 1: return 'success';
+          default: return 'running';
+        }
       };
       return values.map((row) => {
         const r = mapRow<Record<string, unknown>>(columns, row);

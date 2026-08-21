@@ -10,7 +10,7 @@ import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3Car
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import type { CaravanBookDb } from '../../src/db/connection';
 import type { CaravanLogger } from '../../src/logger';
-import { CaravanDbSession } from '../../src/service/CaravanDbSession';
+import { CaravanDbSession, type CaravanDbSessionDeps } from '../../src/service/CaravanDbSession';
 import { createMockOllamaClient } from '../helpers/MockOllamaClient';
 
 // ── pipeline モック ────────────────────────────────────────────────────────
@@ -140,7 +140,10 @@ async function makeCaravanDb(): Promise<CaravanBookDb> {
 function makeSession(
   memDb: CaravanBookDb,
   trailDb: BetterSqlite3CaravanDb,
-  overrides: Partial<Parameters<typeof CaravanDbSession.prototype['constructor'] extends new (...args: infer P) => unknown ? (...args: P) => unknown : never>[0]> = {},
+  // Deps 型を直接使う。旧実装の conditional type は constructor を関数型として判定して
+  // never へ潰れ、overrides の実型が undefined になっていた（jest は transpile-only なので
+  // 気づけず、初めて overrides を渡したテストで tsc だけが落ちた）。
+  overrides: Partial<CaravanDbSessionDeps> = {},
 ): CaravanDbSession {
   attachTrailDbFromHandle(memDb.db, trailDb);
   return new CaravanDbSession({

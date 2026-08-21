@@ -8,6 +8,7 @@ import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { noopLogger } from '../../src/logger';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 
 // ── Mock OllamaClient ─────────────────────────────────────────────────────────
 
@@ -326,7 +327,9 @@ describe('runReviewIncremental', () => {
         logger: noopLogger,
       });
 
-      expect(result.status).toBe('success');
+      // reviewDir が実在しないので Route A は取り込めていない。その状態は success にしない
+      // （設定漏れで最も起きやすい失敗を 0 件成功と見分けられなくするため）。
+      expect(result.status).toBe('partial');
 
       const sessionReviews = db.exec(
         `SELECT COUNT(*) FROM caravan_reviews WHERE source_kind='session'`,
@@ -370,7 +373,7 @@ describe('runReviewIncremental', () => {
   }, 30000);
 
   // reviewDir doesn't exist → no error, Route A silently skipped
-  test('missing reviewDir → Route A skipped silently, status=success', async () => {
+  test('missing reviewDir → Route A は取り込まず status=partial（無言の success にしない）', async () => {
     const { db, close } = await openTestDb();
 
     try {
@@ -384,7 +387,7 @@ describe('runReviewIncremental', () => {
         logger: noopLogger,
       });
 
-      expect(result.status).toBe('success');
+      expect(result.status).toBe('partial');
       expect(result.reviews_inserted).toBe(0);
     } finally {
       close();
@@ -513,7 +516,7 @@ describe('runReviewIncremental', () => {
         model: 'test',
         logger: noopLogger,
       });
-      expect(first.status).toBe('success');
+      expect(first.status).toBe('partial'); // reviewDir 不在（Route B のみ検証する構成）
 
       // Second run with force — clears session findings and re-processes
       const second = await runReviewIncremental({
@@ -526,7 +529,7 @@ describe('runReviewIncremental', () => {
         logger: noopLogger,
         force: true,
       });
-      expect(second.status).toBe('success');
+      expect(second.status).toBe('partial'); // reviewDir 不在（同上）
     } finally {
       close();
     }
@@ -682,4 +685,96 @@ date: "2026-02-01"
       cleanup();
     }
   }, 30000);
+});
+
+// マージ前レビュー（2026-08-21）で Claude / Codex が独立に検出した head-of-line blocking と
+// ワークスペース境界の抜けに対する回帰テスト。
+describe('runReviewIncremental: pending_llm の埋め直し', () => {
+  const UNCATEGORIZED = (n: number) => `---
+title: "Uncategorized ${n}"
+type: "review"
+date: "2026-02-0${n}"
+---
+レビュー対象: \`packages/web-app/src/u${n}.ts\`
+
+## 指摘
+
+**問題:** 呼び出し順が仕様と違う ${n}
+**提案:** 順序を入れ替える
+`;
+
+  /** 常に不正な JSON を返し、category 推論を必ず失敗させる。 */
+  function failingOllama(counter: { calls: number }): OllamaClient {
+    return {
+      generate: async () => (counter.calls++, { response: 'not json' }),
+      embeddings: async () => ({ embedding: new Float32Array(0) }),
+    };
+  }
+
+  const pendingRows = (db: CaravanDbConnection) =>
+    db.exec(
+      `SELECT category_inferred_by, category_refine_attempts FROM caravan_review_findings`,
+    )[0]?.values ?? [];
+
+  test('推論に失敗した行は試行回数が加算され、上限に達すると母集合から外れる', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([{ name: 'u1.md', content: UNCATEGORIZED(1) }]);
+    const { db, close } = await openTestDb();
+    const counter = { calls: 0 };
+    const base = {
+      workspaceScope: allWorkspacesScope(),
+      db, repoName: REPO, reviewDir: dir, model: 'test', logger: noopLogger,
+      ollama: failingOllama(counter),
+    };
+
+    try {
+      // 取込（chat 不在）→ pending_llm が 1 件できる
+      await runReviewIncremental({ ...base, chatAvailable: false });
+      expect(pendingRows(db).map((r) => String(r[0]))).toContain('pending_llm');
+      expect(counter.calls).toBe(0);
+
+      // 失敗する埋め直しを上限回数ぶん回す
+      for (let i = 1; i <= 3; i += 1) {
+        await runReviewIncremental({ ...base, chatAvailable: true });
+        const row = pendingRows(db)[0];
+        expect(String(row?.[0])).toBe('pending_llm');
+        expect(Number(row?.[1])).toBe(i);
+      }
+      const callsAtLimit = counter.calls;
+      expect(callsAtLimit).toBe(3);
+
+      // 上限到達後は母集合から外れ、LLM を呼ばない（同じ行を無限に引き直さない）
+      await runReviewIncremental({ ...base, chatAvailable: true });
+      expect(counter.calls).toBe(callsAtLimit);
+      expect(Number(pendingRows(db)[0]?.[1])).toBe(3);
+    } finally {
+      close();
+      cleanup();
+    }
+  }, 60000);
+
+  test('他ワークスペースの review に属する指摘は埋め直さない', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([{ name: 'u2.md', content: UNCATEGORIZED(2) }]);
+    const { db, close } = await openTestDb();
+    const counter = { calls: 0 };
+    const base = {
+      workspaceScope: allWorkspacesScope(),
+      db, repoName: REPO, reviewDir: dir, model: 'test', logger: noopLogger,
+      ollama: failingOllama(counter),
+    };
+
+    try {
+      await runReviewIncremental({ ...base, chatAvailable: false });
+      // 取り込んだ review を別ワークスペース所属へ付け替える
+      db.run(`UPDATE caravan_reviews SET workspace = 'other-workspace'`);
+
+      await runReviewIncremental({ ...base, chatAvailable: true });
+
+      // 自分の chat model で他ワークスペースの指摘を触っていない
+      expect(counter.calls).toBe(0);
+      expect(Number(pendingRows(db)[0]?.[1])).toBe(0);
+    } finally {
+      close();
+      cleanup();
+    }
+  }, 60000);
 });
