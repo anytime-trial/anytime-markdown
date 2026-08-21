@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-08-20
+
+### 修正
+
+- `webpack --mode production` が `copy-webpack-plugin` の emit した vendored CJS（`better-sqlite3` / `bindings` / `file-uri-to-path`）を minify し、`bindings` が native バイナリの位置を求めるスタックトレースの仕掛けを壊していた。本拡張は常に `nativeBinding` を明示しているため実害は出ていなかったが、壊れたファイルが `dist` に載っていた。copy pattern に `info: { minimized: true }` を付けた。
+
+### Database Core (database-core / database-viewer)
+
+- バージョン更新のみ。機能変更はない。
+
 ## [0.3.10] - 2026-08-11
 
 ### 変更

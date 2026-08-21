@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Every database-backed tool failed in the published `anytime-trail` VSIX with `Cannot read properties of undefined (reading 'indexOf')`. The production webpack build minified the vendored `bindings` package, dropping the side-effect-free `dummy.stack` reference it uses to resolve the native binary path. Database opens are now centralised in `openBetterSqlite3`, which passes the bundled `.node` file explicitly through `nativeBinding` so the `bindings` resolution path is never taken.
+- `list_open_instructions` reported its caravan-book to activity fallback as two unrelated errors. Both databases share the same open path, so the common cause is now reported once through `describeDbOpenFailure`.
+
+### Added
+
+- `runStartupDbSelfCheck` opens each database once in read-only mode at startup and writes an explicit warning to stderr when none of them can be opened, so a total outage of the database tools is visible instead of surfacing only as one-line errors from individual tools.
+
 ### Changed
 
 - Added the ADR threat taxonomy and detection prompt tools, backed by the trail-core schema.

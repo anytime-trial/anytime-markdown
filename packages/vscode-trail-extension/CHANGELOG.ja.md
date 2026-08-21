@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-08-20
+
+### 修正
+
+- MCP（mcp-trail）: 配布した VSIX で DB 系ツールが全滅し、`Cannot read properties of undefined (reading 'indexOf')` を返していた。`webpack --mode production` は `copy-webpack-plugin` が emit した vendored CJS も minify するため、`bindings` が native バイナリの解決に使う副作用の無い `dummy.stack` 参照が落ちていた。copy pattern に `info: { minimized: true }` を付け、vendored ファイルを source と byte 一致で同梱するようにした。
+- MCP（mcp-trail）: DB の open でバンドル済みの `.node` を `nativeBinding` で明示し、`bindings` の解決経路自体を通らないようにした。`trail-db` / `trail-caravan-book` / `database-core` と同じ手当て。
+- MCP（mcp-trail）: `list_open_instructions` の caravan-book → activity フォールバックが、無関係な 2 件のエラーとして見えなくなった。両 DB は open 経路を共有するため、native binding の障害は共通原因として 1 度だけ返す。
+
+### 追加
+
+- MCP（mcp-trail）: 起動時セルフチェックを追加した。各 DB を 1 回 readonly で開き、1 つも開けなければ stderr へ明示的に警告する。DB 系ツールの全滅が、個々のツールの 1 行エラーではなく起動時に見えるようになった。
+
+### Trail Core (trail-activity)
+
+- 本リリースでの変更なし。拡張機能とバージョンを同期するための更新。
+
 ## [1.4.0] - 2026-08-20
 
 ### Removed

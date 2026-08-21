@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-08-20
+
+### Fixed
+
+- MCP (mcp-trail): every database-backed tool failed in the published VSIX with `Cannot read properties of undefined (reading 'indexOf')`. `webpack --mode production` also minifies the vendored CJS that `copy-webpack-plugin` emits, and minification drops the side-effect-free `dummy.stack` reference that `bindings` relies on to resolve the native binary path. The copy patterns now declare `info: { minimized: true }`, so the vendored files ship byte-identical to their sources.
+- MCP (mcp-trail): database opens now pass the bundled `.node` file explicitly through `nativeBinding`, so the `bindings` resolution path is never taken. This matches how `trail-db`, `trail-caravan-book` and `database-core` already open their databases.
+- MCP (mcp-trail): `list_open_instructions` no longer reports the caravan-book to activity fallback as two unrelated errors. Both databases share the same open path, so a native-binding failure now surfaces once, with its common cause.
+
+### Added
+
+- MCP (mcp-trail): a startup self-check opens each database once in read-only mode and writes an explicit warning to stderr when none of them can be opened. A total outage of the database tools is now visible at startup instead of surfacing only as one-line errors from individual tools.
+
+### Trail Core (trail-activity)
+
+- No changes in this release; the version is kept in sync with the extension.
+
 ## [1.4.0] - 2026-08-20
 
 ### Removed
