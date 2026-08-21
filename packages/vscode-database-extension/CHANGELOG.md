@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-08-20
+
+### Fixed
+
+- `webpack --mode production` minified the vendored CJS (`better-sqlite3`, `bindings`, `file-uri-to-path`) that `copy-webpack-plugin` emits, which breaks the stack-trace trick `bindings` uses to locate the native binary. This extension did not fail in practice because it always passes `nativeBinding` explicitly, but the broken files were shipped in `dist`. The copy patterns now declare `info: { minimized: true }`.
+
+### Database Core (database-core / database-viewer)
+
+- Version bump only. No functional changes.
+
 ## [0.3.10] - 2026-08-11
 
 ### Changed
