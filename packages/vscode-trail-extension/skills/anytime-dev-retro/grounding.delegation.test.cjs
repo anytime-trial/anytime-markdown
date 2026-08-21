@@ -105,12 +105,35 @@ describe('grounding.cjs delegation 集計', () => {
   });
 
   test('docs root 未解決は測定不能 null（0 件と区別する）', () => {
-    const delegation = runGrounding(() => {
+    const snapshot = runGroundingRaw(() => {
       /* lep.json なし */
     });
+    const delegation = snapshot.delegation;
+    expect(delegation.docsRoot).toBeNull();
     expect(delegation.recorded).toBeNull();
     expect(delegation.byVersion).toBeNull();
     expect(delegation.byModel).toBeNull();
+    expect(snapshot.errors.some((e) => typeof e === 'string' && e.includes('delegation'))).toBe(true);
+  });
+
+  test('lep.json が無くても docs/plans の委譲結果を集計する', () => {
+    const snapshot = runGroundingRaw((ws) => {
+      const plans = path.join(ws, 'docs', 'plans');
+      fs.mkdirSync(plans, { recursive: true });
+      fs.writeFileSync(path.join(plans, 'p.md'), '- 委譲結果: 雛形v3 [codex] 採用\n');
+    });
+    expect(snapshot.delegation.docsRoot).not.toBeNull();
+    expect(snapshot.delegation.recorded).toBe(1);
+  });
+
+  test('docs はあるが plan / plans が無ければ理由付きの測定不能にする', () => {
+    const snapshot = runGroundingRaw((ws) => {
+      fs.mkdirSync(path.join(ws, 'docs'), { recursive: true });
+    });
+    expect(snapshot.delegation.recorded).toBeNull();
+    expect(snapshot.errors.some((e) =>
+      typeof e === 'string' && e.includes('delegation') && e.includes('plan') && e.includes('plans'),
+    )).toBe(true);
   });
 });
 

@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-function runGroundingDoctrineGap(setup) {
+function runGroundingRaw(setup) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'grounding-doctrine-'));
   try {
     setup(ws);
@@ -22,10 +22,14 @@ function runGroundingDoctrineGap(setup) {
       timeout: 60000,
     });
     expect(r.status).toBe(0);
-    return JSON.parse(r.stdout).doctrineGap;
+    return JSON.parse(r.stdout);
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
   }
+}
+
+function runGroundingDoctrineGap(setup) {
+  return runGroundingRaw(setup).doctrineGap;
 }
 
 /**
@@ -71,14 +75,27 @@ function writeCaravanDb(ws, { withColumn, withGateColumns = false, judgments = [
 }
 
 describe('grounding doctrineGap (DCT-14)', () => {
+  it('判断テーブルが無い DB は理由付きの測定不能にする', () => {
+    const snapshot = runGroundingRaw((ws) => {
+      const dbDir = path.join(ws, '.anytime', 'trail', 'db');
+      fs.mkdirSync(dbDir, { recursive: true });
+      new DatabaseSync(path.join(dbDir, 'activity.db')).close();
+      new DatabaseSync(path.join(dbDir, 'caravan-book.db')).close();
+    });
+    expect(snapshot.doctrineGap).toBeNull();
+    expect(snapshot.errors.some((e) => typeof e === 'string' && e.includes('doctrineGap'))).toBe(true);
+  });
+
   it('列が無い DB は 0 件でなく測定不能として出す', () => {
-    const gap = runGroundingDoctrineGap((ws) =>
+    const snapshot = runGroundingRaw((ws) =>
       writeCaravanDb(ws, { withColumn: false, judgments: [{ sessionId: 's1', humanDecision: 'modified' }] }),
     );
+    const gap = snapshot.doctrineGap;
     expect(gap.available).toBe(false);
     expect(gap.reason).toContain('DCT-14');
     // 誤った 0 を真値にしない
     expect(gap.missedCount).toBeUndefined();
+    expect(snapshot.errors.some((e) => typeof e === 'string' && e.includes('doctrineGap'))).toBe(true);
   });
 
   it('申告が空 + modified + 非 escalate だけを取りこぼしに数える', () => {
