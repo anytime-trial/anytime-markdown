@@ -16,3 +16,6 @@ export const PIPELINE_SCOPES = [
   'drift_detection',
   'embedding_backfill',
 ] as const;
+
+/** `PIPELINE_SCOPES` のいずれか。台帳へ skip を書くときの scope 名もこの集合に閉じる。 */
+export type PipelineScope = (typeof PIPELINE_SCOPES)[number];

@@ -8,7 +8,12 @@ import { type CaravanLogger, noopLogger } from '../logger';
  */
 export type PipelineWave = 'sources' | 'primary' | 'memory' | 'derived' | 'system';
 
-export type PipelineRunStatus = 'running' | 'success' | 'partial' | 'error';
+/**
+ * `skipped` は「起動しない判断をした」実行。`partial` と分けるのは、集計側が
+ * 「動いて途中まで進んだ」と「そもそも走らせなかった」を区別できないと、
+ * 恒久的な取込停止が「まだ 0 件」と読めてしまうため（migration 035 のコメント参照）。
+ */
+export type PipelineRunStatus = 'running' | 'success' | 'partial' | 'error' | 'skipped';
 
 /** run 行の集計列。省略した列は直前の値を保つ（累積スナップショット）。 */
 export interface PipelineRunTotals {
@@ -191,7 +196,11 @@ export class PipelineRunLedger {
    * 中身が常に空だった（scope 単位の caravan_pipeline_state は毎回上書きされる
    * ため、過去の失敗理由はどこにも残らなかった）。
    */
-  finish(status: Exclude<PipelineRunStatus, 'running'>, totals: PipelineRunTotals = {}, errorDetail = ''): void {
+  finish(
+    status: Exclude<PipelineRunStatus, 'running' | 'skipped'>,
+    totals: PipelineRunTotals = {},
+    errorDetail = '',
+  ): void {
     const runId = this.currentRunId;
     const startedAt = this.startedAt;
     if (!runId || !startedAt) return;
@@ -223,6 +232,43 @@ export class PipelineRunLedger {
   /** 例外で終わった run を `error` として確定し、stack を error_detail へ残す。 */
   fail(err: unknown, totals: PipelineRunTotals = {}): void {
     this.finish('error', totals, describeError(err));
+  }
+
+  /**
+   * scope を起動しないと判断したことを 1 行で記録する。`start()` は要らない
+   * （起動していないので `running` の窓を開けない。watchdog の対象にもしない）。
+   *
+   * 理由コードを先頭に固定するのは、`error_detail` を自由文だけにすると
+   * 集計側が skip の内訳（LLM 不在 / 設定不足 / 対象なし）を機械的に数えられず、
+   * 「なぜ止まっているか」を人がログから読むしかなくなるため。
+   *
+   * @param reasonCode `llm_unavailable` のような snake_case の理由コード
+   * @param detail     人向けの補足（省略可）
+   * @returns 書けた run ID。書き込みに失敗した場合も null は返さない（fail-open のため
+   *          呼び出し側は成否を分岐せず、失敗は logger にだけ出る）
+   */
+  skip(reasonCode: string, detail = '', at: string = new Date().toISOString()): string {
+    const nonce = process.hrtime.bigint().toString(36);
+    const runId = createHash('sha1')
+      .update(`${this.scope}:${at}:${nonce}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    const errorDetail = detail ? `skipped: ${reasonCode} — ${detail}` : `skipped: ${reasonCode}`;
+
+    this.write('skip', () => {
+      this.db.run(
+        `INSERT INTO caravan_pipeline_runs
+           (id, scope, wave, tier, started_at, finished_at, status,
+            items_processed, entities_inserted, entities_updated,
+            edges_inserted, edges_invalidated, drifts_detected,
+            items_failed, duration_ms, error_detail, last_heartbeat_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'skipped', 0, 0, 0, 0, 0, 0, 0, 0, ?, ?)`,
+        [runId, this.scope, this.wave, this.tier, at, at, errorDetail, at],
+      );
+    });
+
+    return runId;
   }
 
   private mergeTotals(totals: PipelineRunTotals): void {

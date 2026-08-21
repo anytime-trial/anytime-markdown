@@ -8,6 +8,7 @@ import { entityId } from '../canonical/entityId';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import type { MemoryWorkspaceScope } from '../ingest/workspaceScope';
 import { refineCategories } from '../ingest/review/extractFindings';
+import type { ParsedFinding } from '../ingest/review/findingHelpers';
 import {
   upsertReviewDoc,
   upsertReviewSession,
@@ -24,9 +25,14 @@ type PipelineStatus = 'success' | 'partial' | 'error';
 
 const SCOPE_DOC = 'review_incremental';
 const SCOPE_SESSION = 'review_session_incremental';
-const DEFAULT_REVIEW_DIR = '/Shared/anytime-markdown-docs/review';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
 const PROGRESS_LOG_INTERVAL = 50;
+/**
+ * 1 回の run で埋め直す `pending_llm` の上限。LLM 呼び出しは 1 件 1 リクエストなので、
+ * 溜まった分を一度に流すと 1 run が何時間も走る。残りは次の run が拾う（cursor は
+ * 使わず、埋まった行が母集合から抜けることで前進する）。
+ */
+const PENDING_CATEGORY_BATCH = 100;
 
 export interface ReviewIncrementalResult {
   status: PipelineStatus;
@@ -105,6 +111,7 @@ async function processRouteADoc(opts: {
   force: boolean;
   ollama: OllamaClient;
   model: string;
+  chatAvailable: boolean;
   /** 取込を実行しているワークスペースの repo_name。自分が書いた行にだけ設定する。 */
   workspace: string;
   logger: CaravanLogger;
@@ -170,6 +177,7 @@ async function processRouteADoc(opts: {
       findings: doc.findings,
       ollama,
       model,
+      chatAvailable: opts.chatAvailable,
       logger: { warn: (msg: string) => logger.info(msg) },
     });
     doc.findings.splice(0, doc.findings.length, ...refined.findings);
@@ -209,6 +217,7 @@ interface RouteContext {
   workspaceScope: MemoryWorkspaceScope;
   ollama: OllamaClient;
   model: string;
+  chatAvailable: boolean;
   logger: CaravanLogger;
   recordedAt: string;
   force: boolean;
@@ -249,7 +258,8 @@ async function runRouteADocs(acc: ReviewTotals, reviewDir: string, ctx: RouteCon
 
     const docResult = await processRouteADoc({
       db, filePath, relPath, reviewDir, recordedAt: ctx.recordedAt, force: ctx.force,
-      ollama: ctx.ollama, model: ctx.model, workspace: ctx.repoName, logger,
+      ollama: ctx.ollama, model: ctx.model, chatAvailable: ctx.chatAvailable,
+      workspace: ctx.repoName, logger,
     });
 
     if (docResult.outcome === 'skipped') continue;
@@ -280,6 +290,7 @@ async function ingestReviewSession(
       findings: session.findings,
       ollama: ctx.ollama,
       model: ctx.model,
+      chatAvailable: ctx.chatAvailable,
       logger: { warn: (msg: string) => logger.info(msg) },
     });
     session.findings.splice(0, session.findings.length, ...refined.findings);
@@ -364,6 +375,68 @@ async function runRouteBSessions(acc: ReviewTotals, ctx: RouteContext): Promise<
 }
 
 /**
+ * chat model 不在の回で `pending_llm` として取り込んだ指摘の category を埋め直す。
+ *
+ * source_hash の一致で md 自体は再処理されないため、この経路が無いと chat が居なかった
+ * 期間の指摘は永久に未確定のまま残る。逆に言えば、取込と精緻化を分離できたのは
+ * この後追い経路があるからで、片方だけを入れない。
+ */
+async function refinePendingCategoriesStep(ctx: RouteContext): Promise<void> {
+  const { db, chatAvailable, logger } = ctx;
+  if (!chatAvailable) return;
+  try {
+    const rows = db.exec(
+      `SELECT f.id, f.finding_index, f.finding_text, f.category
+         FROM caravan_review_findings f
+        WHERE f.category_inferred_by = 'pending_llm'
+        LIMIT ${PENDING_CATEGORY_BATCH}`,
+    );
+    const pending = rows[0]?.values ?? [];
+    if (pending.length === 0) return;
+
+    const refined = await refineCategories({
+      findings: pending.map((r, i) => ({
+        finding_index: i,
+        target_file_path: null,
+        target_symbol: null,
+        target_line_start: null,
+        target_line_end: null,
+        category: String(r[3]) as ParsedFinding['category'],
+        severity: 'info',
+        finding_text: String(r[2]),
+        suggestion_text: '',
+        chapter_path: '',
+        is_category_inferred: true,
+        checklist_ref: null,
+      })),
+      ollama: ctx.ollama,
+      model: ctx.model,
+      chatAvailable: true,
+      logger: { warn: (msg: string) => logger.info(msg) },
+    });
+
+    let updated = 0;
+    for (const finding of refined.findings) {
+      if (finding.category_inferred_by !== 'llm') continue;
+      db.run(
+        `UPDATE caravan_review_findings SET category = ?, category_inferred_by = 'llm' WHERE id = ?`,
+        [finding.category, String(pending[finding.finding_index]?.[0])],
+      );
+      updated += 1;
+    }
+    logger.info(
+      `[anytime-memory] runReviewIncremental: refinePendingCategories ` +
+        `pending=${pending.length} updated=${updated}`,
+    );
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] runReviewIncremental: refinePendingCategories failed`,
+      err,
+    );
+  }
+}
+
+/**
  * 対象パスの正規化とリポジトリ解決。linkAddresses より **前** に置く。
  * linkAddresses は target_repo を照合キーに使うため、解決前に走らせると
  * 今回取り込んだ指摘が 1 サイクル遅れてしかリンクされない。
@@ -443,9 +516,18 @@ export async function runReviewIncremental(input: {
    * (review .md) は reviewDir 自体がワークスペース固有なので影響しない。
    */
   workspaceScope: MemoryWorkspaceScope;
-  reviewDir?: string;
+  /**
+   * Route A が読む review .md のディレクトリ。**必須**。
+   *
+   * 省略可能にして内蔵既定へ倒すと、渡し忘れた経路が特定ワークスペースの絶対パスを
+   * 黙って読み、設定していない環境では取込 0 件のまま success を返す
+   * （2026-08-21 anytime-trade 実測）。解決は呼び出し元の責務にする。
+   */
+  reviewDir: string;
   ollama: OllamaClient;
   model?: string;
+  /** chat model が使えるか。false なら category 推論を保留し取込だけ進める。既定 true。 */
+  chatAvailable?: boolean;
   logger?: CaravanLogger;
   /**
    * true の場合、Route A の source_hash skip を bypass し全 review .md を再パースする。
@@ -458,8 +540,8 @@ export async function runReviewIncremental(input: {
   const { db, repoName, ollama } = input;
   const logger = input.logger ?? noopLogger;
   const model = input.model ?? 'qwen2.5:7b';
-  const reviewDir =
-    input.reviewDir ?? process.env['MEMORY_CORE_REVIEW_DIR'] ?? DEFAULT_REVIEW_DIR;
+  const reviewDir = input.reviewDir;
+  const chatAvailable = input.chatAvailable ?? true;
   const force = input.force === true || process.env['MEMORY_CORE_REVIEW_FORCE'] === '1';
   if (force) {
     logger.info('[anytime-memory] runReviewIncremental: force re-ingest enabled (skip source_hash, reset session state)');
@@ -480,13 +562,15 @@ export async function runReviewIncremental(input: {
   };
   const recordedAt = new Date().toISOString();
   const ctx: RouteContext = {
-    db, repoName, workspaceScope: input.workspaceScope, ollama, model, logger, recordedAt, force,
+    db, repoName, workspaceScope: input.workspaceScope, ollama, model, chatAvailable,
+    logger, recordedAt, force,
   };
 
   await runRouteADocs(acc, reviewDir, ctx);
   await runRouteBSessions(acc, ctx);
 
   // ── Post-processing: resolveReviewTargets → linkAddresses + linkPrecedesBugs ──
+  await refinePendingCategoriesStep(ctx);
   resolveTargetsStep(db, logger);
   linkAddressesStep(acc, db, logger);
   linkPrecedesStep(acc, db, logger);

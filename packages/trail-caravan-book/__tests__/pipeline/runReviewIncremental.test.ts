@@ -594,3 +594,92 @@ describe('runReviewIncremental', () => {
     }
   }, 30000);
 });
+
+// chat model 不在でレビュー取込が全損していた事故（2026-08-21 anytime-trade 実測: code-reviewer
+// 実行 127 件に対し caravan_reviews 0 行）の再発検知。取込の本体は決定論パースなので、
+// category 推論ができないことを理由に 1 件も入らない状態に戻ってはいけない。
+describe('runReviewIncremental: chat model 非依存の取込', () => {
+  // 見出しが category 規則のどれにも当たらない = LLM 推論が要る指摘
+  const UNCATEGORIZED_REVIEW_DOC = `---
+title: "Uncategorized Review"
+type: "review"
+date: "2026-02-01"
+---
+レビュー対象: \`packages/web-app/src/baz.ts\`
+
+## 指摘
+
+**問題:** 呼び出し順が仕様と違う
+**提案:** 順序を入れ替える
+`;
+
+  test('chatAvailable=false でも finding が入り、Ollama を 1 度も呼ばない', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([
+      { name: 'uncategorized.md', content: UNCATEGORIZED_REVIEW_DOC },
+    ]);
+    const { db, close } = await openTestDb();
+    let generateCalls = 0;
+    const countingOllama: OllamaClient = {
+      generate: async () => (generateCalls++, { response: '{}' }),
+      embeddings: async () => ({ embedding: new Float32Array(0) }),
+    };
+
+    try {
+      const result = await runReviewIncremental({
+        workspaceScope: allWorkspacesScope(),
+        db, repoName: REPO, reviewDir: dir,
+        ollama: countingOllama, model: 'test', chatAvailable: false, logger: noopLogger,
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.findings_inserted).toBeGreaterThanOrEqual(1);
+      expect(generateCalls).toBe(0);
+
+      const rows = db.exec(
+        `SELECT category_inferred_by FROM caravan_review_findings`,
+      )[0]?.values ?? [];
+      expect(rows.length).toBeGreaterThanOrEqual(1);
+      expect(rows.map((r) => String(r[0]))).toContain('pending_llm');
+    } finally {
+      close();
+      cleanup();
+    }
+  }, 30000);
+
+  test('chat 復旧後の run が pending_llm を埋め直す（source_hash は不変のまま）', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([
+      { name: 'uncategorized.md', content: UNCATEGORIZED_REVIEW_DOC },
+    ]);
+    const { db, close } = await openTestDb();
+    const refiningOllama: OllamaClient = {
+      generate: async () => ({ response: JSON.stringify({ category: 'logic', confidence: 0.9 }) }),
+      embeddings: async () => ({ embedding: new Float32Array(0) }),
+    };
+    const base = {
+      workspaceScope: allWorkspacesScope(),
+      db, repoName: REPO, reviewDir: dir, model: 'test', logger: noopLogger,
+    };
+    const hash = () =>
+      String(db.exec(`SELECT source_hash FROM caravan_reviews WHERE source_kind='review_doc'`)[0]
+        ?.values?.[0]?.[0] ?? '');
+
+    try {
+      await runReviewIncremental({ ...base, ollama: refiningOllama, chatAvailable: false });
+      const hashAfterFirst = hash();
+
+      // 2 回目は md が変わっていないので Route A は skip されるが、埋め直しは走る
+      await runReviewIncremental({ ...base, ollama: refiningOllama, chatAvailable: true });
+
+      const rows = db.exec(
+        `SELECT category, category_inferred_by FROM caravan_review_findings`,
+      )[0]?.values ?? [];
+      expect(rows.length).toBeGreaterThanOrEqual(1);
+      expect(rows.map((r) => String(r[1]))).not.toContain('pending_llm');
+      expect(rows.map((r) => String(r[0]))).toContain('logic');
+      expect(hash()).toBe(hashAfterFirst);
+    } finally {
+      close();
+      cleanup();
+    }
+  }, 30000);
+});

@@ -660,6 +660,7 @@ export async function activate(context: vscode.ExtensionContext) {
 								dbPath: getCaravanBookDbPath(wsRootForDb),
 								nativeBinding: caravanBookNativeBinding,
 								gitRoot: wsRootForDb,
+								docsRoot: lepConfig.sources.docs.root || undefined,
 								backfillDays: lepConfig.memory.conversation.backfillDays,
 								workspaceScopeMode: lepConfig.memory.workspaceScope,
 								llm: {

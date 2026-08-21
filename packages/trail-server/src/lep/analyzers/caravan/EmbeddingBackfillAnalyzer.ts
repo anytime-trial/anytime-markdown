@@ -10,6 +10,7 @@ import { CaravanAnalyzerBase } from './CaravanAnalyzerBase';
  */
 export class EmbeddingBackfillAnalyzer extends CaravanAnalyzerBase {
   readonly id = 'EmbeddingBackfillAnalyzer';
+  readonly scopes = ['embedding_backfill'] as const;
   override readonly requiresLlm = {
     embedding: { provider: 'ollama', model: 'bge-m3' },
   } as const;

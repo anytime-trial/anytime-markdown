@@ -13,11 +13,18 @@ export async function refineCategories(input: {
   ollama: OllamaClient;
   model: string;
   logger: { warn: (msg: string) => void };
+  /**
+   * chat model が使えるか。false のときは Ollama を 1 度も叩かず、未確定の指摘へ
+   * 'pending_llm' の印を付けて返す。取込そのものは決定論パースで完結するので、
+   * category 推論ができないことを理由に scope ごと落とさない。
+   */
+  chatAvailable?: boolean;
 }): Promise<{
   findings: ParsedFinding[];
   llm_calls: number;
 }> {
   const { findings, ollama, model, logger } = input;
+  const chatAvailable = input.chatAvailable ?? true;
 
   const needsLLM: ParsedFinding[] = [];
   const kept: ParsedFinding[] = [];
@@ -32,6 +39,16 @@ export async function refineCategories(input: {
 
   if (needsLLM.length === 0) {
     return { findings: [...kept], llm_calls: 0 };
+  }
+
+  if (!chatAvailable) {
+    // 印だけ付けて返す。'other' で確定させないのは、後から埋め直す経路が消えるため。
+    for (const finding of needsLLM) finding.category_inferred_by = 'pending_llm';
+    logger.warn(
+      `[extractFindings] chat model 不在のため category 推論を保留: ${needsLLM.length} 件を pending_llm として取り込む`,
+    );
+    const merged = [...kept, ...needsLLM].sort((a, b) => a.finding_index - b.finding_index);
+    return { findings: merged, llm_calls: 0 };
   }
 
   let llm_calls = 0;
@@ -49,11 +66,15 @@ export async function refineCategories(input: {
       const validated = LLMResultSchema.parse(parsed);
       finding.category = validated.category;
       finding.is_category_inferred = false;
+      finding.category_inferred_by = 'llm';
     } catch (err) {
       logger.warn(
         `[extractFindings] LLM category refinement failed for finding_index=${finding.finding_index}: ${err instanceof Error ? err.message : String(err)}`,
       );
       finding.category = 'other';
+      // is_category_inferred は true のまま残す。単発の失敗を確定扱いにすると、
+      // Ollama の一時障害がそのまま恒久的な誤 category になる。
+      finding.category_inferred_by = 'pending_llm';
     }
   }
 

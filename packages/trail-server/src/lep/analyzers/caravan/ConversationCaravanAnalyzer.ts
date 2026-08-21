@@ -8,6 +8,7 @@ import { CaravanAnalyzerBase } from './CaravanAnalyzerBase';
  */
 export class ConversationCaravanAnalyzer extends CaravanAnalyzerBase {
   readonly id = 'ConversationCaravanAnalyzer';
+  readonly scopes = ['conversation_incremental', 'conversation_failed_items_retry'] as const;
   override readonly requiresLlm = {
     chat: { provider: 'ollama', model: 'qwen2.5-coder:14b' },
     embedding: { provider: 'ollama', model: 'bge-m3' },

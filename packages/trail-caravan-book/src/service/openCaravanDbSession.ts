@@ -130,6 +130,7 @@ export async function openCaravanDbSession(
     logger,
     statusWriter,
     gitRoot: ctx.gitRoot ?? process.cwd(),
+    docsRoot: ctx.docsRoot,
     backfillDays: ctx.backfillDays,
     workspaceScopeMode: ctx.workspaceScopeMode,
     chatModel: ctx.llm?.chatModel,

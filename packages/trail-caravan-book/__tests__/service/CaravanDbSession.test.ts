@@ -1266,4 +1266,66 @@ describe('CaravanDbSession', () => {
       trailDb.close();
     });
   });
+// ── review / spec の取込元パス解決 ────────────────────────────────────
+  //
+  // 既定が /Shared/anytime-markdown-docs を指していたため、その docs リポジトリを持たない
+  // ワークスペースでは Route A が恒久的に空振りしていた（2026-08-21 anytime-trade 実測）。
+  describe("reviewDir / specRoot の解決", () => {
+    const ENV_KEYS = ["MEMORY_CORE_REVIEW_DIR", "MEMORY_CORE_SPEC_DIR"] as const;
+    const saved: Record<string, string | undefined> = {};
+
+    beforeEach(() => {
+      for (const k of ENV_KEYS) {
+        saved[k] = process.env[k];
+        delete process.env[k];
+      }
+      mockRunReviewIncremental.mockResolvedValue({ status: "success", items_processed: 0 } as never);
+      mockRunSpecIncremental.mockResolvedValue({ status: "success", items_processed: 0 } as never);
+    });
+
+    afterEach(() => {
+      for (const k of ENV_KEYS) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    });
+
+    it("docsRoot 未指定・env 未設定なら <gitRoot>/docs 配下へ解決する（他ワークスペースの絶対パスへ倒さない）", async () => {
+      const memDb = await makeCaravanDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+
+      await session.runReview();
+      await session.runSpec();
+
+      expect(mockRunReviewIncremental.mock.calls[0]?.[0]?.reviewDir).toBe("/tmp/test-repo/docs/review");
+      expect(mockRunSpecIncremental.mock.calls[0]?.[0]?.specRoot).toBe("/tmp/test-repo/docs/spec");
+      trailDb.close();
+    });
+
+    it("docsRoot 指定時はその配下へ解決する", async () => {
+      const memDb = await makeCaravanDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb, { docsRoot: "/Shared/some-docs" });
+
+      await session.runReview();
+      await session.runSpec();
+
+      expect(mockRunReviewIncremental.mock.calls[0]?.[0]?.reviewDir).toBe("/Shared/some-docs/review");
+      expect(mockRunSpecIncremental.mock.calls[0]?.[0]?.specRoot).toBe("/Shared/some-docs/spec");
+      trailDb.close();
+    });
+
+    it("env は docsRoot より優先する（既存環境の上書き手段を壊さない）", async () => {
+      process.env["MEMORY_CORE_REVIEW_DIR"] = "/env/review";
+      const memDb = await makeCaravanDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb, { docsRoot: "/Shared/some-docs" });
+
+      await session.runReview();
+
+      expect(mockRunReviewIncremental.mock.calls[0]?.[0]?.reviewDir).toBe("/env/review");
+      trailDb.close();
+    });
+  });
 });

@@ -79,8 +79,8 @@ export function upsertReviewFinding(
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
           category, severity, finding_text, suggestion_text,
-          checklist_ref, extracted_by, recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          checklist_ref, extracted_by, category_inferred_by, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         findingId,
         reviewEntityId,
@@ -96,6 +96,8 @@ export function upsertReviewFinding(
         finding.suggestion_text,
         finding.checklist_ref ?? null,
         extractedBy,
+        // 明示指定が無い旧経路は is_category_inferred から導出する（true = LLM 推論待ち）。
+        finding.category_inferred_by ?? (finding.is_category_inferred ? 'pending_llm' : ''),
         recordedAt,
       ],
     );

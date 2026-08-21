@@ -15,6 +15,16 @@ export type ParsedFinding = {
   chapter_path: string;
   is_category_inferred: boolean;
   /**
+   * category を誰が決めたか。'' = 見出し規則で確定 / 'llm' = LLM が推論して確定 /
+   * 'pending_llm' = 見出しから決められず、chat model 不在で未確定。
+   *
+   * 未設定のまま persist へ渡った場合は `is_category_inferred` から導出する
+   * （true なら 'pending_llm'）。chat が居ない環境で 'other' に確定させないのは、
+   * source_hash が一致する限りその md が二度と再処理されず、誤った category が
+   * 永久に固まるため。
+   */
+  category_inferred_by?: '' | 'llm' | 'pending_llm';
+  /**
    * code-review-checklist スキルの観点キー。'§14' 等の章番号 / 'none'（該当章なし）/
    * null（マーカー未記載＝未記録）。章番号は旧 code-quality.md と同一体系。
    */

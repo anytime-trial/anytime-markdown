@@ -10,6 +10,7 @@ import { CaravanAnalyzerBase } from './CaravanAnalyzerBase';
  */
 export class DriftCaravanAnalyzer extends CaravanAnalyzerBase {
   readonly id = 'DriftCaravanAnalyzer';
+  readonly scopes = ['drift_detection'] as const;
   override readonly dependsOn: readonly string[] = [
     'ConversationCaravanAnalyzer',
     'CodeCaravanAnalyzer',

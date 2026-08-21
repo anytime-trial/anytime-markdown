@@ -163,6 +163,7 @@ program
     const caravanBookPrimaryGitRoot = effectiveGitRoots[0];
     const caravanBookService = createCaravanBookService({
       gitRoot: caravanBookPrimaryGitRoot,
+      docsRoot: lepConfig.sources.docs.root || undefined,
       trailDbPath: join(dbStorageDir, 'activity.db'),
       statePath: join(TRAIL_HOME, 'trail-caravan-book-runner.json'),
       backfillDays: lepConfig.memory.conversation.backfillDays,
@@ -745,6 +746,8 @@ function wireAnalyzePipeline(args: {
  */
 function createCaravanBookService(args: {
   readonly gitRoot: string | undefined;
+  /** 設計書リポジトリのルート (lep.json `sources.docs.root`)。未設定なら `<gitRoot>/docs` へ落ちる。 */
+  readonly docsRoot: string | undefined;
   readonly trailDbPath: string;
   readonly statePath: string;
   readonly backfillDays: number;
@@ -760,6 +763,7 @@ function createCaravanBookService(args: {
     logSink,
     trailDbPath: args.trailDbPath,
     ...(args.gitRoot ? { gitRoot: args.gitRoot } : {}),
+    ...(args.docsRoot ? { docsRoot: args.docsRoot } : {}),
     statePath: args.statePath,
     backfillDays: args.backfillDays,
     workspaceScopeMode: args.workspaceScopeMode,

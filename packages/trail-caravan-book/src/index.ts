@@ -140,6 +140,7 @@ export type {
   PipelineState,
 } from './status/PipelineStatusWriter';
 export { PIPELINE_SCOPES } from './service/pipelineScopes';
+export type { PipelineScope } from './service/pipelineScopes';
 
 export { runRagFtsRebuild } from './pipeline/runRagFtsRebuild';
 export type {
@@ -183,6 +184,7 @@ export type {
   ScopeResult,
   CaravanBookScopeRunner,
   CaravanDbSessionDeps,
+  RunReviewOptions,
 } from './service/CaravanDbSession';
 export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';
 export type { ReadStateOptions } from './service/state';
