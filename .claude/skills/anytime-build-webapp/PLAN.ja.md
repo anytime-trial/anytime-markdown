@@ -23,7 +23,7 @@ clarity: 92
 
 > [!IMPORTANT]
 > **本プランは 2026-05-17 時点の記録**で、各 Step の `Run: bash ~/.claude/scripts/validate-markdown.sh ...` は**当時の手順**である。このスクリプトは現在**実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。\
-> 本プランを再実行する場合、対象は `.claude/skills/anytime-build-webapp/` 配下＝mcp-markdown のルート（`/anytime-markdown`）配下なので、各 Step の検証は `mcp__mcp-markdown__format_markdown(path, mode="fix")` を実行して返り値の `warnings` に対応する手順へ読み替える（`anytime-markdown-check` スキル）。
+> 本プランを再実行する場合、対象は `.claude/skills/anytime-build-webapp/` 配下＝mcp-markdown のルート（`/anytime-markdown`）配下なので、各 Step の検証は `mcp__mcp-markdown__format_markdown(path, mode="fix")` を実行して返り値の `warnings` に対応する手順へ読み替える（`anytime-markdown-output` スキル §10）。
 
 
 ---

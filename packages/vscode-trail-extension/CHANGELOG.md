@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Bundled skills: `anytime-dev-retro` now points its report-verification step at `anytime-markdown-output` §10 (post-output verification) shipped by the markdown extension, following the merge of the former `anytime-markdown-check`. **Release this together with the markdown extension** — releasing the markdown extension alone deletes the deployed `anytime-markdown-check`, leaving this extension's un-updated skill pointing at a skill that no longer exists.
 - Bundled skills: merged `anytime-reverse-doctrine` into the doctrine-extraction mode of `anytime-dev-retro` (both are retrospective flows that feed improvements/norms back from actuals and history; the procedure now lives in `references/reverse-doctrine.ja.md` and the templates in `templates/doctrine/`). The old dir is removed on activation via `oldNames`.
 - Bundled skills: `anytime-reverse-spec` moved to the markdown extension and is no longer bundled here (distribution change accompanying the merge of the agent extension's `anytime-ux-archeologist` as its exterior-reverse mode). Deployed copies are overwritten with the merged v6 on the markdown extension's first activation when it is installed in the same workspace; in trail-only environments the old copy remains as-is — it is deliberately not registered in this extension's `oldNames`, because that cleanup would also delete the merged version the markdown extension deploys on every activation.
 

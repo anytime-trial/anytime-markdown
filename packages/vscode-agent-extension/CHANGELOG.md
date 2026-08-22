@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Bundled skills: `anytime-analysis` and `anytime-build-webapp` now point their verification steps at `anytime-markdown-output` §10 (post-output verification) shipped by the markdown extension, following the merge of the former `anytime-markdown-check`. **Release this together with the markdown extension** — releasing the markdown extension alone deletes the deployed `anytime-markdown-check`, leaving this extension's un-updated skills pointing at a skill that no longer exists.
+
 ### Removed
 
 - Bundled skills: `anytime-impl-test-design` was merged into `anytime-doc-authoring` §6 (post-implementation test design; procedure in `references/impl-test-design.ja.md`) shipped by the markdown extension, and is no longer bundled here. Deployed old dirs are removed on activation via `anytime-dev-cycle`'s `oldNames`.

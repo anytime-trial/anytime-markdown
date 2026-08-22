@@ -8,6 +8,7 @@
 
 ### 変更
 
+- 同梱スキル: `anytime-dev-retro` のレポート検証手順の参照先を、markdown 拡張の `anytime-markdown-output` §10（出力後の検証）へ更新した（旧 `anytime-markdown-check` の統合に伴う）。**markdown 拡張と同一リリースで配ること** — markdown 拡張だけ先に出すと配置済みの `anytime-markdown-check` が削除され、本拡張の未更新スキルが存在しないスキル名を指す。
 - 同梱スキル: `anytime-reverse-doctrine` を `anytime-dev-retro` の doctrine 抽出モードへ統合（どちらも実績・履歴から改善・規範を還流させるふりかえり系のため。手順は `references/reverse-doctrine.ja.md`・テンプレートは `templates/doctrine/` へ移設）。旧 dir は `oldNames` により activate 時に削除される。
 - 同梱スキル: `anytime-reverse-spec` を markdown 拡張の同梱へ移管し、本拡張の同梱から外した（agent 拡張の `anytime-ux-archeologist` を外形リバースモードとして統合したのに伴う配布元変更。配置済みコピーは、markdown 拡張が同一ワークスペースに導入されていればその初回 activate で統合版 v6 に上書きされる。trail 拡張のみの環境では旧版が削除されずそのまま残る — 本拡張の `oldNames` へ掃除登録すると markdown 拡張が配置した統合版まで毎 activate で削除してしまうため、意図的に登録していない）。
 
