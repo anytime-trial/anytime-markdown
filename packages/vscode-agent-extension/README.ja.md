@@ -121,7 +121,6 @@ AI が実行した git 操作の履歴を表示します。
 | `anytime-note` | AI が AI ノートのページ（画像・表・メモ）を読み取って作業する |
 | `anytime-dev-cycle` | 開発フロー全体、サブエージェント回転、Codex / ollama 委譲を統合した基本スキル |
 | `anytime-cross-review` | Claude と Codex が同一 diff を独立レビューし、指摘を相互検証する |
-| `anytime-impl-test-design` | 実装後にどのテストを書くかを決める（配線・mount・i18n の検知ギャップ対策） |
 | `anytime-analysis` | 思考法ガイド付きで対象を分析し、結果を提案書（RFC / ADR / 軽量提案）または共起グラフ（`.cooc.json`）として出力する |
 | `anytime-session-exit` | セッションを締めて構造化デブリーフ（達成度・未解決事項・懸念点）を出力する |
 | `anytime-dev-audit` | PC 環境と Claude Code 設定を read-only で診断し、最適化プランを提示する |

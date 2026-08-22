@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Bundled skills: added a requirements-definition template (`references/requirements-template.ja.md`) and authoring rules (§2.8) to `anytime-doc-authoring`.
+- Bundled skills: merged the agent extension's `anytime-impl-test-design` (post-implementation test design) into `anytime-doc-authoring` §6 (procedure in `references/impl-test-design.ja.md`), unifying the test-design authoring skills alongside §5.
 - Bundled skills: merged `anytime-spec-lookup` (spec navigation) into `anytime-markdown-usage` §D, since both cover low-token document usage; backlink lookup now prefers `doc_backlinks`.
 
 ### Removed

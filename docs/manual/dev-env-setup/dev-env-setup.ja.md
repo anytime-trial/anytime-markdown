@@ -265,7 +265,7 @@ claude    # 初回起動でログイン（サブスクリプションまたは A
 
 拡張の activate 時に以下が自動セットアップされる。
 
-- **Agent 拡張**: ワークスペースの `.claude/skills/` へ同梱スキルを展開する。`anytime-build-webapp` のほか、`anytime-dev-cycle`（開発基本）・`anytime-cross-review`（相互レビュー）・`anytime-impl-test-design`・`anytime-proposal`・`anytime-loop-start` / `anytime-loop-stop`（チケットループ）・`anytime-session-exit`・`anytime-dev-audit`・`anytime-note` が含まれる
+- **Agent 拡張**: ワークスペースの `.claude/skills/` へ同梱スキルを展開する。`anytime-build-webapp` のほか、`anytime-dev-cycle`（開発基本）・`anytime-cross-review`（相互レビュー）・`anytime-analysis`（旧 `anytime-proposal`）・`anytime-loop-start` / `anytime-loop-stop`（チケットループ）・`anytime-session-exit`・`anytime-dev-audit`・`anytime-note` が含まれる
 - **Trail / Agent 拡張**: `~/.claude/settings.json` へ Claude Code hooks（編集状態・コミット・トークン消費の記録）を登録する
 
 展開結果を確認する。

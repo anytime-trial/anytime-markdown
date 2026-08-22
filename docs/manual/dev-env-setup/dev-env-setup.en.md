@@ -262,7 +262,7 @@ The `customizations.vscode.extensions` from step 6 auto-installs the three exten
 
 On activation, the extensions set up the following automatically.
 
-- **Agent extension**: deploys bundled skills into the workspace `.claude/skills/` — including `anytime-build-webapp`, plus `anytime-dev-cycle` (base development), `anytime-cross-review` (mutual review), `anytime-impl-test-design`, `anytime-proposal`, `anytime-loop-start` / `anytime-loop-stop` (ticket loop), `anytime-session-exit`, `anytime-dev-audit`, and `anytime-note`
+- **Agent extension**: deploys bundled skills into the workspace `.claude/skills/` — including `anytime-build-webapp`, plus `anytime-dev-cycle` (base development), `anytime-cross-review` (mutual review), `anytime-analysis` (formerly `anytime-proposal`), `anytime-loop-start` / `anytime-loop-stop` (ticket loop), `anytime-session-exit`, `anytime-dev-audit`, and `anytime-note`
 - **Trail / Agent extensions**: register Claude Code hooks in `~/.claude/settings.json` (recording edit state, commits, and token consumption)
 
 Verify the deployment.

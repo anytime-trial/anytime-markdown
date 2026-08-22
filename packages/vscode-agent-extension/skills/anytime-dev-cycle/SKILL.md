@@ -76,7 +76,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 | 1 | 提案書（明示指示時のみ） | `anytime-analysis` → `<docsRoot>/proposal/` | ファイル存在 + ユーザー `ok` |
 | 2 | 要件書・機能仕様書の作成・改訂（AI） | `anytime-markdown-usage` + `anytime-markdown-output`（要件定義書・component spec・E2E シナリオ・試験設計書） | ファイル存在 + ユーザー承認（What の確定。実装前で唯一の内容承認。バグ修正 2 案の選択もここ） |
 | 3 | 実装計画の作成（AI・承認不要） | `superpowers:writing-plans` → `<docsRoot>/plan/` | ファイル存在のみ（承認ゲートなし。検証コマンドの実在確認は必須） |
-| 4 | 実装 | §3 の手段選択 + `anytime-impl-test-design` | 出口から導出した検証が通過 |
+| 4 | 実装 | §3 の手段選択 + `anytime-doc-authoring` §6（実装後テスト設計。旧 `anytime-impl-test-design`） | 出口から導出した検証が通過 |
 | 5 | 設計書更新・ドリフト検知 | component spec / E2E シナリオ / 試験設計書 + mcp-trail 整合チェック | 振る舞い変更が正本へ反映済み + drift 検知 clean（未解消は是正 or 逸脱理由を記録） |
 | 6 | マージ前レビュー | `superpowers:requesting-code-review` / 高重大度（冒頭の定義）は `anytime-cross-review`（実装と別系統モデルで検証） | error/warn 解消、検証再確認 |
 | 7 | マージ | develop へローカルマージ | push / リリースは別指示 |
@@ -100,7 +100,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 - 段2: 実装前に要件書・設計書を AI が作成・改訂し、ユーザー承認（What の確定）を得る。UI / 振る舞いを持つ機能は component spec だけでなく E2E シナリオ正本と試験設計書も author / 更新する。
 - 段3: 3 ファイル以上の変更はプランファイルを作成する（再開性・plannedEdits 機械契約のため。承認は取らず作成後そのまま段4 へ）。検証コマンドは対象 `package.json` の scripts / devDependencies を事前確認する。
 - 段3 の分解停止条件（contract-first）: 各タスクは**検証手段を先に決めてから**着手する。出力が主観的・観測不能で検証手段を書けないタスクは、実装に入らず分解し直すか、人手のみ試験（受け入れ試験）へ回すか、仕様の具体化（段2 へ戻る）を選ぶ。「実装してから検証を考える」順序を取らない。
-- 段4: 実装後テストは出口から導出する。配線、mount、型、i18n、設定 schema、E2E、実機確認の必要性を `anytime-impl-test-design` で列挙する。実行手段は §3 の既定（Codex 委譲）と除外条件で決め、判定と見送りを記録する。
+- 段4: 実装後テストは出口から導出する。配線、mount、型、i18n、設定 schema、E2E、実機確認の必要性を `anytime-doc-authoring` §6（実装後テスト設計。旧 `anytime-impl-test-design`。手順詳細は同スキル references/impl-test-design.ja.md）で列挙する。実行手段は §3 の既定（Codex 委譲）と除外条件で決め、判定と見送りを記録する。
 - 段5: 振る舞い・I/F・画面・データモデルが変わったら spec を更新する。enum / 設定値 / プリセット変更は兄弟値リテラルで横断 grep し、TS union、i18n、package schema、nls、設計書のミラーを同時更新する。docs リポ側の commit 規律は global / AGENTS.md に従う。
 - 段5 ドリフト検知: 正本更新後に mcp-trail の `check_alignment` で「変更ファイル → C4 要素 → `c4Scope` を持つ設計書」の更新漏れ（設計書側の沈黙）を検査し、`detect_drift` で spec_vs_code の矛盾を確認する。検知した drift は是正（正本を更新）するか、意図的逸脱として理由を付けて `resolve_drift` で記録してから段6 へ進む。TrailDataServer 未起動で実行不能な場合は縮退（手動突合）をルート宣言に明記する。段5 自体を省略するルートでは検知も省略可。設計書ドリフトの週次デルタ監視は `anytime-dev-retro`（旧 anytime-dev-health）から本ゲートへ移管した（2026-07-14）。
 - 段6: ユニット green だけを完了根拠にしない。型チェック、統合、実機、ビルドの必要分を再確認する。**実装と検証を同一モデルで完結させない**（同一基盤モデルは欠陥を共有し、AI レビュアー自身が騙され得る）。高重大度（冒頭の定義）の変更では `anytime-cross-review`（Claude × Codex の独立レビュー）を使い、それ以外は `superpowers:requesting-code-review` でよい。レビュー指摘は鵜呑みにせず実測（再現・grep・テスト）で裏取りしてから採否を決める。
