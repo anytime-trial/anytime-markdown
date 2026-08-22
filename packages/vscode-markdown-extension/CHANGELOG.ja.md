@@ -6,9 +6,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- スキル配置（installSkills）: 統合・廃止で同梱から外れた旧スキル dir を activate 時に削除する（`OBSOLETE_SKILL_NAMES` の明示リスト方式。manifest に無いものの一括削除はしない。初回対象は `anytime-spec-lookup`）。
+
 ### Changed
 
 - 同梱スキル: `anytime-doc-authoring` に要件定義書テンプレート（`references/requirements-template.ja.md`）と記載ルール §2.8 を追加。
+- 同梱スキル: `anytime-spec-lookup`（設計書ナビゲーション）を `anytime-markdown-usage` §D へ統合。どちらもトークン軽減の利用手順のため一本化し、バックリンク逆引きは `doc_backlinks` 優先へ更新。
+
+### Removed
+
+- 同梱スキル: `anytime-spec-lookup` を単体スキルとしては廃止（内容は `anytime-markdown-usage` §D が正本）。
 
 ## [1.22.0] - 2026-08-20
 

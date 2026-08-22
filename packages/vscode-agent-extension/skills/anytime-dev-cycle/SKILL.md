@@ -74,7 +74,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 | --- | --- | --- | --- |
 | 0 | ブランチ確認 | `git branch --show-current` + `.git/anytime/claims` | 永続ブランチ（master/main/develop）では作業せず、着手時に develop 由来の作業ブランチを作る。並行セッションが同一 worktree を保持していれば worktree で分離する |
 | 1 | 提案書（明示指示時のみ） | `anytime-analysis` → `<docsRoot>/proposal/` | ファイル存在 + ユーザー `ok` |
-| 2 | 要件書・機能仕様書の作成・改訂（AI） | `anytime-spec-lookup` + `anytime-markdown-output`（要件定義書・component spec・E2E シナリオ・試験設計書） | ファイル存在 + ユーザー承認（What の確定。実装前で唯一の内容承認。バグ修正 2 案の選択もここ） |
+| 2 | 要件書・機能仕様書の作成・改訂（AI） | `anytime-markdown-usage` + `anytime-markdown-output`（要件定義書・component spec・E2E シナリオ・試験設計書） | ファイル存在 + ユーザー承認（What の確定。実装前で唯一の内容承認。バグ修正 2 案の選択もここ） |
 | 3 | 実装計画の作成（AI・承認不要） | `superpowers:writing-plans` → `<docsRoot>/plan/` | ファイル存在のみ（承認ゲートなし。検証コマンドの実在確認は必須） |
 | 4 | 実装 | §3 の手段選択 + `anytime-impl-test-design` | 出口から導出した検証が通過 |
 | 5 | 設計書更新・ドリフト検知 | component spec / E2E シナリオ / 試験設計書 + mcp-trail 整合チェック | 振る舞い変更が正本へ反映済み + drift 検知 clean（未解消は是正 or 逸脱理由を記録） |

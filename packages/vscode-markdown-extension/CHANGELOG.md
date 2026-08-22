@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Skill installer (installSkills): bundled-skill dirs retired by merges/deprecations are now removed on activation via the explicit `OBSOLETE_SKILL_NAMES` list (no blanket "not in manifest" pruning; first entry: `anytime-spec-lookup`).
+
 ### Changed
 
 - Bundled skills: added a requirements-definition template (`references/requirements-template.ja.md`) and authoring rules (§2.8) to `anytime-doc-authoring`.
+- Bundled skills: merged `anytime-spec-lookup` (spec navigation) into `anytime-markdown-usage` §D, since both cover low-token document usage; backlink lookup now prefers `doc_backlinks`.
+
+### Removed
+
+- Bundled skills: retired `anytime-spec-lookup` as a standalone skill (its content now lives in `anytime-markdown-usage` §D).
 
 ## [1.22.0] - 2026-08-20
 
