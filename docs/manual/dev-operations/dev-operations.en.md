@@ -94,7 +94,7 @@ Steps that use a skill list it under "Skills used" at the top of the section (bu
 
 ### 0. Bootstrapping and operating the doctrine (repositioned approval)
 
-**Skills used**: `anytime-reverse-doctrine` — extracts tacit knowledge from code, git history, design docs, and review records into four documents (design philosophy / coding conventions / glossary / process reality); `--delta` produces incremental updates and divergence reports since the last extraction.
+**Skills used**: the doctrine-extraction mode of `anytime-dev-retro` (formerly the `anytime-reverse-doctrine` skill; merged 2026-08-22) — extracts tacit knowledge from code, git history, design docs, and review records into four documents (design philosophy / coding conventions / glossary / process reality); `--delta` produces incremental updates and divergence reports since the last extraction.
 
 This replaces per-item approval of requirements/design docs (the What approval) with an up-front approval of the doctrine. Once the human has approved the doctrine (canonization), individual decisions within its coverage are delegated to the AI's doctrine-grounded decisions, and the human's routine intervention shrinks to two points: the input and the post-completion acceptance review. **The doctrine draws its authority solely from human approval.** The AI never promotes its own decisions or output into the doctrine without approval (the self-reinforcement loop is cut).
 
@@ -115,14 +115,14 @@ The doctrine is extracted from an existing track record (code, history, review r
 
 | Aspect | Existing development (a track record exists) | New development (no track record) |
 | --- | --- | --- |
-| Initial corpus | Extract the four documents in one pass with `anytime-reverse-doctrine`, then have the human review and canonize them | Nearly empty, as there is nothing to extract from. Start by canonizing only generic norms (CLAUDE.md, rules, global skills) and organizational standards |
+| Initial corpus | Extract the four documents in one pass with the doctrine-extraction mode, then have the human review and canonize them | Nearly empty, as there is nothing to extract from. Start by canonizing only generic norms (CLAUDE.md, rules, global skills) and organizational standards |
 | What approvals at the start | Within coverage they are delegated to grounded decisions; escalation is the exception | Doctrine silence is the default, so almost every item escalates to the human (effectively the same as conventional per-item approval) |
 | Growing coverage | Run `--delta` periodically to detect divergence from reality and canonize the diffs via drafts | Extract and canonize at milestones once a track record (commits, review records, design decisions) has accumulated, widening the delegated range |
 | Progress signal | The number of divergence reports (clauses with unaddressed divergence are suspended as decision grounds) | The declining escalation count (the coverage gate doubles as a gauge of doctrine gaps) |
 
 #### 0-2. Day-to-day operation
 
-1. **Extraction (AI)**: for existing development, run `/anytime-reverse-doctrine` once for the initial pass, then `--delta` for incremental updates. Output is always a draft; the AI never promotes its own decisions or artifacts into the doctrine without approval
+1. **Extraction (AI)**: for existing development, run the doctrine-extraction mode of `/anytime-dev-retro` once for the initial pass, then `--delta` for incremental updates. Output is always a draft; the AI never promotes its own decisions or artifacts into the doctrine without approval
 2. **Canonization (human)**: review the drafts and decide adoption. Only approved doctrine can serve as grounds for delegated What approvals (decisions grounded on unapproved drafts are escalated instead of executed autonomously)
 3. **Grounded decisions (AI)**: for inputs within coverage, the AI decides autonomously while recording a verbatim quote of the applicable clause plus a Rationale into Trail. A decision whose quote does not resolve to a real clause is invalid. Silence, conflicts, and out-of-ODD inputs are escalated with decision materials (grounds, rejected alternatives, pre-mortem)
 4. **Feedback**: among acceptance-review rejections, those where a correctly grounded decision failed are treated not as decision errors but as doctrine defects (wrong, stale, or under-specified clauses) and fed back as revision drafts
@@ -187,7 +187,7 @@ Re-run the analysis after structural changes (new packages, large refactorings) 
 
 AI completes everything up to the local merge into develop; acceptance testing and release beyond that are human decisions.
 
-1. **Test design (prepare the verification means before generating)**: secure an observable exit for each task (tests, type check, build, real device/E2E) before implementing. Use `anytime-impl-test-design` to decide which tests to write (closing detection gaps in wiring, mount, and i18n). A task whose verification means cannot be decided is not implemented — decompose it again
+1. **Test design (prepare the verification means before generating)**: secure an observable exit for each task (tests, type check, build, real device/E2E) before implementing. Use `anytime-doc-authoring` §6 (post-implementation test design; formerly `anytime-impl-test-design`) to decide which tests to write (closing detection gaps in wiring, mount, and i18n). A task whose verification means cannot be decided is not implemented — decompose it again
 2. **Pre-merge review**: before merging a work branch into develop, run the bundled `anytime-cross-review` skill. Claude and Codex review the same diff independently and adopt the cross-verified findings (so that implementation and verification are not completed by the same model; without the Codex CLI, run a Claude-only code review). Address error/warn findings before merging. Each finding carries a checklist key (a chapter number `§N` from the global `code-review-checklist` skill, or `none` when no chapter applies); `none` findings feed the promotion-candidate aggregation of the weekly retrospective (step 6) as checklist gaps
 3. **Acceptance testing (human)**: against the artifacts merged into develop, run the manual-only tests (real devices, IME, print, subjective quality) and give the pass/fail verdict. AI goes only as far as test design (execution and verdict columns are filled by the human). Failures go back to the development cycle (Loop A)
 4. **Release (only on explicit human instruction)**: only candidates that passed acceptance testing proceed to the production release (version bump, publishing, deploy) after the human's release instruction and approval. AI never initiates remote pushes or publishing on its own

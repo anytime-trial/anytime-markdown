@@ -1,12 +1,12 @@
 ---
 name: anytime-doc-authoring
 effort: low
-description: <docsRoot> 配下のドキュメントを新規作成・執筆する時に、type（spec/tech/test/manual/proposal/plan/review/report）ごとの記載内容（何を書くか）・フォルダ構成・索引 index.[lang].md の自動生成運用を定義する。設計書（spec）の書き方・component spec の 2 ファイル分離・E2E シナリオ表・技術解説記事（tech。「技術記事を書いて」「ブログ記事を作成」「解説記事を書いて」等）の構成テンプレート・執筆ガイドライン・文体・生成ワークフロー・試験設計書（「試験設計書」「テスト設計書」「テストケースを設計」「テスト観点で洗い出し」「テスト計画」「QA 設計」等。7 ペルソナ観点・技法・自動化判定）・プランファイルの「変更対象ファイル」節・索引再生成が必要な時に使用する。全 type 共通の文章規範（文体・段落構成・論証の厳密さ・LLM 口調の排除・冗長排除・見出し・読者への誠実さ。「推敲して」「文章を整えて」「文章規範」等）は references/writing-standards.ja.md に従い、読み物寄りの type（tech の解説記事・manual の解説部・proposal / report の論述部）の緩急設計（「読みにくい」「単調」「読み進める気がしない」「緩急をつけて」「リズム」等）は references/cognitive-rhythm.ja.md を併用する。構文・フロントマター・整形は anytime-markdown-output、既存設計書の読み方・辿り方は anytime-spec-lookup を使う。
+description: <docsRoot> 配下のドキュメントを新規作成・執筆する時に、type（spec/tech/test/manual/proposal/plan/review/report）ごとの記載内容（何を書くか）・フォルダ構成・索引 index.[lang].md の自動生成運用を定義する。設計書（spec）の書き方・component spec の 2 ファイル分離・E2E シナリオ表・技術解説記事（tech。「技術記事を書いて」「ブログ記事を作成」「解説記事を書いて」等）の構成テンプレート・執筆ガイドライン・文体・生成ワークフロー・試験設計書（「試験設計書」「テスト設計書」「テストケースを設計」「テスト観点で洗い出し」「テスト計画」「QA 設計」等。7 ペルソナ観点・技法・自動化判定）・要件定義書（「要件定義書を作成」「要件定義」「要件をまとめて」「要件書」「requirements」等。テンプレートは references/requirements-template.ja.md）・実装後テスト設計（「実装後にどのテストを書くか」「実装後テスト」「テスト内容の決め方」「機能パリティ照合」「移行漏れ」「検知ギャップ」「verifier-first」等。旧 anytime-impl-test-design。手順は references/impl-test-design.ja.md）・プランファイルの「変更対象ファイル」節・索引再生成が必要な時に使用する。全 type 共通の文章規範（文体・段落構成・論証の厳密さ・LLM 口調の排除・冗長排除・見出し・読者への誠実さ。「推敲して」「文章を整えて」「文章規範」等）は references/writing-standards.ja.md に従い、読み物寄りの type（tech の解説記事・manual の解説部・proposal / report の論述部）の緩急設計（「読みにくい」「単調」「読み進める気がしない」「緩急をつけて」「リズム」等）は references/cognitive-rhythm.ja.md を併用する。構文・フロントマター・整形は anytime-markdown-output、既存設計書の読み方・辿り方・低トークン検索は anytime-markdown-usage を使う。
 ---
 
 # ドキュメント記載内容ガイド（anytime-doc-authoring）
 
-更新日: 2026-08-19
+更新日: 2026-08-22
 
 `<docsRoot>/` 配下のドキュメントについて、**type ごとに「何を書くか」**（記載内容・構成・運用）を定義する。
 
@@ -16,7 +16,7 @@ description: <docsRoot> 配下のドキュメントを新規作成・執筆す�
 | --- | --- |
 | **anytime-doc-authoring**（本スキル） | 何を書くか（type 別の記載内容・フォルダ構成・索引運用）＋どういう文章で書くか（文章規範。§1.4・`references/writing-standards.ja.md`・`references/cognitive-rhythm.ja.md`） |
 | `anytime-markdown-output` | どう書くか（GFM 構文・フロントマター仕様・整形・図表原則） |
-| `anytime-spec-lookup` | どう読むか（索引 → frontmatter → 型付き related の progressive disclosure） |
+| `anytime-markdown-usage` | どう読むか・どう探すか（低トークン検索・編集と、索引 → frontmatter → 型付き related の progressive disclosure。旧 `anytime-spec-lookup` を統合） |
 
 ## 1. 共通規則
 
@@ -125,6 +125,18 @@ type フォルダおよびその全サブフォルダの直下に索引 `index.[
 
 - **tech**: 技術調査・技術解説記事。比較は表＋評価軸を明示し、出典を脚注で示す（`anytime-markdown-output` 第 4 章)。解説記事の構成・執筆・文体・生成ワークフローは §4 に従う。
 - **manual**: ユーザー向け操作ガイド。前提条件 → 手順（番号付き）→ 結果確認の順で書き、スクリーンショットには alt テキスト必須。
+
+### 2.8. 要件定義書（requirements）
+
+プロダクト・機能の **What（何を作るか・何ができれば合格か）** を定義し、実装前承認の対象になるドキュメント（global CLAUDE.md「承認の対象」の要件書）。How（技術選定・実装方式）は書かない。要件を満たすうえで選択肢が実質 1 つに絞られる場合のみ、理由とともに制約として記す。
+
+- **テンプレート**: `references/requirements-template.ja.md` をコピーして使う。セクション構成（背景と目的 / スコープ / 利用者と利用文脈 / データ源と実現可能性 / 機能要件 / 画面要件 / 外部依存 / データモデル / 非機能要件 / セキュリティ / 受け入れ基準 / 制約・前提 / 未決事項 / 変更履歴）と記入ガイドはテンプレートに従う。
+- **type と配置**: 新しい type は設けず `type: "spec"` + `category: "requirements"` で既存の type 語彙・索引運用に乗せる。`<docsRoot>/spec/<NN>.<topic>/` に機能仕様書と並置し（ファイル名は `<topic>-requirements.[lang].md`）、`c4Scope` はシステムレベル `sys_<リポジトリ名>` を宣言する（`anytime-markdown-output` §2.3。要件定義書はプロダクト全体を対象とするため）。新規プロダクト生成（`anytime-build-webapp` 等）でプロジェクトルートへ `requirements.md` として置く場合は `c4Scope` を外す。追加・更新後は同フォルダ索引を再生成する（§1.2）。
+- **要件 ID**: すべての要件に ID（FR-xx / NFR-xx / SEC-xx / AC-xx / 未決 U-xx）を振る。実装計画（§2.4）と試験設計書（§5）はこの ID で要件を参照する（Test Basis のトレーサビリティ）。
+- **データ源と実現可能性を空欄のまま先へ進まない**: 外部サービス・既存システムから取るデータは、一次情報（公式リファレンス）で取得可否を項目単位に裏取りし根拠 URL を残す。取れない項目は代替経路を決めるか要件から落とすかをこの文書内で決着させる。
+- **受け入れ基準は観測可能な形で書く**: 「快適に動く」ではなく「何を・どの条件で・どう測るか」を、実行して合否が出る形で書き、関連要件 ID を紐づける。
+- **未決事項は本文に混ぜない**: 決まっていないことは「未決事項」節へ ID 付き（現時点の仮置き・決める期限つき）で分離し、本文に TBD・空欄を残さない。
+- **status と clarity**: `status` は `draft` → `review` → `approved`（破棄・置換は `superseded`）。承認後の変更は「変更履歴」に版として残す。frontmatter の `clarity`（元指示の明確さ 1〜100）を記載する（global CLAUDE.md「応答」）。
 
 ## 3. component spec（パッケージ設計書）の記載ルール
 
@@ -346,17 +358,17 @@ excerpt: "記事の要約。200文字以内。"
 
 核心: ①一次情報（Test Basis）に紐づけ推測しない ②観点で発散（ペルソナ＋ISO/IEC 25010）→技法でケース導出 ③各ケースに自動化判定を付け、人手のみの試験を取りこぼさない。
 
-> 関連: 「実装後にどのテストを書くか・エビデンス」は `anytime-impl-test-design`（出口から導出）。本章は**正式な試験設計書の author** を担う。検証は `anytime-markdown-check`。
+> 関連: 「実装後にどのテストを書くか・エビデンス」は §6（実装後テスト設計。出口から導出。旧 `anytime-impl-test-design`）。本章は**正式な試験設計書の author** を担う。検証は `anytime-markdown-check`。
 
 ### 5.1. 設計手順
 
 1. **対象と Test Basis を特定**: 何をテストするか（機能・画面・移行）と、その一次情報（機能仕様書・E2E シナリオ正本・課題/PBI・ヘルプ記事）を特定する。Test Basis は**節レベルまで**引く。
-2. **テストレベルを決める**: unit / integration / e2e / 手動受入。本章は主に e2e＋手動を扱う（unit/型は `anytime-impl-test-design`）。
+2. **テストレベルを決める**: unit / integration / e2e / 手動受入。本章は主に e2e＋手動を扱う（unit/型は §6）。
 3. **観点で発散**（抜けを防ぐ）: 7 ペルソナ（§5.2）と ISO/IEC 25010 品質特性を**必須フィールド**にし、各機能に当てて観点を出す。
 4. **技法でケース導出**: 入力・条件を持つ機能は古典技法で網羅する（§5.3）。
 5. **自動化判定を付ける**: 各ケースを `自動(e2e)` / `手動のみ` / `半自動` に分類。手動のみは理由を書く（§5.4）。
 6. **トレーサビリティ**: 各ケースに Test Basis を引く。コードや仕様で確認できない箇所は**推測で埋めず**「※要確認（未実施）」と正直に記す。
-7. **レビュー**: 観点の偏り（特定ペルソナ/品質特性に集中）を点検。`anytime-impl-test-design` のリトマス（バグが入ったら落ちるか）で各ケースを自己点検。
+7. **レビュー**: 観点の偏り（特定ペルソナ/品質特性に集中）を点検。§6 のリトマス（バグが入ったら落ちるか）で各ケースを自己点検。
 
 ### 5.2. テスト観点: 7 ペルソナ（観点網羅の発散軸）
 
@@ -421,3 +433,12 @@ ISO/IEC 25010 品質特性（機能適切性・性能効率性・互換性・使
 - [Claude Code による QA テスト設計の実践（nexta_）](https://zenn.dev/nexta_/articles/be13a2395a5d2a) — 7 ペルソナ・ISO25010 必須化・Test Basis 一次情報・自動化判定・AI は設計者
 - テスト技法（同値分割/境界値/デシジョンテーブル/状態遷移）: [ベリサーブ HQW!](https://www.veriserve.co.jp/helloqualityworld/media/20240109010/) ほか
 - ISO/IEC 25010 製品品質モデル（8 品質特性）
+
+## 6. 実装後テストの設計（旧 anytime-impl-test-design）
+
+実装・変更が一段落し「実装後にどのテストを書くか」を決めるとき、テスト内容を実装者の勘でなく**変更が露出する「出口」（観測できる描画・配線・キー）から導出**する。ユニット green は完了根拠にならない — ts-jest は型を見ず、ユニットは mount・host 配線を見ないため、出口だけ消えて回帰した実例が反復している（検知ギャップ）。§5 の試験設計書が正式文書の author を担うのに対し、本章は実装直後のテスト選定・エビデンス残しを担う。
+
+- **手順の正本は `references/impl-test-design.ja.md`**: 出口の列挙 → 出口ごとのテスト手段割り当て（Testing Trophy の Static / Unit / Integration / E2E 対応表）・E2E 要否判定・エビデンスの残し方（主張でなく実出力）。
+- **書き換え/移行タスクは機能パリティ照合を必須にする**: 旧実装の出口インベントリ（5 観点）を作り、文字列リテラル grep で「定義あり」でなく「配線あり」まで照合する。スナップショット可能な出口は golden master で自動固定する。
+- **検証器を先に検証する（verifier-first）**: 新設したテスト・golden master・照合手段は、正しい実装で pass / 現実的な退行 1 件注入で fail することを実測してから信じる。リトマスは「この変更にバグが入ったら、これらのテストは落ちるか」。
+- 実装前の純粋関数は `superpowers:test-driven-development`（TDD）が担い、本章はそれが届かない出口（配線 / mount / 型 / i18n）を実装後に補完する。

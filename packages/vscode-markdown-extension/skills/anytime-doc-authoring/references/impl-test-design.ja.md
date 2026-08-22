@@ -1,21 +1,16 @@
----
-name: anytime-impl-test-design
-description: anytime-markdown で実装・変更が一段落し「実装後にどのテストを書くか」を決める時に使用する。特に書き換え/移行（React→vanilla 脱React）・host 配線（postMessage/コールバック）・mount/描画・i18n キーを触った時、ユニットは green なのに配線/mount/型/i18n の回帰が出荷される時、ts-jest が通っても tsc/統合/実機を確認していない時。「テスト内容の決め方」「実装後テスト」「機能パリティ照合」「移行漏れ」「検知ギャップ」で発火する。新設したテスト・golden master・照合手段が本当に退行で落ちるかを確かめる時（verifier-first）も使用する。
----
+# 実装後テスト設計 — 実装後テストを「変更の出口」から導出する（旧 anytime-impl-test-design）
 
-# anytime-impl-test-design — 実装後テストを「変更の出口」から導出する
-
-更新日: 2026-08-01
+更新日: 2026-08-22（旧 `anytime-impl-test-design` スキルを `anytime-doc-authoring` へ統合。試験設計（SKILL.md §5）と実装後テスト設計を同じスキルで扱うため。内容は統合時点の本文を維持）
 
 ## Overview
 
-実装後テストの内容は、実装者の勘や事後発覚ではなく、**その変更が露出する「出口」（ユーザーから観測できる描画・配線・キー）から導出する**。ユニット/TDD は純粋ロジックの正しさを守るが、**出口がアプリに繋がっているか（配線・mount）は守らない**。この skill は出口を列挙し各出口にテスト手段を割り当てる手順を持つ。
+実装後テストの内容は、実装者の勘や事後発覚ではなく、**その変更が露出する「出口」（ユーザーから観測できる描画・配線・キー）から導出する**。ユニット/TDD は純粋ロジックの正しさを守るが、**出口がアプリに繋がっているか（配線・mount）は守らない**。本ガイドは出口を列挙し各出口にテスト手段を割り当てる手順を持つ。
 
-理論的背骨は **Testing Trophy**（Kent C. Dodds）の4層 **Static（lint/型）/ Unit / Integration / E2E**。原則「**テストが実利用に似ているほど信頼が高い**」ゆえ、純粋ロジックの Unit だけでは実利用（mount・配線）に似ず信頼が出ない。Static 層（`tsc`）と Integration 層を**意図的に**足すのがこの skill の眼目。
+理論的背骨は **Testing Trophy**（Kent C. Dodds）の4層 **Static（lint/型）/ Unit / Integration / E2E**。原則「**テストが実利用に似ているほど信頼が高い**」ゆえ、純粋ロジックの Unit だけでは実利用（mount・配線）に似ず信頼が出ない。Static 層（`tsc`）と Integration 層を**意図的に**足すのが本ガイドの眼目。
 
 これは anytime-markdown 固有（ts-jest/testMatch/jsdom・VS Code 拡張の Extension Host reload・脱React vanilla 移行を前提）。
 
-> **REQUIRED BACKGROUND**: 実装前の純粋関数は `superpowers:test-driven-development`（RED-GREEN-REFACTOR）が担う。この skill はそれが届かない出口（配線/mount/型/i18n）を**実装後**に補完する相補関係。テスト網羅の監査は段6 で `pr-test-analyzer`（行カバレッジでなく振る舞いカバレッジ・契約をテスト）に委ねられる。
+> **REQUIRED BACKGROUND**: 実装前の純粋関数は `superpowers:test-driven-development`（RED-GREEN-REFACTOR）が担う。本ガイドはそれが届かない出口（配線/mount/型/i18n）を**実装後**に補完する相補関係。テスト網羅の監査は段6 で `pr-test-analyzer`（行カバレッジでなく振る舞いカバレッジ・契約をテスト）に委ねられる。
 
 ## なぜユニット green ≠ 完了か（検知ギャップ）
 

@@ -103,11 +103,10 @@ To reinstall them, run `Anytime Markdown: Reinstall Markdown Skills (.claude/ski
 
 | Skill | Purpose |
 | --- | --- |
-| `anytime-doc-authoring` | Writing guide defining what to write per document type (spec / tech / proposal, etc.) and how to maintain the index |
+| `anytime-doc-authoring` | Writing guide defining what to write per document type (spec / tech / proposal, etc.) and how to maintain the index; includes the requirements-definition template and post-implementation test design (formerly `anytime-impl-test-design`) |
 | `anytime-markdown-output` | Output conventions for syntax, frontmatter, and formatting |
 | `anytime-markdown-check` | Post-output verification (semantic judgments that can't be auto-formatted) |
-| `anytime-markdown-usage` | Low-token search, investigation, and editing workflow using `mcp-markdown` |
-| `anytime-spec-lookup` | Procedure for following related links from the index to read only the specs you need |
+| `anytime-markdown-usage` | Low-token search, investigation, and editing workflow using `mcp-markdown`, plus navigation that follows the index and typed `related` links to read only the specs you need (absorbs the former `anytime-spec-lookup`) |
 | `anytime-mermaid` | Readability guidelines for Mermaid diagrams |
 
 

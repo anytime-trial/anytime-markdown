@@ -6,9 +6,9 @@ description: Markdown ドキュメント（spec/tech/test/manual/proposal/plan/r
 
 # Claude Code Markdown 出力仕様
 
-更新日: 2026-07-16
+更新日: 2026-08-22
 
-> type 別の記載内容（何を書くか）・索引 `index.[lang].md` 運用は `anytime-doc-authoring` スキル、既存設計書の読み方は `anytime-spec-lookup` スキルを参照。本スキルは構文・フロントマター・整形（どう書くか）を扱う。
+> type 別の記載内容（何を書くか）・索引 `index.[lang].md` 運用は `anytime-doc-authoring` スキル、既存設計書の読み方・低トークン検索は `anytime-markdown-usage` スキル（旧 `anytime-spec-lookup` を統合）を参照。本スキルは構文・フロントマター・整形（どう書くか）を扱う。
 
 ## 1. ファイル命名規則
 

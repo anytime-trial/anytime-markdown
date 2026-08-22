@@ -41,13 +41,16 @@ export function activate(context: vscode.ExtensionContext) {
 			MarkdownLogger.info('スキル配置スキップ: ワークスペース未オープン');
 			return;
 		}
-		installSkills({
+		const result = installSkills({
 			extensionFsPath: context.extensionUri.fsPath,
 			workspaceFsPath: wsRoot,
 			force,
 			log: (level, message) =>
 				level === 'error' ? MarkdownLogger.error(message) : MarkdownLogger.info(message),
 		});
+		if (result.removedOld.length > 0) {
+			MarkdownLogger.info(`廃止スキルを削除しました: ${result.removedOld.join(', ')}`);
+		}
 	};
 	installSkillsForWorkspace(false);
 	context.subscriptions.push(

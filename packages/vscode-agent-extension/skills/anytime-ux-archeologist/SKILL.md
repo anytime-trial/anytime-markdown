@@ -1,6 +1,6 @@
 ---
 name: anytime-ux-archeologist
-description: "ソースコードにアクセスできない稼働中の Web アプリ（外部サイト・ローカル起動アプリ）から、ブラウザ巡回・Computed Style 抽出・スクリーンショット解析で、システムデザイン（DESIGN.md 形式のトークン・コンポーネント）・UI/UX 設計思想（コンセプト・語彙・導線）・UI/UX 評価レポート（ISO 9241-11 / Nielsen 10 原則 / WCAG / ICE）を別々の文書として抽出する時に使用する。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「デザインシステムを解析」「デザイントークンを抜き出して」「UI/UX を評価して」「ユーザビリティ評価レポート」「アクセシビリティを診断して」「/anytime-ux-archeologist」で発火する。CSS/Tailwind 設定やスクリーンショットが手元にある場合は design-md、ソースを読める自リポジトリの構造設計書は anytime-reverse-spec、暗黙知の明文化は anytime-reverse-doctrine を使う。"
+description: "ソースコードにアクセスできない稼働中の Web アプリ（外部サイト・ローカル起動アプリ）から、ブラウザ巡回・Computed Style 抽出・スクリーンショット解析で、システムデザイン（DESIGN.md 形式のトークン・コンポーネント）・UI/UX 設計思想（コンセプト・語彙・導線）・UI/UX 評価レポート（ISO 9241-11 / Nielsen 10 原則 / WCAG / ICE）を別々の文書として抽出する時に使用する。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「デザインシステムを解析」「デザイントークンを抜き出して」「UI/UX を評価して」「ユーザビリティ評価レポート」「アクセシビリティを診断して」「/anytime-ux-archeologist」で発火する。CSS/Tailwind 設定やスクリーンショットが手元にある場合は design-md、ソースを読める自リポジトリの構造設計書は anytime-reverse-spec、暗黙知の明文化は anytime-dev-retro の doctrine 抽出モード（旧 anytime-reverse-doctrine）を使う。"
 trigger: /anytime-ux-archeologist
 ---
 
@@ -8,7 +8,7 @@ trigger: /anytime-ux-archeologist
 
 更新日: 2026-08-03
 
-リバースエンジニアリング系譜の対（`anytime-reverse-spec` / `anytime-reverse-doctrine` が「ソースにアクセスできる」前提であるのに対し、本スキルはソース非アクセスの外形リバース）。取得の自動化（playwright MCP）＋3 系統への分離出力＋クロスチェックで構成する。出典: `<docsRoot>/proposal/20260719-ux-archeologist-feasibility.ja.md`。
+リバースエンジニアリング系譜の対（`anytime-reverse-spec` / `anytime-dev-retro` doctrine 抽出モード（旧 `anytime-reverse-doctrine`）が「ソースにアクセスできる」前提であるのに対し、本スキルはソース非アクセスの外形リバース）。取得の自動化（playwright MCP）＋3 系統への分離出力＋クロスチェックで構成する。出典: `<docsRoot>/proposal/20260719-ux-archeologist-feasibility.ja.md`。
 
 ## 出力を 3 系統に分ける
 

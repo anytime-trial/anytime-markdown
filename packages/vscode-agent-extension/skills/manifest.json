@@ -5,8 +5,7 @@
   "anytime-loop-start": 16,
   "anytime-loop-stop": 1,
   "anytime-dev-audit": 8,
-  "anytime-dev-cycle": 22,
-  "anytime-impl-test-design": 3,
+  "anytime-dev-cycle": 23,
   "anytime-analysis": 14,
-  "anytime-ux-archeologist": 4
+  "anytime-ux-archeologist": 5
 }
