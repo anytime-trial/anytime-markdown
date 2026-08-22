@@ -9,6 +9,7 @@
 ### 変更
 
 - 同梱スキル: `anytime-reverse-doctrine` を `anytime-dev-retro` の doctrine 抽出モードへ統合（どちらも実績・履歴から改善・規範を還流させるふりかえり系のため。手順は `references/reverse-doctrine.ja.md`・テンプレートは `templates/doctrine/` へ移設）。旧 dir は `oldNames` により activate 時に削除される。
+- 同梱スキル: `anytime-reverse-spec` を markdown 拡張の同梱へ移管し、本拡張の同梱から外した（agent 拡張の `anytime-ux-archeologist` を外形リバースモードとして統合したのに伴う配布元変更。配置済みコピーは markdown 拡張の初回 activate で上書きされる）。
 
 ## [1.4.1] - 2026-08-20
 

@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Removed
 
 - Bundled skills: `anytime-impl-test-design` was merged into `anytime-doc-authoring` §6 (post-implementation test design; procedure in `references/impl-test-design.ja.md`) shipped by the markdown extension, and is no longer bundled here. Deployed old dirs are removed on activation via `anytime-dev-cycle`'s `oldNames`.
+- Bundled skills: `anytime-ux-archeologist` was merged into the exterior-reverse mode of `anytime-reverse-spec` (procedure in `references/ux-archeologist.ja.md`) shipped by the markdown extension, and is no longer bundled here. Deployed old dirs (including the former `ux-archeologist` name) are removed on activation via `anytime-dev-cycle`'s `oldNames`.
 
 ## [1.17.1] - 2026-08-20
 

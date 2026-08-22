@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - Bundled skills: merged `anytime-reverse-doctrine` into the doctrine-extraction mode of `anytime-dev-retro` (both are retrospective flows that feed improvements/norms back from actuals and history; the procedure now lives in `references/reverse-doctrine.ja.md` and the templates in `templates/doctrine/`). The old dir is removed on activation via `oldNames`.
+- Bundled skills: `anytime-reverse-spec` moved to the markdown extension and is no longer bundled here (distribution change accompanying the merge of the agent extension's `anytime-ux-archeologist` as its exterior-reverse mode; deployed copies are overwritten on the markdown extension's first activation).
 
 ## [1.4.1] - 2026-08-20
 
