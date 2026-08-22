@@ -66,7 +66,6 @@ excerpt: "{{Q1_PROJECT_PURPOSE}} の MVP 実装要件（anytime-build-webapp ス
 
 ## 6. 完了条件
 
-
 - [ ] Dev Container build が成功する
 - [ ] `npm install` が成功する
 - [ ] `npx prisma migrate dev --name init` が成功する

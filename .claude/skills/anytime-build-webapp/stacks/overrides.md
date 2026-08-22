@@ -20,7 +20,8 @@
 
 2026-08-22 にユーザ指示で Next.js 専用化し、`stacks/python-be.md` と\
 `scaffold/python-be-files/` を削除した。復元が必要な場合は git 履歴から取得する\
-（削除コミット: `feature/build-webapp-devcontainer-nextjs-only`）。
+（削除コミット: 件名 `feat(anytime-build-webapp): --devcontainer 生成オプションを追加し Next.js 専用スキルへ絞る`。\
+`git log --diff-filter=D -- .claude/skills/anytime-build-webapp/stacks/python-be.md` で辿れる）。
 
 
 ## 3. 将来追加時の手順
