@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Bundled skills: added a requirements-definition template (`references/requirements-template.ja.md`) and authoring rules (§2.8) to `anytime-doc-authoring`.
+
 ## [1.22.0] - 2026-08-20
 
 ### Removed

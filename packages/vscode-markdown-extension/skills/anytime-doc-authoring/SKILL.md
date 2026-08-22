@@ -1,12 +1,12 @@
 ---
 name: anytime-doc-authoring
 effort: low
-description: <docsRoot> 配下のドキュメントを新規作成・執筆する時に、type（spec/tech/test/manual/proposal/plan/review/report）ごとの記載内容（何を書くか）・フォルダ構成・索引 index.[lang].md の自動生成運用を定義する。設計書（spec）の書き方・component spec の 2 ファイル分離・E2E シナリオ表・技術解説記事（tech。「技術記事を書いて」「ブログ記事を作成」「解説記事を書いて」等）の構成テンプレート・執筆ガイドライン・文体・生成ワークフロー・試験設計書（「試験設計書」「テスト設計書」「テストケースを設計」「テスト観点で洗い出し」「テスト計画」「QA 設計」等。7 ペルソナ観点・技法・自動化判定）・プランファイルの「変更対象ファイル」節・索引再生成が必要な時に使用する。全 type 共通の文章規範（文体・段落構成・論証の厳密さ・LLM 口調の排除・冗長排除・見出し・読者への誠実さ。「推敲して」「文章を整えて」「文章規範」等）は references/writing-standards.ja.md に従い、読み物寄りの type（tech の解説記事・manual の解説部・proposal / report の論述部）の緩急設計（「読みにくい」「単調」「読み進める気がしない」「緩急をつけて」「リズム」等）は references/cognitive-rhythm.ja.md を併用する。構文・フロントマター・整形は anytime-markdown-output、既存設計書の読み方・辿り方は anytime-spec-lookup を使う。
+description: <docsRoot> 配下のドキュメントを新規作成・執筆する時に、type（spec/tech/test/manual/proposal/plan/review/report）ごとの記載内容（何を書くか）・フォルダ構成・索引 index.[lang].md の自動生成運用を定義する。設計書（spec）の書き方・component spec の 2 ファイル分離・E2E シナリオ表・技術解説記事（tech。「技術記事を書いて」「ブログ記事を作成」「解説記事を書いて」等）の構成テンプレート・執筆ガイドライン・文体・生成ワークフロー・試験設計書（「試験設計書」「テスト設計書」「テストケースを設計」「テスト観点で洗い出し」「テスト計画」「QA 設計」等。7 ペルソナ観点・技法・自動化判定）・要件定義書（「要件定義書を作成」「要件定義」「要件をまとめて」「要件書」「requirements」等。テンプレートは references/requirements-template.ja.md）・プランファイルの「変更対象ファイル」節・索引再生成が必要な時に使用する。全 type 共通の文章規範（文体・段落構成・論証の厳密さ・LLM 口調の排除・冗長排除・見出し・読者への誠実さ。「推敲して」「文章を整えて」「文章規範」等）は references/writing-standards.ja.md に従い、読み物寄りの type（tech の解説記事・manual の解説部・proposal / report の論述部）の緩急設計（「読みにくい」「単調」「読み進める気がしない」「緩急をつけて」「リズム」等）は references/cognitive-rhythm.ja.md を併用する。構文・フロントマター・整形は anytime-markdown-output、既存設計書の読み方・辿り方は anytime-spec-lookup を使う。
 ---
 
 # ドキュメント記載内容ガイド（anytime-doc-authoring）
 
-更新日: 2026-08-19
+更新日: 2026-08-22
 
 `<docsRoot>/` 配下のドキュメントについて、**type ごとに「何を書くか」**（記載内容・構成・運用）を定義する。
 
@@ -125,6 +125,18 @@ type フォルダおよびその全サブフォルダの直下に索引 `index.[
 
 - **tech**: 技術調査・技術解説記事。比較は表＋評価軸を明示し、出典を脚注で示す（`anytime-markdown-output` 第 4 章)。解説記事の構成・執筆・文体・生成ワークフローは §4 に従う。
 - **manual**: ユーザー向け操作ガイド。前提条件 → 手順（番号付き）→ 結果確認の順で書き、スクリーンショットには alt テキスト必須。
+
+### 2.8. 要件定義書（requirements）
+
+プロダクト・機能の **What（何を作るか・何ができれば合格か）** を定義し、実装前承認の対象になるドキュメント（global CLAUDE.md「承認の対象」の要件書）。How（技術選定・実装方式）は書かない。要件を満たすうえで選択肢が実質 1 つに絞られる場合のみ、理由とともに制約として記す。
+
+- **テンプレート**: `references/requirements-template.ja.md` をコピーして使う。セクション構成（背景と目的 / スコープ / 利用者と利用文脈 / データ源と実現可能性 / 機能要件 / 画面要件 / 外部依存 / データモデル / 非機能要件 / セキュリティ / 受け入れ基準 / 制約・前提 / 未決事項 / 変更履歴）と記入ガイドはテンプレートに従う。
+- **type と配置**: 新しい type は設けず `type: "spec"` + `category: "requirements"` で既存の type 語彙・索引運用に乗せる。`<docsRoot>/spec/<NN>.<topic>/` に機能仕様書と並置し（ファイル名は `<topic>-requirements.[lang].md`）、`c4Scope` はシステムレベル `sys_<リポジトリ名>` を宣言する（`anytime-markdown-output` §2.3。要件定義書はプロダクト全体を対象とするため）。新規プロダクト生成（`anytime-build-webapp` 等）でプロジェクトルートへ `requirements.md` として置く場合は `c4Scope` を外す。追加・更新後は同フォルダ索引を再生成する（§1.2）。
+- **要件 ID**: すべての要件に ID（FR-xx / NFR-xx / SEC-xx / AC-xx / 未決 U-xx）を振る。実装計画（§2.4）と試験設計書（§5）はこの ID で要件を参照する（Test Basis のトレーサビリティ）。
+- **データ源と実現可能性を空欄のまま先へ進まない**: 外部サービス・既存システムから取るデータは、一次情報（公式リファレンス）で取得可否を項目単位に裏取りし根拠 URL を残す。取れない項目は代替経路を決めるか要件から落とすかをこの文書内で決着させる。
+- **受け入れ基準は観測可能な形で書く**: 「快適に動く」ではなく「何を・どの条件で・どう測るか」を、実行して合否が出る形で書き、関連要件 ID を紐づける。
+- **未決事項は本文に混ぜない**: 決まっていないことは「未決事項」節へ ID 付き（現時点の仮置き・決める期限つき）で分離し、本文に TBD・空欄を残さない。
+- **status と clarity**: `status` は `draft` → `review` → `approved`（破棄・置換は `superseded`）。承認後の変更は「変更履歴」に版として残す。frontmatter の `clarity`（元指示の明確さ 1〜100）を記載する（global CLAUDE.md「応答」）。
 
 ## 3. component spec（パッケージ設計書）の記載ルール
 

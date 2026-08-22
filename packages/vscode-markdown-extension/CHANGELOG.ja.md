@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 同梱スキル: `anytime-doc-authoring` に要件定義書テンプレート（`references/requirements-template.ja.md`）と記載ルール §2.8 を追加。
+
 ## [1.22.0] - 2026-08-20
 
 ### Removed
