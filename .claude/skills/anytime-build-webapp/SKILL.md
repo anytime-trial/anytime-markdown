@@ -1,6 +1,6 @@
 ---
 name: anytime-build-webapp
-description: Web アプリ・フルスタック MVP を新規生成する時に使用する（「Web アプリを作って」「MVP を生成」「雛形を作って」「/anytime-build-webapp」）。対象は WSL + Dev Container 上の T3 Stack または Next.js + FastAPI。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
+description: Web アプリ・フルスタック MVP を新規生成する時に使用する（「Web アプリを作って」「MVP を生成」「雛形を作って」「/anytime-build-webapp」）。対象は WSL + Dev Container 上の Next.js（T3 Stack）のみ。`--devcontainer` で Dev Container ファイル一式をスキル同梱テンプレから生成できる。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
 # 本文の npm script・リポ相対パスは生成先リポジトリの文脈(check-skill-refs.mjs が照合を除外)
 externalRepoRefs: true
 ---
@@ -8,7 +8,7 @@ externalRepoRefs: true
 
 # anytime-build-webapp スキル
 
-更新日: 2026-07-16
+更新日: 2026-08-22
 
 
 `/anytime-build-webapp` 起動時に本ファイルがロードされる。以下の Phase 1〜6 を順に実行する。
@@ -24,8 +24,11 @@ externalRepoRefs: true
 ```text
 /anytime-build-webapp <1行の要求> [--design-url <URL>] [--design-file <path>]
                           [--no-auth | --auth=email-password | --auth=google]
-                          [--new-dir]
+                          [--new-dir] [--devcontainer]
 ```
+
+生成するスタックは **Next.js（T3 Stack: Next.js + tRPC + Prisma + Tailwind + NextAuth）に固定**する。\
+バックエンド言語・フレームワークの選択肢は持たない（`stacks/overrides.md` 第 1 章）。
 
 
 ## 動作モード
@@ -40,7 +43,21 @@ externalRepoRefs: true
 
 > [!IMPORTANT]
 > in-place モードは `.devcontainer/devcontainer.json` を**現状温存**する。\
-> anytime-lab 側の `.devcontainer/` は破棄されるため、Postgres / forwardPorts 等の設定が必要なら手動でマージする。
+> anytime-lab 側の `.devcontainer/` は破棄されるため、Postgres / forwardPorts 等の設定が必要なら手動でマージするか、\
+> 下記 `--devcontainer` を指定する。
+
+
+### `--devcontainer`（Dev Container ファイル生成）
+
+WSL ホストで Dev Container をこれから作る場合に指定する。**両モードで有効**なモード直交のフラグ。
+
+| 指定 | 生成物 | 既存ファイル |
+| --- | --- | --- |
+| なし（既定） | 生成しない | in-place は現状温存 / `--new-dir` は anytime-lab 由来 |
+| `--devcontainer` | `.devcontainer/devcontainer.json`（常に）+ `docker-compose.yml`・`Dockerfile`（**不在時のみ**） | 既存 devcontainer.json は一覧提示 + `AskUserQuestion` 確認のうえ上書き |
+
+生成元はスキル同梱テンプレ `scaffold/devcontainer-files/*.tmpl` で、anytime-lab のクローン結果に依存しない。\
+手順・上書き確認・検証は `scaffold/devcontainer.md` を参照する。
 
 
 ## 起動前チェック
@@ -49,7 +66,8 @@ externalRepoRefs: true
 以下のいずれかに該当する場合、即座に中断してユーザに通知する。
 
 - **`--new-dir` 指定時のみ**: CWD が空ディレクトリでない（`ls -A` で出力あり）
-- **`--new-dir` 指定時のみ**: `docker info` が失敗する（Docker daemon 未起動）
+- **`--new-dir` 指定時のみ**: `docker info` が失敗する（Docker daemon 未起動）\
+  （`--devcontainer` 単独ではファイル出力のみのため Docker daemon を要求しない）
 - `ssh -T git@github.com` の戻り値が 1 でない（SSH 鍵未設定）
 
 中断時メッセージ例:
@@ -66,10 +84,10 @@ externalRepoRefs: true
 
 
 1. `<skillDir>/questions.md` を Read する
-2. 起動時 CLI 引数を解析し、`questions.md` 第 7 章の事前充足ルールに従って質問対象を絞る
+2. 起動時 CLI 引数を解析し、`questions.md` 第 6 章の事前充足ルールに従って質問対象を絞る
 3. 残った質問を **`AskUserQuestion` ツールで 1 問ずつ**順に実施する
-4. 各回答をメモリに保持する（変数: `q1_purpose`・`q2_entities`・`q3_auth`・`q4_stack`・`q5_design`・`q5_design_value`）
-5. `questions.md` 第 6 章の打ち切り条件に該当した時点で残り質問をスキップ
+4. 各回答をメモリに保持する（変数: `q1_purpose`・`q2_entities`・`q3_auth`・`q4_design`・`q4_design_value`）
+5. `questions.md` 第 5 章の打ち切り条件に該当した時点で残り質問をスキップ
 6. `<skillDir>/requirements-template.md` を Read し、プレースホルダを回答で置換
 7. 置換後の内容を **CWD/requirements.md** に Write する
 8. requirements.md の内容をチャットに要約表示し、`AskUserQuestion` で承認確認する（**What の承認**）
@@ -77,25 +95,13 @@ externalRepoRefs: true
    - `修正する` → 修正点を聞き、手順 6〜8 を再実行。`中断する` → 処理停止
 
 
-### Phase 1.5: 未対応スタックの確認
-
-
-Q4 が `Hono BE` / `その他` の場合、`stacks/overrides.md` 第 2 章のメッセージで `AskUserQuestion` を 1 回追加。
-
-- `T3 デフォルトで進める` → Q4 を「無し」に上書きして続行
-- `中断する` → Phase 1 で停止し、対応スタック追加リクエストとしてユーザに通知
-
-Q4 が `Python BE` の場合は確認なしで `stacks/python-be.md` 経路へ進む（初期リリースで対応済み）。
-
-
 ## Phase 2: Plan
 
 
 1. **`Skill` ツールで `superpowers:writing-plans` を起動**する
-2. 渡すコンテキスト (Q4 で分岐):
-   - 共通: `requirements.md`（CWD のもの）・`<skillDir>/scaffold/base-repo.md`・`<skillDir>/stacks/_frontend-next.md`
-   - Q4 = 無し: `<skillDir>/stacks/t3-default.md`
-   - Q4 = Python BE: `<skillDir>/stacks/python-be.md`
+2. 渡すコンテキスト: `requirements.md`（CWD のもの）・`<skillDir>/scaffold/base-repo.md`・
+   `<skillDir>/stacks/_frontend-next.md`・`<skillDir>/stacks/t3-default.md`
+   （`--devcontainer` 指定時は `<skillDir>/scaffold/devcontainer.md` も渡す）
 3. `writing-plans` が生成したプラン（通常 `docs/superpowers/plans/<date>-<topic>.md`）のパスを保持
 
 
@@ -149,6 +155,20 @@ rm -rf <project-name>/.git
 失敗時は `scaffold/base-repo.md` 第 4 章の対処に従う。
 
 
+### 4.1.5. Dev Container ファイル生成（`--devcontainer` 指定時のみ）
+
+`scaffold/devcontainer.md` の手順に従い、スキル同梱テンプレから生成する。
+
+1. `.devcontainer/devcontainer.json` を `devcontainer.json.tmpl` から生成（`<project-name>` を置換）
+2. `docker-compose.yml` / `Dockerfile` は**プロジェクトルートに存在しない場合のみ**テンプレから生成
+3. 既存 `.devcontainer/devcontainer.json` があれば、対象一覧と現在値を提示して `AskUserQuestion` で
+   `上書きする` / `生成をスキップする` / `中断する` を確認する（無警告で上書きしない）
+4. 生成後は `scaffold/devcontainer.md` 第 4 章の検証（service 名の一致確認）を実行する
+
+生成した場合、第 4.4 の `t3-default.md` 第 7 章（devcontainer.json への追記）は**スキップ**する（二重適用の回避）。
+`生成をスキップする` を選んだ場合のみ第 7 章へフォールバックする。
+
+
 ### 4.2. 期待ファイル検証
 
 `scaffold/base-repo.md` 第 3 章の表のファイルが全て存在することを `test -f` で確認。\
@@ -156,7 +176,8 @@ rm -rf <project-name>/.git
 
 > [!NOTE]
 > in-place モードでは `.devcontainer/devcontainer.json` は **既存ファイル**を指す（anytime-lab 側は破棄済み）。\
-> --new-dir モードでは anytime-lab から展開された `<project-name>/.devcontainer/devcontainer.json` を指す。
+> --new-dir モードでは anytime-lab から展開された `<project-name>/.devcontainer/devcontainer.json` を指す。\
+> `--devcontainer` 指定時はいずれのモードでも第 4.1.5 で生成したファイルを指す。
 
 
 ### 4.3. リネーム置換
@@ -165,18 +186,16 @@ rm -rf <project-name>/.git
 
 - 対象は `targets[]` のファイルのみ
 - **in-place モードでは `.devcontainer/devcontainer.json` を targets から除外**（現状温存のため）
+- **`--devcontainer` で生成したファイルも targets から除外**（生成時に `<project-name>` 置換済みのため二重置換になる）
 - 置換は `sed -i` で行う（`s|anytime-lab|<project-name>|g`）
 - 置換後、`validations[]` のチェックを実行:
   - `jq` 系: `jq -r '<jq>' <file>` の結果が `expected` と一致（値は jq 式。例: `.name`）
   - `regex` 系: `grep -Pq '<regex>' <file>` が真（PCRE モード。GNU grep は行単位マッチで `\n` を含む複数行パターンに一致しないため、パターンは 1 行で完結させる）
 
 
-### 4.4. スタック重ね合わせ (Q4 分岐)
+### 4.4. スタック重ね合わせ
 
-
-#### 4.4.a. Q4 = 無し (T3 経路)
-
-`stacks/_frontend-next.md` 第 1〜8 章を適用後、`stacks/t3-default.md` 第 1〜8 章を重ね合わせる。
+`stacks/_frontend-next.md` 第 1〜7 章を適用後、`stacks/t3-default.md` 第 1〜8 章を重ね合わせる。
 
 1. `_frontend-next.md` 第 1 章 + `t3-default.md` 第 1 章 (T3 固有パッケージ追加)
 2. `_frontend-next.md` 第 2 章 + `t3-default.md` 第 2 章 (Prisma scripts 追記)
@@ -184,35 +203,17 @@ rm -rf <project-name>/.git
 4. `_frontend-next.md` 第 3 章 (Tailwind 設定)
 5. `t3-default.md` 第 5 章 (`docker-compose.yml` に Postgres + volumes 追記)
 6. `t3-default.md` 第 6 章 (`Dockerfile` に postgres-client + Prisma CLI 追記)
-7. `t3-default.md` 第 7 章 (`.devcontainer/devcontainer.json` 修正) — **in-place モードではスキップ**
-8. `_frontend-next.md` 第 6 章 + `t3-default.md` 第 8 章 (`src/` ディレクトリ構造)
+7. `t3-default.md` 第 7 章 (`.devcontainer/devcontainer.json` 修正) — **in-place モードではスキップ**。
+   `--devcontainer` で生成済みの場合も**スキップ**（第 4.1.5）
+8. `_frontend-next.md` 第 5 章 + `t3-default.md` 第 8 章 (`src/` ディレクトリ構造)
 
-
-#### 4.4.b. Q4 = Python BE 経路
-
-1. `frontend/` と `backend/` のディレクトリを作成
-2. `frontend/` で `_frontend-next.md` 第 1〜8 章を適用
-3. `backend/` に `scaffold/python-be-files/backend/` 配下のテンプレを `cp -r` で配置
-4. `scaffold/rename-map-python-be.json` を `_frontend-next.md` 適用後に再度適用 (`.tmpl` 拡張子の除去 + `<project-name>` 置換)
-5. Q2 エンティティから `backend/app/models/<entity>.py` を生成 (`python-be.md` 第 3 章)
-6. `backend/app/models/__init__.py` に各モデルを集約
-7. Q3 = 無し のときは `backend/app/deps.py` を削除
-8. `Dockerfile` の `local` ステージ apt-get install 行に Python BE 用 apt パッケージをインライン追記 + uv インストール RUN + `ENV PATH` を追加 (`python-be.md` 第 5.1 章)。`python3` を使い `python3.13` 等の版指定は避ける
-9. `docker-compose.yml` に `api` + `db` サービスを追加 (`python-be.md` 第 5.2 章)
-10. `frontend/.env.local` + `backend/.env` を生成 (`python-be.md` 第 6 章)。Q3 = 無し以外なら `openssl rand -base64 32` で AUTH_SECRET を生成し両 .env に書き込み
-11. `backend` で `uv venv && uv sync` 実行 → `uv run alembic revision --autogenerate -m "init"` で初期 revision 生成
-    - **uv キャッシュ権限**: 失敗時は `/home/user/.cache/uv` 所有権を確認。root 所有なら `sudo chown -R user:user /home/user/.cache`
-    - **alembic 実行時の env**: `backend/.env` の `DATABASE_URL` は `postgresql+psycopg://` 形式 (`python-be.md` 第 6 章)。`uv run` は自動で .env を読まないので必要に応じて `export $(grep -v '^#' .env | xargs)` してから実行
-12. `python-be.md` 第 7 章に従い backend 一時起動 + OpenAPI fetch + `frontend/src/api/` に TS クライアント生成
-    - uvicorn は **`--host 0.0.0.0`** 必須 (`127.0.0.1` 既定だと外部から到達不可)
+第 5〜6 章は `--devcontainer` でテンプレ生成した `docker-compose.yml` / `Dockerfile` に対しても適用する。
+テンプレは Postgres サービスと postgresql-client / Prisma CLI を既に含むため、既存の記述と重複する追記は行わない（冪等）。
 
 
 ### 4.5. 初期 git commit
 
-commit メッセージは Q4 で分岐する。
-
-- Q4 = 無し: `chore: initial scaffold from anytime-lab + T3 Stack`
-- Q4 = Python BE: `chore: initial scaffold from anytime-lab + Next.js + FastAPI`
+commit メッセージは `chore: initial scaffold from anytime-lab + T3 Stack` とする。
 
 #### in-place モード（デフォルト）
 
@@ -220,7 +221,7 @@ commit メッセージは Q4 で分岐する。
 # CWD で実行
 git init
 git add .
-git commit -m "<上記の Q4 別メッセージ>"
+git commit -m "chore: initial scaffold from anytime-lab + T3 Stack"
 ```
 
 #### --new-dir モード
@@ -229,7 +230,7 @@ git commit -m "<上記の Q4 別メッセージ>"
 cd <project-name>
 git init
 git add .
-git commit -m "<上記の Q4 別メッセージ>"
+git commit -m "chore: initial scaffold from anytime-lab + T3 Stack"
 ```
 
 push は行わない。
@@ -238,23 +239,23 @@ push は行わない。
 ## Phase 4D: Apply Design Tokens
 
 
-Q5 / CLI 引数の値で分岐する。詳細は `DESIGN.ja.md` 第 6.2 章を参照。\
-（旧称 Phase 4.5。第 4.5 の初期 git commit・`DESIGN.python-be.ja.md` の内部ステップ 4.5〜4.9 と番号が衝突するため 4D と呼ぶ）
+Q4（デザイン参照源）/ CLI 引数の値で分岐する。詳細は `DESIGN.ja.md` 第 6.2 章を参照。\
+（旧称 Phase 4.5。第 4.5 の初期 git commit と番号が衝突するため 4D と呼ぶ）
 
 
-### 4D.1. Q5 = 無し
+### 4D.1. デザイン参照源 = 無し
 
 スキップして Phase 5 へ。
 
 
-### 4D.2. Q5 = 参考 URL（`--design-url <URL>`）
+### 4D.2. 参考 URL（`--design-url <URL>`）
 
 1. **`Skill` ツールで `design-md` を起動**し、URL を入力として DESIGN.md を生成
 2. 生成された DESIGN.md を `<project-root>/docs/DESIGN.md` に保存
 3. 第 4D.3 と同じ処理に合流
 
 
-### 4D.3. Q5 = DESIGN.md ファイル（`--design-file <path>`）
+### 4D.3. DESIGN.md ファイル（`--design-file <path>`）
 
 1. 指定パスを Read
 2. デザイントークンを抽出（カラー・タイポ・スペーシング・角丸・シャドウ）
@@ -281,6 +282,7 @@ Phase 5 完了後にそのファイルを読み、in-place / `--new-dir` の該�
 
 - in-place モード（デフォルト）: CWD で dev サーバーを起動し、ポーリングで起動完了を待って疎通を確認する
 - `--new-dir` モード: devcontainer を起動してから同様に確認する
+- `--devcontainer` で生成した場合も `--new-dir` 手順（`docker compose` による build → 起動）で確認する
 
 **このフェーズを飛ばして完了報告しない**（起動していないものを「動く」と報告しないため）。
 
@@ -302,15 +304,13 @@ Phase 5 完了後にそのファイルを読み、in-place / `--new-dir` の該�
 | ファイル | 用途 |
 | --- | --- |
 | `.claude/skills/anytime-build-webapp/DESIGN.ja.md` | 設計書（仕様の正） |
-| `.claude/skills/anytime-build-webapp/DESIGN.python-be.ja.md` | Python BE 拡張設計書 |
 | `.claude/skills/anytime-build-webapp/verification.md` | Phase 6 起動確認手順（in-place / --new-dir） |
-| `.claude/skills/anytime-build-webapp/questions.md` | 5 問インタビュー定義 |
+| `.claude/skills/anytime-build-webapp/questions.md` | 4 問インタビュー定義 |
 | `.claude/skills/anytime-build-webapp/requirements-template.md` | 要件 md テンプレ |
-| `.claude/skills/anytime-build-webapp/stacks/_frontend-next.md` | フロント共通 (Next.js + Tailwind + Auth.js + openapi-ts) |
+| `.claude/skills/anytime-build-webapp/stacks/_frontend-next.md` | フロント共通 (Next.js + Tailwind + Auth.js) |
 | `.claude/skills/anytime-build-webapp/stacks/t3-default.md` | T3 重ね合わせ手順 (固有差分のみ) |
-| `.claude/skills/anytime-build-webapp/stacks/python-be.md` | Python BE (FastAPI) スタック手順 |
-| `.claude/skills/anytime-build-webapp/stacks/overrides.md` | スタック上書き判定 |
+| `.claude/skills/anytime-build-webapp/stacks/overrides.md` | スタック固定の方針と将来追加手順 |
 | `.claude/skills/anytime-build-webapp/scaffold/base-repo.md` | `anytime-lab` クローン手順 |
-| `.claude/skills/anytime-build-webapp/scaffold/rename-map.json` | T3 用リネーム置換マップ |
-| `.claude/skills/anytime-build-webapp/scaffold/rename-map-python-be.json` | Python BE 用リネーム置換マップ |
-| `.claude/skills/anytime-build-webapp/scaffold/python-be-files/` | Python BE テンプレファイル群 |
+| `.claude/skills/anytime-build-webapp/scaffold/rename-map.json` | リネーム置換マップ |
+| `.claude/skills/anytime-build-webapp/scaffold/devcontainer.md` | `--devcontainer` の生成手順・上書き確認・検証 |
+| `.claude/skills/anytime-build-webapp/scaffold/devcontainer-files/` | Dev Container テンプレ (devcontainer.json / docker-compose.yml / Dockerfile) |

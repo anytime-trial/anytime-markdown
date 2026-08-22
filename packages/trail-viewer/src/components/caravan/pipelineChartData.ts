@@ -11,16 +11,21 @@ export interface StackedChartData {
   readonly dayWorstStatus: ReadonlyMap<string, CaravanPipelineRunStatus>;
 }
 
+// Record<CaravanPipelineRunStatus, number> なので、status を増やすとここがコンパイル
+// エラーになる。順位は CaravanApiHandler の SQL 側 CASE と同じ並びを保つこと
+// （片方だけ変えると、同じ日の worstStatus がサーバ集計と画面集計で食い違う）。
 const STATUS_RANK: Record<CaravanPipelineRunStatus, number> = {
-  error: 3,
-  partial: 2,
+  error: 4,
+  partial: 3,
+  skipped: 2,
   success: 1,
   running: 0,
 };
 
 function rankToStatus(rank: number): CaravanPipelineRunStatus {
-  if (rank >= 3) return 'error';
-  if (rank === 2) return 'partial';
+  if (rank >= 4) return 'error';
+  if (rank === 3) return 'partial';
+  if (rank === 2) return 'skipped';
   if (rank === 1) return 'success';
   return 'running';
 }

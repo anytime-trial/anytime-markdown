@@ -1,0 +1,39 @@
+services:
+  <project-name>:
+    build:
+      context: .
+      target: local # Dockerfile の local ステージを使用
+    ports:
+      - "${APP_PORT:-3000}:3000" # ホスト:APP_PORT → コンテナ:3000（Next.js dev server は内部 3000 固定）
+    environment:
+      DATABASE_URL: postgres://app:app@db:5432/app
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/<project-name>                                # プロジェクトソースコードを共有
+      - node_modules:/<project-name>/node_modules        # node_modules を名前付きボリュームで永続化（ホストと分離）
+      - ${HOME}/.ssh:/home/user/.ssh:cached              # SSH 鍵を共有（git push/pull 用）
+      - ${HOME}/.claude:/home/user/.claude:cached        # Claude Code 設定を共有
+    command: sleep infinity
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+# 名前付きボリューム: コンテナ削除後も node_modules と Postgres データを保持
+volumes:
+  node_modules:
+  pgdata:

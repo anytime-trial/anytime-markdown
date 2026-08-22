@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-slim AS local
+
+ARG USERNAME=user
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    openssh-client \
+    postgresql-client \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# node:24-slim は uid/gid 1000 を node ユーザーが持つ。WSL ホスト側の uid と揃えるため作り直す
+RUN userdel -r node \
+    && groupadd --gid ${USER_GID} ${USERNAME} \
+    && useradd --uid ${USER_UID} --gid ${USER_GID} -m -s /bin/bash ${USERNAME} \
+    && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME}
+
+RUN npm install -g prisma
+
+WORKDIR /<project-name>
+USER ${USERNAME}

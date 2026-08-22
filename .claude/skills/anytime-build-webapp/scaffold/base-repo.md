@@ -69,9 +69,12 @@ git init
 クローン直後に以下のファイル / ディレクトリが存在することを `ls` で確認する。\
 1 つでも欠ければ Phase 4 を中断し、ユーザに `anytime-lab` 構成変更の有無を確認する。
 
+`--devcontainer` を指定した場合は、この検証の**前に** `scaffold/devcontainer.md` の生成手順を実行する\
+（生成で満たされるファイルを「欠落」と判定しないため）。
+
 | パス | 種別 | in-place モードでの確認元 |
 | --- | --- | --- |
-| `.devcontainer/devcontainer.json` | ファイル | **既存ファイル**（現状温存） |
+| `.devcontainer/devcontainer.json` | ファイル | **既存ファイル**（現状温存）。`--devcontainer` 指定時は `scaffold/devcontainer-files/` から生成したもの |
 | `Dockerfile` | ファイル | anytime-lab から展開 |
 | `docker-compose.yml` | ファイル | anytime-lab から展開 |
 | `package.json` | ファイル | anytime-lab から展開 |

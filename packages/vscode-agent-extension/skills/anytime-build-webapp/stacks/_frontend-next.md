@@ -1,8 +1,8 @@
 # フロントエンド共通スタック（Next.js + Tailwind + Auth.js）
 
-更新日: 2026-07-16
+更新日: 2026-08-22
 
-`stacks/t3-default.md` と `stacks/python-be.md` の両方から参照される共通パーツ。
+`stacks/t3-default.md` から参照される共通パーツ。
 
 > [!NOTE]
 > 本ファイルおよび `t3-default.md` のパッケージバージョン指定（`next@^15` / `tailwindcss@^3` 等）は\
@@ -11,12 +11,12 @@
 
 > [!IMPORTANT]
 > 本ファイルは **単独適用不可・参照専用**。\
-> `t3-default.md` か `python-be.md` 経由でのみ呼ばれる。
+> `t3-default.md` 経由でのみ呼ばれる。
 
 
 ## 1. 追加するパッケージ
 
-クローン後の `frontend/`（または T3 経路ではプロジェクトルート）で実行。
+クローン後のプロジェクトルートで実行。
 
 ```bash
 # Runtime dependencies
@@ -27,8 +27,9 @@ npm install \
   @tanstack/react-query@^5 \
   tailwindcss@^3 \
   next-auth@^5 \
-  zod@^3 \
-  @hey-api/client-fetch@^0.13
+  @auth/prisma-adapter@^2 \
+  bcryptjs@^2 \
+  zod@^3
 
 # Dev dependencies
 npm install -D \
@@ -41,17 +42,14 @@ npm install -D \
   eslint-config-next@^15 \
   vitest@^2 \
   @playwright/test@^1 \
-  @hey-api/openapi-ts@^0.97 \
+  @types/bcryptjs@^2 \
   prettier@^3
 ```
 
 > [!IMPORTANT]
-> `@hey-api/openapi-ts@^0.97` と `@hey-api/client-fetch@^0.13` はペアでバージョンを揃える。\
-> 古い `openapi-ts@0.64` は `GetXxxResponse` (unwrap 済み) を SDK が直接 client に渡す方式だが、\
-> `client-fetch@0.13` は `{ 200: T }` 形式の Wrapper を期待するため、ミスマッチで型がぶっ壊れる\
-> （`data.symbol does not exist on type 'string | number'` 等）。\
-> `prettier` は `@hey-api/openapi-ts` の `postProcess` で利用する任意ステップだが、\
-> 0.97 では `format: "prettier"` 指定が deprecation 警告を出すため devDependencies に入れて統一する。
+> `@auth/prisma-adapter` は NextAuth v5 系の Adapter。v4 系の `@next-auth/prisma-adapter` と混在させない\
+> （`AdapterUser` の型が食い違い、`adapter` 引数で型エラーになる）。\
+> `bcryptjs` は Q3 = メールパスワードでのみ使うが、条件付き install は package.json の差分を追いにくくするため常に入れる。
 
 
 ## 2. 追加する package.json scripts
@@ -64,13 +62,10 @@ npm install -D \
     "start": "next start --port 3000",
     "lint": "next lint",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "gen:api": "openapi-ts"
+    "test:e2e": "playwright test"
   }
 }
 ```
-
-`gen:api` は Python BE 経路でのみ使用。T3 経路では tRPC が型を持つため未使用 (定義はしておく)。
 
 > [!IMPORTANT]
 > `dev` / `start` は **コンテナ内部ポート 3000 を固定**で使う。\
@@ -109,19 +104,24 @@ Q3 の回答により分岐する。
 
 ### 4.1. Q3 = 無し
 
-NextAuth を install しない（第 1 章から `next-auth` を除外）。\
-`src/lib/auth.ts` / `src/app/api/auth/[...nextauth]/route.ts` を作成しない。
+NextAuth を install しない（第 1 章から `next-auth` / `@auth/prisma-adapter` / `bcryptjs` を除外）。\
+`src/server/auth.ts` / `src/app/api/auth/[...nextauth]/route.ts` を作成しない。
 
 
 ### 4.2. Q3 = メールパスワード
 
-`src/lib/auth.ts`:
+`src/server/auth.ts`:
 
 ```typescript
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import bcrypt from "bcryptjs";
+import { db } from "@/server/db";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  adapter: PrismaAdapter(db),
+  session: { strategy: "jwt" },
   providers: [
     Credentials({
       credentials: {
@@ -129,110 +129,61 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
-        const base = process.env.NEXT_PUBLIC_API_BASE_URL!;
-        const res = await fetch(`${base}/api/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(credentials),
-        });
-        if (!res.ok) return null;
-        const data = (await res.json()) as { access_token: string };
-        return {
-          id: String(credentials?.email ?? ""),
-          email: String(credentials?.email ?? ""),
-          accessToken: data.access_token,
-        };
+        const email = String(credentials?.email ?? "");
+        const password = String(credentials?.password ?? "");
+        if (!email || !password) return null;
+
+        const user = await db.user.findUnique({ where: { email } });
+        if (!user?.passwordHash) return null;
+
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        return ok ? { id: user.id, email: user.email, name: user.name } : null;
       },
     }),
   ],
-  callbacks: {
-    jwt: async ({ token, user }) => {
-      if (user) token.accessToken = (user as { accessToken: string }).accessToken;
-      return token;
-    },
-    session: async ({ session, token }) => {
-      (session as { accessToken?: string }).accessToken = token.accessToken as string | undefined;
-      return session;
-    },
-  },
 });
 ```
 
 > [!IMPORTANT]
-> `authorize` の戻り値は **FastAPI `/api/auth/login` のレスポンス形状** に合わせる。\
-> 本テンプレでは FastAPI 側は `{access_token: string}` のみ返す前提 (User 情報は `/api/auth/me` で別取得)。\
-> `data.user.id` のような nested アクセスは FastAPI の `TokenOut` スキーマに含まれないため壊れる。
+> Credentials プロバイダは **`session.strategy: "jwt"` が必須**。既定の database session は\
+> Credentials では発行されず、ログイン直後に未認証へ戻る（Adapter を付けても同じ）。\
+> `User.passwordHash` は `t3-default.md` 第 3 章の Prisma schema に含まれる（Q3 = メールパスワードのみ）。\
+> ハッシュ生成は `bcrypt.hash(password, 10)` を登録処理側で行う。
 
 `src/app/api/auth/[...nextauth]/route.ts`:
 
 ```typescript
-import { handlers } from "@/lib/auth";
+import { handlers } from "@/server/auth";
 
 export const { GET, POST } = handlers;
 ```
 
 > [!IMPORTANT]
 > NextAuth v5 では `handlers` から GET/POST を分解する必要がある。\
-> `export { GET, POST } from "@/lib/auth";` だと `Module has no exported member 'GET'` でビルド失敗。
+> `export { GET, POST } from "@/server/auth";` だと `Module has no exported member 'GET'` でビルド失敗。
 
 
 ### 4.3. Q3 = OAuth Google
 
-`src/lib/auth.ts`:
+`src/server/auth.ts`:
 
 ```typescript
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import { SignJWT } from "jose";
-
-const secret = new TextEncoder().encode(process.env.AUTH_SECRET!);
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { db } from "@/server/db";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  adapter: PrismaAdapter(db),
   providers: [Google],
-  callbacks: {
-    jwt: async ({ token, account, profile }) => {
-      if (account && profile) {
-        const jwt = await new SignJWT({ sub: profile.email, email: profile.email, name: profile.name })
-          .setProtectedHeader({ alg: "HS256" })
-          .setIssuedAt()
-          .setExpirationTime("7d")
-          .sign(secret);
-        token.accessToken = jwt;
-      }
-      return token;
-    },
-    session: async ({ session, token }) => {
-      session.accessToken = token.accessToken as string;
-      return session;
-    },
-  },
-});
-```
-
-
-## 5. 追加する @hey-api/openapi-ts 設定
-
-Python BE 経路でのみ使用。T3 経路では設定ファイルを生成するが `npm run gen:api` を呼ばない。
-
-`frontend/openapi-ts.config.ts` (Python BE 経路) / `openapi-ts.config.ts` (T3 経路、ルート配置):
-
-```typescript
-import { defineConfig } from "@hey-api/openapi-ts";
-
-export default defineConfig({
-  input: process.env.OPENAPI_URL ?? "http://localhost:8000/openapi.json",
-  output: "src/api",
-  plugins: ["@hey-api/client-fetch", "@hey-api/schemas", "@hey-api/sdk", "@hey-api/typescript"],
 });
 ```
 
 > [!NOTE]
-> 0.64 系で使われていた `output: { path, format: "prettier" }` は 0.97 で deprecation 警告。\
-> Prettier を呼ぶには `postProcess: ['prettier']` を指定する（要 prettier devDep）。\
-> ローカル開発で整形が不要なら上記のように `output: "src/api"` のシンプル指定で十分。
+> Google のみ（Credentials 無し）の場合は database session をそのまま使えるため `session.strategy` を指定しない。\
+> `Account` / `Session` / `VerificationToken` は `t3-default.md` 第 3 章の schema が持つ。
 
-
-## 6. 追加する src/ ディレクトリ構造
+## 5. 追加する src/ ディレクトリ構造
 
 `src/` 以下を作成 (`<entity>` は Q2 エンティティごとに繰り返し)。
 
@@ -246,13 +197,12 @@ src/
 │       ├── page.tsx        # 一覧
 │       ├── [id]/page.tsx   # 詳細
 │       └── new/page.tsx    # 新規
-├── lib/
-│   └── auth.ts             # NextAuth 設定 (Q3 別、第 4 章参照)
-└── api/                    # @hey-api/openapi-ts 出力 (Python BE 経路のみ)
+└── server/
+    └── auth.ts             # NextAuth 設定 (Q3 別、第 4 章参照)
 ```
 
 
-## 7. globals.css 最小定義
+## 6. globals.css 最小定義
 
 ```css
 @tailwind base;
@@ -261,11 +211,11 @@ src/
 ```
 
 
-## 8. .env.local テンプレ
+## 7. .env.local テンプレ
 
 ```dotenv
 # 共通
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+DATABASE_URL=postgres://app:app@db:5432/app
 
 # Q3 が無し以外
 AUTH_SECRET=<openssl rand -base64 32 で生成>
@@ -276,5 +226,5 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 ```
 
-`NEXT_PUBLIC_API_BASE_URL` は T3 経路では未使用 (tRPC が同一プロセス)。\
-Python BE 経路では必須 (frontend → backend へのクロスオリジン)。
+`DATABASE_URL` のホスト名 `db` は `docker-compose.yml` の Postgres サービス名。\
+Dev Container の外（WSL ホスト）から直接 `npm run dev` する場合は `localhost` に読み替える。

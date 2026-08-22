@@ -33,6 +33,11 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   // trail 拡張同梱から移動した（配置済みコピーは agent marker 未記録 → 初回 activate で上書き）。
   { name: 'anytime-dev-audit' },
   // rotation / delegation は anytime-dev-cycle の references へ統合した。
+  // anytime-impl-test-design は 2026-08-22 に markdown 拡張の anytime-doc-authoring §6 へ統合した。
+  // anytime-ux-archeologist（旧名 ux-archeologist）も 2026-08-22 に markdown 拡張の
+  // anytime-reverse-spec 外形リバースモードへ統合した。いずれも統合先は別名スキルのため
+  // （stock-cooccurrence と違い）同名 dir が移設先に残ることはなく、配布元である本拡張が
+  // dev-cycle の oldNames に載せて配置済み旧 dir を掃除する。
   {
     name: 'anytime-dev-cycle',
     oldNames: [
@@ -41,9 +46,11 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
       'anytime-delegation',
       'codex-delegation',
       'anytime-ollama-delegation',
+      'anytime-impl-test-design',
+      'anytime-ux-archeologist',
+      'ux-archeologist',
     ],
   },
-  { name: 'anytime-impl-test-design' },
   // 2026-07-30 に anytime-proposal からリネーム（提案書の生成から「分析と分析結果の出力
   // （提案書 / 共起グラフ .cooc.json）」へ再定義し、共起グラフ出力モード §9 を統合）。
   { name: 'anytime-analysis', oldNames: ['anytime-proposal'] },
@@ -57,7 +64,4 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-loop-start', oldNames: ['anytime-ticket-loop'] },
   // 上記が確保した cron の停止。停止と「実行中チケット作業の中断」は別物のため別スキルに分けてある。
   { name: 'anytime-loop-stop', oldNames: ['anytime-ticket-loop-stop'] },
-  // ソース非アクセスの外形リバース（DESIGN.md / ux-concept.md / ux-report.md の 3 系統）。
-  // 2026-08-03 に anytime- 接頭辞へ揃えつつ、プロジェクト固有スキル（.claude/skills/）から同梱化した。
-  { name: 'anytime-ux-archeologist', oldNames: ['ux-archeologist'] },
 ];

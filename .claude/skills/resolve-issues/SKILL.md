@@ -251,9 +251,9 @@ bash .claude/skills/resolve-issues/scripts/format-report.sh \
 - **保留事項**: ユーザー判断が必要な項目
 - **新たに発見した課題**: 修正中に見つけた関連問題
 
-レポート出力後、`anytime-markdown-check` スキルで検証する。
+レポート出力後、`anytime-markdown-output` スキル §10（出力後の検証）で検証する。
 
-出力先 `<docsRoot>/report/resolve-issues/` は mcp-markdown のルート（`/anytime-markdown`）外のため `format_markdown` は使えない（`Access denied: path outside root directory`）。frontmatter 必須キーの実在確認と、同スキルの意味判断チェックリストを手動で適用する。
+出力先 `<docsRoot>/report/resolve-issues/` は mcp-markdown のルート（`/anytime-markdown`）外のため `format_markdown` は使えない（`Access denied: path outside root directory`）。frontmatter 必須キーの実在確認と、同スキル §10.2〜10.3 の意味判断チェックリストを手動で適用する。
 
 > [!NOTE]
 > 旧手順が指定していた `~/.claude/scripts/validate-markdown.sh` は**実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。

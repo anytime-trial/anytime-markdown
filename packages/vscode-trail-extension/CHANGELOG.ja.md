@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-22
+
+### 変更
+
+- 同梱スキル: `anytime-dev-retro` のレポート検証手順の参照先を、markdown 拡張の `anytime-markdown-output` §10（出力後の検証）へ更新した（旧 `anytime-markdown-check` の統合に伴う）。**markdown 拡張と同一リリースで配ること** — markdown 拡張だけ先に出すと配置済みの `anytime-markdown-check` が削除され、本拡張の未更新スキルが存在しないスキル名を指す。
+- 同梱スキル: `anytime-reverse-doctrine` を `anytime-dev-retro` の doctrine 抽出モードへ統合（どちらも実績・履歴から改善・規範を還流させるふりかえり系のため。手順は `references/reverse-doctrine.ja.md`・テンプレートは `templates/doctrine/` へ移設）。旧 dir は `oldNames` により activate 時に削除される。
+- 同梱スキル: `anytime-reverse-spec` を markdown 拡張の同梱へ移管し、本拡張の同梱から外した（agent 拡張の `anytime-ux-archeologist` を外形リバースモードとして統合したのに伴う配布元変更。配置済みコピーは、markdown 拡張が同一ワークスペースに導入されていればその初回 activate で統合版 v6 に上書きされる。trail 拡張のみの環境では旧版が削除されずそのまま残る — 本拡張の `oldNames` へ掃除登録すると markdown 拡張が配置した統合版まで毎 activate で削除してしまうため、意図的に登録していない）。
+
+### 修正
+
+- 同梱スキル `anytime-dev-retro`: `grounding.cjs` が測定できなかった指標を理由なしに null / 空で返していたため、レポートが「委譲記録ゼロ」「取りこぼしゼロ」と読めてしまい、測れていないものへ誤った是正を打つ状態だった。null / 空へ倒す経路は必ず `errors` に理由を残すようにし、docsRoot の解決を `lep.json` 依存から外して `<cwd>/docs` へフォールバックし、plan ディレクトリを `plan` / `plans` の双方で探索する。
+
+### Trail Core（trail-caravan-book / trail-server / trail-viewer）
+
+- レビュー取込が chat model を必須としなくなった。書式パース・upsert・`addresses` リンクはすべて決定論だが、analyzer が chat と embedding をハード要件として宣言していたため、Ollama 不在のワークスペースでは scope ごと落ち、レビューが 1 件も記録されていなかった。LLM の用途を category 推論だけに限定し、推論できない分は `pending_llm`（migration 036）として保留して後続 run が埋め直す（`other` で確定させると誤った category が永久に固まるため）。
+
+- パイプラインの skip が台帳に残るようになった。LLM の pre-flight skip は `caravan_pipeline_runs` へ 1 行も書いておらず、「まだ動いていない」と「動いて 0 件だった」を区別できなかった。migration 035 で `skipped` status を追加し、理由コードを `error_detail` の先頭へ固定する。
+
+- 日次集計が `skipped` を `running` として表示していた。status を拡張したときに rank 畳み込みが追随していなかったため。rank を振り直し、サーバ集計と画面集計を同時に揃えた（片方だけ直すと `worstStatus` が食い違う）。
+
+- 保留した category 推論の埋め直しが飢餓しなくなった。試行回数 → `recorded_at` 順で選び、3 回で母集合から外す（`category_refine_attempts`・migration 036）。従来は恒久的に失敗する先頭 100 件がその背後の指摘を永久にブロックしていた。
+
+- レビューディレクトリ不在が `success` で通らなくなった。
+
 ## [1.4.1] - 2026-08-20
 
 ### 修正

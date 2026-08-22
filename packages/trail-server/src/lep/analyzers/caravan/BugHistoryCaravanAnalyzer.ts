@@ -8,6 +8,7 @@ import { CaravanAnalyzerBase } from './CaravanAnalyzerBase';
  */
 export class BugHistoryCaravanAnalyzer extends CaravanAnalyzerBase {
   readonly id = 'BugHistoryCaravanAnalyzer';
+  readonly scopes = ['bug_history_incremental'] as const;
 
   protected runScope(session: CaravanDbSession): Promise<ScopeResult> {
     return session.runBugHistory();

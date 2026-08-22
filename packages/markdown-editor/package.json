@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-editor",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "description": "Markdown エディタ基盤（TipTap 拡張の組み立て・mount API・vanilla UI・i18n・ファイルシステム抽象）。markdown-rich-editor / markdown-react-islands / markdown-view-lite が依存する土台。図表描画は含まない（markdown-rich-editor が担う）。",
   "license": "MIT",
   "private": true,

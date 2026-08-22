@@ -57,6 +57,8 @@ function statusColor(status: string): string {
   if (status === 'partial') return 'var(--am-color-warning-main)';
   if (status === 'running') return 'var(--am-color-info-main)';
   if (status === 'success') return 'var(--am-color-success-main)';
+  // skipped は失敗ではないが成功でもない（起動していない）。既定の中間色を当てる。
+  if (status === 'skipped') return 'var(--am-color-text-secondary)';
   return 'var(--am-color-text-secondary)';
 }
 

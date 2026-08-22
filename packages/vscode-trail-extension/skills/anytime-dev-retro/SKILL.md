@@ -1,12 +1,12 @@
 ---
 name: anytime-dev-retro
 effort: medium
-description: 開発の実績データと事故から改善を還流させるふりかえり（retrospective）。Trail の 3DB(trail-caravan-book/markdown-catalog/trail)を横断分析し、セッション粒度の LLM コスト分析（旧 anytime-token-budget を統合）も含めて、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案書＋チケットを生成する。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「健全性レポート」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。PC 環境・Claude Code 設定の診断（「セットアップ監査」「環境監査」「環境診断」）は anytime-dev-audit を使う。
+description: 開発の実績データと事故から改善を還流させるふりかえり（retrospective）。Trail の 3DB(trail-caravan-book/markdown-catalog/trail)を横断分析し、セッション粒度の LLM コスト分析（旧 anytime-token-budget を統合）も含めて、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案書＋チケットを生成する。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「健全性レポート」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。「暗黙知を明文化」「経典を生成」「doctrine を抽出」「設計哲学を抽出」「ユビキタス言語をまとめて」「暗黙ルールを見える化」「/anytime-reverse-doctrine」（旧スキル名）の指示では doctrine 抽出モード（旧 anytime-reverse-doctrine を統合。`--delta` で差分更新と乖離報告、`--category` でカテゴリ限定。手順は references/reverse-doctrine.ja.md）を使用する。PC 環境・Claude Code 設定の診断（「セットアップ監査」「環境監査」「環境診断」）は anytime-dev-audit、システム構造の設計書生成は anytime-reverse-spec を使う。
 ---
 
-# anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化）
+# anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化＋doctrine 抽出）
 
-更新日: 2026-08-19
+更新日: 2026-08-22（旧 `anytime-reverse-doctrine` を doctrine 抽出モードとして統合。どちらも実績・履歴から改善・規範を還流させるふりかえり系のため）
 
 Trail が蓄積する 3 つのローカル DB を横断分析し、**前回からの変化（デルタ）に基づく**健全性レポートを出力する。変化が閾値を超えたシグナルだけ改善提案に昇格させ、提案書に加えてチケットを起票する（毎回同じ指摘を繰り返さないのが本スキルの肝）。
 
@@ -143,7 +143,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **grounding errors**（あれば）: 測定不能だったシグナル。手順 1 (3) の突合スモークで検出した観測経路の故障もここへ含める。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
 
-出力後、`anytime-markdown-check` スキルで検証する。レポートの出力先 `<docsRoot>/report/` は mcp-markdown のルート（`/anytime-markdown`）外のため `format_markdown` は使えない（`Access denied: path outside root directory`）。frontmatter 必須キーの実在確認と同スキルの意味判断チェックリストを手動で適用する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。
+出力後、`anytime-markdown-output` スキル §10（出力後の検証）で検証する。レポートの出力先 `<docsRoot>/report/` は mcp-markdown のルート（`/anytime-markdown`）外のため `format_markdown` は使えない（`Access denied: path outside root directory`）。frontmatter 必須キーの実在確認と同スキル §10.2〜10.3 の意味判断チェックリストを手動で適用する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。
 
 ### 4. 改善提案への昇格（閾値超のみ）
 
@@ -235,6 +235,14 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 2. **重大度・復旧方針の決定は人（管制官）**: AI は判断材料（影響範囲・復旧選択肢）の提示まで。復旧作業そのものは本モードの範囲外（該当タスクとして別途実施）。
 3. **why-why-why 分析（3 段以上）と再発防止提案書の起草**: `anytime-analysis`（既定 lightweight）で `proposal/<YYYYMMDD>-<topic>.ja.md` へ出力し、§4.1 の要領でチケットを 1 件起票する（`title` は `再発防止: <テーマ>`、`priority` は事故の重大度に応じて `high` / `urgent`）。global CLAUDE.md「バグ修正時」のリリース後不具合ルールと同一プロセスであり、分析様式を二重定義しない。
 4. **提案の採否は人**。採択された提案は `anytime-dev-cycle` 段2（要件書・設計書の改訂 → What 承認）へ引き継ぎ、必要ならロードマップ（`spec/00.requirements/trail-roadmap.ja.md`）の更新も同時に提案する。
+
+## doctrine 抽出モード（暗黙知の明文化。旧 anytime-reverse-doctrine）
+
+「暗黙知を明文化」「経典を生成」「doctrine を抽出」等の指示では、定期デルタ分析ではなく doctrine 抽出を行う。コード・git 履歴・設計文書・レビュー記録から設計哲学 / 用語 / プロセス実態 / 未明文規約の 4 カテゴリを抽出し、根拠（逐語引用＋出典）付きの doctrine 4 文書として既定 `<docsRoot>/spec/92.doctrine/` へ出力する。リバースエンジニアリング系譜の第 3 段（`anytime-reverse-codegraph`＝構造、`anytime-reverse-spec`＝設計書、本モード＝文化・暗黙知）。
+
+- 手順の正本は `references/reverse-doctrine.ja.md`（Phase 0〜4・確度/状態/承認の統一構造・Red Flags）。出力 skeleton は `templates/doctrine/<category>.ja.md`。
+- 対象リポジトリ・Trail DB へは**読み取り専用**。規約ファイル（AGENTS.md / CLAUDE.md / スキル）への昇格は提案までで自動編集しない。承認 `canon` は人だけが付与できる（抽出出力は必ず `draft`）。
+- `--delta` は既存文書への差分更新＋乖離レポート、`--category` はカテゴリ限定。定期レトロ（§2 の `doctrineGap` デルタ）が doctrine 運用の**計測**を担うのに対し、本モードは doctrine 本文の**抽出・更新**を担う。
 
 ## セットアップ監査は別スキル
 

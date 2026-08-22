@@ -54,6 +54,13 @@ export interface PipelineRunnerContext {
    * 省略時は 'own' (CaravanDbSession 側の既定)。
    */
   workspaceScopeMode?: WorkspaceScopeMode;
+  /**
+   * 設計書リポジトリのルート (lep.json `sources.docs.root`)。review / spec の取込元。
+   * 空・未指定なら `<gitRoot>/docs` へ落とす。特定ワークスペースの絶対パスを内蔵既定に
+   * しない (設定漏れが「他リポジトリを読んで 0 件成功」に化けるため)。
+   */
+  docsRoot?: string;
+
   /** LLM 接続先・モデル (省略時は env / 内蔵既定)。 */
   llm?: CaravanLlmConfig;
   /** Ollama クライアント生成口 (省略時 openCaravanDbSession が createOllamaClient で生成)。 */
@@ -106,6 +113,13 @@ export interface CaravanBookServiceOptions {
    * 省略時は 'own'。
    */
   workspaceScopeMode?: WorkspaceScopeMode;
+  /**
+   * 設計書リポジトリのルート (lep.json `sources.docs.root`)。review / spec の取込元。
+   * 空・未指定なら `<gitRoot>/docs` へ落とす。特定ワークスペースの絶対パスを内蔵既定に
+   * しない (設定漏れが「他リポジトリを読んで 0 件成功」に化けるため)。
+   */
+  docsRoot?: string;
+
   /** LLM 接続先・モデル (lep.json から解決した値)。省略時は env / 内蔵既定。 */
   llm?: CaravanLlmConfig;
   /** Ollama クライアント生成口。trail-server が throttle 用 decorator を注入する。 */

@@ -1,8 +1,7 @@
 {
-  "anytime-markdown-check": 3,
-  "anytime-markdown-output": 8,
+  "anytime-reverse-spec": 7,
+  "anytime-markdown-output": 10,
   "anytime-mermaid": 3,
-  "anytime-doc-authoring": 13,
-  "anytime-markdown-usage": 5,
-  "anytime-spec-lookup": 3
+  "anytime-doc-authoring": 15,
+  "anytime-markdown-usage": 6
 }

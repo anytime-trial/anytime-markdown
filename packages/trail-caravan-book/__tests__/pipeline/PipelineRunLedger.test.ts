@@ -373,3 +373,72 @@ describe('PipelineRunLedger', () => {
     expect(row['error_detail']).toBe('');
   });
 });
+
+describe('PipelineRunLedger.skip', () => {
+  let db: BetterSqlite3CaravanDb;
+
+  beforeEach(() => {
+    db = makeCaravanDb();
+  });
+
+  afterEach(() => {
+    db.close?.();
+  });
+
+  it('start() なしで skipped の run 行を 1 件残し、理由コードを error_detail の先頭へ入れる', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'review_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+
+    const runId = ledger.skip('llm_unavailable', 'ReviewFindingCaravanAnalyzer needs chat');
+    const row = readRun(db, runId);
+
+    expect(row['status']).toBe('skipped');
+    expect(row['scope']).toBe('review_incremental');
+    expect(row['wave']).toBe('memory');
+    expect(String(row['error_detail'])).toMatch(/^skipped: llm_unavailable — /);
+    // 起動していないので running の窓を開けない（watchdog の失効対象にしない）
+    expect(row['finished_at']).toBe(row['started_at']);
+    expect(row['items_processed']).toBe(0);
+  });
+
+  it('detail 省略時は理由コードだけを残す', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'spec_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+
+    const row = readRun(db, ledger.skip('no_chat_model'));
+    expect(row['error_detail']).toBe('skipped: no_chat_model');
+  });
+
+  it('skipped は 1 scope につき何度でも積める（run 行の主キーが衝突しない）', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'review_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+
+    const first = ledger.skip('llm_unavailable');
+    const second = ledger.skip('llm_unavailable');
+    expect(first).not.toBe(second);
+
+    const stmt = db.prepare(
+      `SELECT COUNT(*) c FROM caravan_pipeline_runs WHERE scope = 'review_incremental' AND status = 'skipped'`,
+    );
+    try {
+      expect((stmt.get() as { c: number }).c).toBe(2);
+    } finally {
+      stmt.free?.();
+    }
+  });
+});

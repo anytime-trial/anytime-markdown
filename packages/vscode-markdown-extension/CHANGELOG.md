@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-08-22
+
+### Added
+
+- Skill installer (installSkills): bundled-skill dirs retired by merges/deprecations are now removed on activation via the explicit `OBSOLETE_SKILL_NAMES` list (no blanket "not in manifest" pruning; first entry: `anytime-spec-lookup`).
+- Bundled skills: `anytime-reverse-spec` moved here from the Trail extension (v6). The agent extension's `anytime-ux-archeologist` was merged into it as the exterior-reverse mode (extracts DESIGN.md / UX concept / UX evaluation reports from running web apps without source access; procedure in `references/ux-archeologist.ja.md`).
+
+### Changed
+
+- Bundled skills: merged `anytime-markdown-check` (post-output verification) into `anytime-markdown-output` §10, consolidating authoring conventions and verification into one skill; the obsolete directory is cleaned up via `OBSOLETE_SKILL_NAMES`.
+- Bundled skills: added a requirements-definition template (`references/requirements-template.ja.md`) and authoring rules (§2.8) to `anytime-doc-authoring`.
+- Bundled skills: merged the agent extension's `anytime-impl-test-design` (post-implementation test design) into `anytime-doc-authoring` §6 (procedure in `references/impl-test-design.ja.md`), unifying the test-design authoring skills alongside §5.
+- Bundled skills: merged `anytime-spec-lookup` (spec navigation) into `anytime-markdown-usage` §D, since both cover low-token document usage; backlink lookup now prefers `doc_backlinks`.
+- Bundled skills: updated the skill-responsibility note in `anytime-markdown-output` to match the `anytime-spec-lookup` merge.
+
+### Removed
+
+- Bundled skills: retired `anytime-spec-lookup` as a standalone skill (its content now lives in `anytime-markdown-usage` §D).
+
 ## [1.22.0] - 2026-08-20
 
 ### Removed

@@ -1,14 +1,17 @@
-# 5 問インタビュー定義
+# 4 問インタビュー定義
 
-`/anytime-build-webapp` の Phase 1（Interview）で順に質問する 5 問の定義。
+`/anytime-build-webapp` の Phase 1（Interview）で順に質問する 4 問の定義。
+
+スタック（バックエンド）は T3 Stack 固定のため質問しない（`stacks/overrides.md` 第 1 章）。
 
 
 ## 0. 共通ルール
 
-- 質問数は最大 5。打ち切り条件（第 6 章）に該当した時点で停止
+- 質問数は最大 4。打ち切り条件（第 6 章）に該当した時点で停止
 - 各質問は ≤ 2 文、選択肢があれば必ず提示
 - 多選択を強制しない（`AskUserQuestion` で multiSelect=false を基本とする）
 - 回答は `requirements-template.md` のプレースホルダに埋め込む
+- 打ち切り条件は第 5 章、CLI 引数による事前充足は第 6 章
 
 
 ## 1. Q1: 何を作る?
@@ -45,19 +48,7 @@
 | 埋め込み先 | `requirements-template.md` の `{{Q3_AUTH}}` |
 
 
-## 4. Q4: スタック上書き
-
-| 項目 | 値 |
-| --- | --- |
-| 質問文 | 「スタックの上書き指定はありますか?」 |
-| 形式 | 選択肢（4 択） |
-| 選択肢 | (a) 無し（T3 デフォルト）　(b) Python BE　(c) Hono BE　(d) その他 |
-| デフォルト | (a) 無し |
-| 埋め込み先 | `requirements-template.md` の `{{Q4_STACK_OVERRIDE}}` |
-| 備考 | (b)〜(d) 選択時は `stacks/overrides.md` の判定に従う |
-
-
-## 5. Q5: 画面デザイン参照源
+## 4. Q4: 画面デザイン参照源
 
 | 項目 | 値 |
 | --- | --- |
@@ -65,31 +56,33 @@
 | 形式 | 選択肢（3 択） |
 | 選択肢 | (a) 無し（標準 Tailwind）　(b) 参考 URL を指定　(c) DESIGN.md ファイルパスを指定 |
 | デフォルト | (a) 無し |
-| 埋め込み先 | `requirements-template.md` の `{{Q5_DESIGN_SOURCE}}`・`{{Q5_DESIGN_VALUE}}` |
+| 埋め込み先 | `requirements-template.md` の `{{Q4_DESIGN_SOURCE}}`・`{{Q4_DESIGN_VALUE}}` |
 | 備考 | (b) / (c) を選んだ場合、続けて URL / パスをフリーテキストで入力 |
 
 
-## 6. 打ち切り条件
+## 5. 打ち切り条件
 
 以下のいずれかに該当した時点で残り質問をスキップ。
 
-- Q1〜Q3 が明確で Q4・Q5 が CLI 引数で事前指定済み
+- Q1〜Q3 が明確で Q4 が CLI 引数で事前指定済み
 - 1 問で 3 つ以上の情報が出てきた場合（例: Q1 で「`User` と `Order` の顧客管理ツール、Google 認証で」→ Q1・Q2・Q3 を一括充足）
-- 5 問終了時点で曖昧な点が残る場合は「想定 X で進めます。違えば指示してください」と表明して継続
+- 4 問終了時点で曖昧な点が残る場合は「想定 X で進めます。違えば指示してください」と表明して継続
 
 
-## 7. CLI 引数による事前充足
+## 6. CLI 引数による事前充足
 
 | CLI 引数 | スキップする質問 |
 | --- | --- |
 | `<1 行の要求>` | Q1 |
-| `--design-url <URL>` | Q5（参考 URL） |
-| `--design-file <path>` | Q5（DESIGN.md ファイル） |
+| `--design-url <URL>` | Q4（参考 URL） |
+| `--design-file <path>` | Q4（DESIGN.md ファイル） |
 | `--no-auth` | Q3（無し） |
 | `--auth=email-password` | Q3（メールパスワード） |
 | `--auth=google` | Q3（OAuth: Google） |
 
+`--new-dir` / `--devcontainer` は質問を充足しない実行モードのフラグで、インタビュー対象外（`SKILL.md`「動作モード」）。
 
-## 8. 質問順序の優先
 
-Q1 → Q2 → Q3 → Q4 → Q5 の固定順。Q4 が「無し」以外で未対応スタックの場合、Phase 1.5 で確認質問を 1 回追加するが本 5 問の枠外。
+## 7. 質問順序の優先
+
+Q1 → Q2 → Q3 → Q4 の固定順。スタック確認の追加質問は持たない（スタックは T3 固定）。

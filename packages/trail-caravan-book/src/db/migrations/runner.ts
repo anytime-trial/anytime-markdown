@@ -49,6 +49,8 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 32, file: '032_search_event_source.sql' },
   { version: 33, file: '033_review_finding_target_inferred_by.sql' },
   { version: 34, file: '034_review_finding_addressed_signals.sql' },
+  { version: 35, file: '035_pipeline_run_skipped.sql' },
+  { version: 36, file: '036_review_finding_category_inferred_by.sql' },
 ]
 
 /**

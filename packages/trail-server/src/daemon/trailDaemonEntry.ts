@@ -265,6 +265,7 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
       dbPath: cfg.caravanBook.dbPath,
       nativeBinding: cfg.caravanBook.nativeBinding,
       gitRoot: cfg.caravanBook.gitRoot,
+      docsRoot: cfg.caravanBook.docsRoot,
       backfillDays: cfg.caravanBook.backfillDays,
       workspaceScopeMode: cfg.caravanBook.workspaceScopeMode,
       llm: cfg.caravanBook.llm,

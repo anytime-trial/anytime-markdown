@@ -8,6 +8,8 @@ import { entityId } from '../canonical/entityId';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import type { MemoryWorkspaceScope } from '../ingest/workspaceScope';
 import { refineCategories } from '../ingest/review/extractFindings';
+import type { ParsedFinding } from '../ingest/review/findingHelpers';
+import { CATEGORIES } from '../ollama/prompts/reviewFindingCategory';
 import {
   upsertReviewDoc,
   upsertReviewSession,
@@ -24,9 +26,28 @@ type PipelineStatus = 'success' | 'partial' | 'error';
 
 const SCOPE_DOC = 'review_incremental';
 const SCOPE_SESSION = 'review_session_incremental';
-const DEFAULT_REVIEW_DIR = '/Shared/anytime-markdown-docs/review';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
 const PROGRESS_LOG_INTERVAL = 50;
+/**
+ * 1 回の run で埋め直す `pending_llm` の上限。LLM 呼び出しは 1 件 1 リクエストなので、
+ * 溜まった分を一度に流すと 1 run が何時間も走る。残りは次の run が拾う（cursor は
+ * 使わず、埋まった行が母集合から抜けることで前進する）。
+ */
+const PENDING_CATEGORY_BATCH = 100;
+/**
+ * 1 指摘あたりの埋め直し試行上限。これを超えた指摘は母集合から外し、件数をログへ出す。
+ * 上限を置かないと、恒常的に不正な応答を返す入力が母集合の先頭を占め続け、その背後の
+ * 指摘へ永久に到達しない（Claude / Codex がマージ前レビューで独立に指摘）。
+ */
+const PENDING_CATEGORY_MAX_ATTEMPTS = 3;
+
+/** DB の生値を category の union へ絞り込む。想定外の値は 'other' へ落とす（型アサーションを使わない）。 */
+function toFindingCategory(raw: unknown): ParsedFinding['category'] {
+  const value = String(raw);
+  return (CATEGORIES as readonly string[]).includes(value)
+    ? (value as ParsedFinding['category'])
+    : 'other';
+}
 
 export interface ReviewIncrementalResult {
   status: PipelineStatus;
@@ -105,6 +126,7 @@ async function processRouteADoc(opts: {
   force: boolean;
   ollama: OllamaClient;
   model: string;
+  chatAvailable: boolean;
   /** 取込を実行しているワークスペースの repo_name。自分が書いた行にだけ設定する。 */
   workspace: string;
   logger: CaravanLogger;
@@ -170,6 +192,7 @@ async function processRouteADoc(opts: {
       findings: doc.findings,
       ollama,
       model,
+      chatAvailable: opts.chatAvailable,
       logger: { warn: (msg: string) => logger.info(msg) },
     });
     doc.findings.splice(0, doc.findings.length, ...refined.findings);
@@ -201,6 +224,14 @@ interface ReviewTotals {
   reviewsInserted: number;
   findingsInserted: number;
   itemsFailed: number;
+  /**
+   * Route A の取込元ディレクトリが実在しなかったときの実パス。
+   *
+   * 「取込元が無い」を success で通さないために持つ。この状態は設定漏れで最も起きやすい
+   * 失敗であり、しかも 0 件成功と見分けが付かない形で現れる（本 pipeline が塞ぎに来た
+   * 事故そのもの）。null = ディレクトリは実在した。
+   */
+  reviewDirMissing: string | null;
 }
 
 interface RouteContext {
@@ -209,6 +240,7 @@ interface RouteContext {
   workspaceScope: MemoryWorkspaceScope;
   ollama: OllamaClient;
   model: string;
+  chatAvailable: boolean;
   logger: CaravanLogger;
   recordedAt: string;
   force: boolean;
@@ -230,9 +262,12 @@ function listReviewDocs(reviewDir: string, logger: CaravanLogger): string[] {
 async function runRouteADocs(acc: ReviewTotals, reviewDir: string, ctx: RouteContext): Promise<void> {
   const { db, logger } = ctx;
   if (!fs.existsSync(reviewDir)) {
-    logger.info(
+    // info に留めない。設定漏れで最も起きやすい失敗が、ログ 1 行だけ残して
+    // 台帳には success として積まれるのを避ける。
+    logger.error(
       `[anytime-memory] runReviewIncremental: reviewDir does not exist, skipping Route A (dir=${reviewDir})`,
     );
+    acc.reviewDirMissing = reviewDir;
     return;
   }
 
@@ -249,7 +284,8 @@ async function runRouteADocs(acc: ReviewTotals, reviewDir: string, ctx: RouteCon
 
     const docResult = await processRouteADoc({
       db, filePath, relPath, reviewDir, recordedAt: ctx.recordedAt, force: ctx.force,
-      ollama: ctx.ollama, model: ctx.model, workspace: ctx.repoName, logger,
+      ollama: ctx.ollama, model: ctx.model, chatAvailable: ctx.chatAvailable,
+      workspace: ctx.repoName, logger,
     });
 
     if (docResult.outcome === 'skipped') continue;
@@ -280,6 +316,7 @@ async function ingestReviewSession(
       findings: session.findings,
       ollama: ctx.ollama,
       model: ctx.model,
+      chatAvailable: ctx.chatAvailable,
       logger: { warn: (msg: string) => logger.info(msg) },
     });
     session.findings.splice(0, session.findings.length, ...refined.findings);
@@ -364,6 +401,120 @@ async function runRouteBSessions(acc: ReviewTotals, ctx: RouteContext): Promise<
 }
 
 /**
+ * chat model 不在の回で `pending_llm` として取り込んだ指摘の category を埋め直す。
+ *
+ * source_hash の一致で md 自体は再処理されないため、この経路が無いと chat が居なかった
+ * 期間の指摘は永久に未確定のまま残る。逆に言えば、取込と精緻化を分離できたのは
+ * この後追い経路があるからで、片方だけを入れない。
+ */
+async function refinePendingCategoriesStep(acc: ReviewTotals, ctx: RouteContext): Promise<void> {
+  const { db, chatAvailable, logger } = ctx;
+  if (!chatAvailable) return;
+  try {
+    // 母集合は「自ワークスペースの review に属し、まだ試行上限に達していない指摘」。
+    // workspace で絞るのは、caravan-book.db が複数ワークスペースの review 行を持ちうる器で、
+    // 自分の chat model で他ワークスペースの指摘を書き換えないため（Route A / Route B と同じ境界）。
+    // 試行回数で絞らないと、恒久的に推論が失敗する行が上限件数ぶん溜まった時点で
+    // 毎回同じ先頭集合を引き直し、その背後の行へ永久に到達しない。
+    const rows = db.exec(
+      `SELECT f.id, f.finding_text, f.category
+         FROM caravan_review_findings f
+         JOIN caravan_reviews r ON r.id = f.review_id
+        WHERE f.category_inferred_by = 'pending_llm'
+          AND f.category_refine_attempts < ?
+          AND r.workspace = ?
+        ORDER BY f.category_refine_attempts ASC, f.recorded_at ASC
+        LIMIT ?`,
+      [PENDING_CATEGORY_MAX_ATTEMPTS, ctx.repoName, PENDING_CATEGORY_BATCH],
+    );
+    const pending = rows[0]?.values ?? [];
+    if (pending.length === 0) return;
+
+    // 選んだ行は結果に関わらず試行済みとして数える。成功した行はこの直後に
+    // category_inferred_by='llm' へ抜けるので、残るのは失敗した行だけになる。
+    const ids = pending.map((r) => String(r[0]));
+    for (const id of ids) {
+      db.run(
+        `UPDATE caravan_review_findings
+            SET category_refine_attempts = category_refine_attempts + 1
+          WHERE id = ?`,
+        [id],
+      );
+    }
+
+    // finding_index は refineCategories が並び順を復元する相関キー（kept / needsLLM に
+    // 分割してから finding_index で sort し直す実装）。ここでは ids の添字として使う。
+    // chapter_path を空で渡すのは、章見出しが caravan_review_findings に永続化されて
+    // いないため。取込時推論より文脈が少なく、精度は構造的に劣る（許容する縮退）。
+    const refined = await refineCategories({
+      findings: pending.map((r, i) => ({
+        finding_index: i,
+        target_file_path: null,
+        target_symbol: null,
+        target_line_start: null,
+        target_line_end: null,
+        category: toFindingCategory(r[2]),
+        severity: 'info',
+        finding_text: String(r[1]),
+        suggestion_text: '',
+        chapter_path: '',
+        is_category_inferred: true,
+        checklist_ref: null,
+      })),
+      ollama: ctx.ollama,
+      model: ctx.model,
+      chatAvailable: true,
+      logger: { warn: (msg: string) => logger.info(msg) },
+    });
+
+    let updated = 0;
+    for (const finding of refined.findings) {
+      if (finding.category_inferred_by !== 'llm') continue;
+      const id = ids[finding.finding_index];
+      if (id === undefined) continue;
+      db.run(
+        `UPDATE caravan_review_findings SET category = ?, category_inferred_by = 'llm' WHERE id = ?`,
+        [finding.category, id],
+      );
+      // 期待値ではなく実際の更新件数を数える。乖離したときにログが嘘をつかないようにする。
+      updated += db.getRowsModified();
+    }
+
+    // 上限に達して母集合から外れた行を毎回数える。これを出さないと「埋まらない指摘」が
+    // 静かに滞留し、本 pipeline が塞ぎに来たのと同じ無言の欠落になる。
+    const exhausted = Number(
+      db.exec(
+        `SELECT COUNT(*) FROM caravan_review_findings f
+           JOIN caravan_reviews r ON r.id = f.review_id
+          WHERE f.category_inferred_by = 'pending_llm'
+            AND f.category_refine_attempts >= ?
+            AND r.workspace = ?`,
+        [PENDING_CATEGORY_MAX_ATTEMPTS, ctx.repoName],
+      )[0]?.values?.[0]?.[0] ?? 0,
+    );
+    logger.info(
+      `[anytime-memory] runReviewIncremental: refinePendingCategories ` +
+        `pending=${pending.length} updated=${updated} exhausted=${exhausted}`,
+    );
+    if (exhausted > 0) {
+      logger.error(
+        `[anytime-memory] runReviewIncremental: refinePendingCategories ` +
+          `試行上限 ${PENDING_CATEGORY_MAX_ATTEMPTS} 回に達した指摘が ${exhausted} 件あります` +
+          `（category が確定しないまま残ります）`,
+      );
+    }
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] runReviewIncremental: refinePendingCategories failed`,
+      err,
+    );
+    // ログだけに留めない。恒久的に失敗する環境で run が success を積み続けると、
+    // 「動いているのに埋まらない」状態が台帳から読めなくなる。
+    acc.itemsFailed += 1;
+  }
+}
+
+/**
  * 対象パスの正規化とリポジトリ解決。linkAddresses より **前** に置く。
  * linkAddresses は target_repo を照合キーに使うため、解決前に走らせると
  * 今回取り込んだ指摘が 1 サイクル遅れてしかリンクされない。
@@ -443,9 +594,18 @@ export async function runReviewIncremental(input: {
    * (review .md) は reviewDir 自体がワークスペース固有なので影響しない。
    */
   workspaceScope: MemoryWorkspaceScope;
-  reviewDir?: string;
+  /**
+   * Route A が読む review .md のディレクトリ。**必須**。
+   *
+   * 省略可能にして内蔵既定へ倒すと、渡し忘れた経路が特定ワークスペースの絶対パスを
+   * 黙って読み、設定していない環境では取込 0 件のまま success を返す
+   * （2026-08-21 anytime-trade 実測）。解決は呼び出し元の責務にする。
+   */
+  reviewDir: string;
   ollama: OllamaClient;
   model?: string;
+  /** chat model が使えるか。false なら category 推論を保留し取込だけ進める。既定 true。 */
+  chatAvailable?: boolean;
   logger?: CaravanLogger;
   /**
    * true の場合、Route A の source_hash skip を bypass し全 review .md を再パースする。
@@ -458,8 +618,8 @@ export async function runReviewIncremental(input: {
   const { db, repoName, ollama } = input;
   const logger = input.logger ?? noopLogger;
   const model = input.model ?? 'qwen2.5:7b';
-  const reviewDir =
-    input.reviewDir ?? process.env['MEMORY_CORE_REVIEW_DIR'] ?? DEFAULT_REVIEW_DIR;
+  const reviewDir = input.reviewDir;
+  const chatAvailable = input.chatAvailable ?? true;
   const force = input.force === true || process.env['MEMORY_CORE_REVIEW_FORCE'] === '1';
   if (force) {
     logger.info('[anytime-memory] runReviewIncremental: force re-ingest enabled (skip source_hash, reset session state)');
@@ -477,33 +637,39 @@ export async function runReviewIncremental(input: {
     reviewsInserted: 0,
     findingsInserted: 0,
     itemsFailed: 0,
+    reviewDirMissing: null,
   };
   const recordedAt = new Date().toISOString();
   const ctx: RouteContext = {
-    db, repoName, workspaceScope: input.workspaceScope, ollama, model, logger, recordedAt, force,
+    db, repoName, workspaceScope: input.workspaceScope, ollama, model, chatAvailable,
+    logger, recordedAt, force,
   };
 
   await runRouteADocs(acc, reviewDir, ctx);
   await runRouteBSessions(acc, ctx);
 
   // ── Post-processing: resolveReviewTargets → linkAddresses + linkPrecedesBugs ──
+  await refinePendingCategoriesStep(acc, ctx);
   resolveTargetsStep(db, logger);
   linkAddressesStep(acc, db, logger);
   linkPrecedesStep(acc, db, logger);
 
   // ── Finalize ──────────────────────────────────────────────────────────────
 
-  const { totals, reviewsInserted, findingsInserted, itemsFailed } = acc;
-  const partialOrSuccess: 'partial' | 'success' = itemsFailed > 0 ? 'partial' : 'success';
+  const { totals, reviewsInserted, findingsInserted, itemsFailed, reviewDirMissing } = acc;
+  // 取込元が無い run は success にしない。失敗ではないが「取り込めていない」ことは同じで、
+  // success で積むと設定漏れが台帳から永久に読めなくなる。
+  const degraded = itemsFailed > 0 || reviewDirMissing !== null;
+  const partialOrSuccess: 'partial' | 'success' = degraded ? 'partial' : 'success';
   const finalStatus: 'success' | 'partial' | 'error' =
     itemsFailed > 0 && totals.items_processed === itemsFailed ? 'error' : partialOrSuccess;
 
+  const detailParts: string[] = [];
+  if (reviewDirMissing !== null) detailParts.push(`review_dir_missing: ${reviewDirMissing}`);
+  if (itemsFailed > 0) detailParts.push(`${itemsFailed} item(s) failed to ingest`);
+
   upsertPipelineState(db, SCOPE_DOC, { status: 'idle' });
-  ledger.finish(
-    finalStatus,
-    totals,
-    itemsFailed > 0 ? `${itemsFailed} item(s) failed to ingest` : '',
-  );
+  ledger.finish(finalStatus, totals, detailParts.join('; '));
 
   const durationMs = Date.now() - startMs;
 

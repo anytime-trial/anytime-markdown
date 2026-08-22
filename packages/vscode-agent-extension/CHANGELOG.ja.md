@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-08-22
+
+### 追加
+
+- 同梱スキル `anytime-build-webapp`: `--devcontainer` オプションを追加した。スキル同梱テンプレートから `.devcontainer/devcontainer.json` を生成する（`docker-compose.yml` / `Dockerfile` は不在時のみ）。参照リポジトリのクローン結果に依存せず WSL ホストで Dev Container を作成できる。既存ファイルは一覧提示して確認してから上書きする。
+
+### 変更
+
+- 同梱スキル: `anytime-analysis` / `anytime-build-webapp` の検証手順の参照先を、markdown 拡張の `anytime-markdown-output` §10（出力後の検証）へ更新した（旧 `anytime-markdown-check` の統合に伴う）。**markdown 拡張と同一リリースで配ること** — markdown 拡張だけ先に出すと配置済みの `anytime-markdown-check` が削除され、本拡張の未更新スキルが存在しないスキル名を指す。
+- 同梱スキル `anytime-build-webapp`: 生成スタックを Next.js（T3 Stack）固定にし、インタビューを 5 問から 4 問へ減らした。
+
+### 削除
+
+- 同梱スキル: `anytime-impl-test-design` を markdown 拡張の `anytime-doc-authoring` §6（実装後テスト設計。手順は `references/impl-test-design.ja.md`）へ統合し、本拡張の同梱から外した。配置済みの旧 dir は `anytime-dev-cycle` の `oldNames` により activate 時に削除される。
+- 同梱スキル: `anytime-ux-archeologist` を markdown 拡張の `anytime-reverse-spec` 外形リバースモード（手順は `references/ux-archeologist.ja.md`）へ統合し、本拡張の同梱から外した。配置済みの旧 dir（旧名 `ux-archeologist` 含む）は `anytime-dev-cycle` の `oldNames` により activate 時に削除される。
+- 同梱スキル `anytime-build-webapp`: Python バックエンド（FastAPI）経路を、設計・計画ドキュメント／スタック定義／scaffold テンプレートごと削除した。
+
 ## [1.17.1] - 2026-08-20
 
 ### 変更

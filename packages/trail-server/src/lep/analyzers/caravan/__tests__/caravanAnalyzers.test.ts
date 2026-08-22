@@ -26,8 +26,10 @@ function ok(scope: string): ScopeResult {
 /** 7 scope メソッドの呼び出しを記録する fake session。 */
 function makeFakeSession(overrides: Partial<Record<keyof CaravanDbSession, () => Promise<ScopeResult>>> = {}) {
   const calls: string[] = [];
+  const skipped: Array<{ scope: string; reasonCode: string }> = [];
   let closed = false;
   const session = {
+    recordScopeSkipped: (scope: string, reasonCode: string) => void skipped.push({ scope, reasonCode }),
     runConversation: async () => (calls.push('conversation'), ok('conversation_incremental')),
     runCode: async () => (calls.push('code'), ok('code_incremental')),
     runBugHistory: async () => (calls.push('bugHistory'), ok('bug_history_incremental')),
@@ -40,7 +42,7 @@ function makeFakeSession(overrides: Partial<Record<keyof CaravanDbSession, () =>
     },
     ...overrides,
   } as unknown as CaravanDbSession;
-  return { session, calls, isClosed: () => closed };
+  return { session, calls, skipped, isClosed: () => closed };
 }
 
 function makeCtx(): AnalyzerContext {
@@ -186,23 +188,32 @@ describe('memory analyzers', () => {
   });
 
   it('LLM-dependent analyzers skip when embedding unavailable; LLM-free analyzers run', async () => {
-    const { session, calls } = makeFakeSession();
+    const { session, calls, skipped } = makeFakeSession();
     const checker = async () => ({ ollama_chat: { ok: true }, ollama_embedding: { ok: false, detail: 'not pulled' } });
     const provider = new CaravanWaveSessionProvider(async () => session, checker, 'http://localhost:11434');
     const ctx = makeCtx();
 
     // chat+embedding 依存 → skip
     await new ConversationCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
-    await new ReviewFindingCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
     await new SpecCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
     // embedding-only 依存 → skip
     await new EmbeddingBackfillAnalyzer(provider).onEvent(primaryEvent, ctx);
+    // review は LLM をハード要件にしない（決定論パースで取り込める）→ 実行
+    await new ReviewFindingCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
     // LLM 非依存 → 実行
     await new CodeCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
     await new BugHistoryCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
     await new DriftCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
 
-    expect(calls).toEqual(['code', 'bugHistory', 'drift']);
+    expect(calls).toEqual(['review', 'code', 'bugHistory', 'drift']);
+    // skip した scope は台帳へ残す（「まだ動いていない」と「動いて 0 件」を区別するため）
+    expect(skipped.map((s) => s.scope)).toEqual([
+      'conversation_incremental',
+      'conversation_failed_items_retry',
+      'spec_incremental',
+      'embedding_backfill',
+    ]);
+    expect(new Set(skipped.map((s) => s.reasonCode))).toEqual(new Set(['llm_unavailable']));
   });
 
   it('Ollama completely unavailable: only Code/BugHistory/Drift run', async () => {
@@ -224,11 +235,12 @@ describe('memory analyzers', () => {
     ]) {
       await new A(provider).onEvent(primaryEvent, ctx);
     }
-    expect(calls).toEqual(['code', 'bugHistory', 'drift']);
+    // review は chat 不在でも決定論パースで取り込むため走る（category 推論だけを保留する）
+    expect(calls).toEqual(['code', 'bugHistory', 'review', 'drift']);
   });
 
   it('emits wave_skipped when an LLM analyzer is skipped (cursor protected — scope not run)', async () => {
-    const { session, calls } = makeFakeSession();
+    const { session, calls, skipped } = makeFakeSession();
     const checker = async () => ({ ollama_chat: { ok: false }, ollama_embedding: { ok: false } });
     const provider = new CaravanWaveSessionProvider(async () => session, checker);
     const published: AnalyzerEvent[] = [];
@@ -241,6 +253,12 @@ describe('memory analyzers', () => {
     await new ConversationCaravanAnalyzer(provider).onEvent(primaryEvent, ctx);
     expect(calls).toEqual([]); // scope 未実行 = cursor 保護
     expect(published.some((e) => e.kind === 'wave_skipped')).toBe(true);
+    // イベントだけでなく台帳にも残す。ログとイベントは消えるため、これが無いと
+    // 「まだ動いていない」と「動いて 0 件だった」が後から区別できない。
+    expect(skipped).toEqual([
+      { scope: 'conversation_incremental', reasonCode: 'llm_unavailable' },
+      { scope: 'conversation_failed_items_retry', reasonCode: 'llm_unavailable' },
+    ]);
   });
 
   it('no LLM gating when availability checker is absent (all run)', async () => {

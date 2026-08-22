@@ -1,5 +1,5 @@
 {
-  "description": "anytime-lab クローン後の文字列置換マップ。<project-name> は Phase 4 で実プロジェクト名に置換される。in-place モードでは inPlaceExcludes のファイルを targets から除外する。validations の jq は jq 式、regex は 1 行完結の PCRE（GNU grep -P は複数行に一致しない）。",
+  "description": "anytime-lab クローン後の文字列置換マップ。<project-name> は Phase 4 で実プロジェクト名に置換される。in-place モードでは inPlaceExcludes のファイルを targets から除外する。--devcontainer で生成したファイルは生成時に置換済みのため、モードによらず targets から除外する。validations の jq は jq 式、regex は 1 行完結の PCRE（GNU grep -P は複数行に一致しない）。",
   "replacements": [
     { "find": "anytime-lab", "replace": "<project-name>" }
   ],

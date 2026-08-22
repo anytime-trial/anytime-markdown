@@ -301,7 +301,8 @@ describe('E2E Phase 2.7: runReviewIncremental', () => {
           logger: noopLogger,
         });
 
-        expect(result.status).toBe('success');
+        // Route A の取込元が実在しない構成なので partial（Route B の検証が目的）
+        expect(result.status).toBe('partial');
 
         // >=2 session review rows
         const sessionCount = db.exec(

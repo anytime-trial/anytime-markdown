@@ -25,7 +25,9 @@ import { runSpecIncremental } from '../pipeline/runSpecIncremental';
 import { runSpecReconciliation } from '../pipeline/runSpecReconciliation';
 import { runDriftDetection } from '../pipeline/runDriftDetection';
 import { runEmbeddingBackfill } from '../pipeline/runEmbeddingBackfill';
+import { PipelineRunLedger } from '../pipeline/PipelineRunLedger';
 import type { PipelineStatusWriter } from '../status/PipelineStatusWriter';
+import type { PipelineScope } from './pipelineScopes';
 import type { PipelineLogger } from './types';
 
 /**
@@ -61,14 +63,24 @@ export interface RunConversationOptions {
   shouldStop?: () => boolean;
 }
 
+/** review scope の実行オプション。 */
+export interface RunReviewOptions {
+  /**
+   * chat model が使える状態か。false のときは category 推論 (LLM) を 1 度も呼ばず、
+   * 決定論パースの結果だけを取り込む。省略時は true（従来動作）。
+   */
+  chatAvailable?: boolean;
+}
+
 export interface CaravanBookScopeRunner {
   runConversation(opts?: RunConversationOptions): Promise<ScopeResult>;
   runCode(): Promise<ScopeResult>;
   runBugHistory(): Promise<ScopeResult>;
-  runReview(): Promise<ScopeResult>;
+  runReview(opts?: RunReviewOptions): Promise<ScopeResult>;
   runSpec(): Promise<ScopeResult>;
   runDrift(): Promise<ScopeResult>;
   runEmbeddingBackfill(): Promise<ScopeResult>;
+  recordScopeSkipped(scope: PipelineScope, reasonCode: string, detail?: string): void;
 }
 
 export interface CaravanDbSessionDeps {
@@ -81,6 +93,15 @@ export interface CaravanDbSessionDeps {
   statusWriter?: PipelineStatusWriter;
   /** Git working tree ルート (code / bug history / tsconfig 解決に使用)。 */
   gitRoot: string;
+  /**
+   * 設計書リポジトリのルート (lep.json `sources.docs.root`)。review / spec の取込元を
+   * ここから解決する。空・未指定なら `<gitRoot>/docs` へ落とす。
+   *
+   * 特定ワークスペースの絶対パスを内蔵既定にしない。既定が他リポジトリを指していると、
+   * 設定していない環境では取込が恒久的に空振りし、しかも「0 件成功」として通る
+   * (2026-08-21 anytime-trade 実測)。
+   */
+  docsRoot?: string;
   /** 初回 backfill 期間 (日)。 */
   backfillDays?: number;
   /**
@@ -171,6 +192,41 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     } catch (err) {
       this.logger.error('[anytime-memory] workspace scope: repo 一覧の取得に失敗', err);
     }
+  }
+
+  /**
+   * docs リポジトリ配下のサブディレクトリを解決する。
+   *
+   * 優先順は env > lep.json の docsRoot > `<gitRoot>/docs`。env を最優先に残すのは
+   * 既存環境の上書き手段を壊さないため。内蔵既定として他ワークスペースの絶対パスを
+   * 持たせないのが本メソッドの主目的で、フォールバック先は必ず自分の作業ツリー内にする。
+   */
+  private resolveDocsSubdir(envKey: string, subdir: string): string {
+    const fromEnv = process.env[envKey];
+    if (fromEnv) return fromEnv;
+    const docsRoot = this.deps.docsRoot?.trim();
+    if (docsRoot) return path.join(docsRoot, subdir);
+    return path.join(this.deps.gitRoot, 'docs', subdir);
+  }
+
+  /**
+   * scope を起動しないと判断したことを台帳 (`caravan_pipeline_runs`) へ 1 行残す。
+   *
+   * 起動しない scope が run 行を残さないと、「まだ動いていない」と「動いて 0 件だった」が
+   * 利用側から区別できない。レビュー取込が全期間にわたり全損していたことに誰も気づけなかった
+   * のはこの区別が無かったためで、特定 scope の個別対応ではなく全 scope 共通の規約として置く。
+   */
+  recordScopeSkipped(scope: PipelineScope, reasonCode: string, detail = ''): void {
+    const ledger = new PipelineRunLedger({
+      db: this.deps.memDb.db,
+      scope,
+      wave: 'memory',
+      tier: 3,
+      logger: this.logger,
+    });
+    ledger.skip(reasonCode, detail);
+    this.status?.finish(scope, 'skipped', 0, 0, `skipped: ${reasonCode}`);
+    this.save();
   }
 
   private save(): void {
@@ -467,11 +523,12 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
     }
   }
 
-  async runReview(): Promise<ScopeResult> {
+  async runReview(opts: RunReviewOptions = {}): Promise<ScopeResult> {
     const { memDb, ollama } = this.deps;
     const logger = this.logger;
-    const reviewDir = process.env['MEMORY_CORE_REVIEW_DIR'] ?? '/Shared/anytime-markdown-docs/review';
+    const reviewDir = this.resolveDocsSubdir('MEMORY_CORE_REVIEW_DIR', 'review');
     const model = this.deps.chatModel ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
+    const chatAvailable = opts.chatAvailable ?? true;
     this.status?.start('review_incremental');
     try {
       // カーソルより古い session review 行の是正。runReviewIncremental は
@@ -486,6 +543,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
         reviewDir,
         ollama,
         model,
+        chatAvailable,
         logger,
       });
       this.status?.finish('review_incremental', reviewResult.status, reviewResult.items_processed, 0);
@@ -502,7 +560,7 @@ export class CaravanDbSession implements CaravanBookScopeRunner {
   async runSpec(): Promise<ScopeResult> {
     const { memDb, ollama } = this.deps;
     const logger = this.logger;
-    const specRoot = process.env['MEMORY_CORE_SPEC_DIR'] ?? '/Shared/anytime-markdown-docs/spec';
+    const specRoot = this.resolveDocsSubdir('MEMORY_CORE_SPEC_DIR', 'spec');
     const model = this.deps.chatModel ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
     this.status?.start('spec_incremental');
     try {

@@ -327,8 +327,8 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
     - ● 対策可が 1 件も無い枝が残っていないか（残っていれば軸を変えて掘り直す）
     - 順位表があり、インパクトの根拠が問題文の定量値に接続しているか
 5. **根拠の解決検査**（自己申告で終わらせず、機械的に確かめる。§7.1）
-6. `anytime-markdown-check` スキルで検証する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測）。出力先で手段が分かれる
-    - 出力先が `<docsRoot>`（既定の proposal 出力先）の場合、`format_markdown` は **MCP ルート外で `Access denied: path outside root directory` になり使えない**（同日実測）。frontmatter 必須キー（`title` / `date` / `type: proposal` / `lang` / `author` / `excerpt`）の実在を確認し、同スキル §2〜§3 の意味判断チェックリストを手動で適用する
+6. `anytime-markdown-output` スキル §10（出力後の検証）で検証する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測）。出力先で手段が分かれる
+    - 出力先が `<docsRoot>`（既定の proposal 出力先）の場合、`format_markdown` は **MCP ルート外で `Access denied: path outside root directory` になり使えない**（同日実測）。frontmatter 必須キー（`title` / `date` / `type: proposal` / `lang` / `author` / `excerpt`）の実在を確認し、同スキル §10.2〜10.3 の意味判断チェックリストを手動で適用する
     - 出力先が MCP ルート（`/anytime-markdown`）配下の場合のみ `mcp__mcp-markdown__format_markdown(path, mode="fix")` を実行し、返り値の `warnings` に対応する
 7. 設計判断を含む場合は `clarity` 評価（1〜100）と理由をチャットで通知し、frontmatter にも記載する
 

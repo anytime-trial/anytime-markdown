@@ -77,8 +77,7 @@ When the extension activates, it places Trail's Claude Code skills into the work
 | Skill | Purpose |
 | --- | --- |
 | `anytime-reverse-codegraph` | Uses AI to assign names and summaries to code graph communities, and determines the role of each C4 element |
-| `anytime-reverse-spec` | Generates a full set of basic design documents from the code graph, DB schema, external I/F, and screen definitions |
-| `anytime-dev-retro` | Cross-analyzes Trail's three DBs to generate a development health report and improvement proposals |
+| `anytime-dev-retro` | Cross-analyzes Trail's three DBs to generate a development health report and improvement proposals; its doctrine-extraction mode (formerly `anytime-reverse-doctrine`) also extracts the four tacit-knowledge doctrine documents |
 | `anytime-trail-review` | Outputs review findings in a format trail-caravan-book can ingest |
 
 > To reinstall the skills, run `Anytime Trail: Reinstall Skills` from the command palette.

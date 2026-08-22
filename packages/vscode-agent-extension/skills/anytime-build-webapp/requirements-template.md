@@ -32,7 +32,7 @@ excerpt: "{{Q1_PROJECT_PURPOSE}} の MVP 実装要件（anytime-build-webapp ス
 - **生成元スキル**: `anytime-build-webapp` v1.0.0
 - **生成日時**: {{TODAY_ISO_DATETIME}}
 - **ベースリポジトリ**: `git@github.com:anytime-trial/anytime-lab.git`
-- **スタック**: {{Q4_STACK_NAME}}
+- **スタック**: T3 Stack（Next.js + tRPC + Prisma + Tailwind + NextAuth）
 
 
 ## 2. 主要エンティティ
@@ -54,19 +54,17 @@ excerpt: "{{Q1_PROJECT_PURPOSE}} の MVP 実装要件（anytime-build-webapp ス
 
 ## 4. スタック構成
 
-{{Q4_STACK_DETAIL}}
+{{STACK_DETAIL}}
 
 
 ## 5. デザイン
 
-- **参照源**: {{Q5_DESIGN_SOURCE}}
-- **値**: {{Q5_DESIGN_VALUE}}
+- **参照源**: {{Q4_DESIGN_SOURCE}}
+- **値**: {{Q4_DESIGN_VALUE}}
 - **適用範囲**: `tailwind.config.ts`（colors / fontFamily / spacing / borderRadius / boxShadow）と `globals.css`（base + ダーク/ライト）
 
 
 ## 6. 完了条件
-
-T3 経路 ({{Q4_STACK_NAME}} = `T3 Stack` の場合):
 
 - [ ] Dev Container build が成功する
 - [ ] `npm install` が成功する
@@ -75,18 +73,7 @@ T3 経路 ({{Q4_STACK_NAME}} = `T3 Stack` の場合):
 - [ ] 全エンティティの一覧画面が空状態で表示される
 - [ ] `npm run lint` が通る
 - [ ] `npm test` が通る（最小スモークテスト）
-
-Python BE 経路 ({{Q4_STACK_NAME}} = `Next.js + FastAPI (Python BE)` の場合):
-
-- [ ] Dev Container build が成功する (--new-dir モード) または `uv venv && uv sync` が成功する (in-place)
-- [ ] `(cd backend && uv run alembic upgrade head)` が成功する
-- [ ] `(cd backend && uv run uvicorn app.main:app)` が起動し `http://localhost:8000/healthz` が 200
-- [ ] `(cd frontend && npm install)` が成功する
-- [ ] `(cd frontend && npm run gen:api)` で TS クライアントが再生成され `git diff src/api/` が空
-- [ ] `(cd frontend && npm run dev)` が起動し `http://localhost:3000` が表示される
-- [ ] 全エンティティの一覧画面が空状態で表示される (FastAPI から空配列を受信)
-- [ ] `(cd backend && uv run ruff check)` が通る
-- [ ] `(cd backend && uv run pytest)` + `(cd frontend && npm test)` が通る（最小スモークテスト）
+- [ ] （`--devcontainer` 指定時）`.devcontainer/devcontainer.json` の `service` が `docker-compose.yml` の service 名と一致する
 
 
 ## 7. 非対象
@@ -111,19 +98,18 @@ Python BE 経路 ({{Q4_STACK_NAME}} = `Next.js + FastAPI (Python BE)` の場合)
 | `{{Q1_PROJECT_PURPOSE}}` | プロジェクト目的 1 文 | Q1 | ◯ |
 | `{{Q2_ENTITIES_TABLE}}` | エンティティ表（Markdown table） | Q2 から生成 | ◯ |
 | `{{Q3_AUTH}}` | 認証方式の人間可読表記 | Q3 | ◯（無し選択時は `無し`） |
-| `{{Q5_DESIGN_SOURCE}}` | `無し` / `参考 URL` / `DESIGN.md ファイル` | Q5 | ◯ |
-| `{{Q5_DESIGN_VALUE}}` | URL or ファイルパス | Q5 | △（Q5=無し 時は `(なし)`） |
-| `{{Q4_STACK_NAME}}` | `T3 Stack` または `Next.js + FastAPI (Python BE)` | Q4 + `stacks/*.md` | ◯ |
-| `{{Q4_STACK_DETAIL}}` | 該当 stacks/*.md を引用 (T3 経路: `_frontend-next.md` + `t3-default.md` / Python BE 経路: `_frontend-next.md` + `python-be.md`) | Q4 | ◯ |
+| `{{Q4_DESIGN_SOURCE}}` | `無し` / `参考 URL` / `DESIGN.md ファイル` | Q4 | ◯ |
+| `{{Q4_DESIGN_VALUE}}` | URL or ファイルパス | Q4 | △（Q4=無し 時は `(なし)`） |
+| `{{STACK_DETAIL}}` | `stacks/_frontend-next.md` + `stacks/t3-default.md` を引用 | 固定（T3） | ◯ |
 | `{{TODAY_ISO_DATE}}` | `YYYY-MM-DD` | Phase 1 実行時刻 | ◯ |
 | `{{TODAY_ISO_DATETIME}}` | `YYYY-MM-DDTHH:mm:ss.sssZ` | Phase 1 実行時刻 | ◯ |
 
 
-### Q5 プレースホルダの組み合わせ
+### Q4 プレースホルダの組み合わせ
 
-`{{Q5_DESIGN_SOURCE}}` と `{{Q5_DESIGN_VALUE}}` は常にペアで置換する。
+`{{Q4_DESIGN_SOURCE}}` と `{{Q4_DESIGN_VALUE}}` は常にペアで置換する。
 
-| Q5 回答 | `{{Q5_DESIGN_SOURCE}}` | `{{Q5_DESIGN_VALUE}}` |
+| Q4 回答 | `{{Q4_DESIGN_SOURCE}}` | `{{Q4_DESIGN_VALUE}}` |
 | --- | --- | --- |
 | (a) 無し | `無し` | `(なし)` |
 | (b) 参考 URL | `参考 URL` | URL 文字列 |

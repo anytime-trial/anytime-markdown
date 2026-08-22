@@ -18,6 +18,8 @@ export interface SerializableCaravanBookConfig {
   readonly dbPath: string;
   readonly nativeBinding?: string;
   readonly gitRoot: string;
+  /** 設計書リポジトリのルート (lep.json `sources.docs.root`)。review / spec の取込元。 */
+  readonly docsRoot?: string;
   readonly statePath?: string;
   readonly backfillDays?: number;
   /** 記憶へ昇格させる対象ワークスペース ('own' = gitRoot のリポジトリのみ・既定 / 'all')。 */

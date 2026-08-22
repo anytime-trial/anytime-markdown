@@ -11,6 +11,7 @@ import { CaravanAnalyzerBase } from './CaravanAnalyzerBase';
  */
 export class CodeCaravanAnalyzer extends CaravanAnalyzerBase {
   readonly id = 'CodeCaravanAnalyzer';
+  readonly scopes = ['code_incremental', 'code_reconciliation'] as const;
 
   protected runScope(session: CaravanDbSession): Promise<ScopeResult> {
     return session.runCode();

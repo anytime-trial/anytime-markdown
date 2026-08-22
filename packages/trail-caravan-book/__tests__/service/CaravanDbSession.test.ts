@@ -10,7 +10,7 @@ import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3Car
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import type { CaravanBookDb } from '../../src/db/connection';
 import type { CaravanLogger } from '../../src/logger';
-import { CaravanDbSession } from '../../src/service/CaravanDbSession';
+import { CaravanDbSession, type CaravanDbSessionDeps } from '../../src/service/CaravanDbSession';
 import { createMockOllamaClient } from '../helpers/MockOllamaClient';
 
 // ── pipeline モック ────────────────────────────────────────────────────────
@@ -140,7 +140,10 @@ async function makeCaravanDb(): Promise<CaravanBookDb> {
 function makeSession(
   memDb: CaravanBookDb,
   trailDb: BetterSqlite3CaravanDb,
-  overrides: Partial<Parameters<typeof CaravanDbSession.prototype['constructor'] extends new (...args: infer P) => unknown ? (...args: P) => unknown : never>[0]> = {},
+  // Deps 型を直接使う。旧実装の conditional type は constructor を関数型として判定して
+  // never へ潰れ、overrides の実型が undefined になっていた（jest は transpile-only なので
+  // 気づけず、初めて overrides を渡したテストで tsc だけが落ちた）。
+  overrides: Partial<CaravanDbSessionDeps> = {},
 ): CaravanDbSession {
   attachTrailDbFromHandle(memDb.db, trailDb);
   return new CaravanDbSession({
@@ -1263,6 +1266,68 @@ describe('CaravanDbSession', () => {
       expect(statusWriter.start).toHaveBeenCalledWith('embedding_backfill', 5);
       expect(statusWriter.update).toHaveBeenCalledWith('embedding_backfill', 2, 0);
 
+      trailDb.close();
+    });
+  });
+// ── review / spec の取込元パス解決 ────────────────────────────────────
+  //
+  // 既定が /Shared/anytime-markdown-docs を指していたため、その docs リポジトリを持たない
+  // ワークスペースでは Route A が恒久的に空振りしていた（2026-08-21 anytime-trade 実測）。
+  describe("reviewDir / specRoot の解決", () => {
+    const ENV_KEYS = ["MEMORY_CORE_REVIEW_DIR", "MEMORY_CORE_SPEC_DIR"] as const;
+    const saved: Record<string, string | undefined> = {};
+
+    beforeEach(() => {
+      for (const k of ENV_KEYS) {
+        saved[k] = process.env[k];
+        delete process.env[k];
+      }
+      mockRunReviewIncremental.mockResolvedValue({ status: "success", items_processed: 0 } as never);
+      mockRunSpecIncremental.mockResolvedValue({ status: "success", items_processed: 0 } as never);
+    });
+
+    afterEach(() => {
+      for (const k of ENV_KEYS) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    });
+
+    it("docsRoot 未指定・env 未設定なら <gitRoot>/docs 配下へ解決する（他ワークスペースの絶対パスへ倒さない）", async () => {
+      const memDb = await makeCaravanDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+
+      await session.runReview();
+      await session.runSpec();
+
+      expect(mockRunReviewIncremental.mock.calls[0]?.[0]?.reviewDir).toBe("/tmp/test-repo/docs/review");
+      expect(mockRunSpecIncremental.mock.calls[0]?.[0]?.specRoot).toBe("/tmp/test-repo/docs/spec");
+      trailDb.close();
+    });
+
+    it("docsRoot 指定時はその配下へ解決する", async () => {
+      const memDb = await makeCaravanDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb, { docsRoot: "/Shared/some-docs" });
+
+      await session.runReview();
+      await session.runSpec();
+
+      expect(mockRunReviewIncremental.mock.calls[0]?.[0]?.reviewDir).toBe("/Shared/some-docs/review");
+      expect(mockRunSpecIncremental.mock.calls[0]?.[0]?.specRoot).toBe("/Shared/some-docs/spec");
+      trailDb.close();
+    });
+
+    it("env は docsRoot より優先する（既存環境の上書き手段を壊さない）", async () => {
+      process.env["MEMORY_CORE_REVIEW_DIR"] = "/env/review";
+      const memDb = await makeCaravanDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb, { docsRoot: "/Shared/some-docs" });
+
+      await session.runReview();
+
+      expect(mockRunReviewIncremental.mock.calls[0]?.[0]?.reviewDir).toBe("/env/review");
       trailDb.close();
     });
   });

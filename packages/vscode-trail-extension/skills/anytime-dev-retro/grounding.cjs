@@ -587,10 +587,14 @@ function detectSemanticWired() {
       : djDb != null ? 'trail-caravan-book(empty)' : null;
 
   if (djDb === null) {
+    // 測定不能を健全な 0 件と誤読させないため、null / 空へ倒す経路は必ず理由を errors に残す。
+    snapshot.errors.push('doctrineGap: caravan_doctrine_judgments テーブルが caravan-book.db / activity.db のいずれにも無い — 測定不能');
     snapshot.doctrineGap = null;
   } else if (!rows(q(djDb, `PRAGMA table_info(caravan_doctrine_judgments)`)).some((c) => c.name === 'underspecified_points_json')) {
     // DCT-14 未マイグレーション。0 件ではなく**測定不能**として出す
-    snapshot.doctrineGap = { source: djSource, available: false, reason: 'underspecified_points_json 列が無い(DCT-14 未マイグレーション)' };
+    const reason = 'underspecified_points_json 列が無い(DCT-14 未マイグレーション)';
+    snapshot.errors.push(`doctrineGap: ${reason} — 測定不能`);
+    snapshot.doctrineGap = { source: djSource, available: false, reason };
   } else {
     // DCT-14 以前の行は ALTER の DEFAULT で空の申告に確定しているため、生きた信号は導入日以降に絞る。
     // ここを全期間にすると指示不足率が構造的に低く出る（spec 16 §3.3 の注記と同じ理由）。
@@ -886,8 +890,13 @@ function detectSemanticWired() {
     if (fs.existsSync(lep)) {
       docsRoot = JSON.parse(fs.readFileSync(lep, 'utf-8'))?.sources?.docs?.root || null;
     }
-    const planDir = docsRoot ? path.join(docsRoot, 'plan') : null;
-    if (planDir && fs.existsSync(planDir)) {
+    const fallbackDocsRoot = path.join(process.cwd(), 'docs');
+    if (!docsRoot && fs.existsSync(fallbackDocsRoot)) docsRoot = fallbackDocsRoot;
+    const planCandidates = docsRoot
+      ? [path.join(docsRoot, 'plan'), path.join(docsRoot, 'plans')]
+      : [];
+    const planDir = planCandidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+    if (planDir) {
       // 末尾は \b でなく先読み: JS の \b は \w=[A-Za-z0-9_] 基準で日本語直後に成立せず
       // 「採用」「差し戻し」が永久に不一致になる(レビュー検出 2026-07-16)。
       // 版数の直後に任意の [model] タグを許す(後方互換: 省略時は旧書式で (unspecified))。
@@ -994,7 +1003,12 @@ function detectSemanticWired() {
         byVersion, byModel, estimates,
       };
     } else {
-      // docs root 未解決・plan 不在は測定不能 null(0 件と区別し「記録ゼロ」と誤読させない)
+      // 測定不能を「委譲記録ゼロ」と誤読させないため、null / 空へ倒す経路は必ず理由を errors に残す。
+      if (docsRoot === null) {
+        snapshot.errors.push('delegation: docsRoot 未解決（lep.json / <ws>/docs いずれにも解決できず）— 測定不能');
+      } else {
+        snapshot.errors.push(`delegation: plan ディレクトリ不在 (探索: ${planCandidates.join(', ')}) — 測定不能`);
+      }
       snapshot.delegation = {
         docsRoot, recorded: null, declined: null, declinedByExclusion: null,
         delegationRatePct: null, byVersion: null, byModel: null, estimates: null,

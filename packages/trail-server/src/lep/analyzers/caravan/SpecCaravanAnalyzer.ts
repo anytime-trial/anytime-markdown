@@ -7,6 +7,7 @@ import { CaravanAnalyzerBase } from './CaravanAnalyzerBase';
  */
 export class SpecCaravanAnalyzer extends CaravanAnalyzerBase {
   readonly id = 'SpecCaravanAnalyzer';
+  readonly scopes = ['spec_incremental'] as const;
   override readonly requiresLlm = {
     chat: { provider: 'ollama', model: 'qwen2.5:7b' },
     embedding: { provider: 'ollama', model: 'bge-m3' },

@@ -79,8 +79,8 @@ export function upsertReviewFinding(
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
           category, severity, finding_text, suggestion_text,
-          checklist_ref, extracted_by, recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          checklist_ref, extracted_by, category_inferred_by, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         findingId,
         reviewEntityId,
@@ -96,10 +96,26 @@ export function upsertReviewFinding(
         finding.suggestion_text,
         finding.checklist_ref ?? null,
         extractedBy,
+        // 明示指定が無い旧経路は is_category_inferred から導出する（true = LLM 推論待ち）。
+        finding.category_inferred_by ?? (finding.is_category_inferred ? 'pending_llm' : ''),
         recordedAt,
       ],
     );
     const findingInserted = db.getRowsModified() > 0;
+    // INSERT OR IGNORE は CHECK / NOT NULL 違反も「その 1 行を捨てる」で処理するため、
+    // 想定外の値が来ると finding が例外もログも無く落ちる（本 pipeline が塞ぎに来た
+    // 「書式は満たすのに 1 件も入らない」と同じ形）。入らなかった行が既存でもないなら、
+    // それは重複ではなく制約違反なので必ず記録する。
+    if (!findingInserted) {
+      const existing = db.exec(`SELECT 1 FROM caravan_review_findings WHERE id = ?`, [findingId]);
+      if ((existing[0]?.values.length ?? 0) === 0) {
+        logger.error(
+          `[anytime-memory] upsertReviewFinding: 行が挿入も既存確認もできませんでした` +
+            `（制約違反の疑い）id=${findingId} review=${reviewEntityId} index=${finding.finding_index} ` +
+            `category=${finding.category} category_inferred_by=${finding.category_inferred_by ?? '(derived)'}`,
+        );
+      }
+    }
 
     // 3. INSERT OR IGNORE edge: Review → flagged → ReviewFinding
     const edgeId = entityId('edge', `flagged:${reviewEntityId}:${findingEntityId}`);

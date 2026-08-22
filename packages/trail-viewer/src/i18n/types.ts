@@ -586,6 +586,7 @@ export interface TrailI18n {
   'caravan.runs.status.success': string;
   'caravan.runs.status.partial': string;
   'caravan.runs.status.error': string;
+  'caravan.runs.status.skipped': string;
 
   // memory > chat
   'caravan.chat.placeholder': string;

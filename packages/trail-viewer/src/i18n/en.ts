@@ -600,6 +600,7 @@ export const en: TrailI18n = {
   'caravan.runs.status.success': 'Success',
   'caravan.runs.status.partial': 'Partial',
   'caravan.runs.status.error': 'Error',
+  'caravan.runs.status.skipped': 'Not run',
   'caravan.chat.placeholder': 'Ask CaravanBook (Enter to send, Shift+Enter for newline, Esc to stop)',
   'caravan.chat.send': 'Send',
   'caravan.chat.abort': 'Stop',

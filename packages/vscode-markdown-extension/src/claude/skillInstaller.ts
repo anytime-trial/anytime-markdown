@@ -28,6 +28,20 @@ export type InstallLogger = (level: InstallLevel, message: string) => void;
 export const SKILL_MARKER = '.anytime-skills.json';
 
 /**
+ * 統合・廃止で同梱から外れた旧スキル dir 名。activate 時に配置先から削除する
+ * （agent/trail 拡張の `installStaticSkillDir` の `oldSkillNames` と同じ明示リスト方式。
+ * 「manifest に無いものを一括削除」にしないのは、ユーザー自作スキルや他拡張の配置分を
+ * 巻き込まないため — 削除対象は本拡張が過去に配置した名前の列挙に限り、さらに実行時にも
+ * 配置済み marker にその名前の記録があることを削除の前提条件にする）。
+ */
+export const OBSOLETE_SKILL_NAMES: readonly string[] = [
+  // 2026-08-22: anytime-markdown-usage §D へ統合（トークン軽減の利用手順として一本化）
+  'anytime-spec-lookup',
+  // 2026-08-22: anytime-markdown-output §10（出力後の検証）へ統合
+  'anytime-markdown-check',
+];
+
+/**
  * 同梱 manifest と配置済み manifest を比較し、配置/更新が必要なスキルを返す純関数。
  * 配置済みバージョン >= 同梱バージョンのものは対象外（ダウングレードしない）。
  */
@@ -77,6 +91,8 @@ function toManifest(obj: Record<string, unknown> | null): SkillManifest {
 
 export interface InstallResult {
   installed: InstallPlanItem[];
+  /** 削除した旧スキル dir 名（dir が実在し削除に成功したもののみ） */
+  removedOld: string[];
   skillsDestDir: string;
 }
 
@@ -87,6 +103,8 @@ export interface InstallOptions {
   workspaceFsPath: string;
   /** true でバージョン無視の強制再配置 */
   force?: boolean;
+  /** 配置先から削除する旧スキル dir 名（省略時は {@link OBSOLETE_SKILL_NAMES}） */
+  obsoleteSkillNames?: readonly string[];
   log: InstallLogger;
 }
 
@@ -96,6 +114,7 @@ export interface InstallOptions {
  */
 export function installSkills(opts: InstallOptions): InstallResult {
   const { extensionFsPath, workspaceFsPath, force, log } = opts;
+  const obsoleteSkillNames = opts.obsoleteSkillNames ?? OBSOLETE_SKILL_NAMES;
   const skillsSrcDir = path.join(extensionFsPath, 'skills');
   const manifestPath = path.join(skillsSrcDir, 'manifest.json');
   const skillsDestDir = path.join(workspaceFsPath, '.claude', 'skills');
@@ -104,14 +123,51 @@ export function installSkills(opts: InstallOptions): InstallResult {
   const bundled = toManifest(readJsonObject(manifestPath));
   if (Object.keys(bundled).length === 0) {
     log('error', `スキル manifest を読めません/空です: ${manifestPath}`);
-    return { installed: [], skillsDestDir };
+    return { installed: [], removedOld: [], skillsDestDir };
   }
 
-  const installedManifest = force ? {} : toManifest(readJsonObject(markerPath));
+  const rawMarker = toManifest(readJsonObject(markerPath));
+  const nextMarker: SkillManifest = { ...rawMarker };
+
+  // 廃止スキルの掃除。dir 削除に失敗した場合は marker を残し、次回 activate で再試行させる。
+  const removedOld: string[] = [];
+  let markerChanged = false;
+  for (const oldName of obsoleteSkillNames) {
+    if (!isSafeSkillName(oldName)) {
+      log('error', `不正な廃止スキル名をスキップ（パストラバーサル防止）: ${oldName}`);
+      continue;
+    }
+    if (bundled[oldName] !== undefined) {
+      log('error', `廃止リストのスキルが同梱 manifest にも存在するため削除しません: ${oldName}`);
+      continue;
+    }
+    if (rawMarker[oldName] === undefined) {
+      // 本拡張が配置した記録（marker エントリ）が無い dir は、ユーザー自作や他経路の
+      // 配置物とみなして触らない（存在しても削除しない）。
+      continue;
+    }
+    const oldDir = path.join(skillsDestDir, oldName);
+    if (fs.existsSync(oldDir)) {
+      try {
+        fs.rmSync(oldDir, { recursive: true, force: true });
+        removedOld.push(oldName);
+        log('info', `廃止スキル削除: ${oldName} → ${oldDir}`);
+      } catch (err) {
+        const stack = err instanceof Error ? (err.stack ?? err.message) : String(err);
+        log('error', `廃止スキル削除失敗: ${oldName}: ${stack}`);
+        continue;
+      }
+    }
+    if (nextMarker[oldName] !== undefined) {
+      delete nextMarker[oldName];
+      markerChanged = true;
+    }
+  }
+
+  const installedManifest = force ? {} : rawMarker;
   const plan = planSkillInstall(bundled, installedManifest);
-  if (plan.length === 0) {
+  if (plan.length === 0 && removedOld.length === 0 && !markerChanged) {
     log('info', 'Anytime スキルは最新です（配置不要）');
-    return { installed: [], skillsDestDir };
   }
 
   const succeeded: InstallPlanItem[] = [];
@@ -136,17 +192,16 @@ export function installSkills(opts: InstallOptions): InstallResult {
     }
   }
 
-  if (succeeded.length > 0) {
+  if (succeeded.length > 0 || markerChanged) {
     try {
       fs.mkdirSync(skillsDestDir, { recursive: true });
-      const next: SkillManifest = { ...installedManifest };
-      for (const item of succeeded) next[item.name] = item.to;
-      fs.writeFileSync(markerPath, JSON.stringify(next, null, 2) + '\n', 'utf8');
+      for (const item of succeeded) nextMarker[item.name] = item.to;
+      fs.writeFileSync(markerPath, JSON.stringify(nextMarker, null, 2) + '\n', 'utf8');
     } catch (err) {
       const stack = err instanceof Error ? (err.stack ?? err.message) : String(err);
       log('error', `スキル marker 書き込み失敗: ${markerPath}: ${stack}`);
     }
   }
 
-  return { installed: succeeded, skillsDestDir };
+  return { installed: succeeded, removedOld, skillsDestDir };
 }
