@@ -212,6 +212,8 @@ describe('installSkills', () => {
 
   it('applies the default obsolete list (anytime-spec-lookup) when the option is omitted', () => {
     expect(OBSOLETE_SKILL_NAMES).toContain('anytime-spec-lookup');
+    // 2026-08-22: anytime-markdown-output §10 へ統合。既定リストから落ちると旧 dir が恒久残置する。
+    expect(OBSOLETE_SKILL_NAMES).toContain('anytime-markdown-check');
     const ext = setupExtension({ 'anytime-markdown-usage': 6 });
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-'));
     try {

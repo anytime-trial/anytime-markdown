@@ -890,7 +890,7 @@ Phase 0-4 「テスト / Lint / CI 検出」「技術的負債検出」「静的
 find {outputDir} -name '*.ja.md' -not -path '*/_eval/*' -print
 ```
 
-**ルート外の場合**: `format_markdown` は `Access denied: path outside root directory` を返すため使えない。`anytime-markdown-check` スキルの手順で、(1) frontmatter 必須キーの実在、(2) 意味判断チェックリストを各ファイルへ適用する。
+**ルート外の場合**: `format_markdown` は `Access denied: path outside root directory` を返すため使えない。`anytime-markdown-output` スキル §10（出力後の検証）の手順で、(1) frontmatter 必須キーの実在、(2) §10.2〜10.3 の意味判断チェックリストを各ファイルへ適用する。
 
 いずれの経路でも、`warnings` または手動確認で NG が出たファイルは 1 度だけ自動修正リトライ（フロントマター・空行・テーブル整形）。再度 NG なら該当ファイル名を提示して中断。
 

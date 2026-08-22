@@ -13,6 +13,7 @@
 
 ### Changed
 
+- 同梱スキル: `anytime-markdown-check`（出力後の検証）を `anytime-markdown-output` §10 へ統合。書く規約と検証手順を同一スキルへ集約し、旧 dir は `OBSOLETE_SKILL_NAMES` で掃除する。
 - 同梱スキル: `anytime-doc-authoring` に要件定義書テンプレート（`references/requirements-template.ja.md`）と記載ルール §2.8 を追加。
 - 同梱スキル: agent 拡張の `anytime-impl-test-design`（実装後テスト設計）を `anytime-doc-authoring` §6 へ統合（手順は `references/impl-test-design.ja.md`。試験設計 §5 と同居させ、テスト設計の書き手側スキルを一本化）。
 - 同梱スキル: `anytime-spec-lookup`（設計書ナビゲーション）を `anytime-markdown-usage` §D へ統合。どちらもトークン軽減の利用手順のため一本化し、バックリンク逆引きは `doc_backlinks` 優先へ更新。

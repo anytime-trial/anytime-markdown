@@ -143,7 +143,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **grounding errors**（あれば）: 測定不能だったシグナル。手順 1 (3) の突合スモークで検出した観測経路の故障もここへ含める。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
 
-出力後、`anytime-markdown-check` スキルで検証する。レポートの出力先 `<docsRoot>/report/` は mcp-markdown のルート（`/anytime-markdown`）外のため `format_markdown` は使えない（`Access denied: path outside root directory`）。frontmatter 必須キーの実在確認と同スキルの意味判断チェックリストを手動で適用する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。
+出力後、`anytime-markdown-output` スキル §10（出力後の検証）で検証する。レポートの出力先 `<docsRoot>/report/` は mcp-markdown のルート（`/anytime-markdown`）外のため `format_markdown` は使えない（`Access denied: path outside root directory`）。frontmatter 必須キーの実在確認と同スキル §10.2〜10.3 の意味判断チェックリストを手動で適用する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。
 
 ### 4. 改善提案への昇格（閾値超のみ）
 

@@ -37,6 +37,8 @@ export const SKILL_MARKER = '.anytime-skills.json';
 export const OBSOLETE_SKILL_NAMES: readonly string[] = [
   // 2026-08-22: anytime-markdown-usage §D へ統合（トークン軽減の利用手順として一本化）
   'anytime-spec-lookup',
+  // 2026-08-22: anytime-markdown-output §10（出力後の検証）へ統合
+  'anytime-markdown-check',
 ];
 
 /**

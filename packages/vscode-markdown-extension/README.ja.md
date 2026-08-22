@@ -104,8 +104,7 @@ Markdown ファイルを開くと、**Anytime Markdown** サイドバーの **Ti
 | スキル | 用途 |
 | --- | --- |
 | `anytime-doc-authoring` | type（spec / tech / proposal 等）別に何を書くかと索引運用を定義する執筆ガイド。要件定義書テンプレートと実装後テスト設計（旧 `anytime-impl-test-design`）を含む |
-| `anytime-markdown-output` | 構文・フロントマター・整形の出力規約 |
-| `anytime-markdown-check` | 出力後の検証（自動整形できない意味判断の確認） |
+| `anytime-markdown-output` | 構文・フロントマター・整形の出力規約と、出力後の検証（自動整形できない意味判断の確認。旧 `anytime-markdown-check` を統合） |
 | `anytime-markdown-usage` | `mcp-markdown` を使った低トークンな検索・調査・編集の手順と、索引・型付き related で必要な設計書だけを読むナビゲーション（旧 `anytime-spec-lookup` を統合） |
 | `anytime-mermaid` | Mermaid 図の可読性ガイドライン |
 | `anytime-reverse-spec` | コードグラフ・DB スキーマ・外部 I/F・画面定義から基本設計書一式を生成する（Trail 拡張から移管）。外形リバースモード（旧 `anytime-ux-archeologist`）でソース非アクセスの稼働中 Web アプリから DESIGN.md / UX 設計思想 / UX 評価レポートも抽出する |
