@@ -1,19 +1,13 @@
----
-name: anytime-reverse-doctrine
-description: "コード・git 履歴・設計文書・レビュー記録から、製品が暗黙に持つ設計哲学・製品原則 / 用語・ユビキタス言語 / 開発プロセスの実態 / 未明文のコーディング規約を抽出し、根拠付きの経典（doctrine）4 文書として明文化する。「暗黙知を明文化」「経典を生成」「doctrine を抽出」「設計哲学を抽出」「ユビキタス言語をまとめて」「暗黙ルールを見える化」「/anytime-reverse-doctrine」の指示で使用する。`--delta` で前回抽出時点からの差分更新と乖離報告、`--category` でカテゴリ限定抽出。システム構造の設計書生成は anytime-reverse-spec を使う。"
-trigger: /anytime-reverse-doctrine
----
+# doctrine 抽出モード（旧 anytime-reverse-doctrine）
 
-# /anytime-reverse-doctrine
+更新日: 2026-08-22（旧 `anytime-reverse-doctrine` スキルを `anytime-dev-retro` へ統合。ふりかえり系の還流経路を一本化するため。テンプレートは `templates/doctrine/` へ移設）
 
-更新日: 2026-08-02
-
-リバースエンジニアリング系譜の第 3 段（`anytime-reverse-codegraph`＝コード → 構造、`anytime-reverse-spec`＝コード → 設計書、本スキル＝コード＋履歴＋文書 → 文化・暗黙知）。対象リポジトリの成果物から 4 カテゴリの暗黙知を抽出し、根拠付きの経典（doctrine）ドキュメント一式として `{outputDir}` へ出力する。任意のリポジトリに適用可能。
+リバースエンジニアリング系譜の第 3 段（`anytime-reverse-codegraph`＝コード → 構造、`anytime-reverse-spec`＝コード → 設計書、本モード＝コード＋履歴＋文書 → 文化・暗黙知）。対象リポジトリの成果物から 4 カテゴリの暗黙知を抽出し、根拠付きの経典（doctrine）ドキュメント一式として `{outputDir}` へ出力する。任意のリポジトリに適用可能。
 
 用途は 3 つ: (1) 人間が製品の哲学・用語・プロセスを俯瞰する参照文書、(2) AGENTS.md / CLAUDE.md / スキル群へ還流させる AI エージェントのアライメント素材、(3) 以後の変更が暗黙知から逸脱したときに検知する基準線。
 
 > [!IMPORTANT]
-> 本スキルは対象リポジトリ・Trail DB に対して**読み取り専用**で動作する。書き込みは `{outputDir}` 配下の doctrine 文書と乖離レポートのみ。AGENTS.md / CLAUDE.md / スキル等の規約ファイルは昇格**提案**までとし、自動編集しない（Phase 4）。
+> 本モードは対象リポジトリ・Trail DB に対して**読み取り専用**で動作する。書き込みは `{outputDir}` 配下の doctrine 文書と乖離レポートのみ。AGENTS.md / CLAUDE.md / スキル等の規約ファイルは昇格**提案**までとし、自動編集しない（Phase 4）。
 
 ## 適用するコンテキスト・ツール効率ルール
 
@@ -39,7 +33,7 @@ trigger: /anytime-reverse-doctrine
 
 ## 対象カテゴリと主張の統一構造
 
-出力は 4 文書（`templates/` の skeleton に厳密準拠）。
+出力は 4 文書（`templates/doctrine/` の skeleton に厳密準拠）。
 
 | 文書 | カテゴリ |
 | --- | --- |
@@ -53,7 +47,7 @@ trigger: /anytime-reverse-doctrine
 - **主張本文**: 1〜3 文。一般語で書き、内部識別子に依存しない
 - **確度**: `原則`（独立根拠 3 件以上かつ反例 1 件以下）/ `傾向`（独立根拠 3 件以上だが反例 2 件以上）/ `仮説`（独立根拠 3 件未満）
 - **根拠**: 逐語引用＋出典（ファイルパスまたはコミットハッシュ）。要約・言い換えは根拠にならない
-- **状態**: `暗黙`（未明文＝本スキルの主対象）/ `明文化済み重複`（既存規約と重複。暗黙知として数えない）/ `矛盾あり`（証拠同士または明文規約と矛盾）
+- **状態**: `暗黙`（未明文＝本モードの主対象）/ `明文化済み重複`（既存規約と重複。暗黙知として数えない）/ `矛盾あり`（証拠同士または明文規約と矛盾）
 - **承認**: `draft`（未承認。抽出直後は必ずこれ）/ `canon`（人が承認済み。**人だけが付与できる**）。確度とは独立で、確度が `原則` でも未承認なら `draft`。承認済み条項だけが中間承認の代行根拠になる（DCT-3。記載のない条項は `draft` とみなす）
 
 ## Phase 0: 準備
@@ -113,7 +107,7 @@ trigger: /anytime-reverse-doctrine
 
 ## Phase 3: 統合・出力
 
-- `templates/<category>.ja.md` の skeleton に厳密準拠して 4 文書を生成する（`--category` 指定時は該当文書のみ）。
+- `templates/doctrine/<category>.ja.md` の skeleton に厳密準拠して 4 文書を生成する（`--category` 指定時は該当文書のみ）。
 - **全量**: 新規作成（既存文書がある場合は上書き前にユーザーへ確認する）。
 - **`--delta`**: 既存文書への**差分更新のみ**。全量洗い替えは禁止（人が手で直した箇所を消さないため）。追加は該当セクションへの追記、既存主張の確度・状態変化は該当エントリのみ更新する。
 - frontmatter に `extractedAt`（ISO 8601）/ `commitRange`（`<from>..<HEAD>`）/ `sources`（使用した入力ソース一覧）を記録する。

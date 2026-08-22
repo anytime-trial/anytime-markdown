@@ -78,7 +78,7 @@ Marketplace から導入すれば従来通り利用できます。\
 | --- | --- |
 | `anytime-reverse-codegraph` | コードグラフのコミュニティに AI で名前・要約を付与し、C4 要素の role を判定する |
 | `anytime-reverse-spec` | コードグラフ・DB スキーマ・外部 I/F・画面定義から基本設計書一式を生成する |
-| `anytime-dev-retro` | Trail の 3 DB を横断分析し、開発健全性レポートと改善提案を生成する |
+| `anytime-dev-retro` | Trail の 3 DB を横断分析し、開発健全性レポートと改善提案を生成する。doctrine 抽出モード（旧 `anytime-reverse-doctrine`）で暗黙知の doctrine 4 文書も抽出する |
 | `anytime-trail-review` | レビュー指摘を trail-caravan-book が取り込める書式で出力する |
 
 > 配置し直す場合はコマンドパレットで `Anytime Trail: スキル再インストール` を実行します。

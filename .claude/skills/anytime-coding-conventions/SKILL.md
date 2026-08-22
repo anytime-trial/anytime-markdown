@@ -8,7 +8,7 @@ description: anytime-markdown の TypeScript コードを実装・修正・レ�
 
 更新日: 2026-08-02
 
-`anytime-reverse-doctrine` 初回実証（2026-08-02）で抽出した未明文規約のうち、確度=原則の 6 件を昇格したもの。抽出根拠・逐語引用は `<docsRoot>/spec/92.doctrine/conventions.ja.md` を参照する。
+`anytime-reverse-doctrine`（現 `anytime-dev-retro` の doctrine 抽出モード。2026-08-22 統合）初回実証（2026-08-02）で抽出した未明文規約のうち、確度=原則の 6 件を昇格したもの。抽出根拠・逐語引用は `<docsRoot>/spec/92.doctrine/conventions.ja.md` を参照する。
 
 ## 1. fail-open / fail-closed の使い分け（スコープ限定必須）
 

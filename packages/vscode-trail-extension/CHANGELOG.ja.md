@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- 同梱スキル: `anytime-reverse-doctrine` を `anytime-dev-retro` の doctrine 抽出モードへ統合（どちらも実績・履歴から改善・規範を還流させるふりかえり系のため。手順は `references/reverse-doctrine.ja.md`・テンプレートは `templates/doctrine/` へ移設）。旧 dir は `oldNames` により activate 時に削除される。
+
 ## [1.4.1] - 2026-08-20
 
 ### 修正

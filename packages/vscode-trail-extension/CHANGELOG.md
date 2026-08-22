@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Bundled skills: merged `anytime-reverse-doctrine` into the doctrine-extraction mode of `anytime-dev-retro` (both are retrospective flows that feed improvements/norms back from actuals and history; the procedure now lives in `references/reverse-doctrine.ja.md` and the templates in `templates/doctrine/`). The old dir is removed on activation via `oldNames`.
+
 ## [1.4.1] - 2026-08-20
 
 ### Fixed
