@@ -1,0 +1,25 @@
+{
+  "name": "<project-name>",
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  "service": "<project-name>",
+  "workspaceFolder": "/<project-name>",
+  "remoteUser": "user",
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/user/.ssh,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude,target=/home/user/.claude,type=bind,consistency=cached"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Prisma.prisma",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  },
+  "forwardPorts": [3000, 5432],
+  "postCreateCommand": "sudo chown -R user:user /<project-name>/node_modules && npm install && npx prisma migrate dev --name init"
+}

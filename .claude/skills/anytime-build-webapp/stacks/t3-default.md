@@ -9,13 +9,17 @@
 
 ## 0. 前提
 
-`_frontend-next.md` の第 1〜8 章をすべて先に適用してから、本ファイルの第 1 章以降を重ね合わせる。\
+`_frontend-next.md` の第 1〜7 章をすべて先に適用してから、本ファイルの第 1 章以降を重ね合わせる。\
 `_frontend-next.md` 第 1 章のパッケージに加えて、本ファイル第 1 章で tRPC + Prisma 系を追記する。
 
 
 ## 1. 追加するパッケージ
 
 `_frontend-next.md` 第 1 章を適用済みの前提で、T3 固有パッケージを追加する。
+
+> [!NOTE]
+> NextAuth の Prisma Adapter（`@auth/prisma-adapter`）は `_frontend-next.md` 第 1 章に含まれる。\
+> ここで v4 系の `@next-auth/prisma-adapter` を足さない（型が食い違う）。
 
 ```bash
 # Runtime dependencies (T3 固有)
@@ -24,8 +28,7 @@ npm install \
   @trpc/client@^11 \
   @trpc/react-query@^11 \
   prisma@^6 \
-  @prisma/client@^6 \
-  @next-auth/prisma-adapter@^1
+  @prisma/client@^6
 ```
 
 
@@ -95,6 +98,9 @@ model User {
   accounts      Account[]
   sessions      Session[]
 
+  // Q3 = メールパスワードのときだけ使う（Credentials プロバイダの照合先）
+  passwordHash  String?
+
   // === エンティティリレーション（Phase 4 で動的追加） ===
 }
 
@@ -106,7 +112,7 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// === アプリエンティティ（Phase 4 で 5 問インタビュー Q2 から動的追加） ===
+// === アプリエンティティ（Phase 4 でインタビュー Q2 から動的追加） ===
 ```
 
 Phase 4 では Q2 の主要エンティティ（例: `Customer`・`Order`）を本ファイル末尾に追記する。
@@ -122,6 +128,10 @@ Phase 4 では Q2 の主要エンティティ（例: `Customer`・`Order`）を�
 ## 5. 追加する docker-compose.yml の Postgres サービス
 
 クローン後の `docker-compose.yml` の `services:` セクションに以下を追記する。
+
+> [!NOTE]
+> `--devcontainer` でテンプレ生成した `docker-compose.yml` は `db` サービスと `pgdata` を既に含む。\
+> その場合は追記せず、内容が一致することの確認だけ行う（重複追記は compose の解析エラーになる）。
 
 ```yaml
   db:
@@ -167,6 +177,10 @@ app サービスの `depends_on:` に以下を追記する（無ければ新規�
 
 `local` ステージに以下を追記する。
 
+> [!NOTE]
+> `--devcontainer` でテンプレ生成した `Dockerfile` は `postgresql-client` と Prisma CLI を既に含む。\
+> その場合は追記しない。
+
 ```dockerfile
 RUN apt-get update && apt-get install -y \
     postgresql-client \
@@ -178,8 +192,10 @@ RUN npm install -g prisma
 ## 7. 追加する .devcontainer/devcontainer.json 変更
 
 > [!IMPORTANT]
-> **in-place モードでは本章をスキップ**（`.devcontainer/devcontainer.json` は現状温存）。\
-> 必要なら手動で以下のキーを追記する。
+> 本章を適用するのは **`--new-dir` モードかつ `--devcontainer` を指定していない場合だけ**。\
+> in-place モードでは `.devcontainer/devcontainer.json` を現状温存するためスキップし、\
+> `--devcontainer` 指定時は生成テンプレが下記のキーを既に含むためスキップする（`scaffold/devcontainer.md`）。\
+> スキップした場合に設定が要るなら、手動で以下のキーを追記する。
 
 | キー | 操作 | 値 |
 | --- | --- | --- |
@@ -190,7 +206,7 @@ RUN npm install -g prisma
 
 ## 8. 追加する src/ ディレクトリ構造（T3 固有差分）
 
-`_frontend-next.md` 第 6 章の `src/` 構造に加え、以下を T3 固有として追加する。\
+`_frontend-next.md` 第 5 章の `src/` 構造に加え、以下を T3 固有として追加する。\
 `_frontend-next.md` で作成済みの `app/layout.tsx` / `app/page.tsx` / `app/globals.css` / `app/<entity>/*` の上に、以下の追加パスのみを作成する。
 
 ```text
@@ -211,8 +227,8 @@ src/
 ```
 
 > [!NOTE]
-> `_frontend-next.md` 第 4 章は Q3 の選択に応じて `src/lib/auth.ts` を生成する。\
-> T3 経路では NextAuth + Prisma Adapter を使うため、第 4 章で生成された `src/lib/auth.ts` を削除し、本章記載の `src/server/auth.ts` (Prisma Adapter 統合版) に置き換える。
+> `src/server/auth.ts` の中身は `_frontend-next.md` 第 4 章が Q3 別に生成する（Prisma Adapter 統合済み）。\
+> 本章はその配置先を再掲するだけで、別実装を重ねない。
 
 
 ## 9. 完了条件
@@ -224,3 +240,4 @@ Phase 4 完了時、以下が全て満たされていること。
 - `docker-compose.yml` に `db` サービスと `pgdata` ボリュームがある
 - `src/app/`・`src/server/`・`src/lib/` のディレクトリ構造が存在する
 - `npm run lint` が通る（type エラーなし）
+- （`--devcontainer` 指定時）`.devcontainer/devcontainer.json` の `service` が `docker-compose.yml` の service 名と一致する
