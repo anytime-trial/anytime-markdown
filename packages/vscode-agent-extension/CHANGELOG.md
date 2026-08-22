@@ -6,14 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-08-22
+
+### Added
+
+- Bundled skill `anytime-build-webapp`: a `--devcontainer` option generates `.devcontainer/devcontainer.json` from templates bundled with the skill (`docker-compose.yml` / `Dockerfile` only when absent), so a Dev Container can be created on a WSL host without depending on a cloned reference repository. Existing files are listed and confirmed before being overwritten.
+
 ### Changed
 
 - Bundled skills: `anytime-analysis` and `anytime-build-webapp` now point their verification steps at `anytime-markdown-output` §10 (post-output verification) shipped by the markdown extension, following the merge of the former `anytime-markdown-check`. **Release this together with the markdown extension** — releasing the markdown extension alone deletes the deployed `anytime-markdown-check`, leaving this extension's un-updated skills pointing at a skill that no longer exists.
+- Bundled skill `anytime-build-webapp`: the generated stack is now fixed to Next.js (T3 Stack), and the interview is 4 questions instead of 5.
 
 ### Removed
 
 - Bundled skills: `anytime-impl-test-design` was merged into `anytime-doc-authoring` §6 (post-implementation test design; procedure in `references/impl-test-design.ja.md`) shipped by the markdown extension, and is no longer bundled here. Deployed old dirs are removed on activation via `anytime-dev-cycle`'s `oldNames`.
 - Bundled skills: `anytime-ux-archeologist` was merged into the exterior-reverse mode of `anytime-reverse-spec` (procedure in `references/ux-archeologist.ja.md`) shipped by the markdown extension, and is no longer bundled here. Deployed old dirs (including the former `ux-archeologist` name) are removed on activation via `anytime-dev-cycle`'s `oldNames`.
+- Bundled skill `anytime-build-webapp`: dropped the Python backend (FastAPI) path along with its design/plan documents, stack definition and scaffold templates.
 
 ## [1.17.1] - 2026-08-20
 

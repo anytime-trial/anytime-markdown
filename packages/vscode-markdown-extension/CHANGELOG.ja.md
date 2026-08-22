@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-08-22
+
 ### Added
 
 - スキル配置（installSkills）: 統合・廃止で同梱から外れた旧スキル dir を activate 時に削除する（`OBSOLETE_SKILL_NAMES` の明示リスト方式。manifest に無いものの一括削除はしない。初回対象は `anytime-spec-lookup`）。

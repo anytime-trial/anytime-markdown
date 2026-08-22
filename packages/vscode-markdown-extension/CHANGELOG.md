@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-08-22
+
 ### Added
 
 - Skill installer (installSkills): bundled-skill dirs retired by merges/deprecations are now removed on activation via the explicit `OBSOLETE_SKILL_NAMES` list (no blanket "not in manifest" pruning; first entry: `anytime-spec-lookup`).
