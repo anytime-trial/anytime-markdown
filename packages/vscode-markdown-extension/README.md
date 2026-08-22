@@ -108,6 +108,7 @@ To reinstall them, run `Anytime Markdown: Reinstall Markdown Skills (.claude/ski
 | `anytime-markdown-check` | Post-output verification (semantic judgments that can't be auto-formatted) |
 | `anytime-markdown-usage` | Low-token search, investigation, and editing workflow using `mcp-markdown`, plus navigation that follows the index and typed `related` links to read only the specs you need (absorbs the former `anytime-spec-lookup`) |
 | `anytime-mermaid` | Readability guidelines for Mermaid diagrams |
+| `anytime-reverse-spec` | Generates a full set of basic design documents from the code graph, DB schema, external I/F, and screen definitions (moved from the Trail extension); its exterior-reverse mode (formerly `anytime-ux-archeologist`) extracts DESIGN.md / UX concept / UX evaluation reports from running web apps without source access |
 
 
 ## 10. Settings

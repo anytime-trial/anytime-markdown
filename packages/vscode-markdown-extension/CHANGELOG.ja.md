@@ -9,6 +9,7 @@
 ### Added
 
 - スキル配置（installSkills）: 統合・廃止で同梱から外れた旧スキル dir を activate 時に削除する（`OBSOLETE_SKILL_NAMES` の明示リスト方式。manifest に無いものの一括削除はしない。初回対象は `anytime-spec-lookup`）。
+- 同梱スキル: `anytime-reverse-spec` を Trail 拡張から本拡張へ移管して同梱した（v6）。あわせて agent 拡張の `anytime-ux-archeologist` を同スキルの外形リバースモード（ソース非アクセスの稼働中 Web アプリから DESIGN.md / UX 設計思想 / UX 評価レポートを抽出。手順は `references/ux-archeologist.ja.md`）として統合した。
 
 ### Changed
 

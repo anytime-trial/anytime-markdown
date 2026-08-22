@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Skill installer (installSkills): bundled-skill dirs retired by merges/deprecations are now removed on activation via the explicit `OBSOLETE_SKILL_NAMES` list (no blanket "not in manifest" pruning; first entry: `anytime-spec-lookup`).
+- Bundled skills: `anytime-reverse-spec` moved here from the Trail extension (v6). The agent extension's `anytime-ux-archeologist` was merged into it as the exterior-reverse mode (extracts DESIGN.md / UX concept / UX evaluation reports from running web apps without source access; procedure in `references/ux-archeologist.ja.md`).
 
 ### Changed
 

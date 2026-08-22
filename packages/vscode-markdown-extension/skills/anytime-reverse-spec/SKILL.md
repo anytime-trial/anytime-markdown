@@ -1,12 +1,12 @@
 ---
 name: anytime-reverse-spec
-description: "anytime-reverse-codegraph の出口として、Trail DB のコードグラフコミュニティ・データ永続化スキーマ（SQL DDL / 各種 ORM）・外部 I/F（REST / GraphQL / gRPC / tRPC / MCP / CLI / Webhook 等）・画面定義（Next.js / React Router / Vue Router / VS Code WebView 等）から基本設計書一式（システム概要 / 機能一覧 / 機能詳細 / データモデル / 外部 I/F / 画面仕様 / データフロー / 用語集）を自動生成する。任意のリポジトリ・任意の DB / I/F / 画面フレームワークに適用可能（outputDir / repoRoot / schemaGlobs / interfaceGlobs / screenGlobs オプションで対象を指定）。「基本設計書を生成」「basic-design を実行」「リバース設計書を作成」などの指示で使用する。"
+description: "anytime-reverse-codegraph の出口として、Trail DB のコードグラフコミュニティ・データ永続化スキーマ（SQL DDL / 各種 ORM）・外部 I/F（REST / GraphQL / gRPC / tRPC / MCP / CLI / Webhook 等）・画面定義（Next.js / React Router / Vue Router / VS Code WebView 等）から基本設計書一式（システム概要 / 機能一覧 / 機能詳細 / データモデル / 外部 I/F / 画面仕様 / データフロー / 用語集）を自動生成する。任意のリポジトリ・任意の DB / I/F / 画面フレームワークに適用可能（outputDir / repoRoot / schemaGlobs / interfaceGlobs / screenGlobs オプションで対象を指定）。「基本設計書を生成」「basic-design を実行」「リバース設計書を作成」などの指示で使用する。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「デザインシステムを解析」「デザイントークンを抜き出して」「UI/UX を評価して」「ユーザビリティ評価レポート」「アクセシビリティを診断して」「/anytime-ux-archeologist」（旧スキル名）の指示では外形リバースモード（旧 anytime-ux-archeologist を統合。ソース非アクセスの稼働中 Web アプリからブラウザ巡回・Computed Style 抽出・スクリーンショット解析で DESIGN.md / ux-concept.md / ux-report.md を抽出。手順は references/ux-archeologist.ja.md）を使用する。CSS/Tailwind 設定やスクリーンショットが手元にある場合は design-md、暗黙知の明文化は anytime-dev-retro の doctrine 抽出モードを使う。"
 trigger: /anytime-reverse-spec
 ---
 
 # /anytime-reverse-spec
 
-更新日: 2026-07-04
+更新日: 2026-08-22
 
 `anytime-reverse-codegraph` でコミュニティに `name` / `summary` / `mappings_json` が付与済みであることを前提に、`{outputDir}` 配下に基本設計書 11 章（システム概要 / 機能一覧 / 機能詳細 / データモデル / 外部 I/F / 画面仕様 / データフロー / 用語集 / ビジネス概要 / コード構造 / コード品質評価）と `_meta.json` を生成する。任意のリポジトリに適用可能。
 
@@ -15,6 +15,14 @@ trigger: /anytime-reverse-spec
 > [!IMPORTANT]
 > 本スキルは Trail DB に対して**読み取り専用**で動作する。書き込みは MCP ツール経由で行うべきだが、本スキルは書き込みを行わない（コミュニティ書き込みは `anytime-reverse-codegraph` の責務）。
 
+
+## 外形リバースモード（旧 anytime-ux-archeologist・2026-08-22 統合）
+
+本編（以降の全セクション）は「ソースにアクセスできる自リポジトリ」の構造リバースを担う。対して、ソースコードにアクセスできない稼働中の Web アプリ（外部サイト・ローカル起動アプリ）からの外形リバースは**外形リバースモード**で実行する。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「デザイントークンを抜き出して」「UI/UX を評価して」「ユーザビリティ評価レポート」「アクセシビリティを診断して」「/anytime-ux-archeologist」（旧スキル名）で発火する。
+
+- 手順の正本は `references/ux-archeologist.ja.md`。ブラウザ巡回（playwright MCP）・Computed Style 抽出（`references/extract-styles.js`）・代理指標計測（`references/measure-ux.js`）で、`DESIGN.md`（`references/design-md-spec.md`）・`ux-concept.md`・`ux-report.md` の 3 系統を分離出力する。
+- 本モードでは本編の前提条件 / ガード（Trail DB・mcp-trail サーバ・anytime-reverse-codegraph・C4 モデル）と Phase 0〜5・評価モードを**適用しない**。着手ゲート・入力・Phase・Red Flags はすべて references 側に従う。
+- 使い分け: CSS/Tailwind 設定やスクリーンショットが手元にある場合は global スキル `design-md`、暗黙知の明文化は `anytime-dev-retro` の doctrine 抽出モードを使う。
 
 ## 適用するコンテキスト・ツール効率ルール
 

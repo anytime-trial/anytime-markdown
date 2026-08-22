@@ -23,7 +23,14 @@ export const TRAIL_BUNDLED_SKILLS: readonly TrailBundledSkill[] = [
 		name: 'anytime-reverse-codegraph',
 		oldNames: ['build-code-graph', 'trail-design', 'anytime-reverse-engineer'],
 	},
-	{ name: 'anytime-reverse-spec', oldNames: ['anytime-basic-design'] },
+	// anytime-reverse-spec は 2026-08-22 に markdown 拡張の同梱へ移管した（外形リバースモード
+	// （旧 anytime-ux-archeologist）統合と同時）。配置済みコピーは markdown 拡張 marker に未記録
+	// のため初回 activate で上書きされる（anytime-dev-audit の trail → agent 移管と同じ方式）。
+	// 本拡張のどの oldNames にも 'anytime-reverse-spec' を載せないこと: installStaticSkillDir の
+	// oldNames 削除は marker 前提条件なしで毎 activate 発火するため、markdown 拡張が配置した
+	// 統合版まで消し続ける（stock-cooccurrence で確認済みの罠）。代償として trail 拡張のみの
+	// 環境では旧配置が更新されず残る（削除はされない）。旧名 anytime-basic-design の掃除登録も
+	// 移管とともに落とす（markdown 拡張の廃止削除は自拡張 marker 記録が前提条件で発火しない）。
 	// anytime-token-budget（2026-07-18）と anytime-reverse-doctrine（2026-08-22・doctrine 抽出モードとして
 	// 統合）を吸収。旧 dir は oldNames で配置済みコピーを掃除する。
 	{

@@ -9,6 +9,7 @@
 ### 削除
 
 - 同梱スキル: `anytime-impl-test-design` を markdown 拡張の `anytime-doc-authoring` §6（実装後テスト設計。手順は `references/impl-test-design.ja.md`）へ統合し、本拡張の同梱から外した。配置済みの旧 dir は `anytime-dev-cycle` の `oldNames` により activate 時に削除される。
+- 同梱スキル: `anytime-ux-archeologist` を markdown 拡張の `anytime-reverse-spec` 外形リバースモード（手順は `references/ux-archeologist.ja.md`）へ統合し、本拡張の同梱から外した。配置済みの旧 dir（旧名 `ux-archeologist` 含む）は `anytime-dev-cycle` の `oldNames` により activate 時に削除される。
 
 ## [1.17.1] - 2026-08-20
 
