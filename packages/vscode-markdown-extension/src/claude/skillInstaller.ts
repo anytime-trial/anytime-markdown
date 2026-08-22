@@ -31,7 +31,8 @@ export const SKILL_MARKER = '.anytime-skills.json';
  * 統合・廃止で同梱から外れた旧スキル dir 名。activate 時に配置先から削除する
  * （agent/trail 拡張の `installStaticSkillDir` の `oldSkillNames` と同じ明示リスト方式。
  * 「manifest に無いものを一括削除」にしないのは、ユーザー自作スキルや他拡張の配置分を
- * 巻き込まないため — 削除対象は本拡張が過去に配置した名前の列挙に限る）。
+ * 巻き込まないため — 削除対象は本拡張が過去に配置した名前の列挙に限り、さらに実行時にも
+ * 配置済み marker にその名前の記録があることを削除の前提条件にする）。
  */
 export const OBSOLETE_SKILL_NAMES: readonly string[] = [
   // 2026-08-22: anytime-markdown-usage §D へ統合（トークン軽減の利用手順として一本化）
@@ -138,6 +139,11 @@ export function installSkills(opts: InstallOptions): InstallResult {
       log('error', `廃止リストのスキルが同梱 manifest にも存在するため削除しません: ${oldName}`);
       continue;
     }
+    if (rawMarker[oldName] === undefined) {
+      // 本拡張が配置した記録（marker エントリ）が無い dir は、ユーザー自作や他経路の
+      // 配置物とみなして触らない（存在しても削除しない）。
+      continue;
+    }
     const oldDir = path.join(skillsDestDir, oldName);
     if (fs.existsSync(oldDir)) {
       try {
@@ -158,7 +164,7 @@ export function installSkills(opts: InstallOptions): InstallResult {
 
   const installedManifest = force ? {} : rawMarker;
   const plan = planSkillInstall(bundled, installedManifest);
-  if (plan.length === 0) {
+  if (plan.length === 0 && removedOld.length === 0 && !markerChanged) {
     log('info', 'Anytime スキルは最新です（配置不要）');
   }
 
