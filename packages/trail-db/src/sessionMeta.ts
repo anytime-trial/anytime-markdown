@@ -28,11 +28,23 @@ function findGitRoot(dir: string, exists: (p: string) => boolean): string | null
   return null;
 }
 
+/**
+ * Windows 形式のパス（`C:\work\repo` / UNC `\\server\share`）だけを判別して区切りを `/` へ揃える。
+ *
+ * Why not 無条件に `\` を `/` へ置換するか: POSIX のファイル名にはバックスラッシュを含められる。
+ * `/tmp/we\ird` のような cwd を無条件に置換すると、存在しないセグメント境界を作って
+ * 別の repo 名を導いてしまう。ドライブレター / UNC 接頭辞を持つものだけを Windows パスとみなす。
+ */
+function toPosixSeparators(cwd: string): string {
+  const isWindowsPath = /^[A-Za-z]:[\\/]/.test(cwd) || cwd.startsWith('\\\\');
+  return isWindowsPath ? cwd.replace(/\\/g, '/') : cwd;
+}
+
 export function deriveRepoNameFromCwd(
   cwd: string,
   exists: (p: string) => boolean = fs.existsSync,
 ): string | null {
-  const trimmed = stripTrailingSlashes(cwd);
+  const trimmed = stripTrailingSlashes(toPosixSeparators(cwd));
   if (trimmed === '' || trimmed === '/') return null;
 
   // git ルートまで畳んでから basename を取る。ルートを解決できない場合（インポート時点で
@@ -158,15 +170,17 @@ export function extractRepoNameFromProjectDirPath(
 // （TrailDatabase.getCombinedData・テスト）向けに再エクスポートする。
 export { normalizeWorkspaceName } from '@anytime-markdown/trail-activity/domain';
 
-// テストから直接検証したい場合に備えて export
+// deriveRepoNameFromCwd は public export になったが、既存の呼び出し元が `__internal` 経由で
+// 参照しているため後方互換のエイリアスとして残す。新規の参照は直接 import を使う。
 export const __internal = { deriveRepoNameFromCwd };
+
 
 // ---------------------------------------------------------------------------
 //  Codex rollout の repo 帰属
 // ---------------------------------------------------------------------------
 
 /**
- * cwd を読み取れなかった Codex セッションに与える repo 名。
+ * cwd を特定できなかった Codex セッションに与える repo 名。
  *
  * Why not 主リポジトリ名へのフォールバック: Codex の rollout は `~/.codex/sessions` という
  * ホーム共有の 1 箇所へ全ワークスペース分が混ざって落ちる。帰属が不明な行に主リポジトリ名を
@@ -175,8 +189,23 @@ export const __internal = { deriveRepoNameFromCwd };
  */
 export const CODEX_UNKNOWN_REPO_NAME = 'codex-unknown';
 
-/** session_meta を探して読む先頭バイト数の上限。 */
-const CODEX_META_SCAN_BYTES = 1024 * 1024;
+/** session_meta を探して読む先頭バイト数の既定上限。 */
+export const CODEX_META_SCAN_BYTES = 1024 * 1024;
+
+/**
+ * Codex rollout から cwd を取り出した結果。
+ *
+ * Why 判別子付き union: 「session_meta が無い」と「ファイルを読めなかった」を単一の null へ
+ * 畳むと、既存行を振り直すバックフィルが後者を前者と誤認し、根拠が無いまま正しい repo 帰属を
+ * `codex-unknown` へ上書きする。呼び出し元が両者を区別できる形にして、読めなかった行は
+ * 触らない・ログへ残す、を選べるようにする。
+ */
+export type CodexCwdResult =
+  | { readonly kind: 'resolved'; readonly cwd: string }
+  /** ファイルは読めたが session_meta / cwd が無い（または文字列でない）。 */
+  | { readonly kind: 'absent' }
+  /** ファイルを読めなかった（EACCES / EMFILE / EIO / EISDIR 等）。 */
+  | { readonly kind: 'unreadable'; readonly error: Error };
 
 /**
  * ファイル先頭から最大 maxBytes を読み、完全な行だけを返す（末尾の欠けた行は捨てる）。
@@ -184,16 +213,32 @@ const CODEX_META_SCAN_BYTES = 1024 * 1024;
  * Why: Codex セッションは絞り込みなしに全件走査するため、rollout 全体を readFileSync すると
  * 1 回のパイプラインで 100MB 超を無駄に読む。session_meta は ordinal 0（先頭行）に置かれ、
  * 実測で約 19KB（base_instructions を含む）なので 1MiB あれば十分な余裕がある。
+ *
+ * Why 埋まるまでループして読むか: `read(2)` は要求より少ないバイト数を返してよい（短読み）。
+ * 1 回の readSync だけで `bytesRead < maxBytes` を EOF と解釈すると、途中で切れた行を完全な行
+ * として JSON へ食わせる。ループで埋め切ると `bytesRead < maxBytes` が確実に EOF を意味し、
+ * 「上限まで読み切った && 末尾が改行でない」ときだけ行の途中と判定できる（改行なしで終わる
+ * 完全な最終行を誤って捨てない）。
  */
 function readLeadingCompleteLines(filePath: string, maxBytes: number): string[] {
   const fd = fs.openSync(filePath, 'r');
   try {
     const buf = Buffer.allocUnsafe(maxBytes);
-    const bytesRead = fs.readSync(fd, buf, 0, maxBytes, 0);
-    const lines = buf.subarray(0, bytesRead).toString('utf-8').split('\n');
-    // maxBytes で切れた場合、最後の要素は行の途中なので JSON として壊れている。
-    // ファイル末尾まで読み切った場合の最後の要素は空文字なので、どちらでも捨てて安全。
-    if (bytesRead === maxBytes) lines.pop();
+    // read(2) は要求より少ないバイト数を返してよい（短読み）。1 回の readSync で判定すると、
+    // 短読みを EOF と誤認して途中で切れた行を完全な行として扱う。埋まるか EOF まで読む。
+    let bytesRead = 0;
+    while (bytesRead < maxBytes) {
+      const n = fs.readSync(fd, buf, bytesRead, maxBytes - bytesRead, bytesRead);
+      if (n === 0) break;
+      bytesRead += n;
+    }
+    if (bytesRead === 0) return [];
+    const slice = buf.subarray(0, bytesRead);
+    const lines = slice.toString('utf-8').split('\n');
+    // ここまで来て bytesRead < maxBytes なら EOF に到達しているので、最後の行は改行が
+    // 無くても完全。上限まで読み切った場合だけ、末尾が改行でなければ行の途中とみなす。
+    // 切り詰めで UTF-8 の途中が切れた場合も U+FFFD を含むこの要素へ入るので、まとめて捨てる。
+    if (bytesRead === maxBytes && slice[bytesRead - 1] !== 0x0a) lines.pop();
     return lines;
   } finally {
     fs.closeSync(fd);
@@ -201,40 +246,53 @@ function readLeadingCompleteLines(filePath: string, maxBytes: number): string[] 
 }
 
 /**
- * Codex rollout の `session_meta.payload.cwd` を返す。取れない場合 null。
+ * Codex rollout の `session_meta.payload.cwd` を読む。
  *
  * Claude Code の JSONL はトップレベルに `cwd` を持つため `extractRepoNameFromJsonl` が
  * そのまま使えるが、Codex は `payload` の下にネストするので別の取り出しが要る。
+ *
+ * @param maxBytes 先頭から読むバイト数の上限（テストで境界を検証するために注入可能にしている）
  */
-export function readCodexSessionCwd(filePath: string): string | null {
+export function readCodexSessionCwd(
+  filePath: string,
+  maxBytes: number = CODEX_META_SCAN_BYTES,
+): CodexCwdResult {
+  let lines: string[];
   try {
-    for (const line of readLeadingCompleteLines(filePath, CODEX_META_SCAN_BYTES)) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let rec: unknown;
-      try {
-        rec = JSON.parse(trimmed);
-      } catch {
-        continue;
-      }
-      if (!rec || typeof rec !== 'object') continue;
-      const r = rec as { type?: unknown; payload?: unknown };
-      if (r.type !== 'session_meta' || !r.payload || typeof r.payload !== 'object') continue;
-      const cwd = (r.payload as Record<string, unknown>).cwd;
-      return typeof cwd === 'string' ? cwd : null;
-    }
-    return null;
-  } catch {
-    return null;
+    lines = readLeadingCompleteLines(filePath, maxBytes);
+  } catch (e) {
+    // 握り潰さず呼び出し元へ渡す。読めなかった行を「cwd が無い行」と同じに扱うと、
+    // バックフィルが正しい repo 帰属を上書きする。
+    return { kind: 'unreadable', error: e instanceof Error ? e : new Error(String(e)) };
   }
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let rec: unknown;
+    try {
+      rec = JSON.parse(trimmed);
+    } catch {
+      // 壊れた行を飛ばすのは期待された制御フロー（切り詰め・書き込み途中の行）。
+      continue;
+    }
+    if (!rec || typeof rec !== 'object') continue;
+    const r = rec as { type?: unknown; payload?: unknown };
+    if (r.type !== 'session_meta' || !r.payload || typeof r.payload !== 'object') continue;
+    const cwd = (r.payload as Record<string, unknown>).cwd;
+    return typeof cwd === 'string' ? { kind: 'resolved', cwd } : { kind: 'absent' };
+  }
+  return { kind: 'absent' };
 }
 
 /**
  * Codex セッションの repo_name を決める。Claude Code セッションと同じ
  * `deriveRepoNameFromCwd`（git ルートまで遡り worktree を親へ畳む）を使うことで、
  * 同一プロジェクトの Claude / Codex セッションが同じ repo_name へ入る。
+ *
+ * `unreadable` も `codex-unknown` を返すが、**既存行を書き換える経路は
+ * `unreadable` を先に弾いて行を保持すること**（根拠が無いまま分類を壊さないため）。
  */
-export function resolveCodexRepoName(cwd: string | null): string {
-  if (cwd === null) return CODEX_UNKNOWN_REPO_NAME;
-  return deriveRepoNameFromCwd(cwd) ?? CODEX_UNKNOWN_REPO_NAME;
+export function resolveCodexRepoName(result: CodexCwdResult): string {
+  if (result.kind !== 'resolved') return CODEX_UNKNOWN_REPO_NAME;
+  return deriveRepoNameFromCwd(result.cwd) ?? CODEX_UNKNOWN_REPO_NAME;
 }

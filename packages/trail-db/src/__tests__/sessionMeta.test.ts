@@ -7,6 +7,7 @@ import {
   normalizeWorkspaceName,
   resolveCodexRepoName,
   readCodexSessionCwd,
+  deriveRepoNameFromCwd,
   CODEX_UNKNOWN_REPO_NAME,
 } from '../sessionMeta';
 
@@ -255,32 +256,51 @@ describe('normalizeWorkspaceName', () => {
   });
 });
 
+describe('deriveRepoNameFromCwd — Windows パス', () => {
+  it('normalizes drive-letter and UNC paths', () => {
+    // Codex の repo 帰属をこの関数へ一本化したので、Windows の cwd が絶対パス全体を
+    // repo 名にしてしまうと全 Codex セッションが誤分類される。
+    expect(deriveRepoNameFromCwd('C:\\work\\repo', () => false)).toBe('repo');
+    expect(deriveRepoNameFromCwd('C:\\work\\repo\\', () => false)).toBe('repo');
+    expect(deriveRepoNameFromCwd('C:\\work\\repo\\.worktrees\\foo', () => false)).toBe('repo');
+    expect(deriveRepoNameFromCwd('\\\\server\\share\\repo', () => false)).toBe('repo');
+  });
+
+  it('does not rewrite a POSIX path that legitimately contains a backslash', () => {
+    // POSIX のファイル名にバックスラッシュを含められるので、無条件置換は別の repo 名を導く。
+    expect(deriveRepoNameFromCwd('/tmp/we\\ird', () => false)).toBe('we\\ird');
+  });
+});
+
 describe('resolveCodexRepoName', () => {
+  const resolved = (cwd: string) => resolveCodexRepoName({ kind: 'resolved', cwd });
+
   it('folds a worktree checkout into its parent repository', () => {
     // 従来 gitRoot 配下として primaryRepoName が付いていた経路と同じ結果になること。
-    expect(resolveCodexRepoName('/work/anytime-markdown/.worktrees/foo')).toBe('anytime-markdown');
-    expect(resolveCodexRepoName('/work/anytime-markdown/.claude-worktrees/bar')).toBe(
-      'anytime-markdown',
-    );
+    expect(resolved('/work/anytime-markdown/.worktrees/foo')).toBe('anytime-markdown');
+    expect(resolved('/work/anytime-markdown/.claude-worktrees/bar')).toBe('anytime-markdown');
   });
 
   it('uses the basename for a workspace root outside the primary repository', () => {
-    expect(resolveCodexRepoName('/workspace')).toBe('workspace');
-    expect(resolveCodexRepoName('/workspace/.worktrees/gphotos-copy')).toBe('workspace');
-    expect(resolveCodexRepoName('/Shared/anytime-markdown-docs')).toBe('anytime-markdown-docs');
-    expect(resolveCodexRepoName('/home/user/.claude')).toBe('.claude');
+    expect(resolved('/workspace')).toBe('workspace');
+    expect(resolved('/workspace/.worktrees/gphotos-copy')).toBe('workspace');
+    expect(resolved('/Shared/anytime-markdown-docs')).toBe('anytime-markdown-docs');
+    expect(resolved('/home/user/.claude')).toBe('.claude');
   });
 
   it('does not confuse a sibling sharing a prefix with the primary repository', () => {
-    expect(resolveCodexRepoName('/work/anytime-markdown-2')).toBe('anytime-markdown-2');
+    expect(resolved('/work/anytime-markdown-2')).toBe('anytime-markdown-2');
   });
 
-  it('returns the unknown sentinel when cwd is absent or unusable', () => {
+  it('returns the unknown sentinel for absent, unreadable, or unusable cwd', () => {
     // cwd 不明を主リポジトリ名へ寄せると他ワークスペースを自リポジトリへ誤ラベルするため、
     // 判別可能な専用の名前を返す。
-    expect(resolveCodexRepoName(null)).toBe(CODEX_UNKNOWN_REPO_NAME);
-    expect(resolveCodexRepoName('/')).toBe(CODEX_UNKNOWN_REPO_NAME);
-    expect(resolveCodexRepoName('')).toBe(CODEX_UNKNOWN_REPO_NAME);
+    expect(resolveCodexRepoName({ kind: 'absent' })).toBe(CODEX_UNKNOWN_REPO_NAME);
+    expect(resolveCodexRepoName({ kind: 'unreadable', error: new Error('EACCES') })).toBe(
+      CODEX_UNKNOWN_REPO_NAME,
+    );
+    expect(resolved('/')).toBe(CODEX_UNKNOWN_REPO_NAME);
+    expect(resolved('')).toBe(CODEX_UNKNOWN_REPO_NAME);
   });
 });
 
@@ -298,7 +318,7 @@ describe('readCodexSessionCwd', () => {
       'meta.jsonl',
       JSON.stringify({ type: 'session_meta', payload: { cwd: '/workspace' } }) + '\n',
     );
-    expect(readCodexSessionCwd(p)).toBe('/workspace');
+    expect(readCodexSessionCwd(p)).toEqual({ kind: 'resolved', cwd: '/workspace' });
   });
 
   it('skips non session_meta records and invalid JSON lines', () => {
@@ -310,16 +330,49 @@ describe('readCodexSessionCwd', () => {
         JSON.stringify({ type: 'session_meta', payload: { cwd: '/real' } }),
       ].join('\n') + '\n',
     );
-    expect(readCodexSessionCwd(p)).toBe('/real');
+    expect(readCodexSessionCwd(p)).toEqual({ kind: 'resolved', cwd: '/real' });
   });
 
-  it('returns null when cwd is not a string, absent, or the file is missing', () => {
+  it('reports absent when cwd is not a string or session_meta is missing', () => {
     const notString = write(
       'notstring.jsonl',
       JSON.stringify({ type: 'session_meta', payload: { cwd: 12345 } }) + '\n',
     );
-    expect(readCodexSessionCwd(notString)).toBeNull();
-    expect(readCodexSessionCwd(write('nometa.jsonl', '{}\n'))).toBeNull();
-    expect(readCodexSessionCwd(path.join(tmpRoot, 'missing.jsonl'))).toBeNull();
+    expect(readCodexSessionCwd(notString)).toEqual({ kind: 'absent' });
+    expect(readCodexSessionCwd(write('nometa.jsonl', '{}\n'))).toEqual({ kind: 'absent' });
+    expect(readCodexSessionCwd(write('empty.jsonl', ''))).toEqual({ kind: 'absent' });
+  });
+
+  it('reports unreadable (not absent) when the file cannot be read', () => {
+    // 読み取り失敗を absent と同じに畳むと、バックフィルが正しい repo 帰属を上書きする。
+    const missing = readCodexSessionCwd(path.join(tmpRoot, 'missing.jsonl'));
+    expect(missing.kind).toBe('unreadable');
+    const asDir = path.join(tmpRoot, 'as-dir.jsonl');
+    fs.mkdirSync(asDir, { recursive: true });
+    expect(readCodexSessionCwd(asDir).kind).toBe('unreadable');
+  });
+
+  it('drops the line that the byte cap cut in half instead of parsing it', () => {
+    // 上限で切れた行を JSON として食わないこと。maxBytes を注入して 1MiB の
+    // フィクスチャを書かずに境界を検証する。
+    const first = JSON.stringify({ type: 'noise', payload: { pad: 'x'.repeat(200) } });
+    const second = JSON.stringify({ type: 'session_meta', payload: { cwd: '/workspace' } });
+    const p = write('truncated.jsonl', `${first}\n${second}\n`);
+    // 1 行目 + 改行 + 2 行目の途中まで => 2 行目は不完全なので捨てられ absent になる。
+    const cap = first.length + 1 + Math.floor(second.length / 2);
+    expect(readCodexSessionCwd(p, cap)).toEqual({ kind: 'absent' });
+    // 上限内に session_meta が収まれば読める。
+    expect(readCodexSessionCwd(p, first.length + 1 + second.length + 1)).toEqual({
+      kind: 'resolved',
+      cwd: '/workspace',
+    });
+  });
+
+  it('keeps a complete final line that has no trailing newline', () => {
+    // ファイル長がちょうど上限で末尾に改行が無い場合に、完全な最終行を捨てないこと。
+    const line = JSON.stringify({ type: 'session_meta', payload: { cwd: '/workspace' } });
+    const p = write('nonewline.jsonl', line);
+    // 上限に達せず EOF へ届くので、改行が無くても最終行は完全。
+    expect(readCodexSessionCwd(p, line.length + 64)).toEqual({ kind: 'resolved', cwd: '/workspace' });
   });
 });

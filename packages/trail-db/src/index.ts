@@ -51,13 +51,15 @@ export { SqliteSessionRepository } from './SqliteSessionRepository';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export { FileKnowledgeBaseSnapshotter, KB_SNAPSHOT_DEBOUNCE_MINUTES, KB_SNAPSHOT_GENERATIONS } from './KnowledgeBaseSnapshotter';
 export { ExecFileGitService } from './ExecFileGitService';
-export { extractRepoNameFromJsonl } from './sessionMeta';
 export {
+  CODEX_META_SCAN_BYTES,
+  CODEX_UNKNOWN_REPO_NAME,
   deriveRepoNameFromCwd,
+  extractRepoNameFromJsonl,
   readCodexSessionCwd,
   resolveCodexRepoName,
-  CODEX_UNKNOWN_REPO_NAME,
 } from './sessionMeta';
+export type { CodexCwdResult } from './sessionMeta';
 export { toUTC } from './dateUtils';
 export { MetricsThresholdsLoader } from './MetricsThresholdsLoader';
 export type { DbLogger } from './DbLogger';

@@ -3922,6 +3922,7 @@ export class TrailDatabase {
     this.runNonFatalBackfill('backfillDerivedCounts_v1', () => this.backfillDerivedCounts_v1());
     this.runNonFatalBackfill('backfillSessionsRepoNameFromCwd_v1', () => this.backfillSessionsRepoNameFromCwd_v1());
     this.runNonFatalBackfill('backfillSessionsRepoNameFromGitRoot_v2', () => this.backfillSessionsRepoNameFromGitRoot_v2());
+    this.runNonFatalBackfill('backfillCodexRepoNameFromCwd_v3', () => this.backfillCodexRepoNameFromCwd_v3());
     // ALTER TABLE / backfill 等のスキーマ変更をディスクに永続化する。
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
@@ -4092,6 +4093,64 @@ export class TrailDatabase {
       `[Migration] sessions_repo_name_from_git_root_v2: updated=${updated}, unchanged=${unchanged}, missing=${missing} (${Date.now() - startedAt}ms)`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('sessions_repo_name_from_git_root_v2')");
+  }
+
+  /**
+   * Codex セッションの repo 帰属を rollout の cwd 由来へ振り直す。
+   *
+   * v1 / v2 は `extractRepoNameFromJsonl`（トップレベル `cwd` のみ）を使うため、cwd を
+   * `payload` の下に置く Codex rollout では常に null になり、Codex 行は一度も是正されていない。
+   * さらに取込は cwd がワークスペース外の rollout を捨てていたので、既存の Codex 行にはすべて
+   * 主リポジトリ名が付いている。絞り込み撤廃に合わせてここで揃える。
+   *
+   * Why in-app migration: `SessionImporter` はファイルサイズ不変の rollout をスキップするため、
+   * 取込ロジックを変えても既存行は再分類されない。外部スクリプトだけを是正経路にすると、
+   * 実行記録が残らず二重実行でき、別マシン・DB リストア後は恒久 stale になる。
+   *
+   * 読めなかった rollout は触らない。読み取り失敗を「cwd が無い」と同じに扱うと、根拠が
+   * 無いまま正しい repo 帰属を `codex-unknown` へ上書きしてしまう。
+   */
+  private backfillCodexRepoNameFromCwd_v3(): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'codex_repo_name_from_cwd_v3'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    const rows =
+      db.exec(
+        "SELECT id, file_path, repo_id FROM activity_sessions WHERE source = 'codex' AND file_path != ''",
+      )[0]?.values ?? [];
+    let updated = 0;
+    let unchanged = 0;
+    let missing = 0;
+    let unreadable = 0;
+    const stmt = db.prepare('UPDATE activity_sessions SET repo_id = ? WHERE id = ?');
+    try {
+      for (const row of rows) {
+        const idStr = String(row[0]);
+        const filePathStr = asText(row[1] ?? '');
+        const oldRepoId = row[2] === null || row[2] === undefined ? null : Number(row[2]);
+        const cwdResult = readCodexSessionCwd(filePathStr);
+        if (cwdResult.kind === 'unreadable') {
+          // rollout のローテートで消えているのは常態なので分けて数える。
+          if ((cwdResult.error as NodeJS.ErrnoException).code === 'ENOENT') missing++;
+          else unreadable++;
+          continue;
+        }
+        const derivedRepoId = this.repoIdForName(resolveCodexRepoName(cwdResult));
+        if (derivedRepoId === oldRepoId) { unchanged++; continue; }
+        stmt.run([derivedRepoId, idStr]);
+        updated++;
+      }
+    } finally {
+      stmt.free();
+    }
+
+    this.logger.info(
+      `[Migration] codex_repo_name_from_cwd_v3: updated=${updated}, unchanged=${unchanged}, missing=${missing}, unreadable=${unreadable} (${Date.now() - startedAt}ms)`,
+    );
+    db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('codex_repo_name_from_cwd_v3')");
   }
 
   private backfillDerivedCounts_v1(): void {
