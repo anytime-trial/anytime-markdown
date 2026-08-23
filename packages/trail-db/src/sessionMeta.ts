@@ -28,7 +28,7 @@ function findGitRoot(dir: string, exists: (p: string) => boolean): string | null
   return null;
 }
 
-function deriveRepoNameFromCwd(
+export function deriveRepoNameFromCwd(
   cwd: string,
   exists: (p: string) => boolean = fs.existsSync,
 ): string | null {
@@ -160,3 +160,81 @@ export { normalizeWorkspaceName } from '@anytime-markdown/trail-activity/domain'
 
 // テストから直接検証したい場合に備えて export
 export const __internal = { deriveRepoNameFromCwd };
+
+// ---------------------------------------------------------------------------
+//  Codex rollout の repo 帰属
+// ---------------------------------------------------------------------------
+
+/**
+ * cwd を読み取れなかった Codex セッションに与える repo 名。
+ *
+ * Why not 主リポジトリ名へのフォールバック: Codex の rollout は `~/.codex/sessions` という
+ * ホーム共有の 1 箇所へ全ワークスペース分が混ざって落ちる。帰属が不明な行に主リポジトリ名を
+ * 与えると、他プロジェクトのセッションを自リポジトリのものとして数え、
+ * `memory.workspaceScope: own` の記憶取込へ他プロジェクトの会話が混入する。
+ */
+export const CODEX_UNKNOWN_REPO_NAME = 'codex-unknown';
+
+/** session_meta を探して読む先頭バイト数の上限。 */
+const CODEX_META_SCAN_BYTES = 1024 * 1024;
+
+/**
+ * ファイル先頭から最大 maxBytes を読み、完全な行だけを返す（末尾の欠けた行は捨てる）。
+ *
+ * Why: Codex セッションは絞り込みなしに全件走査するため、rollout 全体を readFileSync すると
+ * 1 回のパイプラインで 100MB 超を無駄に読む。session_meta は ordinal 0（先頭行）に置かれ、
+ * 実測で約 19KB（base_instructions を含む）なので 1MiB あれば十分な余裕がある。
+ */
+function readLeadingCompleteLines(filePath: string, maxBytes: number): string[] {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(maxBytes);
+    const bytesRead = fs.readSync(fd, buf, 0, maxBytes, 0);
+    const lines = buf.subarray(0, bytesRead).toString('utf-8').split('\n');
+    // maxBytes で切れた場合、最後の要素は行の途中なので JSON として壊れている。
+    // ファイル末尾まで読み切った場合の最後の要素は空文字なので、どちらでも捨てて安全。
+    if (bytesRead === maxBytes) lines.pop();
+    return lines;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+/**
+ * Codex rollout の `session_meta.payload.cwd` を返す。取れない場合 null。
+ *
+ * Claude Code の JSONL はトップレベルに `cwd` を持つため `extractRepoNameFromJsonl` が
+ * そのまま使えるが、Codex は `payload` の下にネストするので別の取り出しが要る。
+ */
+export function readCodexSessionCwd(filePath: string): string | null {
+  try {
+    for (const line of readLeadingCompleteLines(filePath, CODEX_META_SCAN_BYTES)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let rec: unknown;
+      try {
+        rec = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+      if (!rec || typeof rec !== 'object') continue;
+      const r = rec as { type?: unknown; payload?: unknown };
+      if (r.type !== 'session_meta' || !r.payload || typeof r.payload !== 'object') continue;
+      const cwd = (r.payload as Record<string, unknown>).cwd;
+      return typeof cwd === 'string' ? cwd : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Codex セッションの repo_name を決める。Claude Code セッションと同じ
+ * `deriveRepoNameFromCwd`（git ルートまで遡り worktree を親へ畳む）を使うことで、
+ * 同一プロジェクトの Claude / Codex セッションが同じ repo_name へ入る。
+ */
+export function resolveCodexRepoName(cwd: string | null): string {
+  if (cwd === null) return CODEX_UNKNOWN_REPO_NAME;
+  return deriveRepoNameFromCwd(cwd) ?? CODEX_UNKNOWN_REPO_NAME;
+}

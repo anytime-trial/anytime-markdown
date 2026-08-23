@@ -5,6 +5,9 @@ import {
   extractRepoNameFromJsonl,
   extractRepoNameFromProjectDirPath,
   normalizeWorkspaceName,
+  resolveCodexRepoName,
+  readCodexSessionCwd,
+  CODEX_UNKNOWN_REPO_NAME,
 } from '../sessionMeta';
 
 function writeJsonl(lines: ReadonlyArray<object | string>): string {
@@ -249,5 +252,74 @@ describe('normalizeWorkspaceName', () => {
 
   it('does not treat single-dash -worktrees- as a worktree suffix', () => {
     expect(normalizeWorkspaceName('repo-worktrees-history')).toBe('repo-worktrees-history');
+  });
+});
+
+describe('resolveCodexRepoName', () => {
+  it('folds a worktree checkout into its parent repository', () => {
+    // 従来 gitRoot 配下として primaryRepoName が付いていた経路と同じ結果になること。
+    expect(resolveCodexRepoName('/work/anytime-markdown/.worktrees/foo')).toBe('anytime-markdown');
+    expect(resolveCodexRepoName('/work/anytime-markdown/.claude-worktrees/bar')).toBe(
+      'anytime-markdown',
+    );
+  });
+
+  it('uses the basename for a workspace root outside the primary repository', () => {
+    expect(resolveCodexRepoName('/workspace')).toBe('workspace');
+    expect(resolveCodexRepoName('/workspace/.worktrees/gphotos-copy')).toBe('workspace');
+    expect(resolveCodexRepoName('/Shared/anytime-markdown-docs')).toBe('anytime-markdown-docs');
+    expect(resolveCodexRepoName('/home/user/.claude')).toBe('.claude');
+  });
+
+  it('does not confuse a sibling sharing a prefix with the primary repository', () => {
+    expect(resolveCodexRepoName('/work/anytime-markdown-2')).toBe('anytime-markdown-2');
+  });
+
+  it('returns the unknown sentinel when cwd is absent or unusable', () => {
+    // cwd 不明を主リポジトリ名へ寄せると他ワークスペースを自リポジトリへ誤ラベルするため、
+    // 判別可能な専用の名前を返す。
+    expect(resolveCodexRepoName(null)).toBe(CODEX_UNKNOWN_REPO_NAME);
+    expect(resolveCodexRepoName('/')).toBe(CODEX_UNKNOWN_REPO_NAME);
+    expect(resolveCodexRepoName('')).toBe(CODEX_UNKNOWN_REPO_NAME);
+  });
+});
+
+describe('readCodexSessionCwd', () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cwd-'));
+
+  const write = (name: string, content: string): string => {
+    const p = path.join(tmpRoot, name);
+    fs.writeFileSync(p, content);
+    return p;
+  };
+
+  it('reads cwd out of the nested session_meta payload', () => {
+    const p = write(
+      'meta.jsonl',
+      JSON.stringify({ type: 'session_meta', payload: { cwd: '/workspace' } }) + '\n',
+    );
+    expect(readCodexSessionCwd(p)).toBe('/workspace');
+  });
+
+  it('skips non session_meta records and invalid JSON lines', () => {
+    const p = write(
+      'mixed.jsonl',
+      [
+        'not json',
+        JSON.stringify({ type: 'turn', payload: { cwd: '/decoy' } }),
+        JSON.stringify({ type: 'session_meta', payload: { cwd: '/real' } }),
+      ].join('\n') + '\n',
+    );
+    expect(readCodexSessionCwd(p)).toBe('/real');
+  });
+
+  it('returns null when cwd is not a string, absent, or the file is missing', () => {
+    const notString = write(
+      'notstring.jsonl',
+      JSON.stringify({ type: 'session_meta', payload: { cwd: 12345 } }) + '\n',
+    );
+    expect(readCodexSessionCwd(notString)).toBeNull();
+    expect(readCodexSessionCwd(write('nometa.jsonl', '{}\n'))).toBeNull();
+    expect(readCodexSessionCwd(path.join(tmpRoot, 'missing.jsonl'))).toBeNull();
   });
 });

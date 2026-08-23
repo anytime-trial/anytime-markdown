@@ -532,9 +532,9 @@ export class AnalyzeAllRunner extends BaseRunner {
     primaryRepoName: string | undefined,
   ): Analyzer[] {
     const ingesters: Analyzer[] = [
+      // Codex セッションの repo 帰属は rollout の cwd から決まるため、
+      // gitRoot / primaryRepoName は渡さない (ワークスペースによる絞り込みをしない)。
       new JsonlIngester({
-        gitRoot: opts.gitRoot ?? gitRoots[0],
-        repoName: primaryRepoName,
         claudeProjectsDir: opts.claudeProjectsDir,
         codexSessionsDir: opts.codexSessionsDir,
       }),

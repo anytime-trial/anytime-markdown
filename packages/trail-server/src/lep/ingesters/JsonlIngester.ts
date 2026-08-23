@@ -7,6 +7,7 @@ import type {
   AnalyzerContext,
   AnalyzerEvent,
 } from '@anytime-markdown/trail-caravan-book';
+import { readCodexSessionCwd, resolveCodexRepoName } from '@anytime-markdown/trail-db';
 
 const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
@@ -17,10 +18,6 @@ const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 export type ImportedFilesProvider = (mainFile: string) => { fileSize: number; hasMessages: boolean; hasUsableCostData: boolean } | undefined;
 
 export interface JsonlIngesterOptions {
-  /** 主 git working tree (Codex セッションフィルタに使用)。省略時は Codex セッションも全件 emit */
-  readonly gitRoot?: string;
-  /** monitored repos (Codex 以外含む)。fallback repoName 解決に使用 */
-  readonly repoName?: string;
   /**
    * activity.db の既存 import 状態をルックアップする (省略可)。
    * Step 2a 時点で SessionImporter は未実装のため、未指定の場合は全件「未 import 扱い」で emit する。
@@ -135,19 +132,13 @@ export class JsonlIngester implements Analyzer {
         /([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})\.jsonl$/i.exec(filePath);
       const sid = sidMatch?.[1] ?? path.basename(filePath, '.jsonl');
 
-      if (this.opts.gitRoot) {
-        const meta = readCodexSessionCwd(filePath);
-        if (!meta) continue;
-        const normalizedCwd = path.resolve(meta);
-        const normalizedGitRoot = path.resolve(this.opts.gitRoot);
-        if (!normalizedCwd.startsWith(normalizedGitRoot)) continue;
-      }
-
+      // ワークスペースによる絞り込みはしない (Claude Code 側の discoverClaude と対称)。
+      // cwd は捨てるためではなく repo_name を決めるために読む。
       out.push({
         sessionId: sid,
         mainFile: filePath,
         subagentFiles: [],
-        repoName: this.opts.repoName || 'codex',
+        repoName: resolveCodexRepoName(readCodexSessionCwd(filePath)),
         source: 'codex',
       });
     }
@@ -224,28 +215,4 @@ function collectRolloutJsonlFiles(rootDir: string): string[] {
     }
   }
   return results;
-}
-
-function readCodexSessionCwd(filePath: string): string | null {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let rec: unknown;
-      try {
-        rec = JSON.parse(trimmed);
-      } catch {
-        continue;
-      }
-      if (!rec || typeof rec !== 'object') continue;
-      const r = rec as { type?: unknown; payload?: unknown };
-      if (r.type !== 'session_meta' || !r.payload || typeof r.payload !== 'object') continue;
-      const cwd = (r.payload as Record<string, unknown>).cwd;
-      return typeof cwd === 'string' ? cwd : null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }

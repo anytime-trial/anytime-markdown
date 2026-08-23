@@ -172,6 +172,8 @@ import {
   extractRepoNameFromJsonl,
   extractRepoNameFromProjectDirPath,
   normalizeWorkspaceName,
+  readCodexSessionCwd,
+  resolveCodexRepoName,
 } from './sessionMeta';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
 
@@ -5700,28 +5702,6 @@ export class TrailDatabase {
     return match ? match[1] : null;
   }
 
-  private readCodexSessionMeta(filePath: string): { cwd: string | null } | null {
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      for (const line of content.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let rec: RawLine;
-        try {
-          rec = JSON.parse(trimmed) as RawLine;
-        } catch {
-          continue;
-        }
-        if (rec.type !== 'session_meta' || !rec.payload || typeof rec.payload !== 'object') continue;
-        const cwd = rec.payload?.cwd;
-        return { cwd: typeof cwd === 'string' ? cwd : null };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
   resolveCommits(sessionId: string, gitRoot: string, repoName: string): number {
     const db = this.ensureDb();
     const range = this.getSessionTimeRange(sessionId);
@@ -6058,11 +6038,7 @@ export class TrailDatabase {
   }
 
 
-  private collectCodexSessionDirs(
-    codexSessionsDir: string,
-    gitRoot: string | undefined,
-    repoName: string,
-  ): ImportAllSessionDir[] {
+  private collectCodexSessionDirs(codexSessionsDir: string): ImportAllSessionDir[] {
     const sessionDirs: ImportAllSessionDir[] = [];
     try {
       const codexFiles = collectJsonlFilesRecursive(codexSessionsDir).filter((f: string) =>
@@ -6071,12 +6047,15 @@ export class TrailDatabase {
       for (const filePath of codexFiles) {
         const sidMatch = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(filePath);
         const sid = sidMatch?.[1] ?? path.basename(filePath, '.jsonl');
-        if (gitRoot) {
-          const meta = this.readCodexSessionMeta(filePath);
-          if (!meta?.cwd) continue;
-          if (!path.resolve(meta.cwd).startsWith(path.resolve(gitRoot))) continue;
-        }
-        sessionDirs.push({ sid, mainFile: filePath, subagentFiles: [], repoName: repoName || 'codex', source: 'codex' });
+        // ワークスペースによる絞り込みはしない。repo 帰属は rollout の cwd から決める
+        // (LEP 側の JsonlIngester.discoverCodex と同一の正本を使う)。
+        sessionDirs.push({
+          sid,
+          mainFile: filePath,
+          subagentFiles: [],
+          repoName: resolveCodexRepoName(readCodexSessionCwd(filePath)),
+          source: 'codex',
+        });
       }
     } catch {
       // codex sessions may not exist
@@ -6570,7 +6549,7 @@ export class TrailDatabase {
     // Collect files per session directory (main + subagents grouped)
     const sessionDirs = [
       ...collectClaudeCodeSessionDirs(projectDirs, projectsDir, UUID_RE),
-      ...(skipImportSessions ? [] : this.collectCodexSessionDirs(codexSessionsDir, gitRoot, repoName)),
+      ...(skipImportSessions ? [] : this.collectCodexSessionDirs(codexSessionsDir)),
     ];
 
     // UI (OllamaProvider tree) が phase 遷移を per-phase でレンダリングできるよう、
