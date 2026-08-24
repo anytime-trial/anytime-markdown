@@ -1,0 +1,44 @@
+{
+  "title": "System Architecture",
+  "metaDescription": "A logical architecture diagram of the anytime-markdown workspace across clients, MCP, domain core, persistence, and external services.",
+  "lead": "This diagram presents the anytime-markdown workspace in five logical layers, from user-facing clients to external services. Each node corresponds to an implementation package, data store, or integration.",
+  "updatedNote": "Last updated: 2026-08-24",
+  "layers": {
+    "client": "Clients",
+    "mcp": "AI Agent Connections",
+    "core": "Domain Core",
+    "storage": "Persistence",
+    "external": "External Services"
+  },
+  "descriptions": {
+    "client": "VS Code extensions, the web app, and the browser extension provide user-facing entry points, while AI agent operations flow to MCP servers.",
+    "mcp": "Five MCP servers provide the connection surface for AI agents and route work into the domain core.",
+    "core": "Shared packages for editing, visualization, tabular data, Trail, agents, analysis, business features, and foundations perform domain work and pass results to persistence.",
+    "storage": "Three SQLite databases plus Markdown and configuration files retain information and exchange data with external services when needed.",
+    "external": "Supabase, Ollama, AI coding agents, Cloudflare Workers, and GitHub are integration points outside the workspace."
+  },
+  "flows": {
+    "clientToMcp": "AI agent operation requests",
+    "mcpToCore": "Tool calls and domain processing",
+    "coreToStorage": "Data reads and writes",
+    "storageToExternal": "External integration data"
+  },
+  "groups": {
+    "vscodeExtensions": "VS Code Extensions",
+    "web": "Web",
+    "browser": "Browser Extension",
+    "mcpServers": "MCP Servers",
+    "editing": "Editing",
+    "visualization": "Visualization",
+    "tabular": "Tabular and Database",
+    "trail": "Trail",
+    "agent": "Agents",
+    "analysis": "Analysis",
+    "business": "Business",
+    "foundation": "Foundation",
+    "sqlite": "SQLite",
+    "files": "Files",
+    "services": "Services"
+  },
+  "diagramAriaLabel": "Five-layer system architecture of the anytime-markdown workspace"
+}
