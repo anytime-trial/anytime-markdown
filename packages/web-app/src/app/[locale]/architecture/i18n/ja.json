@@ -1,0 +1,44 @@
+{
+  "title": "システム構成図",
+  "metaDescription": "anytime-markdown ワークスペースのクライアント、MCP、ドメインコア、永続化、外部サービスの論理構成図。",
+  "lead": "anytime-markdown ワークスペースを、利用者に近いクライアント層から外部サービスまで5つの論理レイヤで示す。各ノードは実装上のパッケージまたはデータ、接続先に対応する。",
+  "updatedNote": "最終更新: 2026-08-24",
+  "layers": {
+    "client": "クライアント",
+    "mcp": "AI エージェント接続",
+    "core": "ドメインコア",
+    "storage": "永続化",
+    "external": "外部サービス"
+  },
+  "descriptions": {
+    "client": "VS Code 拡張、web-app、ブラウザ拡張が利用者との接点を担い、AI エージェントからの操作は MCP サーバへ渡る。",
+    "mcp": "5つの MCP サーバが AI エージェントとの接続面を提供し、処理をドメインコアへつなぐ。",
+    "core": "編集、可視化、表・DB、Trail、エージェント、解析、業務、基盤の共通パッケージ群が処理を担い、結果を永続化層へ渡す。",
+    "storage": "3つの SQLite DB と Markdown・設定ファイルが情報を保持し、必要に応じて外部サービスとデータをやり取りする。",
+    "external": "Supabase、Ollama、AI コーディングエージェント、Cloudflare Workers、GitHub がワークスペース外の接続先となる。"
+  },
+  "flows": {
+    "clientToMcp": "AI エージェントの操作要求",
+    "mcpToCore": "ツール呼び出しとドメイン処理",
+    "coreToStorage": "読み書きするデータ",
+    "storageToExternal": "外部連携データ"
+  },
+  "groups": {
+    "vscodeExtensions": "VS Code 拡張",
+    "web": "Web",
+    "browser": "ブラウザ拡張",
+    "mcpServers": "MCP サーバ",
+    "editing": "編集",
+    "visualization": "可視化",
+    "tabular": "表・データベース",
+    "trail": "Trail",
+    "agent": "エージェント",
+    "analysis": "解析",
+    "business": "業務",
+    "foundation": "基盤",
+    "sqlite": "SQLite",
+    "files": "ファイル",
+    "services": "サービス"
+  },
+  "diagramAriaLabel": "anytime-markdown ワークスペースの5層システム構成図"
+}

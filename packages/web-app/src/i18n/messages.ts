@@ -5,6 +5,8 @@ import {
 import { ticketsMessagesEn } from '@anytime-markdown/tickets-viewer/i18n/en';
 import { ticketsMessagesJa } from '@anytime-markdown/tickets-viewer/i18n/ja';
 
+import architectureEnMessages from '../app/[locale]/architecture/i18n/en.json';
+import architectureJaMessages from '../app/[locale]/architecture/i18n/ja.json';
 import authErrorEnMessages from '../app/[locale]/auth/error/i18n/en.json';
 import authErrorJaMessages from '../app/[locale]/auth/error/i18n/ja.json';
 import editorTopicsEnMessages from '../app/[locale]/markdown/[topic]/i18n/en.json';
@@ -35,6 +37,7 @@ export const defaultLocale: Locale = routing.defaultLocale;
 
 const mergedJa = {
   ...markdownCoreJaMessages,
+  Architecture: architectureJaMessages,
   AuthError: authErrorJaMessages,
   Editor: editorJaMessages,
   EditorTopics: editorTopicsJaMessages,
@@ -45,6 +48,7 @@ const mergedJa = {
 };
 const mergedEn = {
   ...markdownCoreEnMessages,
+  Architecture: architectureEnMessages,
   AuthError: authErrorEnMessages,
   Editor: editorEnMessages,
   EditorTopics: editorTopicsEnMessages,
