@@ -5,10 +5,10 @@ import {
 import { ticketsMessagesEn } from '@anytime-markdown/tickets-viewer/i18n/en';
 import { ticketsMessagesJa } from '@anytime-markdown/tickets-viewer/i18n/ja';
 
-import authErrorEnMessages from '../app/[locale]/auth/error/i18n/en.json';
-import authErrorJaMessages from '../app/[locale]/auth/error/i18n/ja.json';
 import architectureEnMessages from '../app/[locale]/architecture/i18n/en.json';
 import architectureJaMessages from '../app/[locale]/architecture/i18n/ja.json';
+import authErrorEnMessages from '../app/[locale]/auth/error/i18n/en.json';
+import authErrorJaMessages from '../app/[locale]/auth/error/i18n/ja.json';
 import editorTopicsEnMessages from '../app/[locale]/markdown/[topic]/i18n/en.json';
 import editorTopicsJaMessages from '../app/[locale]/markdown/[topic]/i18n/ja.json';
 import editorEnMessages from '../app/[locale]/markdown/i18n/en.json';
