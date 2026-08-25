@@ -2,7 +2,7 @@
   "title": "システム構成図",
   "metaDescription": "anytime-markdown ワークスペースのクライアント、MCP、ドメインコア、永続化、外部サービスの論理構成図。",
   "lead": "anytime-markdown ワークスペースを、利用者に近いクライアント層から外部サービスまで5つの論理レイヤで示す。各ノードは実装上のパッケージまたはデータ、接続先に対応する。",
-  "updatedNote": "最終更新: 2026-08-24",
+  "updatedNote": "最終更新: 2026-08-25",
   "layers": {
     "client": "クライアント",
     "mcp": "AI エージェント接続",
@@ -15,7 +15,7 @@
     "mcp": "5つの MCP サーバが AI エージェントとの接続面を提供し、処理をドメインコアへつなぐ。",
     "core": "編集、可視化、表・DB、Trail、エージェント、解析、業務、基盤の共通パッケージ群が処理を担い、結果を永続化層へ渡す。",
     "storage": "3つの SQLite DB と Markdown・設定ファイルが情報を保持し、必要に応じて外部サービスとデータをやり取りする。",
-    "external": "Supabase、Ollama、AI コーディングエージェント、Cloudflare Workers、GitHub がワークスペース外の接続先となる。"
+    "external": "データ基盤（Amazon S3・Supabase・Google Drive）、AI・実行基盤（Ollama・AI コーディングエージェント）、ホスティングとリポジトリ（Cloudflare Workers・GitHub）がワークスペース外の接続先となる。"
   },
   "flows": {
     "clientToMcp": "AI エージェントの操作要求",
@@ -38,7 +38,9 @@
     "foundation": "基盤",
     "sqlite": "SQLite",
     "files": "ファイル",
-    "services": "サービス"
+    "dataPlatform": "データ基盤",
+    "aiRuntime": "AI・実行基盤",
+    "hosting": "ホスティング・リポジトリ"
   },
   "diagramAriaLabel": "anytime-markdown ワークスペースの5層システム構成図"
 }

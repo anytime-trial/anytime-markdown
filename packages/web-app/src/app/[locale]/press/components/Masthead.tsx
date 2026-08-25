@@ -116,6 +116,7 @@ export function Masthead() {
         <a href="#markdown">{t('navMarkdown')}</a>
         <a href="#trail">{t('navTrail')}</a>
         <Link href="/tickets">{t('navTickets')}</Link>
+        <Link href="/architecture">{t('navArchitecture')}</Link>
         <button
           type="button"
           onClick={toggleLocale}
