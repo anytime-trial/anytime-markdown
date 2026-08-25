@@ -224,12 +224,26 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
     descriptionKey: 'external',
     groups: [
       {
-        id: 'external-services',
-        labelKey: 'services',
+        id: 'external-data',
+        labelKey: 'dataPlatform',
         nodes: [
+          { id: 'ext-s3', label: 'Amazon S3' },
           { id: 'ext-supabase', label: 'Supabase' },
+          { id: 'ext-google-drive', label: 'Google Drive / Docs API' },
+        ],
+      },
+      {
+        id: 'external-ai',
+        labelKey: 'aiRuntime',
+        nodes: [
           { id: 'ext-ollama', label: 'Ollama' },
           { id: 'ext-agents', label: 'Claude Code / Codex CLI' },
+        ],
+      },
+      {
+        id: 'external-hosting',
+        labelKey: 'hosting',
+        nodes: [
           { id: 'ext-workers', label: 'Cloudflare Workers' },
           { id: 'ext-github', label: 'GitHub' },
         ],

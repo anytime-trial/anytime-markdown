@@ -8,6 +8,7 @@
     "navMarkdown": "Markdown",
     "navTrail": "Trail",
     "navTickets": "Ticket",
+    "navArchitecture": "Architecture",
     "localeAria": "日本語に切り替え",
     "themeAria": "Toggle theme mode",
     "themeTitle": "Toggle mode"
@@ -165,7 +166,6 @@
     "edit": "Edit",
     "onlineEditor": "Anytime Markdown",
     "trailArchitecture": "Anytime Trail · architecture",
-    "systemArchitecture": "System Architecture",
     "releaseTimeline": "Claude Code release timeline",
     "github": "Github",
     "foldCopy": "© 2026 Kiyotaka Ueda featuring Claude Code"

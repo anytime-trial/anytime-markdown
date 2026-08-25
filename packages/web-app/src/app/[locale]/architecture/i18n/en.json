@@ -2,7 +2,7 @@
   "title": "System Architecture",
   "metaDescription": "A logical architecture diagram of the anytime-markdown workspace across clients, MCP, domain core, persistence, and external services.",
   "lead": "This diagram presents the anytime-markdown workspace in five logical layers, from user-facing clients to external services. Each node corresponds to an implementation package, data store, or integration.",
-  "updatedNote": "Last updated: 2026-08-24",
+  "updatedNote": "Last updated: 2026-08-25",
   "layers": {
     "client": "Clients",
     "mcp": "AI Agent Connections",
@@ -15,7 +15,7 @@
     "mcp": "Five MCP servers provide the connection surface for AI agents and route work into the domain core.",
     "core": "Shared packages for editing, visualization, tabular data, Trail, agents, analysis, business features, and foundations perform domain work and pass results to persistence.",
     "storage": "Three SQLite databases plus Markdown and configuration files retain information and exchange data with external services when needed.",
-    "external": "Supabase, Ollama, AI coding agents, Cloudflare Workers, and GitHub are integration points outside the workspace."
+    "external": "Data platforms (Amazon S3, Supabase, Google Drive), AI and execution runtimes (Ollama, AI coding agents), and hosting and repositories (Cloudflare Workers, GitHub) are the integration points outside the workspace."
   },
   "flows": {
     "clientToMcp": "AI agent operation requests",
@@ -38,7 +38,9 @@
     "foundation": "Foundation",
     "sqlite": "SQLite",
     "files": "Files",
-    "services": "Services"
+    "dataPlatform": "Data Platforms",
+    "aiRuntime": "AI and Execution",
+    "hosting": "Hosting and Repositories"
   },
   "diagramAriaLabel": "Five-layer system architecture of the anytime-markdown workspace"
 }
