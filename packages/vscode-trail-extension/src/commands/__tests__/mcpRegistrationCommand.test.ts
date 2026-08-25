@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 import * as vscode from 'vscode';
 
-import { autoRegisterMcpServerIfMissing } from '../mcpRegistrationCommand';
+import { reconcileMcpServerRegistration } from '../mcpRegistrationCommand';
 
 const mockVscode = vscode as unknown as {
     workspace: {
@@ -22,7 +22,7 @@ function setPort(port: number | undefined): void {
     });
 }
 
-describe('trail mcpRegistrationCommand: autoRegisterMcpServerIfMissing', () => {
+describe('trail mcpRegistrationCommand: reconcileMcpServerRegistration', () => {
     let dir: string;
     const mcpJson = () => path.join(dir, '.mcp.json');
 
@@ -38,18 +38,21 @@ describe('trail mcpRegistrationCommand: autoRegisterMcpServerIfMissing', () => {
     });
 
     test('ファイル不在: 既定ポートの mcp-trail エントリを作成する', () => {
-        autoRegisterMcpServerIfMissing(DIST);
+        reconcileMcpServerRegistration(DIST);
         const parsed = JSON.parse(fs.readFileSync(mcpJson(), 'utf-8'));
         expect(parsed.mcpServers['mcp-trail']).toEqual({
             command: process.execPath,
             args: [path.join(DIST, 'mcp-trail-server.js')],
-            env: { TRAIL_SERVER_URL: 'http://localhost:19841' },
+            env: {
+                TRAIL_SERVER_URL: 'http://localhost:19841',
+                TRAIL_WORKSPACE_PATH: dir,
+            },
         });
     });
 
     test('viewer ポート設定をエントリへ反映する', () => {
         setPort(20000);
-        autoRegisterMcpServerIfMissing(DIST);
+        reconcileMcpServerRegistration(DIST);
         const parsed = JSON.parse(fs.readFileSync(mcpJson(), 'utf-8'));
         expect(parsed.mcpServers['mcp-trail'].env.TRAIL_SERVER_URL).toBe('http://localhost:20000');
     });
@@ -60,8 +63,11 @@ describe('trail mcpRegistrationCommand: autoRegisterMcpServerIfMissing', () => {
                 mcpServers: {
                     'mcp-trail': {
                         command: 'node',
-                        args: ['/custom/server.js'],
-                        env: { TRAIL_SERVER_URL: 'http://localhost:30000' },
+                        args: ['tsx', 'src/server.ts'],
+                        env: {
+                            TRAIL_SERVER_URL: 'http://localhost:30000',
+                            TRAIL_WORKSPACE_PATH: dir,
+                        },
                     },
                 },
             },
@@ -69,19 +75,19 @@ describe('trail mcpRegistrationCommand: autoRegisterMcpServerIfMissing', () => {
             2,
         );
         fs.writeFileSync(mcpJson(), custom);
-        autoRegisterMcpServerIfMissing(DIST);
+        reconcileMcpServerRegistration(DIST);
         expect(fs.readFileSync(mcpJson(), 'utf-8')).toBe(custom);
     });
 
     test('パース不能 JSON: 書き換えない・退避もしない', () => {
         fs.writeFileSync(mcpJson(), 'not json');
-        autoRegisterMcpServerIfMissing(DIST);
+        reconcileMcpServerRegistration(DIST);
         expect(fs.readFileSync(mcpJson(), 'utf-8')).toBe('not json');
         expect(fs.readdirSync(dir)).toEqual(['.mcp.json']);
     });
 
     test('自動経路は UI 通知を出さない', () => {
-        autoRegisterMcpServerIfMissing(DIST);
+        reconcileMcpServerRegistration(DIST);
         expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
         expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
         expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();

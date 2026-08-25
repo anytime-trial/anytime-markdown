@@ -13,11 +13,11 @@ export { CodexSessionScanner } from './codex/CodexSessionScanner';
 export type { CodexSessionScannerOptions } from './codex/CodexSessionScanner';
 export { extractCodexRateLimits, extractCodexTotalTokens } from './codex/parseCodexRollout';
 export type { CodexRateLimitRow, CodexRateLimitSnapshot, CodexUsageSeverity } from './codex/parseCodexRollout';
-export { mergeMcpServerEntryIfMissing } from './mcp/mcpJsonMerge';
-export type { AutoMergeResult, McpServerEntry } from './mcp/mcpJsonMerge';
+export { detectStaleReasons, reconcileMcpServerEntry } from './mcp/mcpJsonMerge';
+export type { McpServerEntry, ReconcileResult, StalenessPolicy } from './mcp/mcpJsonMerge';
 export { writeFileAtomic } from './mcp/atomicWrite';
 export {
-  autoRegisterMcpServerIfMissing,
+  reconcileMcpServerRegistration,
   registerMcpRegistrationCommand,
   registerMcpServerToJson,
 } from './mcp/mcpJsonRegistration';

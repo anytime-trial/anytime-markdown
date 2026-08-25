@@ -3,7 +3,9 @@ import { createMcpServer } from './server.js';
 import { resolveRootDir } from './resolveRootDir.js';
 
 async function main() {
-  const server = createMcpServer({ rootDir: resolveRootDir() });
+  const server = createMcpServer({
+    rootDir: resolveRootDir(process.env, process.cwd(), { warn: console.error }),
+  });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
