@@ -6,6 +6,7 @@ import {
   countArchitectureNodes,
   flattenArchitectureNodes,
 } from '../app/[locale]/architecture/architectureModel';
+import { ARCH_ICON_KEYS } from '../app/[locale]/architecture/icons/ArchitectureIcon';
 import enMessages from '../app/[locale]/architecture/i18n/en.json';
 import jaMessages from '../app/[locale]/architecture/i18n/ja.json';
 
@@ -53,6 +54,16 @@ describe('architectureModel', () => {
 
   it('ノード集計と平坦化したノード数が一致する', () => {
     expect(countArchitectureNodes()).toBe(flattenArchitectureNodes().length);
+  });
+
+  it('ノードが指すアイコン識別子がすべて登録簿に存在する', () => {
+    const known = new Set<string>(ARCH_ICON_KEYS);
+    const unknownIcons = flattenArchitectureNodes()
+      .map((node) => node.icon)
+      .filter((icon): icon is NonNullable<typeof icon> => icon !== undefined)
+      .filter((icon) => !known.has(icon));
+
+    expect(unknownIcons).toEqual([]);
   });
 
   it('モデルが参照するキーが日本語と英語の両方に存在する', () => {

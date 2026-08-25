@@ -7,6 +7,8 @@
 // workspace パッケージ（@anytime-markdown/*）自体は first-party（MIT）のため列挙せず
 // 依存だけ辿る。ただし markdown-core は Tiptap / tiptap-markdown を vendoring している
 // （npm 依存ではない）ため、閉包に含まれる場合のみ vendored 表記を追記する。
+// 同様に、対象パッケージの codegen が第三者のソースを生成ファイルへ取り込んでいる場合
+// （
 //
 // 使い方: node scripts/generate-third-party-notices.mjs <package-dir> [out-file]
 
@@ -130,6 +132,66 @@ function collectDependencies(rootDir) {
   return { collected, includesMarkdownCore, rootPkg };
 }
 
+/** 生成ファイルが取り込み元を宣言する機械可読マーカー。codegen 側が同じ書式で出力する。 */
+const VENDORED_FROM_PATTERN = /^\/\/ vendored-from: (\S+?)@(\S+) \(([^)]+)\) (\S+)$/m;
+
+/**
+ * 対象パッケージの `src` 配下から `*.generated.ts` を集め、vendored-from マーカーを読む。
+ *
+ * Why not: パッケージ名やパスを直書きしない。取り込みを増やすたびに本スクリプトを直す運用は
+ * 「追記し忘れ＝表記から黙って消える」を招く。宣言の在り処を生成ファイル側に置く。
+ */
+function collectVendoredFromMarkers(targetDir) {
+  const found = new Map();
+  const roots = [path.join(targetDir, "src")];
+  while (roots.length > 0) {
+    const dir = roots.pop();
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== "node_modules") roots.push(full);
+        continue;
+      }
+      if (!entry.name.endsWith(".generated.ts")) continue;
+      const match = VENDORED_FROM_PATTERN.exec(fs.readFileSync(full, "utf8"));
+      if (!match) continue;
+      const [, name, version, license, url] = match;
+      found.set(name, { name, version, license, url, from: path.relative(REPO_ROOT, full) });
+    }
+  }
+  return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** vendored-from マーカーで宣言された取り込み元の表記を組み立てる。 */
+function renderVendoredFromNotice(markers, targetDir) {
+  if (markers.length === 0) return "";
+  const sections = markers.map((m) => {
+    const pkgDir = findPackageDir(m.name, targetDir);
+    const licenseText = pkgDir ? readLicenseText(pkgDir) : null;
+    const body = licenseText
+      ? "```\n" + licenseText + "\n```"
+      : `_LICENSE file not resolvable at generation time; SPDX license identifier: ${m.license}._`;
+    return [
+      `### ${m.name} (v${m.version}) — ${m.license}`,
+      "",
+      `Source: ${m.url}`,
+      `Embedded into: \`${m.from}\``,
+      "",
+      body,
+    ].join("\n");
+  });
+  return [
+    "## Vendored sources (embedded by codegen)",
+    "",
+    "The following projects are not npm dependencies of this package. Portions of their",
+    "source (icon path data and similar) are embedded into generated modules and shipped",
+    "in this distribution.",
+    "",
+    sections.join("\n\n"),
+  ].join("\n");
+}
+
 /** vendored（npm 依存でない）Tiptap / tiptap-markdown の表記。 */
 const VENDORED_NOTICE = `## Vendored sources (bundled via @anytime-markdown/markdown-core)
 
@@ -181,7 +243,7 @@ DEALINGS IN THE SOFTWARE.
 Source: https://github.com/aguingand/tiptap-markdown
 `;
 
-function render(targetName, entries, includesMarkdownCore) {
+function render(targetName, entries, includesMarkdownCore, vendoredFromNotice) {
   const sorted = [...entries.values()].sort((a, b) => a.name.localeCompare(b.name));
   const breakdown = {};
   for (const e of sorted) breakdown[e.license] = (breakdown[e.license] ?? 0) + 1;
@@ -219,7 +281,8 @@ License summary: ${Object.entries(breakdown)
     .join("\n\n---\n\n");
 
   const vendored = includesMarkdownCore ? `\n\n---\n\n${VENDORED_NOTICE}` : "";
-  return `${head}${body}${vendored}\n`;
+  const embedded = vendoredFromNotice ? `\n\n---\n\n${vendoredFromNotice}` : "";
+  return `${head}${body}${vendored}${embedded}\n`;
 }
 
 function main() {
@@ -234,11 +297,20 @@ function main() {
     : path.join(targetDir, "THIRD-PARTY-NOTICES.md");
 
   const { collected, includesMarkdownCore, rootPkg } = collectDependencies(targetDir);
-  const content = render(rootPkg.name ?? targetArg, collected, includesMarkdownCore);
+  const vendoredFrom = collectVendoredFromMarkers(targetDir);
+  const content = render(
+    rootPkg.name ?? targetArg,
+    collected,
+    includesMarkdownCore,
+    renderVendoredFromNotice(vendoredFrom, targetDir),
+  );
   fs.writeFileSync(outFile, content);
   console.log(
     `[third-party-notices] ${collected.size} packages → ${path.relative(REPO_ROOT, outFile)}` +
-      (includesMarkdownCore ? " (+ vendored Tiptap/tiptap-markdown)" : ""),
+      (includesMarkdownCore ? " (+ vendored Tiptap/tiptap-markdown)" : "") +
+      (vendoredFrom.length > 0
+        ? ` (+ embedded ${vendoredFrom.map((m) => `${m.name}@${m.version}`).join(", ")})`
+        : ""),
   );
 }
 

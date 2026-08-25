@@ -3,6 +3,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 
 import type { ArchLayer, ArchNode } from '../architectureModel';
+import { ArchitectureIcon } from '../icons/ArchitectureIcon';
 
 const ACCENT_COLOR = '#E8A012';
 
@@ -20,7 +21,11 @@ function ArchitectureNode({ node }: Readonly<{ node: ArchNode }>) {
         component="span"
         title={node.pkg ? `packages/${node.pkg}` : undefined}
         sx={{
-          display: 'inline-block',
+          // Why not: inline-block のままアイコンを差すとベースライン揃えになり、
+          // 2 行へ折り返したラベルでアイコンだけが下がる。inline-flex で中央に揃える。
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.625,
           maxWidth: '100%',
           px: 1.25,
           py: 0.5,
@@ -34,6 +39,7 @@ function ArchitectureNode({ node }: Readonly<{ node: ArchNode }>) {
           overflowWrap: 'anywhere',
         }}
       >
+        {node.icon ? <ArchitectureIcon icon={node.icon} /> : null}
         {node.label}
       </Box>
     </Box>
