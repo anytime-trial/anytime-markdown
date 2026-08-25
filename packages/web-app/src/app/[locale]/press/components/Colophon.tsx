@@ -61,6 +61,9 @@ export function Colophon() {
               <Link href="/trail">{t('trailArchitecture')}</Link>
             </li>
             <li>
+              <Link href="/architecture">{t('systemArchitecture')}</Link>
+            </li>
+            <li>
               <Link href="/report">{tLanding('reportPage')}</Link>
             </li>
             <li>

@@ -2,7 +2,7 @@ import * as path from 'node:path';
 
 import * as vscode from 'vscode';
 import {
-    autoRegisterMcpServerIfMissing as autoRegisterCommon,
+    reconcileMcpServerRegistration as reconcileCommon,
     registerMcpRegistrationCommand as registerCommandCommon,
     registerMcpServerToJson as registerToJsonCommon,
 } from '@anytime-markdown/vscode-common';
@@ -21,12 +21,15 @@ function getViewerPort(): number {
         .get<number>('port', DEFAULT_VIEWER_PORT);
 }
 
-function buildMcpServerEntry(extensionDistPath: string): McpServerEntry {
+function buildMcpServerEntry(extensionDistPath: string, workspaceRoot: string): McpServerEntry {
     const port = getViewerPort();
     return {
         command: process.execPath,
         args: [path.join(extensionDistPath, 'mcp-trail-server.js')],
-        env: { TRAIL_SERVER_URL: `http://localhost:${port}` },
+        env: {
+            TRAIL_SERVER_URL: `http://localhost:${port}`,
+            TRAIL_WORKSPACE_PATH: workspaceRoot,
+        },
     };
 }
 
@@ -34,8 +37,8 @@ function options(extensionDistPath: string): McpJsonRegistrationOptions {
     return {
         serverName: SERVER_NAME,
         displayName: DISPLAY_NAME,
-        // trail のエントリはワークスペースではなく viewer ポート設定に依存する。
-        buildEntry: () => buildMcpServerEntry(extensionDistPath),
+        buildEntry: (workspaceRoot) => buildMcpServerEntry(extensionDistPath, workspaceRoot),
+        managedEnvKeys: ['TRAIL_WORKSPACE_PATH'],
         logger: TrailLogger,
         noticeDetail: () => ` (port ${getViewerPort()})`,
         logDetail: () => ` (port=${getViewerPort()})`,
@@ -43,14 +46,11 @@ function options(extensionDistPath: string): McpJsonRegistrationOptions {
 }
 
 /**
- * activate 時の自動登録: `<workspaceRoot>/.mcp.json` に `mcpServers.mcp-trail` が
- * 無い場合のみ追加する。
- *
- * 既存エントリは内容が異なっても上書きしないため、ポートを手で変えた構成は保たれる。
- * 設定変更を反映したい場合は手動コマンド（{@link registerMcpServerToJson}）を使う。
+ * activate 時の再登録: `<workspaceRoot>/.mcp.json` の `mcpServers.mcp-trail` を追加し、
+ * 拡張更新等で陳腐化していれば書き直す。viewer ポート等のユーザー改変は保持する。
  */
-export function autoRegisterMcpServerIfMissing(extensionDistPath: string): void {
-    autoRegisterCommon(options(extensionDistPath));
+export function reconcileMcpServerRegistration(extensionDistPath: string): void {
+    reconcileCommon(options(extensionDistPath));
 }
 
 export function registerMcpRegistrationCommand(

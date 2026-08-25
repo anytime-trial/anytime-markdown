@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-25
+
+### Fixed
+
+- MCP registration command: `.mcp.json` entries are now reconciled (freshness-checked re-registration) instead of being registered only when absent, so a stale entry left by an older extension version is refreshed.
+- MCP registration command: reconciliation updates only the fields it owns instead of replacing the whole entry, so user-added fields (e.g. `cwd`) on an existing entry survive.
+
+### Graph Core (graph-core)
+
+- No changes.
+
+### MCP Server (mcp-graph)
+
+- `rootDir` resolution is now explicit: `ANYTIME_GRAPH_ROOT` when set, otherwise the process cwd. A non-existent root is reported as a stderr warning instead of the server starting silently against it.
+
 ## [1.3.0] - 2026-08-20
 
 ### Removed

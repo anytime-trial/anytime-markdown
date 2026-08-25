@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.23.1] - 2026-08-25
+
+### Fixed
+
+- MCP registration command: `.mcp.json` entries are now reconciled (freshness-checked re-registration) instead of being registered only when absent, so a stale entry left by an older extension version is refreshed.
+- MCP registration command: reconciliation updates only the fields it owns instead of replacing the whole entry, so user-added fields (e.g. `cwd`) on an existing entry survive.
+
+### Editor Core (markdown-core)
+
+- No changes.
+
+### MCP Server (mcp-markdown)
+
+- `rootDir` resolution is now explicit: `ANYTIME_MARKDOWN_ROOT` when set, otherwise the process cwd (the `.mcp.json` launch path deliberately does not pass the env var). A non-existent root is reported as a stderr warning instead of the server starting silently against it.
+
 ## [1.23.0] - 2026-08-22
 
 ### Added

@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-08-25
+
+### 追加
+
+- システム構成図画面 `/architecture` を追加。anytime-markdown ワークスペースの構成を宣言的モデル（`architectureModel.ts`）からレイヤー帯とフローコネクタで描画する（ja/en 対応）。
+
+### 変更
+
+- Press ページの colophon から `/architecture` へのリンクを追加。
+
 ## [0.48.1] - 2026-08-20
 
 ### 変更
