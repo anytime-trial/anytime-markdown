@@ -11,6 +11,8 @@
  * `architectureModel.test.ts` が実在を機械検査するため、改名・削除は必ずここへ反映する。
  */
 
+import type { ArchIconKey } from './icons/ArchitectureIcon';
+
 /** レイヤ識別子。表示順はこの配列（ARCHITECTURE_LAYERS）の順序が単一の正。 */
 export type LayerId = 'client' | 'mcp' | 'core' | 'storage' | 'external';
 
@@ -24,6 +26,11 @@ export interface ArchNode {
   readonly pkg?: string;
   /** 差し色（アンバー）で強調するノード。デザインシステム §1 に従い図中で 1 つだけ */
   readonly accent?: boolean;
+  /**
+   * ラベル前に置く装飾アイコンの識別子（`icons/ArchitectureIcon.tsx` の登録簿の鍵）。
+   * ブランドマーク・技術マークが特定できるノードだけが持つ。省略＝アイコンなし。
+   */
+  readonly icon?: ArchIconKey;
 }
 
 /** レイヤ内の意味的なまとまり。ラベルは i18n キー（`Architecture.groups.<key>`）。 */
@@ -56,25 +63,25 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
         id: 'client-vscode',
         labelKey: 'vscodeExtensions',
         nodes: [
-          { id: 'ext-markdown', label: 'Anytime Markdown', pkg: 'vscode-markdown-extension' },
-          { id: 'ext-graph', label: 'Anytime Graph', pkg: 'vscode-graph-extension' },
-          { id: 'ext-trail', label: 'Anytime Trail', pkg: 'vscode-trail-extension' },
-          { id: 'ext-agent', label: 'Anytime Agent', pkg: 'vscode-agent-extension' },
-          { id: 'ext-database', label: 'Anytime Database', pkg: 'vscode-database-extension' },
-          { id: 'ext-history', label: 'Anytime History', pkg: 'vscode-history-extension' },
-          { id: 'ext-sheet', label: 'Anytime Sheet', pkg: 'vscode-sheet-extension' },
-          { id: 'ext-pack', label: 'Extension Pack', pkg: 'vscode-extension-pack' },
+          { id: 'ext-markdown', label: 'Anytime Markdown', pkg: 'vscode-markdown-extension', icon: 'vscodeExtension' },
+          { id: 'ext-graph', label: 'Anytime Graph', pkg: 'vscode-graph-extension', icon: 'vscodeExtension' },
+          { id: 'ext-trail', label: 'Anytime Trail', pkg: 'vscode-trail-extension', icon: 'vscodeExtension' },
+          { id: 'ext-agent', label: 'Anytime Agent', pkg: 'vscode-agent-extension', icon: 'vscodeExtension' },
+          { id: 'ext-database', label: 'Anytime Database', pkg: 'vscode-database-extension', icon: 'vscodeExtension' },
+          { id: 'ext-history', label: 'Anytime History', pkg: 'vscode-history-extension', icon: 'vscodeExtension' },
+          { id: 'ext-sheet', label: 'Anytime Sheet', pkg: 'vscode-sheet-extension', icon: 'vscodeExtension' },
+          { id: 'ext-pack', label: 'Extension Pack', pkg: 'vscode-extension-pack', icon: 'vscodeExtension' },
         ],
       },
       {
         id: 'client-web',
         labelKey: 'web',
-        nodes: [{ id: 'web-app', label: 'web-app', pkg: 'web-app', accent: true }],
+        nodes: [{ id: 'web-app', label: 'web-app', pkg: 'web-app', accent: true, icon: 'nextjs' }],
       },
       {
         id: 'client-browser',
         labelKey: 'browser',
-        nodes: [{ id: 'browser-extension', label: 'browser-extension', pkg: 'browser-extension' }],
+        nodes: [{ id: 'browser-extension', label: 'browser-extension', pkg: 'browser-extension', icon: 'googleChrome' }],
       },
     ],
   },
@@ -88,11 +95,11 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
         id: 'mcp-servers',
         labelKey: 'mcpServers',
         nodes: [
-          { id: 'mcp-markdown', label: 'mcp-markdown', pkg: 'mcp-markdown' },
-          { id: 'mcp-graph', label: 'mcp-graph', pkg: 'mcp-graph' },
-          { id: 'mcp-trail', label: 'mcp-trail', pkg: 'mcp-trail' },
-          { id: 'mcp-cms', label: 'mcp-cms', pkg: 'mcp-cms' },
-          { id: 'mcp-cms-remote', label: 'mcp-cms-remote', pkg: 'mcp-cms-remote' },
+          { id: 'mcp-markdown', label: 'mcp-markdown', pkg: 'mcp-markdown', icon: 'mcp' },
+          { id: 'mcp-graph', label: 'mcp-graph', pkg: 'mcp-graph', icon: 'mcp' },
+          { id: 'mcp-trail', label: 'mcp-trail', pkg: 'mcp-trail', icon: 'mcp' },
+          { id: 'mcp-cms', label: 'mcp-cms', pkg: 'mcp-cms', icon: 'mcp' },
+          { id: 'mcp-cms-remote', label: 'mcp-cms-remote', pkg: 'mcp-cms-remote', icon: 'mcp' },
         ],
       },
     ],
@@ -161,7 +168,7 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
           { id: 'agent-core', label: 'agent-core', pkg: 'agent-core' },
           { id: 'review-agent', label: 'review-agent', pkg: 'review-agent' },
           { id: 'llm-core', label: 'llm-core', pkg: 'llm-core' },
-          { id: 'ollama-core', label: 'ollama-core', pkg: 'ollama-core' },
+          { id: 'ollama-core', label: 'ollama-core', pkg: 'ollama-core', icon: 'ollama' },
         ],
       },
       {
@@ -169,8 +176,8 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
         labelKey: 'analysis',
         nodes: [
           { id: 'code-analysis-core', label: 'code-analysis-core', pkg: 'code-analysis-core' },
-          { id: 'code-analysis-typescript', label: 'code-analysis-typescript', pkg: 'code-analysis-typescript' },
-          { id: 'code-analysis-python', label: 'code-analysis-python', pkg: 'code-analysis-python' },
+          { id: 'code-analysis-typescript', label: 'code-analysis-typescript', pkg: 'code-analysis-typescript', icon: 'typescript' },
+          { id: 'code-analysis-python', label: 'code-analysis-python', pkg: 'code-analysis-python', icon: 'python' },
         ],
       },
       {
@@ -187,7 +194,7 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
         labelKey: 'foundation',
         nodes: [
           { id: 'ui-core', label: 'ui-core', pkg: 'ui-core' },
-          { id: 'vscode-common', label: 'vscode-common', pkg: 'vscode-common' },
+          { id: 'vscode-common', label: 'vscode-common', pkg: 'vscode-common', icon: 'vscodeExtension' },
         ],
       },
     ],
@@ -202,18 +209,18 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
         id: 'storage-sqlite',
         labelKey: 'sqlite',
         nodes: [
-          { id: 'db-activity', label: 'activity.db' },
-          { id: 'db-caravan-book', label: 'caravan-book.db' },
-          { id: 'db-catalog', label: 'catalog.db' },
+          { id: 'db-activity', label: 'activity.db', icon: 'sqlite' },
+          { id: 'db-caravan-book', label: 'caravan-book.db', icon: 'sqlite' },
+          { id: 'db-catalog', label: 'catalog.db', icon: 'sqlite' },
         ],
       },
       {
         id: 'storage-files',
         labelKey: 'files',
         nodes: [
-          { id: 'file-docs', label: 'docsRoot Markdown' },
-          { id: 'file-tickets', label: '.tickets/*.md' },
-          { id: 'file-lep', label: '.anytime/lep.json' },
+          { id: 'file-docs', label: 'docsRoot Markdown', icon: 'markdown' },
+          { id: 'file-tickets', label: '.tickets/*.md', icon: 'markdown' },
+          { id: 'file-lep', label: '.anytime/lep.json', icon: 'json' },
         ],
       },
     ],
@@ -227,25 +234,25 @@ export const ARCHITECTURE_LAYERS: readonly ArchLayer[] = [
         id: 'external-data',
         labelKey: 'dataPlatform',
         nodes: [
-          { id: 'ext-s3', label: 'Amazon S3' },
-          { id: 'ext-supabase', label: 'Supabase' },
-          { id: 'ext-google-drive', label: 'Google Drive / Docs API' },
+          { id: 'ext-s3', label: 'Amazon S3', icon: 'objectStorage' },
+          { id: 'ext-supabase', label: 'Supabase', icon: 'supabase' },
+          { id: 'ext-google-drive', label: 'Google Drive / Docs API', icon: 'googleDrive' },
         ],
       },
       {
         id: 'external-ai',
         labelKey: 'aiRuntime',
         nodes: [
-          { id: 'ext-ollama', label: 'Ollama' },
-          { id: 'ext-agents', label: 'Claude Code / Codex CLI' },
+          { id: 'ext-ollama', label: 'Ollama', icon: 'ollama' },
+          { id: 'ext-agents', label: 'Claude Code / Codex CLI', icon: 'claude' },
         ],
       },
       {
         id: 'external-hosting',
         labelKey: 'hosting',
         nodes: [
-          { id: 'ext-workers', label: 'Cloudflare Workers' },
-          { id: 'ext-github', label: 'GitHub' },
+          { id: 'ext-workers', label: 'Cloudflare Workers', icon: 'cloudflareWorkers' },
+          { id: 'ext-github', label: 'GitHub', icon: 'github' },
         ],
       },
     ],
