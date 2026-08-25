@@ -4,7 +4,11 @@
 //
 // ArchitectureIcon.tsx が使うアイコンの { hex, path } のみを抽出した軽量データ。
 // simple-icons 全体をバンドルに取り込まないための分離レイヤー。
-// simple-icons は CC0-1.0。各マークの商標は各権利者に帰属する。
+// 各マークの商標は各権利者に帰属する。
+//
+// 次の 1 行は scripts/generate-third-party-notices.mjs が走査する機械可読マーカー。
+// 書式を変えると同梱物のライセンス表記から simple-icons が黙って消えるため注意する。
+// vendored-from: simple-icons@16.17.0 (CC0-1.0) https://github.com/simple-icons/simple-icons
 
 /** simple-icons の 1 アイコン分の最小データ (hex: ブランドカラー / path: 24×24 viewBox の SVG path d 属性)。 */
 export interface SimpleIconData {

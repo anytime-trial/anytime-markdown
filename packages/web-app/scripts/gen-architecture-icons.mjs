@@ -17,11 +17,40 @@
  * hoist された実体（宣言元は @anytime-markdown/trail-activity）に依存する。
  * ceiling: root に simple-icons が居ることが前提で、単独 install した web-app では動かない。
  * upgrade: web-app 単体で配布・CI 実行する必要が出たら devDependencies へ明示する。
+ * 実測 2026-08-25: .github/workflows/ から本スクリプトを起動する経路は無く、手動実行のみ。
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 import * as simpleIcons from 'simple-icons';
+
+const require = createRequire(import.meta.url);
+
+/**
+ * 取り込み元の版数。生成ファイルのヘッダへ刻み、THIRD-PARTY-NOTICES の生成が読み取る。
+ *
+ * Why not: require('simple-icons/package.json') で読まない。simple-icons は exports で
+ * ./package.json を公開しておらず ERR_PACKAGE_PATH_NOT_EXPORTED になる。解決済みの
+ * エントリから上位へ辿って実体の package.json を読む。
+ */
+function resolveSimpleIconsVersion() {
+  let dir = dirname(require.resolve('simple-icons'));
+  for (;;) {
+    const manifest = join(dir, 'package.json');
+    if (existsSync(manifest)) {
+      const { name, version } = JSON.parse(readFileSync(manifest, 'utf8'));
+      if (name === 'simple-icons') return version;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) {
+      throw new Error('[gen-architecture-icons] simple-icons の package.json を解決できませんでした');
+    }
+    dir = parent;
+  }
+}
+
+const simpleIconsVersion = resolveSimpleIconsVersion();
 
 const here = dirname(fileURLToPath(import.meta.url));
 const iconsDir = join(here, '../src/app/[locale]/architecture/icons');
@@ -64,7 +93,11 @@ const out = `// THIS FILE IS GENERATED — DO NOT EDIT BY HAND.
 //
 // ArchitectureIcon.tsx が使うアイコンの { hex, path } のみを抽出した軽量データ。
 // simple-icons 全体をバンドルに取り込まないための分離レイヤー。
-// simple-icons は CC0-1.0。各マークの商標は各権利者に帰属する。
+// 各マークの商標は各権利者に帰属する。
+//
+// 次の 1 行は scripts/generate-third-party-notices.mjs が走査する機械可読マーカー。
+// 書式を変えると同梱物のライセンス表記から simple-icons が黙って消えるため注意する。
+// vendored-from: simple-icons@${simpleIconsVersion} (CC0-1.0) https://github.com/simple-icons/simple-icons
 
 /** simple-icons の 1 アイコン分の最小データ (hex: ブランドカラー / path: 24×24 viewBox の SVG path d 属性)。 */
 export interface SimpleIconData {
