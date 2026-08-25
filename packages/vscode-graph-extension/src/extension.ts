@@ -14,7 +14,7 @@ import { CooccurrenceListProvider } from './providers/CooccurrenceListProvider';
 import { GraphMigrationProvider } from './providers/GraphMigrationProvider';
 import { COOC_FILE_GLOB } from './providers/coocListModel';
 import { McpGraphServerProvider } from './mcp/McpGraphServerProvider';
-import { autoRegisterMcpServerIfMissing, registerMcpRegistrationCommand } from './mcp/mcpRegistrationCommand';
+import { reconcileMcpServerRegistration, registerMcpRegistrationCommand } from './mcp/mcpRegistrationCommand';
 import { GraphLogger } from './utils/GraphLogger';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -60,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 	// Claude Code 向け .mcp.json への登録も activate 時に自動実施する（エントリ不在時のみ追加。
 	// 既存エントリ・パース不能ファイルには触れない）。共通実装が内部で捕捉する。
-	autoRegisterMcpServerIfMissing(extensionDistPath);
+	reconcileMcpServerRegistration(extensionDistPath);
 
 	// ファイルの増減に一覧を追随させる（リネームは delete + create として届く）。
 	// 中身の変更は一覧の見た目に影響しないため onDidChange は購読しない。

@@ -2,7 +2,7 @@ import * as path from 'node:path';
 
 import * as vscode from 'vscode';
 import {
-  autoRegisterMcpServerIfMissing as autoRegisterCommon,
+  reconcileMcpServerRegistration as reconcileCommon,
   registerMcpRegistrationCommand as registerCommandCommon,
   registerMcpServerToJson as registerToJsonCommon,
 } from '@anytime-markdown/vscode-common';
@@ -14,11 +14,10 @@ const SERVER_NAME = 'mcp-markdown';
 const DISPLAY_NAME = 'Anytime Markdown';
 const COMMAND_ID = 'anytime-markdown.registerMcpServer';
 
-function buildMcpServerEntry(extensionDistPath: string, workspaceRoot: string): McpServerEntry {
+function buildMcpServerEntry(extensionDistPath: string): McpServerEntry {
   return {
     command: process.execPath,
     args: [path.join(extensionDistPath, 'mcp-markdown-server.js')],
-    env: { ANYTIME_MARKDOWN_ROOT: workspaceRoot },
   };
 }
 
@@ -26,18 +25,18 @@ function options(extensionDistPath: string): McpJsonRegistrationOptions {
   return {
     serverName: SERVER_NAME,
     displayName: DISPLAY_NAME,
-    buildEntry: (workspaceRoot) => buildMcpServerEntry(extensionDistPath, workspaceRoot),
+    buildEntry: () => buildMcpServerEntry(extensionDistPath),
+    obsoleteEnvKeys: ['ANYTIME_MARKDOWN_ROOT'],
     logger: MarkdownLogger,
   };
 }
 
 /**
- * activate 時の自動登録: `<workspaceRoot>/.mcp.json` に `mcpServers.mcp-markdown` が
- * 無い場合のみ追加する。保守的ポリシー（既存は上書きしない・パース不能は触らない・
- * UI 通知なし）は vscode-common の共通実装が持つ。
+ * activate 時の再登録: `<workspaceRoot>/.mcp.json` の `mcpServers.mcp-markdown` を追加し、
+ * 拡張更新等で陳腐化していれば書き直す。現行環境で解決できるユーザー改変は保持する。
  */
-export function autoRegisterMcpServerIfMissing(extensionDistPath: string): void {
-  autoRegisterCommon(options(extensionDistPath));
+export function reconcileMcpServerRegistration(extensionDistPath: string): void {
+  reconcileCommon(options(extensionDistPath));
 }
 
 export function registerMcpRegistrationCommand(

@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import {
-  autoRegisterMcpServerIfMissing,
+  reconcileMcpServerRegistration,
   registerMcpServerToJson,
 } from '../mcpJsonRegistration';
 import type { McpJsonRegistrationOptions, McpRegistrationLogger } from '../mcpJsonRegistration';
@@ -59,9 +59,9 @@ describe('mcpJsonRegistration', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  describe('autoRegisterMcpServerIfMissing', () => {
+  describe('reconcileMcpServerRegistration', () => {
     test('ファイル不在: エントリを作成する', () => {
-      autoRegisterMcpServerIfMissing(options);
+      reconcileMcpServerRegistration(options);
       const parsed = JSON.parse(readMcpJson());
       expect(parsed.mcpServers['mcp-test']).toEqual({
         command: '/usr/bin/node',
@@ -72,7 +72,7 @@ describe('mcpJsonRegistration', () => {
 
     test('他サーバーの設定は保持する', () => {
       fs.writeFileSync(mcpJson(), JSON.stringify({ mcpServers: { other: { command: 'x', args: [] } } }));
-      autoRegisterMcpServerIfMissing(options);
+      reconcileMcpServerRegistration(options);
       const parsed = JSON.parse(readMcpJson());
       expect(parsed.mcpServers.other).toEqual({ command: 'x', args: [] });
       expect(parsed.mcpServers['mcp-test']).toBeDefined();
@@ -85,15 +85,15 @@ describe('mcpJsonRegistration', () => {
         2,
       );
       fs.writeFileSync(mcpJson(), custom);
-      autoRegisterMcpServerIfMissing(options);
+      reconcileMcpServerRegistration(options);
       // バイト単位で不変であることまで見る（整形し直しも「触った」に含める）
       expect(readMcpJson()).toBe(custom);
-      expect(logger.lines.some((l) => l.includes('skip (exists)'))).toBe(true);
+      expect(logger.lines.some((l) => l.includes('WARN') && l.includes('skip (customized)'))).toBe(true);
     });
 
     test('パース不能 JSON: 書き換えない・退避もしない', () => {
       fs.writeFileSync(mcpJson(), '{ this is not json');
-      autoRegisterMcpServerIfMissing(options);
+      reconcileMcpServerRegistration(options);
       expect(readMcpJson()).toBe('{ this is not json');
       expect(fs.readdirSync(dir)).toEqual(['.mcp.json']);
       expect(logger.lines.some((l) => l.includes('skip (unparseable)'))).toBe(true);
@@ -101,15 +101,122 @@ describe('mcpJsonRegistration', () => {
 
     test('ワークスペース未オープン: 何も書かない', () => {
       mockVscode.workspace.workspaceFolders = undefined;
-      autoRegisterMcpServerIfMissing(options);
+      reconcileMcpServerRegistration(options);
       expect(fs.existsSync(mcpJson())).toBe(false);
     });
 
     test('UI 通知を出さない（自動経路のポリシー）', () => {
-      autoRegisterMcpServerIfMissing(options);
+      reconcileMcpServerRegistration(options);
       expect(mockVscode.window.showInformationMessage).not.toHaveBeenCalled();
       expect(mockVscode.window.showWarningMessage).not.toHaveBeenCalled();
       expect(mockVscode.window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
+    test('陳腐化したエントリを更新し、理由と Claude Code 再起動を通知する', () => {
+      fs.writeFileSync(
+        mcpJson(),
+        JSON.stringify({
+          mcpServers: {
+            'mcp-test': {
+              command: '/usr/bin/node',
+              args: ['/ext/old/server.js'],
+              env: { ANYTIME_TEST_ROOT: dir },
+            },
+          },
+        }),
+      );
+      reconcileMcpServerRegistration(options);
+      expect(JSON.parse(readMcpJson()).mcpServers['mcp-test'].args).toEqual([
+        '/ext/dist/server.js',
+      ]);
+      expect(mockVscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+      const message = mockVscode.window.showInformationMessage.mock.calls[0][0] as string;
+      expect(message).toContain('args-missing:/ext/old/server.js');
+      expect(message).toContain('Claude Code');
+      expect(message).toContain('再起動');
+    });
+
+    test('customized では書き込まない', () => {
+      const custom = JSON.stringify({
+        mcpServers: { 'mcp-test': { command: 'npx', args: ['tsx', 'src/server.ts'] } },
+      });
+      fs.writeFileSync(mcpJson(), custom);
+      reconcileMcpServerRegistration(options);
+      expect(readMcpJson()).toBe(custom);
+      expect(mockVscode.window.showInformationMessage).not.toHaveBeenCalled();
+    });
+
+    test('書き込み直前の再読込を基に書き、同時追加された他サーバーを保持する', () => {
+      fs.writeFileSync(mcpJson(), JSON.stringify({ mcpServers: {} }));
+      let built = false;
+      reconcileMcpServerRegistration({
+        ...options,
+        buildEntry: (workspaceRoot) => {
+          if (!built) {
+            built = true;
+            fs.writeFileSync(
+              mcpJson(),
+              JSON.stringify({
+                mcpServers: { concurrent: { command: 'npx', args: ['other-server'] } },
+              }),
+            );
+          }
+          return {
+            command: '/usr/bin/node',
+            args: ['/ext/dist/server.js'],
+            env: { ANYTIME_TEST_ROOT: workspaceRoot },
+          };
+        },
+      });
+      const parsed = JSON.parse(readMcpJson());
+      expect(parsed.mcpServers.concurrent).toEqual({ command: 'npx', args: ['other-server'] });
+      expect(parsed.mcpServers['mcp-test']).toBeDefined();
+    });
+
+    test('更新時も利用者の未知フィールド・管理外 env を保ち、noticeDetail を通知へ付ける', () => {
+      fs.writeFileSync(
+        mcpJson(),
+        JSON.stringify({
+          mcpServers: {
+            'mcp-test': {
+              command: '/usr/bin/node',
+              args: ['/ext/old/server.js'],
+              cwd: dir,
+              env: { ANYTIME_TEST_ROOT: dir, ANYTIME_TEST_DOC_DB: '/ws/catalog.db' },
+            },
+          },
+        }),
+      );
+      reconcileMcpServerRegistration({ ...options, noticeDetail: () => ' (port 19841)' });
+      expect(JSON.parse(readMcpJson()).mcpServers['mcp-test']).toEqual({
+        command: '/usr/bin/node',
+        args: ['/ext/dist/server.js'],
+        cwd: dir,
+        env: { ANYTIME_TEST_ROOT: dir, ANYTIME_TEST_DOC_DB: '/ws/catalog.db' },
+      });
+      const message = mockVscode.window.showInformationMessage.mock.calls[0][0] as string;
+      expect(message).toContain('(port 19841)');
+    });
+
+    test('廃止 env の除去だけが理由なら command / args は書き換えない', () => {
+      fs.writeFileSync(
+        mcpJson(),
+        JSON.stringify({
+          mcpServers: {
+            'mcp-test': {
+              command: 'npx',
+              args: ['tsx', 'src/server.ts'],
+              env: { ANYTIME_TEST_ROOT: dir, OBSOLETE_KEY: 'x' },
+            },
+          },
+        }),
+      );
+      reconcileMcpServerRegistration({ ...options, obsoleteEnvKeys: ['OBSOLETE_KEY'] });
+      expect(JSON.parse(readMcpJson()).mcpServers['mcp-test']).toEqual({
+        command: 'npx',
+        args: ['tsx', 'src/server.ts'],
+        env: { ANYTIME_TEST_ROOT: dir },
+      });
     });
   });
 
