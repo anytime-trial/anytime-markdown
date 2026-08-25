@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { writeFileAtomic } from './atomicWrite';
-import { reconcileMcpServerEntry } from './mcpJsonMerge';
+import { formatStaleReason, reconcileMcpServerEntry } from './mcpJsonMerge';
 import type { McpServerEntry } from './mcpJsonMerge';
 
 const MCP_JSON_FILENAME = '.mcp.json';
@@ -65,7 +65,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * - UI 通知は陳腐化したエントリを更新したときだけ出す。失敗しても activate を阻害しない
  */
 export function reconcileMcpServerRegistration(options: McpJsonRegistrationOptions): void {
-  const { serverName, displayName, buildEntry, logger, managedEnvKeys, obsoleteEnvKeys } = options;
+  const { serverName, displayName, buildEntry, logger, managedEnvKeys, obsoleteEnvKeys, noticeDetail, logDetail } =
+    options;
   try {
     const workspaceRoot = workspaceRootOrNull();
     if (workspaceRoot === null) return;
@@ -84,7 +85,11 @@ export function reconcileMcpServerRegistration(options: McpJsonRegistrationOptio
       return;
     }
 
-    // 複数拡張の同時 activate による read-modify-write 競合を避けるため、直前に一度だけ再評価する。
+    // SHORTCUT: 複数拡張の同時 activate による read-modify-write 競合を、書き込み直前の
+    // 再読込 1 回で縮める. ceiling: 再読込から rename までの窓は残り、完全な排他ではない
+    // （最後の書き手が勝つ。ただし消えたエントリは次の activate で再び追加される）.
+    // upgrade: 同一ワークスペースを複数の VS Code ウィンドウで開く運用が常態化したら
+    // `.mcp.json` への O_EXCL ロック方式へ移行する.
     const latestRaw = fs.existsSync(mcpJsonPath) ? fs.readFileSync(mcpJsonPath, 'utf-8') : null;
     if (latestRaw !== raw) {
       result = reconcileMcpServerEntry(latestRaw, serverName, entry, policy);
@@ -101,12 +106,21 @@ export function reconcileMcpServerRegistration(options: McpJsonRegistrationOptio
     );
     if (!written) return;
     logger.info(
-      `[mcp-register] auto: ${result.action === 'add' ? 'added' : 'updated'} ${serverName} in ${mcpJsonPath}`,
+      `[mcp-register] auto: ${result.action === 'add' ? 'added' : 'updated'} ${serverName} in ${mcpJsonPath}${logDetail ? logDetail() : ''}`,
     );
     if (result.action === 'update') {
-      vscode.window.showInformationMessage(
-        `${displayName}: ${serverName} の陳腐化した設定を更新しました (${result.staleReasons.join(', ')})。反映には Claude Code の再起動が必要です。`,
-      );
+      const reasons = result.staleReasons.map(formatStaleReason).join(', ');
+      // VS Code はこの Thenable を await しない。reject を捨てると未処理 rejection になり、
+      // 「activate を阻害しない」契約が同期 try/catch だけでは担保できなくなる。
+      void vscode.window
+        .showInformationMessage(
+          `${displayName}: ${serverName} の陳腐化した設定を更新しました${noticeDetail ? noticeDetail() : ''} (${reasons})。反映には Claude Code の再起動が必要です。`,
+        )
+        .then(undefined, (err: unknown) => {
+          logger.warn(
+            `[mcp-register] auto: 更新通知の表示に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
     }
   } catch (err) {
     // 自動経路は activate を阻害しない（登録は手動コマンドで再試行可能）

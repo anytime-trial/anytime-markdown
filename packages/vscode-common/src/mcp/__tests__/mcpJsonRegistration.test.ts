@@ -172,6 +172,52 @@ describe('mcpJsonRegistration', () => {
       expect(parsed.mcpServers.concurrent).toEqual({ command: 'npx', args: ['other-server'] });
       expect(parsed.mcpServers['mcp-test']).toBeDefined();
     });
+
+    test('更新時も利用者の未知フィールド・管理外 env を保ち、noticeDetail を通知へ付ける', () => {
+      fs.writeFileSync(
+        mcpJson(),
+        JSON.stringify({
+          mcpServers: {
+            'mcp-test': {
+              command: '/usr/bin/node',
+              args: ['/ext/old/server.js'],
+              cwd: dir,
+              env: { ANYTIME_TEST_ROOT: dir, ANYTIME_TEST_DOC_DB: '/ws/catalog.db' },
+            },
+          },
+        }),
+      );
+      reconcileMcpServerRegistration({ ...options, noticeDetail: () => ' (port 19841)' });
+      expect(JSON.parse(readMcpJson()).mcpServers['mcp-test']).toEqual({
+        command: '/usr/bin/node',
+        args: ['/ext/dist/server.js'],
+        cwd: dir,
+        env: { ANYTIME_TEST_ROOT: dir, ANYTIME_TEST_DOC_DB: '/ws/catalog.db' },
+      });
+      const message = mockVscode.window.showInformationMessage.mock.calls[0][0] as string;
+      expect(message).toContain('(port 19841)');
+    });
+
+    test('廃止 env の除去だけが理由なら command / args は書き換えない', () => {
+      fs.writeFileSync(
+        mcpJson(),
+        JSON.stringify({
+          mcpServers: {
+            'mcp-test': {
+              command: 'npx',
+              args: ['tsx', 'src/server.ts'],
+              env: { ANYTIME_TEST_ROOT: dir, OBSOLETE_KEY: 'x' },
+            },
+          },
+        }),
+      );
+      reconcileMcpServerRegistration({ ...options, obsoleteEnvKeys: ['OBSOLETE_KEY'] });
+      expect(JSON.parse(readMcpJson()).mcpServers['mcp-test']).toEqual({
+        command: 'npx',
+        args: ['tsx', 'src/server.ts'],
+        env: { ANYTIME_TEST_ROOT: dir },
+      });
+    });
   });
 
   describe('registerMcpServerToJson', () => {

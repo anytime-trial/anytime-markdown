@@ -13,8 +13,8 @@ export { CodexSessionScanner } from './codex/CodexSessionScanner';
 export type { CodexSessionScannerOptions } from './codex/CodexSessionScanner';
 export { extractCodexRateLimits, extractCodexTotalTokens } from './codex/parseCodexRollout';
 export type { CodexRateLimitRow, CodexRateLimitSnapshot, CodexUsageSeverity } from './codex/parseCodexRollout';
-export { detectStaleReasons, reconcileMcpServerEntry } from './mcp/mcpJsonMerge';
-export type { McpServerEntry, ReconcileResult, StalenessPolicy } from './mcp/mcpJsonMerge';
+export { detectStaleReasons, formatStaleReason, reconcileMcpServerEntry } from './mcp/mcpJsonMerge';
+export type { McpServerEntry, ReconcileResult, StaleReason, StalenessPolicy } from './mcp/mcpJsonMerge';
 export { writeFileAtomic } from './mcp/atomicWrite';
 export {
   reconcileMcpServerRegistration,

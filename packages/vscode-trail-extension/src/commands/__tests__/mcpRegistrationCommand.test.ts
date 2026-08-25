@@ -57,7 +57,7 @@ describe('trail mcpRegistrationCommand: reconcileMcpServerRegistration', () => {
         expect(parsed.mcpServers['mcp-trail'].env.TRAIL_SERVER_URL).toBe('http://localhost:20000');
     });
 
-    test('既存エントリ: ポートを手で変えた構成を上書きしない', () => {
+    test('既存エントリ: 現行環境で解決でき管理 env も一致するなら 1 バイトも書き換えない', () => {
         const custom = JSON.stringify(
             {
                 mcpServers: {
@@ -84,6 +84,34 @@ describe('trail mcpRegistrationCommand: reconcileMcpServerRegistration', () => {
         reconcileMcpServerRegistration(DIST);
         expect(fs.readFileSync(mcpJson(), 'utf-8')).toBe('not json');
         expect(fs.readdirSync(dir)).toEqual(['.mcp.json']);
+    });
+
+    // 回帰: TRAIL_WORKSPACE_PATH は本変更で新設したキーなので、既存利用者のエントリは
+    // 例外なく env-drift を起こす。ここで全置換していると、ソース直起動へのカスタムと
+    // 手で変えたポートが拡張更新の初回 activate で消える（2026-08-25 の相互レビュー error）。
+    test('新設の管理 env が既存に無い場合、そのキーだけを足して他は保つ', () => {
+        const custom = JSON.stringify(
+            {
+                mcpServers: {
+                    'mcp-trail': {
+                        command: 'npx',
+                        args: ['tsx', 'packages/mcp-trail/src/stdio.ts'],
+                        cwd: '/ws',
+                        env: { TRAIL_SERVER_URL: 'http://localhost:30000' },
+                    },
+                },
+            },
+            null,
+            2,
+        );
+        fs.writeFileSync(mcpJson(), custom);
+        reconcileMcpServerRegistration(DIST);
+        expect(JSON.parse(fs.readFileSync(mcpJson(), 'utf-8')).mcpServers['mcp-trail']).toEqual({
+            command: 'npx',
+            args: ['tsx', 'packages/mcp-trail/src/stdio.ts'],
+            cwd: '/ws',
+            env: { TRAIL_SERVER_URL: 'http://localhost:30000', TRAIL_WORKSPACE_PATH: dir },
+        });
     });
 
     test('自動経路は UI 通知を出さない', () => {
