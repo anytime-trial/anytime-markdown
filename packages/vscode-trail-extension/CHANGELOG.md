@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-08-25
+
+### Fixed
+
+- MCP registration command: `.mcp.json` entries are now reconciled (freshness-checked re-registration) instead of being registered only when absent, so a stale entry left by an older extension version is refreshed.
+- MCP registration command: reconciliation updates only the fields it owns instead of replacing the whole entry, so user-added fields (e.g. `cwd`) on an existing entry survive.
+
+### Trail Core (trail-activity / trail-server / trail-viewer)
+
+- No changes.
+
 ## [1.5.0] - 2026-08-22
 
 ### Changed

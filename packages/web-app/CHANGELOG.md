@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-08-25
+
+### Added
+
+- New `/architecture` page: a system architecture diagram of the anytime-markdown workspace, drawn as layer bands with flow connectors from a declarative model (`architectureModel.ts`), localized in ja/en.
+
+### Changed
+
+- Press page colophon now links to `/architecture`.
+
 ## [0.48.1] - 2026-08-20
 
 ### Changed
