@@ -27,6 +27,7 @@
 ## Claude 固有のドキュメント参照
 
 - UI / 画面コンポーネントの実装・修正時は `<docsRoot>/spec/10.web-app/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
+- **`design.md` が扱っていない UI 領域のフォールバック**: 本プロジェクトは `<docsRoot>/spec/10.web-app/design.md` を正本として持つため、global `~/.claude/CLAUDE.md` の shadcn/ui フォールバックは web-app には適用しない。design.md が対象としない UI（VS Code 拡張の webview 等、デザインシステム仕様を持たないパッケージ）を新規に起こす場合のみ、global スキル `shadcn-ui-fallback`（shadcn/ui https://ui.shadcn.com/ 準拠）を既定として使う。**design.md のトークンを流用する画面では常に design.md が優先し、2 系統を混在させない**。
 - worktree とブランチ切替の詳細判断: `<docsRoot>/tech/branch/worktree-vs-branch.ja.md`。
 
 ## Trail DB
