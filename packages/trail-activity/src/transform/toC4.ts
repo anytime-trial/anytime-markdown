@@ -66,6 +66,27 @@ type FileClassification = {
   componentSet: Set<string>;
 };
 
+type PackageAndComponent = {
+  pkg: string;
+  comp: string | undefined;
+};
+
+/** 非モノレポではトップディレクトリを Container として一段剥がす。 */
+function classifyNonMonorepoFile(filePath: string, projectRoot: string): PackageAndComponent {
+  const topDir = /^([^/]+)\/(.+)$/.exec(filePath);
+  if (topDir && topDir[1] !== 'src') {
+    return {
+      pkg: topDir[1],
+      comp: extractComponentName(topDir[2]),
+    };
+  }
+
+  return {
+    pkg: resolvePackageName(filePath, projectRoot),
+    comp: extractComponentName(filePath),
+  };
+}
+
 /** Phase 1: ファイルノードをパッケージ/コンポーネントに分類する。 */
 function classifyFiles(graph: TrailGraph, monorepo: boolean, projectRoot: string): FileClassification {
   const fileToPackage = new Map<string, string>();
@@ -77,11 +98,15 @@ function classifyFiles(graph: TrailGraph, monorepo: boolean, projectRoot: string
     if (node.type !== 'file') continue;
     if (monorepo && !/^packages\/[^/]+\//.test(node.filePath)) continue;
 
-    const pkg = resolvePackageName(node.filePath, projectRoot);
+    const { pkg, comp } = monorepo
+      ? {
+        pkg: resolvePackageName(node.filePath, projectRoot),
+        comp: extractComponentName(node.filePath),
+      }
+      : classifyNonMonorepoFile(node.filePath, projectRoot);
     fileToPackage.set(node.id, pkg);
     packageSet.add(pkg);
 
-    const comp = extractComponentName(node.filePath);
     if (comp) {
       const compKey = `${pkg}/${comp}`;
       fileToComponent.set(node.id, compKey);
@@ -117,21 +142,18 @@ function buildCodeElements(
 function buildElements(
   graph: TrailGraph,
   classification: FileClassification,
-  monorepo: boolean,
-  systemBoundaryId: string | undefined,
+  systemBoundaryId: string,
   projectRoot: string,
 ): C4Element[] {
   const { fileToPackage, fileToComponent, packageSet, componentSet } = classification;
   const elements: C4Element[] = [];
 
-  // L1: System Boundary（モノレポのみ）
-  if (monorepo && systemBoundaryId) {
-    elements.push({
-      id: systemBoundaryId,
-      type: 'system',
-      name: path.basename(projectRoot),
-    });
-  }
+  // L1: System Boundary
+  elements.push({
+    id: systemBoundaryId,
+    type: 'system',
+    name: path.basename(projectRoot),
+  });
 
   // L2: Container 要素
   for (const pkgName of packageSet) {
@@ -215,10 +237,10 @@ function buildRelationships(
 export function trailToC4(graph: TrailGraph): C4Model {
   const projectRoot = graph.metadata.projectRoot;
   const monorepo = isMonorepoAnalysis(graph);
-  const systemBoundaryId = monorepo ? `sys_${path.basename(projectRoot)}` : undefined;
+  const systemBoundaryId = `sys_${path.basename(projectRoot)}`;
 
   const classification = classifyFiles(graph, monorepo, projectRoot);
-  const elements = buildElements(graph, classification, monorepo, systemBoundaryId, projectRoot);
+  const elements = buildElements(graph, classification, systemBoundaryId, projectRoot);
   const relationships = buildRelationships(
     graph,
     classification.fileToPackage,
