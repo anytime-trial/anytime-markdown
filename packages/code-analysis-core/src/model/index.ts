@@ -7,3 +7,4 @@ export type {
   TrailGraphMetadata,
   TrailGraph,
 } from './types';
+export { rebaseTrailGraph } from './rebaseTrailGraph';
