@@ -1,6 +1,14 @@
+import path from 'node:path';
+
 import { analyzeWithProgram } from '@anytime-markdown/trail-activity/analyze';
 import { loadAnalyzeExclude } from '@anytime-markdown/trail-activity/analyzeExclude';
-import { classifyPythonFiles } from '@anytime-markdown/code-analysis-python';
+import {
+  classifyPythonFiles,
+  discoverPythonFiles,
+  PythonLanguageAnalyzer,
+} from '@anytime-markdown/code-analysis-python';
+import { mergeTrailGraphs } from '@anytime-markdown/code-analysis-core';
+import { rebaseTrailGraph } from '@anytime-markdown/code-analysis-core/model';
 import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
 import { computeImportance } from './computeImportance';
 import type { AnalyzeChildRequest, AnalyzeComputeResult, DecisionComment } from './analyzeChildProtocol';
@@ -122,8 +130,29 @@ export async function computeAnalysis(
     decisionComments = await scanDecisionCommentsSafely(program, analysisRoot, warnings);
   }
 
+  const relativeTsRoot = path.relative(analysisRoot, path.dirname(tsconfigPath));
+  const tsPrefix = relativeTsRoot.split(path.sep).join('/');
+  let resultGraph = graph;
+  if (tsPrefix === '..' || tsPrefix.startsWith('../')) {
+    warnings.push(`tsconfig root is outside analysis root; graph rebase skipped: ${tsPrefix}`);
+  } else {
+    resultGraph = rebaseTrailGraph(graph, tsPrefix, analysisRoot);
+  }
+
+  const pythonFiles = discoverPythonFiles(analysisRoot, exclude);
+  if (pythonFiles.length > 0) {
+    try {
+      const analyzer = new PythonLanguageAnalyzer(pythonWasmPath);
+      await analyzer.init();
+      const pyGraph = analyzer.analyze({ projectRoot: analysisRoot, exclude });
+      resultGraph = mergeTrailGraphs([resultGraph, pyGraph], analysisRoot);
+    } catch (err) {
+      warnings.push(`python graph failed: ${formatFailure(err)}`);
+    }
+  }
+
   return {
-    graph,
+    graph: resultGraph,
     scored: acc.scored,
     lineCountByFile: [...acc.lineCountByFile.entries()],
     categoryByFile: [...categoryByFile.entries()],
