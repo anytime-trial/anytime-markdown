@@ -25,6 +25,7 @@ import { ProgressRule } from './components/ProgressRule';
 import { PullQuote } from './components/PullQuote';
 import { SpotifyCharts } from './components/SpotifyCharts';
 import { Ticker } from './components/Ticker';
+import { TravelApp } from './components/TravelApp';
 import { WeatherForecast } from './components/WeatherForecast';
 import { bodoni, jetbrains, shippori, yujiBoku } from './fonts';
 import styles from './press.module.css';
@@ -177,6 +178,7 @@ export function PressBody() {
       <PullQuote />
       <PressReports />
       <GithubTrending />
+      <TravelApp />
       <SpotifyCharts />
       <PressDocsSection />
       <WeatherForecast />

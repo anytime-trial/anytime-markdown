@@ -2262,3 +2262,161 @@
         animation: none;
     }
 }
+
+/* ── Travel app (街道マップ) ────────────────────────────────── */
+
+.travel {
+    padding: 48px var(--gutter);
+    border-bottom: var(--rule-bold) solid var(--ink);
+}
+
+.travelHeader {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    border-bottom: var(--rule-thin) solid var(--ink);
+    padding-bottom: 10px;
+    margin-bottom: 28px;
+}
+
+.travelLabel {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+    white-space: nowrap;
+}
+
+.travelHeading {
+    font-family: var(--font-display);
+    /* --fs-section は現状どこにも定義がなく、隣の GitHub Trending 見出しは h2 既定（1.5em）で
+       描画されている。並びの見た目を合わせるため同じ値をフォールバックとして明示する */
+    font-size: var(--fs-section, 1.5em);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--ink);
+    flex: 1;
+}
+
+.travelPoweredBy {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    white-space: nowrap;
+}
+
+/* 狭幅では見出しが label と URL に挟まれて 1 文字幅まで潰れるため、行を分ける */
+@media (max-width: 700px) {
+    .travelHeader {
+        flex-wrap: wrap;
+        gap: 6px 12px;
+    }
+
+    .travelHeading {
+        flex: 1 1 100%;
+    }
+}
+
+.travelBody {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .travelBody {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+}
+
+.travelPreviewStack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.travelPreview {
+    border: var(--rule-thin) solid var(--ink);
+    background: var(--paper);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.travelFrameBody {
+    height: clamp(320px, 46vh, 560px);
+}
+
+.travelIframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.travelPreviewNote {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-light);
+}
+
+.travelMain {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.travelLede {
+    margin: 0;
+    font-size: var(--fs-caption);
+    line-height: 1.8;
+    color: var(--ink);
+}
+
+.travelList {
+    margin: 0;
+    padding: 0;
+    border-top: var(--rule-thin) solid var(--ink);
+}
+
+.travelListItem {
+    padding: 12px 0;
+    border-bottom: var(--rule-thin) solid var(--ink-light);
+}
+
+.travelTerm {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+    margin: 0 0 4px;
+}
+
+.travelDesc {
+    margin: 0;
+    font-size: var(--fs-caption);
+    line-height: 1.7;
+    color: var(--ink);
+}
+
+.travelActions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.travelCredit {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    line-height: 1.6;
+    color: var(--ink-light);
+}
