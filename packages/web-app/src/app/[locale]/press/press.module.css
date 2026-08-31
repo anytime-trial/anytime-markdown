@@ -2290,9 +2290,11 @@
 
 .travelHeading {
     font-family: var(--font-display);
-    /* --fs-section は現状どこにも定義がなく、隣の GitHub Trending 見出しは h2 既定（1.5em）で
-       描画されている。並びの見た目を合わせるため同じ値をフォールバックとして明示する */
-    font-size: var(--fs-section, 1.5em);
+    /* Why not フォールバック値: --fs-section は未定義で、隣接セクションの見出しは宣言が
+       invalid at computed-value time となり本文サイズを継承している。ここだけ既定値を
+       与えると新セクションの見出しだけが大きくなるため、同じ未解決状態に揃える
+       （トークン定義は既存 3 箇所と同時に直す別件） */
+    font-size: var(--fs-section);
     font-weight: 700;
     letter-spacing: -0.01em;
     margin: 0;
@@ -2348,7 +2350,7 @@
     flex-direction: column;
 }
 
-.travelFrameBody {
+.travelPreviewBody {
     height: clamp(320px, 46vh, 560px);
 }
 
@@ -2363,7 +2365,9 @@
     margin: 0;
     font-family: var(--font-mono);
     font-size: var(--fs-footnote);
-    color: var(--ink-light);
+    /* プレビューを触れない理由を伝える唯一の可視テキスト。ダークで --ink-light は
+       約 3.1:1 と AA 未達のため、装飾扱いのクレジットより 1 段濃いトークンを使う */
+    color: var(--ink-faded);
 }
 
 .travelMain {

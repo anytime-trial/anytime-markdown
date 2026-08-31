@@ -136,8 +136,6 @@
   "travelApp": {
     "label": "TRAVEL · HIGHWAYS",
     "heading": "Kaido Map",
-    "poweredBy": "travel.anytime-trial.com",
-    "frameTitle": "travel.anytime-trial.com",
     "previewTitle": "Preview of the Kaido Map app",
     "previewNote": "The preview is display-only — open the app to move the map.",
     "lede": "A map app for tracing nine old Japanese highways — the Tokaido, the Nakasendo, the Kumano Kodo and more — with post towns, milestones and an elevation profile. Built to read the terrain and the spacing of a road, not the distance you walked.",

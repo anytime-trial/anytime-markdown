@@ -136,8 +136,6 @@
   "travelApp": {
     "label": "TRAVEL · 街道",
     "heading": "街道マップ",
-    "poweredBy": "travel.anytime-trial.com",
-    "frameTitle": "travel.anytime-trial.com",
     "previewTitle": "街道マップのプレビュー",
     "previewNote": "プレビューは表示のみ。地図を動かすにはアプリを開く。",
     "lede": "旧東海道・旧中山道・熊野古道など 9 本の街道を、宿場と一里塚、標高プロファイルつきで辿る地図アプリ。歩いた距離ではなく、道そのものの起伏と間合いを読むために作った。",

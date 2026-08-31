@@ -7,6 +7,8 @@ import { TRAFFIC_LIGHT_COLORS } from './constants';
 
 /** 紹介対象アプリ。ランディングからの導線はトップ 1 本に絞る */
 const TRAVEL_APP_URL = 'https://travel.anytime-trial.com/';
+/** 見出し脇と枠の URL 表示。翻訳へ直書きするとドメイン変更時に取りこぼす */
+const TRAVEL_APP_HOST = new URL(TRAVEL_APP_URL).host;
 
 const FEATURE_KEYS = ['feature1', 'feature2', 'feature3'] as const;
 
@@ -25,7 +27,7 @@ export function TravelApp() {
             <div className={styles.travelHeader}>
                 <span className={styles.travelLabel}>{t('label')}</span>
                 <h2 className={styles.travelHeading}>{t('heading')}</h2>
-                <span className={styles.travelPoweredBy}>{t('poweredBy')}</span>
+                <span className={styles.travelPoweredBy}>{TRAVEL_APP_HOST}</span>
             </div>
 
             <div className={styles.travelBody}>
@@ -40,16 +42,23 @@ export function TravelApp() {
                                     aria-hidden="true"
                                 />
                             ))}
-                            <span className={styles.trailFrameTitle}>{t('frameTitle')}</span>
+                            <span className={styles.trailFrameTitle}>{TRAVEL_APP_HOST}</span>
                         </div>
                         {/* inert: プレビュー内の地図へフォーカス・ホイールが吸われないようにする */}
-                        <div className={styles.travelFrameBody} inert>
+                        <div className={styles.travelPreviewBody} inert>
+                            {/* sandbox: 地図（スクリプトと自オリジンのストレージ）だけを許可し、
+                                埋め込み側からのトップレベル遷移・ポップアップ・フォーム送信を落とす。
+                                allow-same-origin は埋め込み文書に自分のオリジンを保たせるだけで、
+                                クロスオリジンの本ケースで親の権限へ昇格することはない。
+                                副作用として埋め込み側の Service Worker 登録は失敗するが、
+                                オフラインキャッシュはプレビュー用途に不要なので許容する */}
                             <iframe
                                 className={styles.travelIframe}
                                 src={TRAVEL_APP_URL}
                                 title={t('previewTitle')}
                                 loading="lazy"
-                                referrerPolicy="no-referrer-when-downgrade"
+                                sandbox="allow-scripts allow-same-origin"
+                                referrerPolicy="no-referrer"
                             />
                         </div>
                     </div>
