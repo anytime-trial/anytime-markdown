@@ -169,6 +169,9 @@ describe("proxy", () => {
       expect(csp).toContain("https://open.spotify.com");
       expect(csp).toContain("https://platform.twitter.com");
       expect(csp).toContain("https://viewer.diagrams.net");
+      // ランディングの街道マップ紹介欄が本番サイトを iframe で埋め込むため、
+      // frame-src から外れると欄が空白のまま描画される（CSP 違反は画面に出ない）
+      expect(csp).toContain("https://travel.anytime-trial.com");
       expect(csp).toContain("object-src 'none'");
     });
   });
