@@ -8,6 +8,7 @@
     "navMarkdown": "Markdown",
     "navTrail": "Trail",
     "navTickets": "Ticket",
+    "navArchitecture": "構成図",
     "localeAria": "Switch to English",
     "themeAria": "Toggle theme mode",
     "themeTitle": "Toggle mode"
@@ -132,6 +133,21 @@
     "labelWeekly": "WEEKLY",
     "labelMonthly": "MONTHLY"
   },
+  "travelApp": {
+    "label": "TRAVEL · 街道",
+    "heading": "街道マップ",
+    "previewTitle": "街道マップのプレビュー",
+    "previewNote": "プレビューは表示のみ。地図を動かすにはアプリを開く。",
+    "lede": "旧東海道・旧中山道・熊野古道など 9 本の街道を、宿場と一里塚、標高プロファイルつきで辿る地図アプリ。歩いた距離ではなく、道そのものの起伏と間合いを読むために作った。",
+    "feature1Head": "9 本の街道",
+    "feature1Body": "旧東海道・旧中山道・京街道・西国街道・東高野街道・西高野街道・高野街道・熊野古道 紀伊路・中辺路。東海道は五十三次の宿場を宿間距離つきで並べる。",
+    "feature2Head": "標高プロファイル",
+    "feature2Body": "国土地理院の標高タイル（DEM10B）から起伏を描き、宿場の位置を重ねる。再生すると距離と標高が道筋に沿って進む。",
+    "feature3Head": "パノラマとフォトマップ",
+    "feature3Body": "街道マップのほかに、撮った写真を地図へ落とすフォトマップと、合い言葉で開くパノラマギャラリーを備える。",
+    "cta": "アプリを開く",
+    "credit": "標高: 国土地理院 標高タイル（DEM10B） / 経路: © OpenStreetMap contributors (ODbL)"
+  },
   "pressDocs": {
     "label": "DOCS · ドキュメント",
     "heading": "ドキュメント"
@@ -165,7 +181,6 @@
     "edit": "Edit",
     "onlineEditor": "Anytime Markdown",
     "trailArchitecture": "Anytime Trail · architecture",
-    "systemArchitecture": "システム構成図",
     "releaseTimeline": "Claude Code リリース年表",
     "github": "Github",
     "foldCopy": "© 2026 Kiyotaka Ueda featuring Claude Code"

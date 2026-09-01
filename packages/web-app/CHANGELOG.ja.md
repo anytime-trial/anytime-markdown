@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-09-01
+
+### 追加
+
+- `/architecture`: 外部サービス層へ S3・Google Drive を追加し、画面への導線をヘッダへ移した。
+- `/architecture`: ノードへブランド・技術アイコンを付与した。ブランドマーク 14 種は simple-icons（CC0-1.0）から必要分のみを生成モジュールへ取り込み（パッケージ全体はバンドルしない）、`currentColor` の `aria-hidden` 装飾として描く。ブランドカラーを使わないため GitHub・Ollama のような暗色マークもダークモードで沈まない。simple-icons からマークが削除された Amazon S3・VS Code は、デザインシステム §8 が既定とする MUI の意味アイコンで代替する。
+- Press ランディングページ: GITHUB · トレンドの直下へ街道マップ（travel.anytime-trial.com）の紹介欄を追加した。左は本番サイトの live iframe プレビュー（inert・sandbox 付き）、右は説明と「アプリを開く」CTA。プレビュー先ドメインを CSP の `frame-src` へ追加し、middleware のリグレッションテストで保護している。
+
+### 変更
+
+- `THIRD-PARTY-NOTICES.md` の生成が、各パッケージの `src` 配下の `*.generated.ts` にある `// vendored-from: <pkg>@<version> (<license>) <url>` マーカーを走査するようになった。生成ソースへ取り込んだコード（simple-icons）が、同梱物のライセンス表記から黙って抜け落ちなくなる。
+
 ## [0.49.0] - 2026-08-25
 
 ### 追加

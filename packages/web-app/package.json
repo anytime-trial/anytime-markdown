@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.49.0",
+  "version": "0.50.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -15,6 +15,7 @@
     "e2e": "playwright test",
     "e2e:coverage": "E2E_COVERAGE=1 playwright test --project=chromium",
     "e2e:ui": "playwright test --ui",
+    "gen:architecture-icons": "node scripts/gen-architecture-icons.mjs",
     "analyze": "next build --experimental-analyze",
     "analyze:webpack": "ANALYZE=true next build --webpack"
   },

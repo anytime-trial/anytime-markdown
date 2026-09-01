@@ -62,7 +62,8 @@ export function proxy(request: NextRequest) {
     `connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://platform.twitter.com https://apis.google.com https://www.googleapis.com${process.env.NEXT_PUBLIC_SUPABASE_URL ? " " + process.env.NEXT_PUBLIC_SUPABASE_URL : ""}${webImportConnectSrc}`,
     "worker-src 'self' blob:",
     // docs.google.com: Google Picker のファイル選択 UI は iframe で描画される
-    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com https://www.figma.com https://embed.figma.com https://open.spotify.com https://platform.twitter.com https://viewer.diagrams.net https://app.diagrams.net https://docs.google.com https://drive.google.com",
+    // travel.anytime-trial.com: ランディングの街道マップ紹介欄が本番アプリをプレビュー埋め込みする
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com https://www.figma.com https://embed.figma.com https://open.spotify.com https://platform.twitter.com https://viewer.diagrams.net https://app.diagrams.net https://docs.google.com https://drive.google.com https://travel.anytime-trial.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-09-01
+
+### Fixed
+
+- C4 level assignment for non-monorepo repositories was shifted by one level: `trailToC4` keyed its levels off a `packages/` prefix, so a non-monorepo produced no system, one container for the whole repository, and top-level directories as components. A system (C1) is now always emitted, and in a non-monorepo the top-level directory becomes the container (C2) with everything below it (transparently through `src`) becoming components (C3). The `src` top level and files directly at the repository root keep the previous repository-name container, preserving single-project repositories.
+
 ## [1.5.0] - 2026-08-22
 
 ### Changed

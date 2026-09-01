@@ -93,7 +93,7 @@ describe('trailToC4', () => {
       expect(containers.some(c => c.name === 'anytime-markdown')).toBe(false);
     });
 
-    it('should not create system boundary for single-package analysis', () => {
+    it('should create system boundary for single-package analysis (C1 is never empty)', () => {
       const graph = makeTrailGraph({
         metadata: { projectRoot: '/workspace/packages/trail-activity', analyzedAt: '2026-01-01', fileCount: 1 },
         nodes: [
@@ -102,7 +102,67 @@ describe('trailToC4', () => {
       });
       const model = trailToC4(graph);
       const system = model.elements.find(e => e.type === 'system');
-      expect(system).toBeUndefined();
+      expect(system).toBeDefined();
+      expect(system!.name).toBe('trail-activity');
+      const container = model.elements.find(e => e.type === 'container');
+      expect(container?.boundaryId).toBe(system!.id);
+    });
+  });
+
+  describe('non-monorepo with multiple top-level projects (anytime-trade-tmp shape)', () => {
+    /** frontend(TS) + backend(Python) + external(Python) を持つ混在リポの TrailGraph。 */
+    function makeMultiRootGraph(): TrailGraph {
+      return makeTrailGraph({
+        metadata: { projectRoot: '/Shared/anytime-trade-tmp', analyzedAt: '2026-01-01', fileCount: 4 },
+        nodes: [
+          { id: 'file::frontend/src/lib/api.ts', label: 'api.ts', type: 'file', filePath: 'frontend/src/lib/api.ts', line: 0 },
+          { id: 'file::frontend/next.config.mjs', label: 'next.config.mjs', type: 'file', filePath: 'frontend/next.config.mjs', line: 0 },
+          { id: 'file::backend/app/main.py', label: 'main.py', type: 'file', filePath: 'backend/app/main.py', line: 0 },
+          { id: 'file::external/edinet-mcp/edinet_mcp/client.py', label: 'client.py', type: 'file', filePath: 'external/edinet-mcp/edinet_mcp/client.py', line: 0 },
+        ],
+        edges: [
+          { source: 'file::frontend/src/lib/api.ts', target: 'file::backend/app/main.py', type: 'import' },
+        ],
+      });
+    }
+
+    it('should map repo to system (C1) and top-level dirs to containers (C2)', () => {
+      const model = trailToC4(makeMultiRootGraph());
+
+      // C1: リポジトリ全体が system になる
+      const system = model.elements.find(e => e.type === 'system');
+      expect(system).toBeDefined();
+      expect(system!.name).toBe('anytime-trade-tmp');
+
+      // C2: トップディレクトリが container になり system 境界に入る
+      const containers = model.elements.filter(e => e.type === 'container');
+      expect(containers.map(c => c.name).sort()).toEqual(['backend', 'external', 'frontend']);
+      for (const c of containers) expect(c.boundaryId).toBe(system!.id);
+
+      // 従来のようにリポ全体が 1 container（anytime-trade-tmp）にならないこと
+      expect(containers.some(c => c.name === 'anytime-trade-tmp')).toBe(false);
+    });
+
+    it('should map second-level dirs to components (C3) with src stripped', () => {
+      const model = trailToC4(makeMultiRootGraph());
+      const components = model.elements.filter(e => e.type === 'component');
+      // frontend/src/lib/... → container frontend の component 'lib'（src は透過）
+      expect(components.some(c => c.name === 'lib' && c.boundaryId === 'pkg_frontend')).toBe(true);
+      // backend/app/... → container backend の component 'app'
+      expect(components.some(c => c.name === 'app' && c.boundaryId === 'pkg_backend')).toBe(true);
+      // external/edinet-mcp/... → container external の component 'edinet-mcp'
+      expect(components.some(c => c.name === 'edinet-mcp' && c.boundaryId === 'pkg_external')).toBe(true);
+      // トップディレクトリ自身は component にならない（従来のレベルずれの regression）
+      expect(components.some(c => c.name === 'frontend' || c.name === 'backend' || c.name === 'external')).toBe(false);
+    });
+
+    it('should keep container-direct files attached to the container and build L2 relationships', () => {
+      const model = trailToC4(makeMultiRootGraph());
+      // frontend 直下のファイルは component を持たず container 境界に入る
+      const cfg = model.elements.find(e => e.type === 'code' && e.name === 'next.config.mjs');
+      expect(cfg?.boundaryId).toBe('pkg_frontend');
+      // frontend → backend の import が L2 リレーションになる
+      expect(model.relationships).toContainEqual({ from: 'pkg_frontend', to: 'pkg_backend', label: 'imports' });
     });
   });
 

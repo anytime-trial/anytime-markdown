@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-09-01
+
+### Trail Core (trail-activity / trail-server / code-analysis)
+
+- 非モノレポの C4 表示が 1 段ずれる問題を修正した。system（C1）を常時生成し、トップディレクトリを container（C2）・その配下を component（C3）として表示する。
+- `tsconfig.json` がサブディレクトリにある TypeScript + Python 混在リポジトリの解析を修正した。TypeScript のグラフをリポジトリルート基準へ rebase して file 解析・コードグラフと突合できるようにし、これまで一切取り込まれていなかった Python のノード・エッジを合成する。Python の絶対 import はマーカールート（`pyproject.toml` / `setup.py` / `setup.cfg`）単位で解決するため、Python プロジェクトルートが複数並存するリポジトリでも絶対 import が全滅しない。
+
+### 変更
+
+- 拡張機能固有の変更はない。上記 Trail Core の修正を配布するためのリリース。
+
 ## [1.5.1] - 2026-08-25
 
 ### 修正

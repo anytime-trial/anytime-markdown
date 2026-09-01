@@ -8,6 +8,7 @@
     "navMarkdown": "Markdown",
     "navTrail": "Trail",
     "navTickets": "Ticket",
+    "navArchitecture": "Architecture",
     "localeAria": "日本語に切り替え",
     "themeAria": "Toggle theme mode",
     "themeTitle": "Toggle mode"
@@ -132,6 +133,21 @@
     "labelWeekly": "WEEKLY",
     "labelMonthly": "MONTHLY"
   },
+  "travelApp": {
+    "label": "TRAVEL · HIGHWAYS",
+    "heading": "Kaido Map",
+    "previewTitle": "Preview of the Kaido Map app",
+    "previewNote": "The preview is display-only — open the app to move the map.",
+    "lede": "A map app for tracing nine old Japanese highways — the Tokaido, the Nakasendo, the Kumano Kodo and more — with post towns, milestones and an elevation profile. Built to read the terrain and the spacing of a road, not the distance you walked.",
+    "feature1Head": "Nine highways",
+    "feature1Body": "Tokaido, Nakasendo, Kyokaido, Saigoku Kaido, the three Koya routes, and the Kiiji and Nakahechi of the Kumano Kodo. The Tokaido lists all fifty-three post towns with the distance between each.",
+    "feature2Head": "Elevation profile",
+    "feature2Body": "Terrain drawn from the Geospatial Information Authority of Japan elevation tiles (DEM10B), with post towns laid over it. Press play and distance and elevation advance along the road.",
+    "feature3Head": "Panorama and photo map",
+    "feature3Body": "Alongside the map, a photo map that drops your pictures onto the route, and a panorama gallery opened with a passphrase.",
+    "cta": "Open the app",
+    "credit": "Elevation: GSI elevation tiles (DEM10B) / Route: © OpenStreetMap contributors (ODbL)"
+  },
   "pressDocs": {
     "label": "DOCS · DOCUMENTS",
     "heading": "Docs"
@@ -165,7 +181,6 @@
     "edit": "Edit",
     "onlineEditor": "Anytime Markdown",
     "trailArchitecture": "Anytime Trail · architecture",
-    "systemArchitecture": "System Architecture",
     "releaseTimeline": "Claude Code release timeline",
     "github": "Github",
     "foldCopy": "© 2026 Kiyotaka Ueda featuring Claude Code"
