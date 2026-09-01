@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-09-01
+
+### Added
+
+- `/architecture`: added S3 and Google Drive to the external services layer and moved the entry point to the header.
+- `/architecture`: nodes now carry brand / technology icons. The 14 brand marks are extracted from simple-icons (CC0-1.0) into a generated module (only what is used; the full package is never bundled) and drawn in `currentColor` as `aria-hidden` decoration, so dark marks such as GitHub and Ollama stay visible in dark mode. Nodes whose mark simple-icons removed (Amazon S3, VS Code) fall back to the design system's semantic MUI icons.
+- Press landing page: a section introducing the road-map app (travel.anytime-trial.com) directly under GITHUB · TRENDING, with a live iframe preview (inert, sandboxed) and an "open the app" CTA. The preview domain is added to the CSP `frame-src` and covered by a middleware regression test.
+
+### Changed
+
+- `THIRD-PARTY-NOTICES.md` generation now scans `*.generated.ts` under each package's `src` for a `// vendored-from: <pkg>@<version> (<license>) <url>` marker, so code vendored into generated sources (simple-icons) appears in the shipped notices instead of being silently absent.
+
 ## [0.49.0] - 2026-08-25
 
 ### Added

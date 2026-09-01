@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-09-01
+
+### Trail Core (trail-activity / trail-server / code-analysis)
+
+- C4 view of non-monorepo repositories no longer shifts by one level: a system (C1) is always produced, and top-level directories become containers (C2) with their contents as components (C3).
+- Mixed TypeScript + Python repositories whose `tsconfig.json` sits in a subdirectory are now analyzed correctly: the TypeScript graph is rebased onto the repository root so it matches file analysis and the code graph, and the Python graph is merged into it instead of being dropped. Python absolute imports are resolved per marker root (`pyproject.toml` / `setup.py` / `setup.cfg`), so repositories with several Python project roots no longer lose every absolute import.
+
+### Changed
+
+- No extension-specific changes; released to ship the Trail Core fixes above.
+
 ## [1.5.1] - 2026-08-25
 
 ### Fixed
