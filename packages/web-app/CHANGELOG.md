@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-09-05
+
+### Added
+
+- Search metadata is now emitted per locale. The shared layout switched from a static `metadata` constant to `generateMetadata`, so title / description / OpenGraph and the JSON-LD `description` + `inLanguage` follow the requested locale instead of always being English. Unsupported locales are rounded to the default via `toLocale`.
+- Press landing page: `meta.title` / `meta.description` moved into the press i18n resources, so the top page returns Japanese metadata for Japanese search queries.
+
+### Removed
+
+- `SITE_DESCRIPTION`: the backward-compatible alias became dead code once every reference moved to the ja/en `SITE_DESCRIPTIONS` map.
+
 ## [0.50.0] - 2026-09-01
 
 ### Added

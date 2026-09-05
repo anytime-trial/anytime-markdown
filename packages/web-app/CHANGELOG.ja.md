@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-09-05
+
+### 追加
+
+- 検索メタデータをロケールごとに出し分けるようにした。共通 layout の `metadata` 定数を `generateMetadata` へ切り替え、title / description / OpenGraph と JSON-LD の `description`・`inLanguage` が要求ロケールに追従する（従来は日本語ページでも英語メタデータを返していた）。未対応ロケールは `toLocale` で既定へ丸める。
+- Press ランディングページ: `meta.title` / `meta.description` を press の i18n リソースへ移設し、トップページが日本語検索クエリに対して日本語メタデータを返すようにした。
+
+### 削除
+
+- `SITE_DESCRIPTION`: ja/en マップ `SITE_DESCRIPTIONS` へ全参照が移り、後方互換エイリアスが参照ゼロのデッドコードになっていたため削除した。
+
 ## [0.50.0] - 2026-09-01
 
 ### 追加

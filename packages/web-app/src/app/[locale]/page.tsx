@@ -1,11 +1,8 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 
 import { buildAlternates, localeHref, toLocale } from '../../lib/localeAlternates';
 import { PressBody } from './press/PressBody';
-
-const TITLE = 'Caravan Press · Anytime Markdown';
-const DESCRIPTION =
-  'A newspaper-press dispatch of Anytime Markdown — slow writing, by design. Browser-only markdown editor for Spec-Driven Development.';
 
 interface Props {
   params: Promise<{ locale: string }>;
@@ -13,23 +10,26 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const locale = toLocale((await params).locale);
+  const t = await getTranslations({ locale, namespace: 'press' });
+  const title = t('meta.title');
+  const description = t('meta.description');
 
   return {
     // ランディングは独自のブランド表記を使うため、ルート layout の template を適用しない
-    title: { absolute: TITLE },
-    description: DESCRIPTION,
+    title: { absolute: title },
+    description,
     alternates: buildAlternates('/', locale),
     openGraph: {
       type: 'website',
       url: localeHref('/', locale),
-      title: TITLE,
-      description: DESCRIPTION,
+      title,
+      description,
       siteName: 'Anytime Markdown',
     },
     twitter: {
       card: 'summary_large_image',
-      title: TITLE,
-      description: DESCRIPTION,
+      title,
+      description,
     },
   };
 }
