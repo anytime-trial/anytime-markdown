@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "Anytime Markdown — ブラウザで使える Markdown エディタ | Caravan Press",
+    "description": "ブラウザだけで動く WYSIWYG Markdown エディタ。Mermaid・PlantUML・KaTeX・差分ハイライト・Git 連携対応。登録不要で今すぐ使える、仕様駆動開発（SDD）のための Markdown エディタ。"
+  },
   "masthead": {
     "editionVolume": "Vol. III · No. 142",
     "editionDateSuffix": "",

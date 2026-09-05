@@ -1,3 +1,5 @@
+import type { Locale } from '../i18n/routing';
+
 /**
  * サイト共通のメタデータ定数。
  *
@@ -12,8 +14,18 @@ export const SITE_NAME = 'Anytime Markdown';
 export const TITLE_TEMPLATE = `%s - ${SITE_NAME}` as const;
 
 /** 検索結果で切られない長さ（160 字以内）に収める */
-export const SITE_DESCRIPTION =
-  'Browser-based WYSIWYG Markdown editor for Spec-Driven Development. Mermaid and PlantUML diagrams, KaTeX math, diff and merge, Git integration. No sign-up.';
+export const SITE_DESCRIPTIONS: Record<Locale, string> = {
+  ja: 'ブラウザだけで使える WYSIWYG Markdown エディタ。Mermaid・PlantUML 図表、KaTeX 数式、差分・マージ、Git 連携に対応。登録・インストール不要。仕様駆動開発（SDD）のためのエディタ。',
+  en: 'Browser-based WYSIWYG Markdown editor for Spec-Driven Development. Mermaid and PlantUML diagrams, KaTeX math, diff and merge, Git integration. No sign-up.',
+};
+
+export const SITE_DEFAULT_TITLES: Record<Locale, string> = {
+  ja: 'Anytime Markdown — ブラウザで使える Markdown エディタ',
+  en: 'Anytime Markdown — Browser-based Markdown Editor',
+};
+
+/** 後方互換用。英語の既存参照は同じ文言を維持する。 */
+export const SITE_DESCRIPTION = SITE_DESCRIPTIONS.en;
 
 /**
  * openGraph / twitter 用のタイトルを組み立てる。
