@@ -24,9 +24,6 @@ export const SITE_DEFAULT_TITLES: Record<Locale, string> = {
   en: 'Anytime Markdown — Browser-based Markdown Editor',
 };
 
-/** 後方互換用。英語の既存参照は同じ文言を維持する。 */
-export const SITE_DESCRIPTION = SITE_DESCRIPTIONS.en;
-
 /**
  * openGraph / twitter 用のタイトルを組み立てる。
  * これらは title.template の適用対象外なので、完全形を明示的に作る必要がある。
