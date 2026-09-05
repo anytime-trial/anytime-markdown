@@ -1,4 +1,4 @@
-import { SITE_DESCRIPTION, SITE_NAME, socialTitle, TITLE_TEMPLATE } from "../lib/siteMetadata";
+import { SITE_DESCRIPTIONS, SITE_NAME, socialTitle, TITLE_TEMPLATE } from "../lib/siteMetadata";
 
 describe("siteMetadata", () => {
   it("builds the title template from the site name", () => {
@@ -11,8 +11,11 @@ describe("siteMetadata", () => {
     expect(socialTitle("Editor")).toBe(`Editor - ${SITE_NAME}`);
   });
 
-  it("keeps the description within the length search results render", () => {
-    expect(SITE_DESCRIPTION.length).toBeGreaterThan(0);
-    expect(SITE_DESCRIPTION.length).toBeLessThanOrEqual(160);
-  });
+  it.each(["ja", "en"] as const)(
+    "keeps the %s description within the length search results render",
+    (locale) => {
+      expect(SITE_DESCRIPTIONS[locale].length).toBeGreaterThan(0);
+      expect(SITE_DESCRIPTIONS[locale].length).toBeLessThanOrEqual(160);
+    },
+  );
 });
