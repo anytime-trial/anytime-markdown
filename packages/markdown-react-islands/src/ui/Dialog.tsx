@@ -54,7 +54,7 @@ export function Dialog({
   ...rest
 }: Readonly<DialogProps>) {
   const paperRef = useRef<HTMLDivElement>(null);
-  const onKeyDown = useModalFocusTrap(open, paperRef, onClose);
+  useModalFocusTrap(open, paperRef, onClose);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -75,6 +75,9 @@ export function Dialog({
 
   return createPortal(
     <div
+      // 装飾用のバックドロップ。閉じる操作は ESC と閉じるボタンでも到達できるため、
+      // 支援技術へは提示しない（role="presentation"）。
+      role="presentation"
       className={styles.backdrop}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
@@ -88,7 +91,6 @@ export function Dialog({
         className={paperClass}
         style={computedPaperStyle}
         tabIndex={-1}
-        onKeyDown={onKeyDown}
       >
         {children}
       </div>
