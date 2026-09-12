@@ -72,6 +72,7 @@ describe('lepConfigCandidates / loadLepConfig', () => {
     const result = loadLepConfig(Object.keys(files), (p) => files[p], (p) => p in files);
     expect(result.config).toEqual({ stage: 'all', sources: { gitRoots: ['/repo-a'] } });
     expect(result.loadedPaths).toEqual(Object.keys(files));
+    expect(result.failedPaths).toEqual([]);
   });
 
   it('1 ファイルも無ければ config は null（loadedPaths も空）', () => {
@@ -79,11 +80,13 @@ describe('lepConfigCandidates / loadLepConfig', () => {
     expect(result).toMatchObject({ config: null, loadedPaths: [] });
   });
 
-  it('壊れたファイルは理由をログへ出し、読めた分だけで続行する', () => {
+  it('壊れたファイルは failedPaths へ分け、loadedPaths（成立したマージ連鎖）に混ぜない', () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const files = { '/a.json': '{"stage":"all"}', '/b.json': '{broken' };
     const result = loadLepConfig(['/a.json', '/b.json'], (p) => files[p], (p) => p in files);
     expect(result.config).toEqual({ stage: 'all' });
+    expect(result.loadedPaths).toEqual(['/a.json']);
+    expect(result.failedPaths).toEqual([{ file: '/b.json', reason: expect.any(String) }]);
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('解析に失敗'));
     spy.mockRestore();
   });
@@ -147,6 +150,12 @@ describe('resolveRepoName', () => {
     expect(resolveRepoName('/x/repo/.claude-worktrees/a', '/x/repo/.claude-worktrees/a')).toBe('repo');
   });
 
+  it('Windows の git 出力（スラッシュ区切り）も分解できる', () => {
+    // git rev-parse --show-toplevel は Windows でもスラッシュで返すため、path.sep だけでは分割できない。
+    expect(resolveRepoName('C:\\Users\\foo\\repo', 'C:/Users/foo/repo')).toBe('repo');
+    expect(resolveRepoName('C:/x/repo/.worktrees/a', 'C:/x/repo/.worktrees/a')).toBe('repo');
+  });
+
   it('git ルートを取れない場合はワークスペースパスへフォールバックする', () => {
     expect(resolveRepoName('/x/plain-dir', null)).toBe('plain-dir');
   });
@@ -172,6 +181,13 @@ describe('SQL の組み立て', () => {
 
   it('sqlQuote は引用符を二重化する', () => {
     expect(sqlQuote("a'b")).toBe("'a''b'");
+  });
+
+  it('リポジトリ名に $ + & が含まれても置換文字列として特殊展開されない', () => {
+    const evil = ['a', '$', '&', 'b'].join('');
+    const { reader, calls } = fakeReader([{ match: 'activity_session_commits', rows: [] }], 'sqlite3-cli');
+    queryWithRepoName(reader, '/db', INGEST_SQL, evil);
+    expect(calls[0].sql).toContain("r.repo_name = '" + evil + "'");
   });
 });
 
@@ -326,7 +342,13 @@ describe('collectFacts（実ファイル走査）', () => {
     const facts = await collectFacts({ workspaceRoot: sandbox, now: NOW, network: false, home: fakeHome });
 
     expect(facts.watched).toEqual([
-      { path: '/nonexistent-repo', origin: 'anytimeTrail.workspace.path', exists: false, isGitWorkTree: null },
+      {
+        path: '/nonexistent-repo',
+        realPath: '/nonexistent-repo',
+        origin: 'anytimeTrail.workspace.path',
+        exists: false,
+        isGitWorkTree: null,
+      },
     ]);
     expect(facts.lep.config.stage).toBe('All');
     expect(facts.docIndex.docsRoot).toBe('/nonexistent-docs');

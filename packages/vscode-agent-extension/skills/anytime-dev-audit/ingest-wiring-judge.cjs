@@ -44,15 +44,35 @@ const outOfScope = (facts, id, title, severity) =>
  * resolveWatchedRepos が両方を同じ continue で捨てるため（どちらもコミットは永久に取り込まれない）。
  * 自ワークスペースが有効な監視対象に入らない場合も発火させる — 監視対象が非空でも、
  * 当該リポジトリの取込がゼロであることはその時点で確定するため。
+ *
+ * ただし git 判定が不能だったもの（実行ファイル不在・アクセス拒否）は「working tree でない」と
+ * 断定しない。診断ツール自身の実行環境の欠落を、ユーザーの設定の error として報告しないため。
  */
 function judgeD1(facts, trailAbsent) {
   const title = '監視リポジトリの解決結果';
   if (trailAbsent) return outOfScope(facts, 'D1', title, 'error');
 
+  const isUnknown = (w) => typeof w.isGitWorkTree === 'object' && w.isGitWorkTree !== null;
   const missing = facts.watched.filter((w) => !w.exists);
+  const unknown = facts.watched.filter((w) => w.exists && isUnknown(w));
   const notGit = facts.watched.filter((w) => w.exists && w.isGitWorkTree === false);
-  const effective = facts.watched.filter((w) => w.exists && w.isGitWorkTree !== false);
-  const workspaceWatched = effective.some((w) => w.path === facts.workspaceRoot);
+  const effective = facts.watched.filter((w) => w.exists && w.isGitWorkTree === true);
+
+  if (unknown.length > 0) {
+    return finding(
+      'D1',
+      title,
+      'error',
+      'unmeasurable',
+      `測定不能: git working tree か判定できないパスがある — ${unknown
+        .map((w) => `${w.path}（${w.isGitWorkTree.unknown}）`)
+        .join(' / ')}`,
+      { watched: facts.watched, unknown: unknown.map((w) => w.path) },
+    );
+  }
+
+  // symlink 越しに同じディレクトリを指している場合があるため、実パスで突き合わせる。
+  const workspaceWatched = effective.some((w) => (w.realPath ?? w.path) === (facts.workspaceRealPath ?? facts.workspaceRoot));
 
   const parts = [`解決結果 ${facts.watched.length} 件（有効 ${effective.length} 件）`];
   if (effective.length === 0) parts.push('有効な監視対象が 0 件（コミット取込は行われない）');
@@ -185,6 +205,20 @@ function judgeD5(facts, trailAbsent) {
 
   const stage = facts.lep.config.stage;
   const source = `解決元: ${facts.lep.loadedPaths.join(' < ')}`;
+  const failed = facts.lep.failedPaths ?? [];
+  if (failed.length > 0) {
+    // 解析できないファイルの設定は production でも全て無視される。stage が許容値でも、
+    // 上位 tier が丸ごと効いていない事実のほうが重い。
+    return finding(
+      'D5',
+      title,
+      'warn',
+      'fired',
+      `解析できない設定ファイルがある: ${failed.map((p) => `${p.file}（${p.reason}）`).join(' / ')}` +
+        ` — このファイルの設定は production でも全て無視される。${source}`,
+      { failedPaths: failed, stage },
+    );
+  }
   if (stage === undefined) {
     return finding('D5', title, 'warn', 'ok', `stage 未指定 — 内蔵 default "disabled" が効く（${source}）`, { stage });
   }
@@ -250,12 +284,15 @@ function judgeD6(facts) {
  */
 function judgeD7(facts) {
   const title = '他プロジェクトの設定残骸';
-  const outside = facts.referencedPaths.filter(
-    (p) =>
-      p.path !== facts.workspaceRoot &&
-      !p.path.startsWith(`${facts.workspaceRoot}${path.sep}`) &&
-      !(facts.declaredDocsRoot !== null && p.path === facts.declaredDocsRoot),
-  );
+  const workspace = facts.workspaceRealPath ?? facts.workspaceRoot;
+  const outside = facts.referencedPaths.filter((p) => {
+    const target = p.realPath ?? p.path;
+    return (
+      target !== workspace &&
+      !target.startsWith(`${workspace}${path.sep}`) &&
+      !(facts.declaredDocsRoot !== null && target === facts.declaredDocsRoot)
+    );
+  });
   return finding(
     'D7',
     title,

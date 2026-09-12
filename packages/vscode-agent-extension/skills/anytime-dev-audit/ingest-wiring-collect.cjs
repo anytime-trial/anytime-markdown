@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
+const { resolveExecutable, runCommand, tryExec, gitWorkTreeProbe } = require('./ingest-wiring-exec.cjs');
 const {
   parseJsonc,
   settingsCandidates,
@@ -63,20 +64,24 @@ function lepConfigCandidates(workspaceRoot, home, override) {
 function loadLepConfig(candidates, readFile = (p) => fs.readFileSync(p, 'utf8'), exists = fs.existsSync) {
   let config = null;
   const loadedPaths = [];
+  const failedPaths = [];
   for (const file of candidates) {
     if (!exists(file)) continue;
     let parsed;
     try {
       parsed = JSON.parse(readFile(file));
     } catch (err) {
+      // 本番の loadLepConfig も warn して continue するため、解析できないファイルの設定は
+      // production でも全て無視される。「読んだ」側へ混ぜると、成立していないマージ連鎖を
+      // 所見として報告することになる。
       logWarn(`${file} の解析に失敗: ${err.message}`);
-      loadedPaths.push(file);
+      failedPaths.push({ file, reason: err.message });
       continue;
     }
     config = config === null ? parsed : deepMerge(config, parsed);
     loadedPaths.push(file);
   }
-  return { config, loadedPaths, candidates };
+  return { config, loadedPaths, failedPaths, candidates };
 }
 
 /**
@@ -115,21 +120,21 @@ function resolveWatchedRepoPaths({ lepConfig, settings, workspaceRoot }) {
  */
 function resolveRepoName(workspaceRoot, gitToplevel = null) {
   const base = gitToplevel ?? workspaceRoot;
-  const segments = base.split(path.sep).filter((s) => s !== '');
+  // git rev-parse --show-toplevel は Windows でもスラッシュ区切りで返すため両方を区切りとして扱う。
+  const segments = base.split(/[\\/]/).filter((s) => s !== '');
   for (let i = segments.length - 1; i >= 1; i -= 1) {
     if (WORKTREE_SEGMENTS.has(segments[i])) return segments[i - 1];
   }
   return segments.at(-1) ?? '';
 }
 
-function tryExec(cmd, args) {
+/** symlink を解決した実パス（解決できなければ入力をそのまま返す）。 */
+function realPathOrSelf(target) {
   try {
-    return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    return fs.realpathSync(target);
   } catch (err) {
-    if (err?.code !== 'ENOENT' && (err?.status === null || err?.status === undefined)) {
-      logWarn(`${cmd} ${args.join(' ')} — ${err?.message ?? err}`);
-    }
-    return null;
+    logWarn(`realpath を解決できない（入力パスをそのまま使う）: ${target} — ${err.message}`);
+    return target;
   }
 }
 
@@ -168,7 +173,7 @@ function createDbReader() {
     }
   }
 
-  const cli = tryExec(process.platform === 'win32' ? 'where' : 'which', ['sqlite3']);
+  const cli = resolveExecutable('sqlite3');
   if (cli === null) {
     return {
       reader: null,
@@ -183,7 +188,8 @@ function createDbReader() {
       kind: 'sqlite3-cli',
       // CLI はプレースホルダを受けないため、呼び出し側が sqlQuote 済みの SQL を渡す。
       query(dbPath, sql) {
-        const raw = execFileSync('sqlite3', ['-json', `file:${dbPath}?mode=ro`, sql], {
+        // which で確認したものと別の実行ファイルを起動しないよう、解決済みの絶対パスを使う。
+        const raw = execFileSync(cli, ['-json', `file:${dbPath}?mode=ro`, sql], {
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'pipe'],
         }).trim();
@@ -197,8 +203,8 @@ function createDbReader() {
 /** リーダ種別の差（プレースホルダ可否）を吸収して 1 本の SQL を実行する。 */
 function queryWithRepoName(reader, dbPath, sqlTemplate, repoName) {
   return reader.kind === 'better-sqlite3'
-    ? reader.query(dbPath, sqlTemplate.replace('$repoName', '?'), [repoName])
-    : reader.query(dbPath, sqlTemplate.replace('$repoName', sqlQuote(repoName)));
+    ? reader.query(dbPath, sqlTemplate.replace('$repoName', () => '?'), [repoName])
+    : reader.query(dbPath, sqlTemplate.replace('$repoName', () => sqlQuote(repoName)));
 }
 
 const INGEST_SQL = `SELECT MAX(c.committed_at) AS last FROM activity_session_commits c
@@ -347,7 +353,8 @@ async function collectFacts({ workspaceRoot, now, network, home }) {
     return {
       ...w,
       exists,
-      isGitWorkTree: exists ? tryExec('git', ['-C', w.path, 'rev-parse', '--is-inside-work-tree']) === 'true' : null,
+      realPath: exists ? realPathOrSelf(w.path) : w.path,
+      isGitWorkTree: exists ? gitWorkTreeProbe(w.path) : null,
     };
   });
 
@@ -374,8 +381,11 @@ async function collectFacts({ workspaceRoot, now, network, home }) {
   const markdownDir = path.join(workspaceRoot, '.anytime', 'markdown');
   const catalogDbPath = path.join(markdownDir, 'catalog.db');
 
+  const workspaceRealPath = realPathOrSelf(workspaceRoot);
+
   return {
     workspaceRoot,
+    workspaceRealPath,
     now,
     dbDir,
     dbReader: reader === null ? null : reader.kind,
@@ -389,7 +399,10 @@ async function collectFacts({ workspaceRoot, now, network, home }) {
     pipelines: readPipelineStreaks({ reader, readerReason, dbDir }),
     llm,
     inContainer: fs.existsSync('/.dockerenv') || process.env.REMOTE_CONTAINERS === 'true',
-    declaredDocsRoot: readDeclaredDocsRoot(workspaceRoot),
+    declaredDocsRoot: (() => {
+      const declared = readDeclaredDocsRoot(workspaceRoot);
+      return declared === null ? null : realPathOrSelf(declared);
+    })(),
     docIndex: {
       docsRoot,
       catalogDbPath,
@@ -397,13 +410,23 @@ async function collectFacts({ workspaceRoot, now, network, home }) {
       markdownDirExists: fs.existsSync(markdownDir),
     },
     referencedPaths: [
-      ...watched.map((w) => ({ origin: w.origin, path: w.path, exists: w.exists })),
-      ...(docsRoot ? [{ origin: SETTING_DOCS_ROOT, path: docsRoot, exists: fs.existsSync(docsRoot) }] : []),
+      ...watched.map((w) => ({ origin: w.origin, path: w.path, realPath: w.realPath, exists: w.exists })),
+      ...(docsRoot
+        ? [
+            {
+              origin: SETTING_DOCS_ROOT,
+              path: docsRoot,
+              realPath: fs.existsSync(docsRoot) ? realPathOrSelf(docsRoot) : docsRoot,
+              exists: fs.existsSync(docsRoot),
+            },
+          ]
+        : []),
     ],
   };
 }
 
 module.exports = {
+  realPathOrSelf,
   deepMerge,
   lepConfigCandidates,
   loadLepConfig,

@@ -6,15 +6,17 @@ const NOW = '2026-09-12T12:00:00.000Z';
 function healthyFacts(overrides = {}) {
   return {
     workspaceRoot: '/ws',
+    workspaceRealPath: '/ws',
     now: NOW,
     dbDir: { path: '/ws/.anytime/trail/db', exists: true },
     lep: {
       candidates: ['/home/u/.anytime/trail/lep.json', '/ws/.anytime/trail/lep.json'],
       loadedPaths: ['/ws/.anytime/trail/lep.json'],
+      failedPaths: [],
       config: { stage: 'all', sources: { gitRoots: ['/ws'] } },
     },
     repoName: 'ws',
-    watched: [{ path: '/ws', origin: 'workspaceFolder', exists: true, isGitWorkTree: true }],
+    watched: [{ path: '/ws', realPath: '/ws', origin: 'workspaceFolder', exists: true, isGitWorkTree: true }],
     watchedOverriddenBySetting: false,
     git: { headCommittedAt: '2026-09-12T11:00:00.000Z' },
     ingest: { status: 'ok', lastCommittedAt: '2026-09-12T11:30:00.000Z', scope: 'repo=ws' },
@@ -31,7 +33,7 @@ function healthyFacts(overrides = {}) {
       catalogExists: true,
       markdownDirExists: true,
     },
-    referencedPaths: [{ origin: 'workspaceFolder', path: '/ws', exists: true }],
+    referencedPaths: [{ origin: 'workspaceFolder', path: '/ws', realPath: '/ws', exists: true }],
     ...overrides,
   };
 }
@@ -108,7 +110,7 @@ describe('受け入れ条件（依頼書 §3.4）', () => {
 
   it('1.4 の状態（stage が大文字）で D5 が warn として出て、正しい値を示す', () => {
     const findings = judge(
-      healthyFacts({ lep: { candidates: [], loadedPaths: ['/ws/.anytime/trail/lep.json'], config: { stage: 'All' } } }),
+      healthyFacts({ lep: { candidates: [], loadedPaths: ['/ws/.anytime/trail/lep.json'], failedPaths: [], config: { stage: 'All' } } }),
     );
     expect(byId(findings, 'D5')).toMatchObject({ severity: 'warn', status: 'fired' });
     expect(byId(findings, 'D5').detail).toContain('正しくは "all"');
@@ -134,8 +136,8 @@ describe('D1 — 監視リポジトリの解決結果', () => {
     const findings = judge(
       healthyFacts({
         watched: [
-          { path: '/ws', origin: 'workspaceFolder', exists: true, isGitWorkTree: true },
-          { path: '/tmp/plain-dir', origin: 'lep.sources.gitRoots', exists: true, isGitWorkTree: false },
+          { path: '/ws', realPath: '/ws', origin: 'workspaceFolder', exists: true, isGitWorkTree: true },
+          { path: '/tmp/plain-dir', realPath: '/tmp/plain-dir', origin: 'lep.sources.gitRoots', exists: true, isGitWorkTree: false },
         ],
       }),
     );
@@ -146,7 +148,7 @@ describe('D1 — 監視リポジトリの解決結果', () => {
   it('自ワークスペースが有効な監視対象に無ければ error（そのコミットは取り込まれない）', () => {
     const findings = judge(
       healthyFacts({
-        watched: [{ path: '/other-repo', origin: 'anytimeTrail.workspace.path', exists: true, isGitWorkTree: true }],
+        watched: [{ path: '/other-repo', realPath: '/other-repo', origin: 'anytimeTrail.workspace.path', exists: true, isGitWorkTree: true }],
       }),
     );
     expect(byId(findings, 'D1')).toMatchObject({ status: 'fired' });
@@ -154,12 +156,50 @@ describe('D1 — 監視リポジトリの解決結果', () => {
     expect(byId(findings, 'D1').evidence.workspaceWatched).toBe(false);
   });
 
+  it('git 判定が不能なパスがあれば error と断定せず「測定不能」へ落とす', () => {
+    // 診断ツール自身の実行環境の欠落（git 不在・safe.directory 拒否）を、
+    // ユーザーの設定の error として報告しない。
+    const findings = judge(
+      healthyFacts({
+        watched: [
+          {
+            path: '/ws',
+            realPath: '/ws',
+            origin: 'workspaceFolder',
+            exists: true,
+            isGitWorkTree: { unknown: 'git 実行ファイルを PATH の絶対パス要素から解決できない' },
+          },
+        ],
+      }),
+    );
+    expect(byId(findings, 'D1').status).toBe('unmeasurable');
+    expect(byId(findings, 'D1').detail).toContain('git 実行ファイル');
+    expect(summarize(findings).error).toBe(0);
+  });
+
+  it('symlink 越しに同じディレクトリを監視していれば ok（実パスで突き合わせる）', () => {
+    const findings = judge(
+      healthyFacts({
+        watched: [
+          {
+            path: '/link-to-ws',
+            realPath: '/ws',
+            origin: 'anytimeTrail.workspace.path',
+            exists: true,
+            isGitWorkTree: true,
+          },
+        ],
+      }),
+    );
+    expect(byId(findings, 'D1').status).toBe('ok');
+  });
+
   it('自ワークスペースと外部リポジトリを両方監視していれば ok', () => {
     const findings = judge(
       healthyFacts({
         watched: [
-          { path: '/other-repo', origin: 'lep.sources.gitRoots', exists: true, isGitWorkTree: true },
-          { path: '/ws', origin: 'workspaceFolder', exists: true, isGitWorkTree: true },
+          { path: '/other-repo', realPath: '/other-repo', origin: 'lep.sources.gitRoots', exists: true, isGitWorkTree: true },
+          { path: '/ws', realPath: '/ws', origin: 'workspaceFolder', exists: true, isGitWorkTree: true },
         ],
       }),
     );
@@ -226,7 +266,7 @@ describe('D2 — 境界と「0 と測定不能の区別」', () => {
 });
 
 describe('D5 — stage', () => {
-  const withConfig = (config) => healthyFacts({ lep: { candidates: [], loadedPaths: ['/ws/lep.json'], config } });
+  const withConfig = (config) => healthyFacts({ lep: { candidates: [], loadedPaths: ['/ws/lep.json'], failedPaths: [], config } });
 
   it('stage 未指定は ok（任意項目で内蔵 default が効く設計上の正常形）', () => {
     const findings = judge(withConfig({ sources: { gitRoots: ['/ws'] } }));
@@ -244,9 +284,25 @@ describe('D5 — stage', () => {
     expect(byId(judge(withConfig({ stage: 'everything' })), 'D5').status).toBe('fired');
   });
 
+  it('解析できない階層があれば stage が許容値でも warn（production でも無視されるため）', () => {
+    const findings = judge(
+      healthyFacts({
+        lep: {
+          candidates: [],
+          loadedPaths: ['/ws/lep.json'],
+          failedPaths: [{ file: '/ws/lep.local.json', reason: 'Unexpected token }' }],
+          config: { stage: 'all' },
+        },
+      }),
+    );
+    expect(byId(findings, 'D5')).toMatchObject({ severity: 'warn', status: 'fired' });
+    expect(byId(findings, 'D5').detail).toContain('lep.local.json');
+    expect(byId(findings, 'D5').detail).toContain('production でも全て無視される');
+  });
+
   it('lep.json が 1 つも無ければ「測定不能」（不正値と混同しない）', () => {
     const findings = judge(
-      healthyFacts({ lep: { candidates: ['/ws/.anytime/trail/lep.json'], loadedPaths: [], config: null } }),
+      healthyFacts({ lep: { candidates: ['/ws/.anytime/trail/lep.json'], loadedPaths: [], failedPaths: [], config: null } }),
     );
     expect(byId(findings, 'D5').status).toBe('unmeasurable');
   });
@@ -254,7 +310,7 @@ describe('D5 — stage', () => {
   it('解決元のファイルを所見へ併記する', () => {
     const findings = judge(
       healthyFacts({
-        lep: { candidates: [], loadedPaths: ['/home/u/lep.json', '/ws/lep.local.json'], config: { stage: 'all' } },
+        lep: { candidates: [], loadedPaths: ['/home/u/lep.json', '/ws/lep.local.json'], failedPaths: [], config: { stage: 'all' } },
       }),
     );
     expect(byId(findings, 'D5').detail).toContain('/ws/lep.local.json');
@@ -280,18 +336,27 @@ describe('D7 — 他プロジェクトの設定残骸', () => {
   it('ワークスペース外を指す参照は値と実在有無を併記して warn', () => {
     const findings = judge(
       healthyFacts({
-        referencedPaths: [{ origin: 'anytimeTrail.workspace.path', path: '/Shared/anytime-trade-tmp', exists: false }],
+        referencedPaths: [{ origin: 'anytimeTrail.workspace.path', path: '/Shared/anytime-trade-tmp', realPath: '/Shared/anytime-trade-tmp', exists: false }],
       }),
     );
     expect(byId(findings, 'D7')).toMatchObject({ severity: 'warn', status: 'fired' });
     expect(byId(findings, 'D7').detail).toContain('/Shared/anytime-trade-tmp（実在しない）');
   });
 
+  it('symlink 越しにワークスペース内を指す参照は残骸として数えない', () => {
+    const findings = judge(
+      healthyFacts({
+        referencedPaths: [{ origin: 'anytimeTrail.workspace.path', path: '/link-to-ws', realPath: '/ws', exists: true }],
+      }),
+    );
+    expect(byId(findings, 'D7').status).toBe('ok');
+  });
+
   it('CLAUDE.md が宣言した docsRoot と一致する外部パスは残骸として数えない', () => {
     const findings = judge(
       healthyFacts({
         declaredDocsRoot: '/Shared/docs-repo',
-        referencedPaths: [{ origin: 'anytimeMarkdown.docsRoot', path: '/Shared/docs-repo', exists: true }],
+        referencedPaths: [{ origin: 'anytimeMarkdown.docsRoot', path: '/Shared/docs-repo', realPath: '/Shared/docs-repo', exists: true }],
       }),
     );
     expect(byId(findings, 'D7').status).toBe('ok');

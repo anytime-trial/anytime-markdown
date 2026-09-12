@@ -101,15 +101,15 @@ node .claude/skills/anytime-dev-audit/ingest-wiring-check.cjs [--json] [--worksp
 
 終了コードは **0 = error 判定なし**（warn・測定不能・対象外は 0）/ **1 = error 判定あり** / **2 = 診断そのものが中断した**。2 を 1 と混同しない — 前者は「配線が壊れている」ではなく「測れていない」。`--no-network` は D4 の疎通を止めて「測定不能」にする。
 
-構成は `ingest-wiring-check.cjs`（CLI・合成）/ `ingest-wiring-judge.cjs`（判定・純関数）/ `ingest-wiring-collect.cjs`（事実収集・I/O）/ `ingest-wiring-settings.cjs`（VS Code 設定の JSONC 解析と階層合成）の 4 本。
+構成は `ingest-wiring-check.cjs`（CLI・合成）/ `ingest-wiring-judge.cjs`（判定・純関数）/ `ingest-wiring-collect.cjs`（事実収集・I/O）/ `ingest-wiring-settings.cjs`（VS Code 設定の JSONC 解析と階層合成）/ `ingest-wiring-exec.cjs`（外部プロセス起動）の 5 本。
 
 | # | 項目 | 取得方法 | 判定 | 重大度 |
 | --- | --- | --- | --- | --- |
-| D1 | 監視リポジトリの解決結果 | `lep.json` の `sources.gitRoots` ∪ `anytimeTrail.workspace.path`（**後者が非空ならワークスペースフォルダを上書きする**）。各要素の実在と git working tree 判定 | 有効な解決結果が **0 件** / 実在しないパスを含む / **git working tree でないパスを含む** / **本ワークスペース自身が有効な監視対象に無い** | error |
+| D1 | 監視リポジトリの解決結果 | `lep.json` の `sources.gitRoots` ∪ `anytimeTrail.workspace.path`（**後者が非空ならワークスペースフォルダを上書きする**）。各要素の実在と git working tree 判定（symlink は実パスで突き合わせる） | 有効な解決結果が **0 件** / 実在しないパスを含む / **git working tree でないパスを含む** / **本ワークスペース自身が有効な監視対象に無い**。git 判定そのものが不能なら error でなく測定不能 | error |
 | D2 | コミット取込の鮮度 | `activity.db` の `MAX(activity_session_commits.committed_at)`（`activity_repos` にワークスペース名の行があれば当該リポジトリで絞る）と `git log -1 --format=%cI` の差 | 差が **24 時間超**、かつ未取込のコミットが存在する | error |
 | D3 | パイプラインの恒常 skip | `caravan-book.db` の `caravan_pipeline_runs` を scope 別に新しい順で集計 | 同一 scope の `skipped` が **直近 50 回連続**。`error_detail` の理由コードを併記 | warn |
 | D4 | LLM 到達性 | `lep.json` の `llm.providers.*.baseUrl` へ疎通（タイムアウト 3 秒） | 到達不可。Dev Container 内で `localhost` を指していれば `host.docker.internal` を提案 | warn |
-| D5 | `lep.json` の値検証 | `stage` を許容集合（`disabled` / `sources` / `primary` / `memory` / `primary+memory` / `all`）と照合。**大文字小文字を区別する**。未指定は内蔵 default が効く正常形なので発火させない | 値があって許容集合外（起動時にフォールバックが起きている） | warn |
+| D5 | `lep.json` の値検証 | 4 階層を deep merge したうえで `stage` を許容集合（`disabled` / `sources` / `primary` / `memory` / `primary+memory` / `all`）と照合。**大文字小文字を区別する**。未指定は内蔵 default が効く正常形なので発火させない | 値があって許容集合外（起動時にフォールバックが起きている）、または**解析できない階層がある**（そのファイルの設定は production でも全て無視される） | warn |
 | D6 | ドキュメント索引 | `anytimeMarkdown.docsRoot` の値と `.anytime/markdown/catalog.db` の実在 | docsRoot が空、または catalog.db が無い（docsRoot 空かつ `.anytime/markdown` 自体が無い環境は「未導入」として対象外） | warn |
 | D7 | 他プロジェクトの設定残骸 | D1・D6 で参照したパスがワークスペース外を指すか | ワークスペース外を指す。値と実在有無を併記 | warn |
 
@@ -120,7 +120,9 @@ node .claude/skills/anytime-dev-audit/ingest-wiring-check.cjs [--json] [--worksp
 3. **台帳でなく実データで測る**。D2 が最重要項目である理由がこれで、成功回数を根拠にしない。
 4. **対象が無い環境で誤警報しない**。`.anytime/trail/db` が無いワークスペースでは D1〜D5 を「対象外」として静かにスキップする（未導入と故障を混同しない）。
 5. **意図された外部パスを残骸と呼ばない**。D7 は、ワークスペースの CLAUDE.md が `- docsRoot: <path>` で宣言した値と一致するパスを除外する（docs を別リポジトリへ置く運用は設計であって残骸ではない）。
-6. **本番の解決規則を再現する**。`lep.json` は 4 階層（内蔵 default ＜ `~/.anytime/trail/lep.json` ＜ `<workspace>/.anytime/trail/lep.json` ＜ `<workspace>/.anytime/trail/lep.local.json`）の deep merge で解決し、`activity_repos.repo_name` は sanitize せず git ルートの basename（worktree 直下は親リポジトリ名）を使う。1 ファイルだけ・独自 slug で照合すると、`lep.local.json` 運用や worktree 実行で「監視対象 0 件」「Trail 未導入」と誤判定する。
+6. **診断ツール自身の欠落をユーザーの設定の error にしない**。git 実行ファイルを解決できない・`safe.directory` で拒否される等で判定できなかった場合は、「git working tree でない」と断定せず測定不能へ落とす。
+7. **外部コマンドはコマンド名で起動しない**。`git` / `sqlite3` は PATH の**絶対パス要素だけ**を走査して絶対パスへ解決してから実行する（解決できなければフォールバックしない）。監査対象は任意のユーザーリポジトリで、Windows の `CreateProcess` はカレントディレクトリを PATH より先に探すため、リポジトリにコミットされた `git.exe` が実行され得る（POSIX でも PATH の空要素・相対要素は cwd を指す。SonarCloud S4036）。根拠と `ANYTIME_GIT_PATH` による差し替えは `packages/trail-activity/src/gitExecutable.ts` を正本とする。
+8. **本番の解決規則を再現する**。`lep.json` は 4 階層（内蔵 default ＜ `~/.anytime/trail/lep.json` ＜ `<workspace>/.anytime/trail/lep.json` ＜ `<workspace>/.anytime/trail/lep.local.json`）の deep merge で解決し、`activity_repos.repo_name` は sanitize せず git ルートの basename（worktree 直下は親リポジトリ名）を使う。1 ファイルだけ・独自 slug で照合すると、`lep.local.json` 運用や worktree 実行で「監視対象 0 件」「Trail 未導入」と誤判定する。
 
 **VS Code 設定の読み取り元**は Machine → User → ワークスペースの順に後勝ちで合成する（`~/.vscode-server/data/Machine/settings.json` → `~/.vscode-server/data/User/settings.json`（無ければ `~/.config/Code/User/settings.json`）→ `<workspace>/.vscode/settings.json`）。値の由来ファイルを所見へ併記すること — どの層に残骸が残っているかが是正先を決める。
 
