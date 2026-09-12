@@ -573,7 +573,7 @@ function buildSurface3dData(
     for (let xi = 0; xi <= GRID_SIZE; xi++) {
       try {
         const v = evalFn({ ...vars, x: xVals[xi], y: yVals[yi] });
-        row.push(isFinite(v as number) ? (v as number) : NaN);
+        row.push(Number.isFinite(v as number) ? (v as number) : NaN);
       } catch {
         row.push(NaN);
       }
@@ -585,7 +585,7 @@ function buildSurface3dData(
 
 /** 有限値ならそのまま、非有限（Infinity / NaN）なら NaN に丸める。 */
 function finiteOrNaN(value: number): number {
-  return isFinite(value) ? value : NaN;
+  return Number.isFinite(value) ? value : NaN;
 }
 
 /**

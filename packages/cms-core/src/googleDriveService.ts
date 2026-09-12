@@ -4,11 +4,11 @@ export interface ServiceAccountKey {
 }
 
 export function base64UrlEncodeBytes(bytes: Uint8Array): string {
-  return Buffer.from(bytes)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  const base64 = Buffer.from(bytes).toString('base64').replaceAll('+', '-').replaceAll('/', '_');
+  // 末尾 '=' の除去。/=+$/ は一致しない入力で '=' 連長ぶんバックトラックする（Sonar S8786）。
+  let end = base64.length;
+  while (end > 0 && base64[end - 1] === '=') end -= 1;
+  return base64.slice(0, end);
 }
 
 export function base64UrlEncodeString(input: string): string {

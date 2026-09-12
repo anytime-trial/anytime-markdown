@@ -7,7 +7,8 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
     .replace(/\s+/g, '');
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  // atob の戻り値は各文字が 0x00-0xFF の binary string なので codePointAt は charCodeAt と一致する。
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.codePointAt(i) ?? 0;
   return bytes.buffer;
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
+import { trimChar } from '../../../lib/trimChars';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { useThemeMode } from '../providers';
@@ -36,7 +37,8 @@ function downloadBlob(blob: Blob, filename: string): void {
 function filenameFor(file: CooccurrenceFile, extension: string): string {
   // Why not /[^\w.-]+/: \w は ASCII のみで、日本語タイトルが全文字落ちて
   // 常に既定名になる。除去はパス上危険な文字に限る。
-  const base = file.spec.title?.trim().replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').replace(/^-+|-+$/g, '') || 'cooccurrence';
+  const sanitized = file.spec.title?.trim().replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-');
+  const base = (sanitized === undefined ? '' : trimChar(sanitized, '-')) || 'cooccurrence';
   return `${base}${extension}`;
 }
 

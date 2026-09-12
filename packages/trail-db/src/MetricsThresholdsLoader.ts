@@ -15,7 +15,9 @@ function parseSimpleYaml(content: string): Record<string, Record<string, number>
   let currentKey: string | null = null;
 
   for (const raw of content.split('\n')) {
-    const line = raw.replace(/#.*$/, ''); // strip comments
+    // strip comments（/#.*$/ は改行を含む入力でバックトラックする: Sonar S8786）
+    const hashAt = raw.indexOf('#');
+    const line = hashAt === -1 ? raw : raw.slice(0, hashAt);
     if (!line.trim()) continue;
 
     const topMatch = /^([a-zA-Z_]\w*):\s*$/.exec(line);

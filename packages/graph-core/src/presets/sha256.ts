@@ -52,15 +52,16 @@ function utf8Bytes(input: string): Uint8Array {
  * 対になっていないサロゲートは U+FFFD へ写す（消費は 1）。
  */
 function readCodePointAt(input: string, i: number): { code: number; consumed: number } {
-  const code = input.charCodeAt(i);
-  if (code >= 0xd800 && code <= 0xdbff) {
-    const low = i + 1 < input.length ? input.charCodeAt(i + 1) : 0;
-    if (low >= 0xdc00 && low <= 0xdfff) {
-      return { code: 0x10000 + ((code - 0xd800) << 10) + (low - 0xdc00), consumed: 2 };
-    }
+  // codePointAt はサロゲートペアが揃っているときだけ結合済みコードポイントを返す。
+  // 揃っていない（lone surrogate）ときはコードユニットがそのまま返るので下で U+FFFD へ写す。
+  const code = input.codePointAt(i);
+  if (code === undefined) {
     return { code: 0xfffd, consumed: 1 };
   }
-  if (code >= 0xdc00 && code <= 0xdfff) {
+  if (code > 0xffff) {
+    return { code, consumed: 2 };
+  }
+  if (code >= 0xd800 && code <= 0xdfff) {
     return { code: 0xfffd, consumed: 1 };
   }
   return { code, consumed: 1 };

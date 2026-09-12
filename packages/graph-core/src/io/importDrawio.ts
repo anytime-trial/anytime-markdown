@@ -6,9 +6,27 @@ function stripHtmlTags(html: string): string {
   let prev: string;
   do {
     prev = result;
-    result = result.replaceAll(/<[^>]*>/g, '');
+    result = removeTagsOnce(result);
   } while (result !== prev);
   return result;
+}
+
+/**
+ * `<...>` を 1 巡ぶん取り除く。/<[^>]*>/g は閉じない `<` に対して残り長ぶん
+ * バックトラックする（Sonar S8786）ため、indexOf で走査する。
+ */
+function removeTagsOnce(value: string): string {
+  let out = '';
+  let cursor = 0;
+  while (cursor < value.length) {
+    const open = value.indexOf('<', cursor);
+    if (open === -1) break;
+    const close = value.indexOf('>', open + 1);
+    if (close === -1) break;
+    out += value.slice(cursor, open);
+    cursor = close + 1;
+  }
+  return out + value.slice(cursor);
 }
 
 function parseStyle(styleStr: string): Record<string, string> {

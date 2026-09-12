@@ -139,7 +139,7 @@ function findingSectionsOf(body: string): string {
   const kept: string[] = [];
   let excluding = false;
   for (const line of lines) {
-    const heading = /^#{1,4}\s+(.+)$/.exec(line);
+    const heading = /^#{1,4}\s+(\S.*)$/.exec(line);
     if (heading) {
       excluding = NON_FINDING_HEADINGS.test(heading[1]);
       continue;
@@ -198,7 +198,7 @@ function parseFindings(
   reviewId: string,
   logger: CaravanLogger,
 ): RawFinding[] | null {
-  const head = responseText.slice(0, 200).replace(/\n/g, ' ');
+  const head = responseText.slice(0, 200).replaceAll('\n', ' ');
   const start = responseText.indexOf('{');
   const end = responseText.lastIndexOf('}');
   if (start < 0 || end <= start) {

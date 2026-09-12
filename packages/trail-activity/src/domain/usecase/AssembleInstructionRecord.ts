@@ -50,13 +50,13 @@ function parseTags(raw: string, sessionId: string): string[] {
 function minIso(values: readonly (string | null)[]): string | null {
   const present = values.filter((v): v is string => v !== null && v !== '');
   if (present.length === 0) return null;
-  return present.reduce((a, b) => (a <= b ? a : b));
+  return present.reduce((a, b) => (a <= b ? a : b), present[0]);
 }
 
 function maxIso(values: readonly (string | null)[]): string | null {
   const present = values.filter((v): v is string => v !== null && v !== '');
   if (present.length === 0) return null;
-  return present.reduce((a, b) => (a >= b ? a : b));
+  return present.reduce((a, b) => (a >= b ? a : b), present[0]);
 }
 
 /** 成否は最終セッション優先。unknown なら直近の非 unknown へ後退する。 */

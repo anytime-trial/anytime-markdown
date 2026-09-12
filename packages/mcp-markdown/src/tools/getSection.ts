@@ -25,11 +25,11 @@ export function getSectionFromText(
   heading: string,
   occurrence?: number,
 ): string | null {
-  const headingMatch = /^(#{1,6})\s+(.+)$/.exec(heading);
+  const headingMatch = /^(#{1,6})\s+(\S.*)?$/.exec(heading);
   if (!headingMatch) return null;
 
   const targetLevel = headingMatch[1].length;
-  const targetText = headingMatch[2].trimEnd();
+  const targetText = (headingMatch[2] ?? '').trimEnd();
 
   const lines = markdown.split('\n');
   const headings = extractHeadingsFromText(markdown);

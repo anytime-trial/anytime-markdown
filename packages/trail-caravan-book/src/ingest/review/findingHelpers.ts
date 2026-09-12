@@ -152,7 +152,7 @@ export function splitIntoChapters(bodyLines: string[]): ChapterBlock[] {
   let current: ChapterBlock = { heading: '', lines: [] };
 
   for (const line of bodyLines) {
-    const headingMatch = /^#{2,3}\s+(.+)$/.exec(line);
+    const headingMatch = /^#{2,3}\s+(\S.*)$/.exec(line);
     if (headingMatch) {
       chapters.push(current);
       current = { heading: headingMatch[1].trim(), lines: [] };
@@ -286,7 +286,7 @@ export function extractProblemSuggestionPairs(lines: string[]): Array<[string, s
 // ⚠️ は U+26A0 + U+FE0F の合成絵文字。文字クラス内に入れると U+FE0F(異体字セレクタ)
 // 単独や U+26A0 単独にもマッチしてしまうため、合成文字は交替として外に出す (S5868)。
 const NUMBERED_BOUNDARY_RE =
-  /^(?:(?:⚠️|[\p{Emoji_Presentation}\u{1F534}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26AB}\u{26AA}])\s*)?\*\*(\d+)\.\s+(.+?)\*\*\s*$/u;
+  /^(?:(?:⚠️|[\p{Emoji_Presentation}\u{1F534}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26AB}\u{26AA}])\s*)?\*\*(\d+)\.\s+(\S.*)\*\*\s*$/u;
 
 /**
  * Sample 2/3 の suggestion インラインマーカー（bold なし、コロン必須）。
@@ -498,8 +498,10 @@ function pushCandidate(candidates: string[], raw: string): void {
 function maskNonPathTokens(text: string): string {
   return text
     .replace(/\b[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S*/g, ' ')
-    .replace(/\*\*/g, ' ')
-    .replace(/\S*[*?]\S*/g, ' ');
+    .replaceAll('**', ' ')
+    // 先頭の \S* は [*?] と重なり super-linear になる（Sonar S8786）。
+    // 最初の * / ? までを非グロブ文字に限ることで境界を一意にする（一致範囲は同じ）。
+    .replace(/[^\s*?]*[*?]\S*/g, ' ');
 }
 
 export function extractTargetFromFinding(text: string): string | null {

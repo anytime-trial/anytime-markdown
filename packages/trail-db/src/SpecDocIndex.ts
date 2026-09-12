@@ -328,6 +328,25 @@ function readFrontmatterLines(lines: readonly string[]): readonly string[] {
   return frontmatterLines;
 }
 
+/**
+ * `- value` / `- "value"` / `- 'value'` の 1 行を読む。
+ *
+ * 旧実装の /^\s*-\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/ は、非貪欲な (.+?) と末尾の \s* が
+ * 空白で重なり super-linear になる（Sonar S8786）。
+ */
+function parseYamlListItem(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('-')) return null;
+  const body = trimmed.slice(1).trim();
+  for (const quote of ['"', "'"]) {
+    if (body.length >= 2 && body.startsWith(quote) && body.endsWith(quote)) {
+      const inner = body.slice(1, -1);
+      if (inner.length > 0 && !inner.includes(quote)) return inner;
+    }
+  }
+  return body;
+}
+
 function parseC4ScopeLines(frontmatterLines: readonly string[]): readonly string[] {
   const c4Scope: string[] = [];
   let inC4Scope = false;
@@ -342,11 +361,8 @@ function parseC4ScopeLines(frontmatterLines: readonly string[]): readonly string
 
     if (/^\S/.test(line)) break;
 
-    const match = line.match(/^\s*-\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/);
-    if (!match) continue;
-
-    const value = (match[1] ?? match[2] ?? match[3]).trim();
-    if (value.length > 0) c4Scope.push(value);
+    const value = parseYamlListItem(line);
+    if (value !== null && value.length > 0) c4Scope.push(value);
   }
 
   return c4Scope;

@@ -150,7 +150,7 @@ export function buildReturnContract(): string {
 /** 末尾の ```json フェンス本文を抽出する（A4 の境界仕様）。 */
 function extractLastJsonFence(raw: string): { json: string } | { error: string } {
   // 末尾空白を除いた最後の非空白文字が閉じフェンスで終わること（trailing text / 未閉鎖を弾く）。
-  const trimmed = raw.replace(/\s+$/, '');
+  const trimmed = raw.trimEnd();
   if (!trimmed.endsWith('```')) return { error: 'no closing json fence' };
   const open = trimmed.lastIndexOf('```json');
   if (open === -1) return { error: 'no json fence' };

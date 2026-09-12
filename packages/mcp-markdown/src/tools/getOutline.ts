@@ -26,11 +26,11 @@ export function extractHeadingsFromText(markdown: string): HeadingNode[] {
     }
     if (inCodeBlock) continue;
 
-    const match = /^(#{1,6})\s+(.+)$/.exec(line);
+    const match = /^(#{1,6})\s+(\S.*)?$/.exec(line);
     if (match) {
       headings.push({
         level: match[1].length,
-        text: match[2].trimEnd(),
+        text: (match[2] ?? '').trimEnd(),
         line: i + 1,
       });
     }

@@ -120,6 +120,19 @@ describe('importFromDrawio', () => {
     expect(doc.nodes[0].text).not.toContain('<br');
   });
 
+  it('should strip nested and unclosed tags (走査版 stripHtmlTags の等価性)', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="5" value="&lt;&lt;b&gt;A&lt;/b&gt; B &lt;i unclosed" style="rounded=0" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="100" height="50" as="geometry"/>
+</mxCell>
+</root></mxGraphModel></diagram></mxfile>`;
+    const doc = importFromDrawio(xml);
+    // `<<b>` は 1 巡目で `<<b>` ごと落ち、閉じない `<i unclosed` はそのまま残す。
+    expect(doc.nodes[0].text).toBe('A B <i unclosed');
+  });
+
   it('should throw on malformed XML', () => {
     expect(() => importFromDrawio('<not valid xml<>')).toThrow('Invalid XML');
   });

@@ -73,7 +73,9 @@ function isInsideForeignObject(node: Node): boolean {
  * mermaid の描画に必須なので残す。
  */
 function stripExternalUrlFunctions(styleValue: string): string {
-  return styleValue.replaceAll(/url\s*\(\s*(['"]?)(?!#)[^)]*\)/gi, "");
+  // 捕捉グループ ['"]? は位置合わせ専用で置換に使っていない。量指定子として残すと
+  // [^)]* と重なり super-linear になる（Sonar S8786）ため、先読みの中へ畳む。
+  return styleValue.replaceAll(/url\s*\(\s*(?!['"]?#)[^)]*\)/gi, "");
 }
 
 /**

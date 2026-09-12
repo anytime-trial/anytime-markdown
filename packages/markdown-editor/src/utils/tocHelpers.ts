@@ -1,6 +1,18 @@
 import type { HeadingItem } from "../types";
 
 /**
+ * 先頭・末尾のハイフンを落とす。/^-+/ と /-+$/ の正規表現版は、一致しない入力に対して
+ * ハイフン連長ぶんバックトラックする（Sonar S8786: super-linear backtracking）。
+ */
+function trimHyphens(value: string): string {
+  let start = 0;
+  while (start < value.length && value[start] === "-") start += 1;
+  let end = value.length;
+  while (end > start && value[end - 1] === "-") end -= 1;
+  return value.slice(start, end);
+}
+
+/**
  * GitHub スタイルのスラグを生成する。
  * 重複時は `-1`, `-2` ... を付加（GitHub 準拠）。
  */
@@ -10,11 +22,11 @@ export function toGitHubSlug(
 ): string {
   if (!text) return "";
 
-  const slug = text
+  const normalized = text
     .toLowerCase()
     .replaceAll(/\s+/g, "-")
-    .replaceAll(/[^\p{L}\p{N}\-_]/gu, "")
-    .replace(/^-+/, "").replace(/-+$/, "");
+    .replaceAll(/[^\p{L}\p{N}\-_]/gu, "");
+  const slug = trimHyphens(normalized);
 
   const count = usedSlugs.get(slug);
   if (count === undefined) {

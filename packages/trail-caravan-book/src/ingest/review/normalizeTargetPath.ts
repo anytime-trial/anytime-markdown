@@ -99,7 +99,12 @@ function sanitizeCandidate(raw: string): string | null {
   // ref とリポジトリ相対パスの境界を機械的に確定できない（推測すると誤ったパスを作る）。
   if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(value)) return null;
 
-  value = value.replace(/^\.\//, '').replace(/\/+$/, '');
+  // 末尾 '/' の除去に /\/+$/ を使うと、一致しない入力でスラッシュ連長ぶん
+  // バックトラックする（Sonar S8786）。
+  value = value.replace(/^\.\//, '');
+  let pathEnd = value.length;
+  while (pathEnd > 0 && value[pathEnd - 1] === '/') pathEnd -= 1;
+  value = value.slice(0, pathEnd);
   if (value === '') return null;
 
   return value;

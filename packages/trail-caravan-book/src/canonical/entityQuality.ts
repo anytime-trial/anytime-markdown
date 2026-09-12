@@ -24,7 +24,9 @@ const EXACT_PLACEHOLDER = new Set([
 ]);
 
 /** 「<不明系修飾>の<総称>」の全体一致のみ。修飾に続く具体的な説明文は除外しない */
-const QUALIFIED_GENERIC = /^(不明|未命名|無名|特定)\s*の?\s*(バグ|bug|エラー|error|問題|issue)$/i;
+// \s*の?\s* は 2 つの \s* が空白の並びを分け合えるため super-linear（Sonar S8786）。
+// 省略可能な「の」を含めて 1 つの任意グループに畳む（受理する文字列の集合は同じ）。
+const QUALIFIED_GENERIC = /^(不明|未命名|無名|特定)\s*(?:の\s*)?(バグ|bug|エラー|error|問題|issue)$/i;
 
 const BARE_GENERIC = new Set(['バグ', 'bug', 'エラー', 'error', '問題', 'issue']);
 

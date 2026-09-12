@@ -1,3 +1,5 @@
+import { trimEndChar } from './trimChars';
+
 /**
  * md ファイルの key から画像パス解決用の baseDir を算出する。
  * 例: "docs/guide/index.md" → "docs/guide/"
@@ -28,7 +30,7 @@ export function resolveImageUrl(
 
   if (cloudfrontUrl) {
     // 末尾スラッシュを正規化
-    const base = cloudfrontUrl.replace(/\/+$/, '');
+    const base = trimEndChar(cloudfrontUrl, '/');
     return `${base}/${imageKey}`;
   }
 

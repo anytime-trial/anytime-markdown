@@ -98,9 +98,9 @@ function labeledBullets(lines: string[]): LabeledBullet[] {
   const out: LabeledBullet[] = [];
   for (const raw of lines) {
     const t = raw.trim();
-    const m = /^-\s+(.*)$/.exec(t);
+    const m = /^-\s+(\S.*)?$/.exec(t);
     if (!m) continue;
-    const rest = m[1];
+    const rest = m[1] ?? '';
     const ci = firstColonIndex(rest);
     if (ci === -1) {
       out.push({ label: rest.trim(), items: [] });
@@ -116,10 +116,10 @@ function parseIndentTree(lines: string[]): TreeNodeSpec[] {
   const roots: TreeNodeSpec[] = [];
   const stack: Array<{ node: TreeNodeSpec; level: number }> = [];
   for (const raw of lines) {
-    const m = /^(\s*)-\s+(.*)$/.exec(raw.replace(/\t/g, '  '));
+    const m = /^(\s*)-\s+(\S.*)?$/.exec(raw.replaceAll('\t', '  '));
     if (!m) continue;
     const level = Math.floor(m[1].length / 2);
-    const label = m[2].trim();
+    const label = (m[2] ?? '').trim();
     if (!label) continue;
     const node: TreeNodeSpec = { label };
     while (stack.length > 0 && stack[stack.length - 1].level >= level) stack.pop();
@@ -393,7 +393,9 @@ function parseCooccurrenceEntry(t: string): CooccurrenceEntry | null {
   }
   // 矢印として読むのは `--` に隣接する `<` `>` だけ。語名に `<` `>` を含められる状態を
   // 保つ（設計書 §2.5）。`(.+?)` が非貪欲なので、`<A> -- B` は a="<A>" として読める。
-  const pair = /^(.+?)\s*(<?)--(>?)\s*(.+)$/.exec(head);
+  // (.+?) と \s* は空白で重なり super-linear になる（Sonar S8786）。ラベル末尾を \S で
+  // 固定して境界を一意にする（非貪欲時の解と同じ = 末尾空白はラベルに含めない）。
+  const pair = /^(.*?\S)\s*(<?)--(>?)\s*(\S.*)$/.exec(head);
   if (pair) return { kind: 'link', link: buildCooccurrenceLink(pair, value, t) };
   if (!head) {
     throw new GraphDslError(`語のラベルが空です: "${t}"`);
@@ -446,7 +448,7 @@ function parseCooccurrenceClusters(
   const clusters: Array<{ label: string; members: string[] }> = [];
   for (const raw of lines) {
     const t = raw.trim();
-    const m = /^cluster\s+(.+)$/i.exec(t);
+    const m = /^cluster\s+(\S.*)$/i.exec(t);
     if (!m) continue;
     const body = m[1];
     const ci = firstColonIndex(body);

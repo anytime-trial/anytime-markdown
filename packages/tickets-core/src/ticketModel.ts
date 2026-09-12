@@ -118,7 +118,7 @@ export function parseTicketMarkdown(text: string): ParsedTicketFile | null {
   const frontmatter: Record<string, FrontmatterValue> = Object.create(null);
   let pendingArrayKey: string | null = null;
   for (const line of match[1].split(/\r?\n/)) {
-    const item = /^\s+-\s+(.+)$/.exec(line);
+    const item = /^\s+-\s+(\S.*)$/.exec(line);
     if (item && pendingArrayKey) {
       (frontmatter[pendingArrayKey] as string[]).push(unquote(item[1].trim()).value);
       continue;
@@ -342,13 +342,23 @@ export function nextTicketId(existingIds: readonly string[]): string {
 
 /** タイトルから英数字ハイフンの slug を生成する。ASCII 英数字が無い場合は 'ticket'。 */
 export function slugifyTitle(title: string): string {
-  const slug = title
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/^-+|-+$/g, '')
-    .slice(0, 50)
-    .replaceAll(/-+$/g, '');
+  const normalized = title.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-');
+  const slug = trimEndHyphens(trimEndHyphens(trimStartHyphens(normalized)).slice(0, 50));
   return slug === '' ? 'ticket' : slug;
+}
+
+/** 先頭のハイフンを落とす（/^-+/ のバックトラック回避: Sonar S8786）。 */
+function trimStartHyphens(value: string): string {
+  let start = 0;
+  while (start < value.length && value[start] === '-') start += 1;
+  return value.slice(start);
+}
+
+/** 末尾のハイフンを落とす（/-+$/ のバックトラック回避: Sonar S8786）。 */
+function trimEndHyphens(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '-') end -= 1;
+  return value.slice(0, end);
 }
 
 export function ticketFileName(id: string, title: string): string {
@@ -428,7 +438,7 @@ export function appendComment(body: string, comment: TicketComment): string {
 // 行を別コメントに分割してしまう。appendComment が書く「### <投稿者> - <ISO UTC 日時>」の
 // 日時部分まで一致した行だけを境界とする（投稿者名にスペース・日本語・ハイフンを許すため
 // 区切りは末尾の日時形式で判定する）。
-const COMMENT_HEADER_RE = /^###\s+(.+)\s-\s(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)\s*$/;
+const COMMENT_HEADER_RE = /^###\s+(\S.*)\s-\s(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)\s*$/;
 
 interface CommentBlock extends TicketComment {
   /** Comments セクション内の行 index（ヘッダー行） */
