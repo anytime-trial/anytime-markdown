@@ -96,6 +96,23 @@ describe('gitWorkTreeProbe', () => {
     expect(gitWorkTreeProbe(dir)).toBe(false);
   });
 
+  it('「not a git repository」だけを確定的な否定として扱う', () => {
+    const run = () => ({ ok: false, kind: 'exit', message: "fatal: not a git repository (or any of the parent directories): .git" });
+    expect(gitWorkTreeProbe('/x', run)).toBe(false);
+  });
+
+  it('Permission denied など未列挙の失敗は false と断定せず unknown にする', () => {
+    // 列挙すべきは「測定不能にする理由」ではなく「断定してよい理由」。
+    const run = () => ({ ok: false, kind: 'exit', message: "fatal: cannot change to '/x': Permission denied" });
+    const result = gitWorkTreeProbe('/x', run);
+    expect(result.unknown).toContain('Permission denied');
+  });
+
+  it('dubious ownership は safe.directory を疑うよう理由を分ける', () => {
+    const run = () => ({ ok: false, kind: 'exit', message: "fatal: detected dubious ownership in repository at '/x'" });
+    expect(gitWorkTreeProbe('/x', run).unknown).toContain('safe.directory');
+  });
+
   it('git を解決できない環境では false ではなく unknown を返す', () => {
     const saved = process.env.PATH;
     process.env.PATH = '/nonexistent-dir';

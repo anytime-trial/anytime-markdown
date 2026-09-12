@@ -18,7 +18,7 @@ function healthyFacts(overrides = {}) {
     repoName: 'ws',
     watched: [{ path: '/ws', realPath: '/ws', origin: 'workspaceFolder', exists: true, isGitWorkTree: true }],
     watchedOverriddenBySetting: false,
-    git: { headCommittedAt: '2026-09-12T11:00:00.000Z' },
+    git: { headCommittedAt: '2026-09-12T11:00:00.000Z', reason: null },
     ingest: { status: 'ok', lastCommittedAt: '2026-09-12T11:30:00.000Z', scope: 'repo=ws' },
     pipelines: {
       status: 'ok',
@@ -177,6 +177,53 @@ describe('D1 — 監視リポジトリの解決結果', () => {
     expect(summarize(findings).error).toBe(0);
   });
 
+  it('判定不能があっても確定した失敗があれば error にし、不能なパスは detail へ併記する', () => {
+    // 判定不能を先に返すと、同じ watched に在る実在しないパスが所見から消え、
+    // error が測定不能へ化けて終了コードまで反転する。
+    const findings = judge(
+      healthyFacts({
+        watched: [
+          {
+            path: '/nonexistent-repo',
+            realPath: '/nonexistent-repo',
+            origin: 'anytimeTrail.workspace.path',
+            exists: false,
+            isGitWorkTree: null,
+          },
+          {
+            path: '/ws',
+            realPath: '/ws',
+            origin: 'workspaceFolder',
+            exists: true,
+            isGitWorkTree: { unknown: 'git がリポジトリへのアクセスを拒否した（safe.directory を疑う）' },
+          },
+        ],
+      }),
+    );
+    expect(byId(findings, 'D1')).toMatchObject({ severity: 'error', status: 'fired' });
+    expect(byId(findings, 'D1').detail).toContain('実在しない: /nonexistent-repo');
+    expect(byId(findings, 'D1').detail).toContain('判定できなかったパス');
+    expect(summarize(findings).error).toBeGreaterThanOrEqual(1);
+  });
+
+  it('自ワークスペース自身が判定不能なら「監視対象に無い」と断定しない', () => {
+    const findings = judge(
+      healthyFacts({
+        watched: [
+          {
+            path: '/ws',
+            realPath: '/ws',
+            origin: 'workspaceFolder',
+            exists: true,
+            isGitWorkTree: { unknown: 'git 実行ファイルを PATH の絶対パス要素から解決できない' },
+          },
+        ],
+      }),
+    );
+    expect(byId(findings, 'D1').status).toBe('unmeasurable');
+    expect(byId(findings, 'D1').detail).not.toContain('監視対象に無く');
+  });
+
   it('symlink 越しに同じディレクトリを監視していれば ok（実パスで突き合わせる）', () => {
     const findings = judge(
       healthyFacts({
@@ -260,8 +307,12 @@ describe('D2 — 境界と「0 と測定不能の区別」', () => {
     expect(summarize(findings)).toMatchObject({ error: 0, unmeasurable: 1 });
   });
 
-  it('git の最新コミットが取れなければ「測定不能」', () => {
-    expect(byId(judge(healthyFacts({ git: { headCommittedAt: null } })), 'D2').status).toBe('unmeasurable');
+  it('git の最新コミットが取れなければ「測定不能」で、理由を併記する', () => {
+    const findings = judge(
+      healthyFacts({ git: { headCommittedAt: null, reason: 'git 実行ファイルを PATH の絶対パス要素から解決できない' } }),
+    );
+    expect(byId(findings, 'D2').status).toBe('unmeasurable');
+    expect(byId(findings, 'D2').detail).toContain('git 実行ファイル');
   });
 });
 
@@ -298,6 +349,22 @@ describe('D5 — stage', () => {
     expect(byId(findings, 'D5')).toMatchObject({ severity: 'warn', status: 'fired' });
     expect(byId(findings, 'D5').detail).toContain('lep.local.json');
     expect(byId(findings, 'D5').detail).toContain('production でも全て無視される');
+  });
+
+  it('解析できるファイルが 1 つも無く failedPaths だけでも warn（「無い」＝未導入と報告しない）', () => {
+    const findings = judge(
+      healthyFacts({
+        lep: {
+          candidates: ['/ws/.anytime/trail/lep.json'],
+          loadedPaths: [],
+          failedPaths: [{ file: '/ws/.anytime/trail/lep.json', reason: 'Unexpected token }' }],
+          config: null,
+        },
+      }),
+    );
+    expect(byId(findings, 'D5')).toMatchObject({ severity: 'warn', status: 'fired' });
+    expect(byId(findings, 'D5').detail).toContain('解析できない設定ファイルがある');
+    expect(byId(findings, 'D5').detail).not.toContain('lep.json が無い');
   });
 
   it('lep.json が 1 つも無ければ「測定不能」（不正値と混同しない）', () => {

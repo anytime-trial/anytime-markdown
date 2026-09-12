@@ -58,34 +58,47 @@ function judgeD1(facts, trailAbsent) {
   const notGit = facts.watched.filter((w) => w.exists && w.isGitWorkTree === false);
   const effective = facts.watched.filter((w) => w.exists && w.isGitWorkTree === true);
 
-  if (unknown.length > 0) {
-    return finding(
-      'D1',
-      title,
-      'error',
-      'unmeasurable',
-      `測定不能: git working tree か判定できないパスがある — ${unknown
-        .map((w) => `${w.path}（${w.isGitWorkTree.unknown}）`)
-        .join(' / ')}`,
-      { watched: facts.watched, unknown: unknown.map((w) => w.path) },
-    );
+  // symlink 越しに同じディレクトリを指している場合があるため、実パスで突き合わせる。
+  const workspaceReal = facts.workspaceRealPath ?? facts.workspaceRoot;
+  const realOf = (w) => w.realPath ?? w.path;
+  const workspaceWatched = effective.some((w) => realOf(w) === workspaceReal);
+  const workspaceUnknown = unknown.some((w) => realOf(w) === workspaceReal);
+  const unknownNote =
+    unknown.length === 0
+      ? null
+      : `判定できなかったパス: ${unknown.map((w) => `${w.path}（${w.isGitWorkTree.unknown}）`).join(' / ')}` +
+        ' — 有効件数はこのパスを除いた数';
+
+  // 確定した失敗を先に評価する。判定不能を先に返すと、同じ watched に在る実在しないパスが
+  // 所見から消え、error が測定不能へ化けて終了コードまで反転する。
+  const definite =
+    missing.length > 0 ||
+    notGit.length > 0 ||
+    (!workspaceWatched && !workspaceUnknown) ||
+    (effective.length === 0 && unknown.length === 0);
+
+  if (!definite && unknown.length > 0) {
+    return finding('D1', title, 'error', 'unmeasurable', `測定不能: ${unknownNote}`, {
+      watched: facts.watched,
+      unknown: unknown.map((w) => w.path),
+    });
   }
 
-  // symlink 越しに同じディレクトリを指している場合があるため、実パスで突き合わせる。
-  const workspaceWatched = effective.some((w) => (w.realPath ?? w.path) === (facts.workspaceRealPath ?? facts.workspaceRoot));
-
   const parts = [`解決結果 ${facts.watched.length} 件（有効 ${effective.length} 件）`];
-  if (effective.length === 0) parts.push('有効な監視対象が 0 件（コミット取込は行われない）');
+  if (effective.length === 0 && unknown.length === 0) {
+    parts.push('有効な監視対象が 0 件（コミット取込は行われない）');
+  }
   if (missing.length > 0) parts.push(`実在しない: ${missing.map((w) => w.path).join(', ')}`);
   if (notGit.length > 0) {
     parts.push(`git working tree でない（本番も同じく捨てる）: ${notGit.map((w) => w.path).join(', ')}`);
   }
-  if (!workspaceWatched) {
+  if (!workspaceWatched && !workspaceUnknown) {
     parts.push(`本ワークスペース（${facts.workspaceRoot}）自身が監視対象に無く、そのコミットは取り込まれない`);
   }
+  if (unknownNote !== null) parts.push(unknownNote);
 
-  const fired = effective.length === 0 || missing.length > 0 || notGit.length > 0 || !workspaceWatched;
-  return finding('D1', title, 'error', fired ? 'fired' : 'ok', parts.join(' / '), {
+  return finding('D1', title, 'error', definite ? 'fired' : 'ok', parts.join(' / '), {
+    unknown: unknown.map((w) => w.path),
     watched: facts.watched,
     effective: effective.map((w) => w.path),
     workspaceWatched,
@@ -101,7 +114,13 @@ function judgeD2(facts, trailAbsent) {
     return finding('D2', title, 'error', 'unmeasurable', `測定不能: ${facts.ingest.reason}`);
   }
   if (facts.git.headCommittedAt === null) {
-    return finding('D2', title, 'error', 'unmeasurable', '測定不能: git の最新コミットを取得できない');
+    return finding(
+      'D2',
+      title,
+      'error',
+      'unmeasurable',
+      `測定不能: git の最新コミットを取得できない${facts.git.reason ? `（${facts.git.reason}）` : ''}`,
+    );
   }
 
   const last = facts.ingest.lastCommittedAt;
@@ -196,19 +215,15 @@ function judgeD4(facts, trailAbsent) {
 function judgeD5(facts, trailAbsent) {
   const title = 'lep.json の値検証';
   if (trailAbsent) return outOfScope(facts, 'D5', title, 'warn');
-  if (facts.lep.loadedPaths.length === 0) {
-    return finding('D5', title, 'warn', 'unmeasurable', `測定不能: lep.json が無い（探索: ${facts.lep.candidates.join(', ')}）`);
-  }
-  if (facts.lep.config === null) {
-    return finding('D5', title, 'warn', 'unmeasurable', `測定不能: ${facts.lep.loadedPaths.join(', ')} を解析できない`);
-  }
-
-  const stage = facts.lep.config.stage;
-  const source = `解決元: ${facts.lep.loadedPaths.join(' < ')}`;
+  // 解析できないファイルの評価を「1 つも読めなかった」ガードより前へ置く。後ろに置くと、
+  // 単一階層構成（既定構成で最も多い）でそのファイルが壊れている場合に「lep.json が無い」＝
+  // 未導入と読める表現で報告してしまう。測定不能は候補が 1 つも存在しない場合だけに限る。
   const failed = facts.lep.failedPaths ?? [];
+  const loaded = facts.lep.loadedPaths;
+  const source = loaded.length === 0 ? '解決元: なし' : `解決元: ${loaded.join(' < ')}`;
   if (failed.length > 0) {
     // 解析できないファイルの設定は production でも全て無視される。stage が許容値でも、
-    // 上位 tier が丸ごと効いていない事実のほうが重い。
+    // その tier が丸ごと効いていない事実のほうが重い。
     return finding(
       'D5',
       title,
@@ -216,9 +231,17 @@ function judgeD5(facts, trailAbsent) {
       'fired',
       `解析できない設定ファイルがある: ${failed.map((p) => `${p.file}（${p.reason}）`).join(' / ')}` +
         ` — このファイルの設定は production でも全て無視される。${source}`,
-      { failedPaths: failed, stage },
+      { failedPaths: failed },
     );
   }
+  if (loaded.length === 0) {
+    return finding('D5', title, 'warn', 'unmeasurable', `測定不能: lep.json が無い（探索: ${facts.lep.candidates.join(', ')}）`);
+  }
+  if (facts.lep.config === null) {
+    return finding('D5', title, 'warn', 'unmeasurable', `測定不能: ${loaded.join(', ')} を解析できない`);
+  }
+
+  const stage = facts.lep.config.stage;
   if (stage === undefined) {
     return finding('D5', title, 'warn', 'ok', `stage 未指定 — 内蔵 default "disabled" が効く（${source}）`, { stage });
   }

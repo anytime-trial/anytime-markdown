@@ -394,7 +394,10 @@ async function collectFacts({ workspaceRoot, now, network, home }) {
     repoName,
     watched,
     watchedOverriddenBySetting: overriddenBySetting,
-    git: { headCommittedAt: tryExec('git', ['-C', workspaceRoot, 'log', '-1', '--format=%cI']) },
+    git: (() => {
+      const head = runCommand('git', ['-C', workspaceRoot, 'log', '-1', '--format=%cI']);
+      return { headCommittedAt: head.ok ? head.stdout : null, reason: head.ok ? null : head.message };
+    })(),
     ingest: readIngestFreshness({ reader, readerReason, dbDir, repoName }),
     pipelines: readPipelineStreaks({ reader, readerReason, dbDir }),
     llm,

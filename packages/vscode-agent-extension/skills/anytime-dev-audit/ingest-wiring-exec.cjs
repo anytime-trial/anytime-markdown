@@ -56,7 +56,13 @@ function runCommand(name, args, env = process.env) {
     return { ok: false, kind: 'not-found', message: `${name} 実行ファイルを PATH の絶対パス要素から解決できない` };
   }
   try {
-    return { ok: true, stdout: execFileSync(executable, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() };
+    // メッセージで失敗を分類するため、ロケールを C に固定して英語で受け取る。
+    const stdout = execFileSync(executable, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...env, LC_ALL: 'C' },
+    }).trim();
+    return { ok: true, stdout };
   } catch (err) {
     if (err?.status === null || err?.status === undefined) {
       logWarn(`${executable} ${args.join(' ')} — ${err?.message ?? err}`);
@@ -76,16 +82,18 @@ function tryExec(cmd, args) {
  * git working tree かを三値で返す。true / false / { unknown: 理由 }。
  * unknown は「測れなかった」であって「working tree でない」ではない。
  */
-function gitWorkTreeProbe(dir) {
-  const result = runCommand('git', ['-C', dir, 'rev-parse', '--is-inside-work-tree']);
+function gitWorkTreeProbe(dir, run = runCommand) {
+  const result = run('git', ['-C', dir, 'rev-parse', '--is-inside-work-tree']);
   if (result.ok) return result.stdout === 'true';
   if (result.kind === 'exit') {
-    // git が明確に否定したのか、アクセスを拒否したのかを stderr で分ける。
-    // dubious ownership は監視設定ではなく safe.directory を直す話なので、理由を取り違えない。
+    // 列挙するのは「測定不能にする理由」ではなく「断定してよい理由」。未列挙を false へ落とすと、
+    // Permission denied や corrupt repository が「working tree でない」に化け、是正先を取り違える
+    // （allowlist の列挙漏れが機能未実装に見えるのと同型）。既定を unknown 側に置く。
+    if (/not a git repository/i.test(result.message)) return false;
     if (/dubious ownership|safe\.directory|detected dubious/i.test(result.message)) {
       return { unknown: `git がリポジトリへのアクセスを拒否した（safe.directory を疑う）: ${result.message}` };
     }
-    return false;
+    return { unknown: `git が判定を返さなかった: ${result.message}` };
   }
   return { unknown: result.message };
 }
