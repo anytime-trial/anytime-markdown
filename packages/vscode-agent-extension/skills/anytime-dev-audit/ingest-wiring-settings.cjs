@@ -21,32 +21,32 @@ function logWarn(message) {
 function parseJsonc(text) {
   if (typeof text !== 'string' || text.trim() === '') return null;
   let out = '';
-  let inString = false;
-  let inLine = false;
-  let inBlock = false;
-  for (let i = 0; i < text.length; i += 1) {
+  let i = 0;
+  while (i < text.length) {
     const c = text[i];
     const next = text[i + 1];
-    if (inLine) {
-      if (c === '\n') { inLine = false; out += c; }
+    if (c === '"') {
+      const literal = readStringLiteral(text, i);
+      out += literal.text;
+      i = literal.next;
       continue;
     }
-    if (inBlock) {
-      if (c === '*' && next === '/') { inBlock = false; i += 1; }
+    if (c === '/' && next === '/') {
+      // 行コメントの終端の改行そのものは本体側で出力する（元の整形を保つ）。
+      i = skipLineComment(text, i);
       continue;
     }
-    if (inString) {
-      out += c;
-      if (c === '\\') { out += next ?? ''; i += 1; continue; }
-      if (c === '"') inString = false;
+    if (c === '/' && next === '*') {
+      i = skipBlockComment(text, i);
       continue;
     }
-    if (c === '"') { inString = true; out += c; continue; }
-    if (c === '/' && next === '/') { inLine = true; i += 1; continue; }
-    if (c === '/' && next === '*') { inBlock = true; i += 1; continue; }
     // 末尾カンマ: 次の非空白（コメントを挟む場合を含む）が } か ] なら捨てる。
-    if (c === ',' && isTrailingComma(text, i + 1)) continue;
+    if (c === ',' && isTrailingComma(text, i + 1)) {
+      i += 1;
+      continue;
+    }
     out += c;
+    i += 1;
   }
   try {
     return JSON.parse(out);
@@ -54,6 +54,36 @@ function parseJsonc(text) {
     logWarn(`settings の JSONC 解析に失敗: ${err.message}`);
     return null;
   }
+}
+
+/** 開き引用符の位置から文字列リテラルを丸ごと読む（エスケープ込み・未終端は末尾まで）。 */
+function readStringLiteral(text, start) {
+  let out = text[start];
+  let i = start + 1;
+  while (i < text.length) {
+    const c = text[i];
+    out += c;
+    if (c === '\\') {
+      out += text[i + 1] ?? '';
+      i += 2;
+      continue;
+    }
+    i += 1;
+    if (c === '"') break;
+  }
+  return { text: out, next: i };
+}
+
+/** 行コメントの開始位置から、終端の改行の位置（無ければ末尾）を返す。 */
+function skipLineComment(text, start) {
+  const newline = text.indexOf('\n', start);
+  return newline < 0 ? text.length : newline;
+}
+
+/** ブロックコメントの開始位置から、閉じた直後の位置（閉じていなければ末尾）を返す。 */
+function skipBlockComment(text, start) {
+  const end = text.indexOf('*/', start + 2);
+  return end < 0 ? text.length : end + 2;
 }
 
 /** 位置 from 以降の空白・コメントを読み飛ばし、次の実体が閉じ括弧なら true。 */
@@ -134,6 +164,7 @@ function settingValue(settings, key) {
 
 module.exports = {
   parseJsonc,
+  readStringLiteral,
   isTrailingComma,
   settingsCandidates,
   mergeSettings,

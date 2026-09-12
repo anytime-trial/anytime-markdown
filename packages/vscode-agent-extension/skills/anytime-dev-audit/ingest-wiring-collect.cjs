@@ -10,7 +10,6 @@ const { execFileSync } = require('node:child_process');
 
 const { resolveExecutable, runCommand, tryExec, gitWorkTreeProbe } = require('./ingest-wiring-exec.cjs');
 const {
-  parseJsonc,
   settingsCandidates,
   mergeSettings,
   settingValue,
@@ -260,28 +259,36 @@ function extractReasonCode(errorDetail) {
   return m ? m[1] : null;
 }
 
-/** scope ごとの「先頭から連続する skipped」本数と理由コードを集計する（新しい順の行を渡す）。 */
-function summarizeSkipStreaks(rows) {
+/** 行を scope でグループ化する（入力の順序＝新しい順を各グループ内で保つ）。 */
+function groupByScope(rows) {
   const byScope = new Map();
   for (const row of rows) {
     if (!byScope.has(row.scope)) byScope.set(row.scope, []);
     byScope.get(row.scope).push(row);
   }
-  const out = [];
-  for (const [scope, runs] of byScope) {
-    let streak = 0;
-    const reasonCodes = new Set();
-    const samples = [];
-    for (const run of runs) {
-      if (run.status !== 'skipped') break;
-      streak += 1;
-      const code = extractReasonCode(run.error_detail);
-      if (code !== null) reasonCodes.add(code);
-      if (run.error_detail && samples.length < 3) samples.push(run.error_detail);
-    }
-    out.push({ scope, skipStreak: streak, sampled: runs.length, reasonCodes: [...reasonCodes], samples });
+  return byScope;
+}
+
+/** 1 scope 分の「先頭から連続する skipped」本数・理由コード・全文サンプルを数える。 */
+function countLeadingSkips(runs) {
+  let skipStreak = 0;
+  const reasonCodes = new Set();
+  const samples = [];
+  for (const run of runs) {
+    if (run.status !== 'skipped') break;
+    skipStreak += 1;
+    const code = extractReasonCode(run.error_detail);
+    if (code !== null) reasonCodes.add(code);
+    if (run.error_detail && samples.length < 3) samples.push(run.error_detail);
   }
-  return out.sort((a, b) => b.skipStreak - a.skipStreak);
+  return { skipStreak, reasonCodes: [...reasonCodes], samples };
+}
+
+/** scope ごとの「先頭から連続する skipped」本数と理由コードを集計する（新しい順の行を渡す）。 */
+function summarizeSkipStreaks(rows) {
+  return [...groupByScope(rows)]
+    .map(([scope, runs]) => ({ scope, sampled: runs.length, ...countLeadingSkips(runs) }))
+    .sort((a, b) => b.skipStreak - a.skipStreak);
 }
 
 function probeHttp(baseUrl, timeoutMs = PROBE_TIMEOUT_MS) {
@@ -370,7 +377,7 @@ async function collectFacts({ workspaceRoot, now, network, home }) {
       llm.push({ provider, baseUrl: cfg.baseUrl, status: 'skipped', detail: '--no-network のため未疎通' });
       continue;
     }
-    // eslint-disable-next-line no-await-in-loop -- プロバイダ数は 1〜2 件で、並列化の利得より順序の可読性を採る
+    // 逐次に待つ: プロバイダ数は 1〜2 件で、並列化の利得より順序の可読性を採る。
     const probe = await probeHttp(cfg.baseUrl);
     llm.push({ provider, baseUrl: cfg.baseUrl, ...probe });
   }
@@ -441,6 +448,8 @@ module.exports = {
   readIngestFreshness,
   readPipelineStreaks,
   extractReasonCode,
+  groupByScope,
+  countLeadingSkips,
   summarizeSkipStreaks,
   readDeclaredDocsRoot,
   probeHttp,

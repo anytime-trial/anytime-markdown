@@ -23,7 +23,7 @@
     "verify:ext-build": "node scripts/run-verified.mjs vscode-graph-extension build -- npm run compile -w anytime-graph",
     "verify:gate": "npm run verify:next-build && npm run verify:ext-build",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
-    "lint": "eslint packages/markdown-editor/src packages/web-app/src",
+    "lint": "eslint packages/markdown-editor/src packages/web-app/src packages/vscode-agent-extension/skills/anytime-dev-audit",
     "lint:fix": "eslint --fix packages/markdown-editor/src packages/web-app/src",
     "prepare": "husky && node scripts/install-extra-hooks.mjs"
   },
