@@ -529,3 +529,35 @@ describe("screenmock panel source mutations", () => {
     expect(insertScreenmockFragment(source, 0, "9/9", "<p>Bad</p>").source).toBe(source);
   });
 });
+
+// /^\n+|\n+$/g と /\n*$/ を走査版 trimNewlines / trimEndNewlines へ置き換えた際の
+// 等価性を固定する（Sonar S8786 の是正）。
+describe("前後の空行トリム", () => {
+  const trimNewlinesByRegex = (value: string): string => value.replace(/^\n+|\n+$/g, "");
+
+  it("removeScreenmockScreen は残った本文の前後の空行を落とす", () => {
+    const source = [
+      '<div class="sm-screen"></div>',
+      "",
+      "---",
+      "id: s2",
+      "---",
+      "",
+      '<div class="sm-screen" data-b="1"></div>',
+    ].join("\n");
+    const removed = removeScreenmockScreen(source, 0);
+    expect(removed.startsWith("\n")).toBe(false);
+    expect(removed.endsWith("\n")).toBe(false);
+    expect(removed).toBe(trimNewlinesByRegex(removed));
+  });
+
+  it("走査版と正規表現版の結果が一致する", () => {
+    for (const input of ["", "\n", "\n\n", "a", "\na", "a\n", "\na\n", "\n\na\n\nb\n\n"]) {
+      let start = 0;
+      while (start < input.length && input[start] === "\n") start += 1;
+      let end = input.length;
+      while (end > start && input[end - 1] === "\n") end -= 1;
+      expect(input.slice(start, end)).toBe(trimNewlinesByRegex(input));
+    }
+  });
+});

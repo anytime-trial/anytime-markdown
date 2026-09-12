@@ -152,10 +152,12 @@ export function splitIntoChapters(bodyLines: string[]): ChapterBlock[] {
   let current: ChapterBlock = { heading: '', lines: [] };
 
   for (const line of bodyLines) {
-    const headingMatch = /^#{2,3}\s+(\S.*)$/.exec(line);
+    // 空本文の見出し（"## " など）も章境界として扱う。mcp-markdown / markdown-catalog /
+    // section-lock-core と同じ解釈に揃える（CommonMark の空 ATX 見出し）。
+    const headingMatch = /^#{2,3}\s+(\S.*)?$/.exec(line);
     if (headingMatch) {
       chapters.push(current);
-      current = { heading: headingMatch[1].trim(), lines: [] };
+      current = { heading: (headingMatch[1] ?? '').trim(), lines: [] };
     } else {
       current.lines.push(line);
     }
@@ -286,7 +288,7 @@ export function extractProblemSuggestionPairs(lines: string[]): Array<[string, s
 // ⚠️ は U+26A0 + U+FE0F の合成絵文字。文字クラス内に入れると U+FE0F(異体字セレクタ)
 // 単独や U+26A0 単独にもマッチしてしまうため、合成文字は交替として外に出す (S5868)。
 const NUMBERED_BOUNDARY_RE =
-  /^(?:(?:⚠️|[\p{Emoji_Presentation}\u{1F534}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26AB}\u{26AA}])\s*)?\*\*(\d+)\.\s+(\S.*)\*\*\s*$/u;
+  /^(?:(?:⚠️|[\p{Emoji_Presentation}\u{1F534}\u{1F7E1}\u{1F7E2}\u{1F535}\u{26AB}\u{26AA}])\s*)?\*\*(\d+)\.\s+(\S.*)?\*\*\s*$/u;
 
 /**
  * Sample 2/3 の suggestion インラインマーカー（bold なし、コロン必須）。
@@ -329,7 +331,7 @@ export function extractNumberedFindings(lines: string[]): NumberedFinding[] {
     const boundaryMatch = NUMBERED_BOUNDARY_RE.exec(line.trim());
     if (boundaryMatch) {
       flush();
-      current = { title: boundaryMatch[2].trim(), finding: '', suggestion: '' };
+      current = { title: (boundaryMatch[2] ?? '').trim(), finding: '', suggestion: '' };
       continue;
     }
     if (current == null) continue; // skip lines before first boundary

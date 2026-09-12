@@ -139,3 +139,31 @@ describe("generateTocMarkdown", () => {
     );
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  toGitHubSlug — 前後ハイフンのトリム（正規表現から走査へ置換した等価性） */
+/* ------------------------------------------------------------------ */
+describe("toGitHubSlug — 前後ハイフンのトリム", () => {
+  const slug = (text: string): string => toGitHubSlug(text, new Map<string, number>());
+
+  test.each([
+    ["!!! Hello !!!", "hello"],
+    ["--a--b--", "a--b"],
+    ["!!!", ""],
+    ["-", ""],
+  ])("%s -> %s", (input, expected) => {
+    expect(slug(input)).toBe(expected);
+  });
+
+  test("正規表現版 /^-+/ + /-+$/ と同じ結果になる", () => {
+    for (const input of ["", "-", "--", "a", "-a", "a-", "-a-", "--ab--cd--", "a--b", "!!! x !!!"]) {
+      const expected = input
+        .toLowerCase()
+        .replaceAll(/\s+/g, "-")
+        .replaceAll(/[^\p{L}\p{N}\-_]/gu, "")
+        .replace(/^-+/, "")
+        .replace(/-+$/, "");
+      expect(slug(input)).toBe(expected);
+    }
+  });
+});

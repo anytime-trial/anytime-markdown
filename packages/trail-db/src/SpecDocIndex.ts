@@ -340,8 +340,10 @@ function parseYamlListItem(line: string): string | null {
   const body = trimmed.slice(1).trim();
   for (const quote of ['"', "'"]) {
     if (body.length >= 2 && body.startsWith(quote) && body.endsWith(quote)) {
+      // 旧正規表現の "([^\"]+)" は「引用符を含まない 1 文字以上」を要求し、その結果を trim していた。
+      // 空白だけの中身は trim 後に空となり、呼び出し側の length > 0 判定で捨てられる。
       const inner = body.slice(1, -1);
-      if (inner.length > 0 && !inner.includes(quote)) return inner;
+      if (inner.length > 0 && !inner.includes(quote)) return inner.trim();
     }
   }
   return body;

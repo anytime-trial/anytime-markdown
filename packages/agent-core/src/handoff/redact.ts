@@ -23,7 +23,7 @@ const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
 // （CodeQL js/polynomial-redos #948）。構造抽出と秘密名判定を二段に分ける。
 // 値側は [ \t]* と .+ が空白で重なる（Sonar S8786）。値の先頭を \S で固定する
 // （値が空白だけの行は秘密を含まないので、伏字の対象から外れても影響しない）。
-const ENV_ASSIGN = /^([ \t]*(?:export[ \t]+)?[A-Z0-9_]+)[ \t]*=[ \t]*\S[^\n]*$/gim;
+const ENV_ASSIGN = /^([ \t]*(?:export[ \t]+)?[A-Z0-9_]+)[ \t]*=[ \t]*\S[^\n\r\u2028\u2029]*$/gim;
 const SECRET_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY/i;
 
 /** 与えられたテキストから秘密情報を伏字化する。空文字はそのまま返す。

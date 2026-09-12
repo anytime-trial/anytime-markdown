@@ -261,3 +261,26 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
     expect(warnings.some((message) => message.includes('missing-from'))).toBe(true);
   });
 });
+
+// 正規表現 /^\s*-\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/ を走査版 parseYamlListItem へ
+// 置き換えた際の等価性を固定する（Sonar S8786 の是正）。
+describe('extractC4ScopeFromFrontmatter — ブロックリスト項目の解釈', () => {
+  const scopeOf = (items: string[]): readonly string[] =>
+    extractC4ScopeFromFrontmatter(['---', 'c4Scope:', ...items, '---', '', '# body'].join('\n'));
+
+  it('引用符の内側も trim する', () => {
+    expect(scopeOf(['  - "  Web App  "', "  - '\tApi\t'"])).toEqual(['Web App', 'Api']);
+  });
+
+  it('空白だけの項目は値として採らない', () => {
+    expect(scopeOf(['  - " "', "  - '\t'", '  -   '])).toEqual([]);
+  });
+
+  it('引用符が対応しない項目はそのまま採る', () => {
+    expect(scopeOf(['  - "a"b"'])).toEqual(['"a"b"']);
+  });
+
+  it('引用符なしの項目は前後の空白を落として採る', () => {
+    expect(scopeOf(['  -   Web App  '])).toEqual(['Web App']);
+  });
+});

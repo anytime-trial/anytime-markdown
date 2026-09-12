@@ -169,6 +169,8 @@ function frontmatterScalar(fm: string, key: string): string | null {
     let value = afterKey.slice(1).trim();
     if (value.startsWith('"')) value = value.slice(1);
     if (value.endsWith('"')) value = value.slice(0, -1);
+    // 空値は「未指定」として扱い、呼び出し側の既定値（'Untitled' 等）へ戻す。
+    if (value === '') continue;
     return value;
   }
   return null;

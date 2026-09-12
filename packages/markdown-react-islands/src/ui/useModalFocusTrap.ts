@@ -15,14 +15,16 @@ export const FOCUSABLE =
  *   閉じたら元の overflow とフォーカスへ戻す。
  * - 背景（モーダルの body 直下祖先以外の body 直下要素）に `aria-hidden="true"` を付け、
  *   閉じたら戻す（MUI Modal 同挙動。支援技術から背景を隠す）。
- * - paper 要素へ直接 keydown リスナを張り、ESC で `onClose`、Tab で paper 内の最小
- *   フォーカストラップを行う（非対話要素へ JSX のキーハンドラを付けない＝Sonar S6847）。
+ * - 返り値の `onKeyDown` は ESC で `onClose`、Tab で paper 内の最小フォーカストラップ。
+ *   **paper（role="dialog"）ではなくバックドロップ（role="presentation"）へ張ること**。
+ *   非対話ロールの要素に JSX のキーハンドラを置くと jsx-a11y の非対話要素ルール
+ *   （Sonar S6847）に触れる。
  */
 export function useModalFocusTrap(
   open: boolean,
   paperRef: React.RefObject<HTMLElement | null>,
   onClose: () => void,
-): void {
+): (e: React.KeyboardEvent) => void {
   const restoreRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -54,8 +56,8 @@ export function useModalFocusTrap(
     };
   }, [open, paperRef]);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+  return useCallback(
+    (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
@@ -76,15 +78,4 @@ export function useModalFocusTrap(
     },
     [onClose, paperRef],
   );
-
-  // JSX の onKeyDown ではなく paper 要素へ直接張る。role="dialog" は非対話ロールのため、
-  // JSX へキーハンドラを置くと jsx-a11y の非対話要素ルール（Sonar S6847）に触れる。
-  // 伝播経路（paper で発火 → stopPropagation で祖先へ届かない）は JSX 版と同じ。
-  useEffect(() => {
-    if (!open) return;
-    const paper = paperRef.current;
-    if (!paper) return;
-    paper.addEventListener("keydown", handleKeyDown);
-    return () => paper.removeEventListener("keydown", handleKeyDown);
-  }, [open, paperRef, handleKeyDown]);
 }

@@ -54,7 +54,7 @@ export function Dialog({
   ...rest
 }: Readonly<DialogProps>) {
   const paperRef = useRef<HTMLDivElement>(null);
-  useModalFocusTrap(open, paperRef, onClose);
+  const onKeyDown = useModalFocusTrap(open, paperRef, onClose);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -77,8 +77,15 @@ export function Dialog({
     <div
       // 装飾用のバックドロップ。閉じる操作は ESC と閉じるボタンでも到達できるため、
       // 支援技術へは提示しない（role="presentation"）。
+      // Why not paper 側に onKeyDown を置く: role="dialog" は非対話ロールで、
+      // JSX のキーハンドラを持つと jsx-a11y の非対話要素ルール（Sonar S6847）に触れる。
+      // presentation ロールの本要素なら同ルールの対象外で、かつ React 合成イベントの
+      // 伝播順（子孫のハンドラが先に走り、stopPropagation で祖先の dialog を止められる）
+      // が保たれる。paper へネイティブリスナを張ると React のルート委譲より先に走り、
+      // ダイアログ内部のハンドラが ESC を受け取れなくなる。
       role="presentation"
       className={styles.backdrop}
+      onKeyDown={onKeyDown}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div

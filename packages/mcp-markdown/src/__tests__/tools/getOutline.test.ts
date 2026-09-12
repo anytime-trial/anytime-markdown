@@ -81,3 +81,32 @@ describe('getOutline', () => {
     await expect(getOutline({ path: 'test.txt' }, tmpDir)).rejects.toThrow('File type not allowed');
   });
 });
+
+// 見出し正規表現を /^(#{1,6})\s+(\S.*)?$/ へ置き換えた際の境界を固定する（Sonar S8786）。
+describe('extractHeadingsFromText — 見出し本文が空の行', () => {
+  const levels = (md: string): Array<{ level: number; text: string }> =>
+    extractHeadingsFromText(md).map((h) => ({ level: h.level, text: h.text }));
+
+  it('"## " のように本文が空でも見出しとして拾う（CommonMark の空 ATX 見出し）', () => {
+    expect(levels('# T\n\n## \n\n## A\n')).toEqual([
+      { level: 1, text: 'T' },
+      { level: 2, text: '' },
+      { level: 2, text: 'A' },
+    ]);
+  });
+
+  it('空白が複数でもタブでも同じ扱いにする', () => {
+    expect(levels('##   \n##\t\n')).toEqual([
+      { level: 2, text: '' },
+      { level: 2, text: '' },
+    ]);
+  });
+
+  it('"##"（空白なし）は見出しにしない', () => {
+    expect(levels('##\n')).toEqual([]);
+  });
+
+  it('本文末尾の空白は落とす', () => {
+    expect(levels('## A  \n')).toEqual([{ level: 2, text: 'A' }]);
+  });
+});

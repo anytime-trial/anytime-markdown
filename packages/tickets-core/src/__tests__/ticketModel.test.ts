@@ -535,3 +535,39 @@ describe('frontmatter のキーがプロトタイプへ届かないこと', () =
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
+
+// /^-+|-+$/g と /-+$/g を走査へ置き換えた際の等価性を固定する（Sonar S8786 の是正）。
+describe('slugifyTitle — 前後ハイフンのトリム', () => {
+  it('先頭・末尾の連続ハイフンを落とし、内部は残す', () => {
+    expect(slugifyTitle('!!! Hello  World !!!')).toBe('hello-world');
+    // [^a-z0-9]+ が連続記号を 1 つのハイフンへ畳んだあと、前後のハイフンだけを落とす。
+    expect(slugifyTitle('--a--b--')).toBe('a-b');
+  });
+
+  it('ASCII 英数字が無ければ ticket になる', () => {
+    expect(slugifyTitle('！！！')).toBe('ticket');
+    expect(slugifyTitle('-')).toBe('ticket');
+    expect(slugifyTitle('')).toBe('ticket');
+  });
+
+  it('50 文字で切った結果の末尾ハイフンも落とす', () => {
+    // 49 文字目までが英数字、50 文字目が区切りになる入力。
+    const title = `${'a'.repeat(49)} b`;
+    const slug = slugifyTitle(title);
+    expect(slug.endsWith('-')).toBe(false);
+    expect(slug).toBe('a'.repeat(49));
+  });
+
+  it('正規表現版と同じ結果になる', () => {
+    for (const input of ['', '-', 'a', '--a--', 'Hello World', '日本語 Title', 'a'.repeat(60)]) {
+      const expected =
+        input
+          .toLowerCase()
+          .replaceAll(/[^a-z0-9]+/g, '-')
+          .replaceAll(/^-+|-+$/g, '')
+          .slice(0, 50)
+          .replaceAll(/-+$/g, '') || 'ticket';
+      expect(slugifyTitle(input)).toBe(expected);
+    }
+  });
+});
