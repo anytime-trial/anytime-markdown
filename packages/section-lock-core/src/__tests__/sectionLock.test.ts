@@ -220,6 +220,33 @@ describe('evaluateLockChange', () => {
   });
 });
 
+describe('見出し行の解釈（正規表現から走査へ置換した際の振る舞い固定）', () => {
+  it('閉じ ATX（"## 設計 ##"）の末尾ハイフン様マーカーを落とす', () => {
+    const sections = listSections('# T\n\n## 設計 ##\n\n本文。\n');
+    expect(sections.map((s) => s.path)).toEqual(['T', 'T > 設計']);
+  });
+
+  it('空白だけが後続する見出し（"##   "）は空見出しとして列挙する', () => {
+    const sections = listSections('# T\n\n##   \n\n## 設計\n');
+    expect(sections.map((s) => s.path)).toEqual(['T', 'T > ', 'T > 設計']);
+  });
+
+  it('"#" の直後に空白が無い行（"#foo"）は見出しにしない', () => {
+    const sections = listSections('# T\n\n#foo\n\n## 設計\n');
+    expect(sections.map((s) => s.path)).toEqual(['T', 'T > 設計']);
+  });
+
+  it('7 個以上の "#" は見出しにしない', () => {
+    const sections = listSections('# T\n\n####### 深すぎ\n\n## 設計\n');
+    expect(sections.map((s) => s.path)).toEqual(['T', 'T > 設計']);
+  });
+
+  it('空白を挟まない "##" だけの本文は落とさない', () => {
+    const sections = listSections('# T\n\n## ##\n');
+    expect(sections.map((s) => s.path)).toEqual(['T', 'T > ##']);
+  });
+});
+
 describe('空見出しの列挙（cross-review 合意 #6）', () => {
   it('"##" のみの空見出しも listSections に含まれ、後続のインデックスがずれない', () => {
     const doc = '# T\n\n##\n\n## 設計\n\n本文。\n';

@@ -49,7 +49,13 @@ function fullRange(cells: ReadonlyArray<ReadonlyArray<string>>): TableRange {
 
 /** 見出しの末尾 " x" / " y" を除いた系列名。 */
 function stripAxisSuffix(header: string | undefined): string {
-  return (header ?? "").replace(/\s*[xy]$/i, "").trim();
+  // /\s*[xy]$/ は一致しない入力で空白の連なりぶんバックトラックする（Sonar S8786）。
+  const raw = header ?? "";
+  const last = raw.at(-1);
+  if (last === undefined || !"xXyY".includes(last)) return raw.trim();
+  let end = raw.length - 1;
+  while (end > 0 && /\s/.test(raw[end - 1])) end -= 1;
+  return raw.slice(0, end).trim();
 }
 
 function scatterFromCells(cells: ReadonlyArray<ReadonlyArray<string>>): Series[] {

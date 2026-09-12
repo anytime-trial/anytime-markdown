@@ -267,14 +267,18 @@ export class ExecFileGitService implements IGitService {
         'diff', '--shortstat', fromTag, toTag,
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       // Example: " 10 files changed, 500 insertions(+), 200 deletions(-)"
-      const filesMatch = /(\d+) file/.exec(output);
-      const addedMatch = /(\d+) insertion/.exec(output);
-      const deletedMatch = /(\d+) deletion/.exec(output);
-      return {
-        filesChanged: filesMatch ? Number.parseInt(filesMatch[1], 10) : 0,
-        linesAdded: addedMatch ? Number.parseInt(addedMatch[1], 10) : 0,
-        linesDeleted: deletedMatch ? Number.parseInt(deletedMatch[1], 10) : 0,
-      };
+      // /(\d+) file/ のような非アンカー当ては、数字の連なりごとにバックトラックして
+      // super-linear になる（Sonar S8786）。カンマ区切りの各節を行頭から読む。
+      const stats = { filesChanged: 0, linesAdded: 0, linesDeleted: 0 };
+      for (const part of output.split(',')) {
+        const m = /^\s*(\d+)\s+(\S+)/.exec(part);
+        if (!m) continue;
+        const count = Number.parseInt(m[1], 10);
+        if (m[2].startsWith('file')) stats.filesChanged = count;
+        else if (m[2].startsWith('insertion')) stats.linesAdded = count;
+        else if (m[2].startsWith('deletion')) stats.linesDeleted = count;
+      }
+      return stats;
     } catch {
       return { filesChanged: 0, linesAdded: 0, linesDeleted: 0 };
     }

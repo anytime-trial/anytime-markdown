@@ -16,6 +16,9 @@ export const FOCUSABLE =
  * - 背景（モーダルの body 直下祖先以外の body 直下要素）に `aria-hidden="true"` を付け、
  *   閉じたら戻す（MUI Modal 同挙動。支援技術から背景を隠す）。
  * - 返り値の `onKeyDown` は ESC で `onClose`、Tab で paper 内の最小フォーカストラップ。
+ *   **paper（role="dialog"）ではなくバックドロップ（role="presentation"）へ張ること**。
+ *   非対話ロールの要素に JSX のキーハンドラを置くと jsx-a11y の非対話要素ルール
+ *   （Sonar S6847）に触れる。
  */
 export function useModalFocusTrap(
   open: boolean,

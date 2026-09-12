@@ -36,7 +36,7 @@ export interface ExtractRationaleStats {
  * Instead, `(?:^|\n)` is used to anchor the match at line start.
  */
 const RATIONALE_PATTERN =
-  /(?:^|\n)(?:Rationale|Reason|理由)\s*[：:]\s*([\s\S]+?)(?=\n\s*\n|\n[A-Z][a-z]+\s*[：:]|$)/i;
+  /(?:^|\n)(?:Rationale|Reason|理由)\s*[：:]\s*([\s\S]+?)(?=\n[^\S\n]*\n|\n[A-Z][a-z]+\s*[：:]|$)/i;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

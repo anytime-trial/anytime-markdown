@@ -1,3 +1,4 @@
+import { trimChar } from '../trimChars';
 import { compareOrdinal } from './compare';
 import type {
   MonthlyReleaseCount,
@@ -80,10 +81,7 @@ export function versionSortKey(version: string): readonly [number, number, numbe
 }
 
 export function entryId(kind: ReleaseKind, version: string): string {
-  const slug = version
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const slug = trimChar(version.toLowerCase().replace(/[^a-z0-9]+/g, '-'), '-');
   return `${kind}-${slug}`;
 }
 

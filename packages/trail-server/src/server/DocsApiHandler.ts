@@ -155,6 +155,27 @@ async function collectMarkdownFiles(base: string, rel: string): Promise<string[]
   return results;
 }
 
+/**
+ * frontmatter から `key: value` のスカラー値を 1 件読む。前後の引用符は 1 つずつ剥がす。
+ *
+ * 旧実装の /^title\\s*:\\s*"?(.+?)"?\\s*$/m は、非貪欲な (.+?) と末尾の \\s* が空白で重なり
+ * super-linear になる（Sonar S8786）。
+ */
+function frontmatterScalar(fm: string, key: string): string | null {
+  for (const line of fm.split(/\r?\n/)) {
+    if (!line.startsWith(key)) continue;
+    const afterKey = line.slice(key.length).trimStart();
+    if (!afterKey.startsWith(':')) continue;
+    let value = afterKey.slice(1).trim();
+    if (value.startsWith('"')) value = value.slice(1);
+    if (value.endsWith('"')) value = value.slice(0, -1);
+    // 空値は「未指定」として扱い、呼び出し側の既定値（'Untitled' 等）へ戻す。
+    if (value === '') continue;
+    return value;
+  }
+  return null;
+}
+
 function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
   const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
   if (!fmMatch) return null;
@@ -165,10 +186,12 @@ function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
   for (const line of fm.split(/\r?\n/)) {
     if (/^c4Scope\s*:/.test(line)) {
       inScope = true;
-      const inline = /\[([^\]]*)\]/.exec(line);
-      if (inline) {
+      // /\[([^\]]*)\]/ は閉じない '[' に対して残り長ぶんバックトラックする（Sonar S8786）。
+      const open = line.indexOf('[');
+      const close = open === -1 ? -1 : line.indexOf(']', open + 1);
+      if (close !== -1) {
         scopeLines.push(
-          ...inline[1].split(',').map(s => s.trim().replaceAll(/^["']|["']$/g, '')).filter(Boolean),
+          ...line.slice(open + 1, close).split(',').map(s => s.trim().replaceAll(/^["']|["']$/g, '')).filter(Boolean),
         );
         inScope = false;
       }
@@ -184,12 +207,12 @@ function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
   }
   if (scopeLines.length === 0) return null;
 
-  const titleMatch = /^title\s*:\s*"?(.+?)"?\s*$/m.exec(fm);
+  const title = frontmatterScalar(fm, 'title');
   const typeMatch = /^type\s*:\s*"?(\w+)"?\s*$/m.exec(fm);
   const dateMatch = /^date\s*:\s*"?(\d{4}-\d{2}-\d{2})"?\s*$/m.exec(fm);
 
   return {
-    title: titleMatch?.[1] ?? 'Untitled',
+    title: title ?? 'Untitled',
     type: typeMatch?.[1] ?? 'unknown',
     c4Scope: scopeLines,
     date: dateMatch?.[1] ?? '',

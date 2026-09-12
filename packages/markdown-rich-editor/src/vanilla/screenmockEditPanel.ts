@@ -329,9 +329,9 @@ function readMetadataBlock(lines: string[], from: number): { meta: ScreenMetadat
   const meta: ScreenMetadata = {};
   let cursor = from;
   while (cursor < lines.length && lines[cursor].trim() !== "---") {
-    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(lines[cursor]);
-    if (match?.[1] === "id") meta.id = match[2].trim();
-    if (match?.[1] === "title") meta.title = match[2].trim();
+    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(\S.*)?$/.exec(lines[cursor]);
+    if (match?.[1] === "id") meta.id = (match[2] ?? "").trim();
+    if (match?.[1] === "title") meta.title = (match[2] ?? "").trim();
     cursor += 1;
   }
   return { meta, end: cursor };

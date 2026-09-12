@@ -39,10 +39,11 @@ function parseFrontmatter(lines: string[]): { id?: string; title?: string } | nu
   const result: { id?: string; title?: string } = {};
   for (const line of lines) {
     if (!line.trim()) continue;
-    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(line);
+    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(\S.*)?$/.exec(line);
     if (!match) return null;
-    if (match[1] === "id") result.id = match[2].trim();
-    if (match[1] === "title") result.title = match[2].trim();
+    const value = (match[2] ?? "").trim();
+    if (match[1] === "id") result.id = value;
+    if (match[1] === "title") result.title = value;
   }
   return result;
 }

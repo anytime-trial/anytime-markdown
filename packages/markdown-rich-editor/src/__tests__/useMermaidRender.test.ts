@@ -122,6 +122,37 @@ describe("SVG_SANITIZE_CONFIG sanitize 結果", () => {
     expect(marker).toContain("url(#arrowhead)");
   });
 
+  // 引用符付きのフラグメント参照。正規表現の量指定子を先読みへ畳んだ際（Sonar S8786）に
+  // 受理範囲が変わる箇所なので、明示的に固定する。
+  it("引用符付きの内部フラグメント参照も残す", () => {
+    const single = sanitizeMermaidSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject></foreignObject>'
+      + `<path style="marker-end:url('#arrowhead')"></path></svg>`,
+    );
+    const double = sanitizeMermaidSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject></foreignObject>'
+      + '<path style=\'marker-end:url("#arrowhead")\'></path></svg>',
+    );
+    const spaced = sanitizeMermaidSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject></foreignObject>'
+      + `<path style="marker-end:url( '#arrowhead' )"></path></svg>`,
+    );
+
+    expect(single).toContain("url('#arrowhead')");
+    // 属性値として再直列化されるため二重引用符は &quot; へエスケープされる。
+    expect(double).toContain('url(&quot;#arrowhead&quot;)');
+    expect(spaced).toContain("url( '#arrowhead' )");
+  });
+
+  it("引用符付きの外部 url(...) は剥がす", () => {
+    const beacon = sanitizeMermaidSvg(
+      foreignObjectHtml(`<p style="background:url('https://evil.example/track.png')">x</p>`),
+    );
+
+    expect(beacon).not.toContain("evil.example");
+    expect(beacon).toContain(">x<");
+  });
+
   it("SVG 直下の style（mermaid のテーマ CSS）は保持する", () => {
     const themed = [
       '<svg xmlns="http://www.w3.org/2000/svg" id="mermaid-1">',

@@ -3,7 +3,10 @@ import type {
   WebImportProvider,
 } from '@anytime-markdown/markdown-editor/web-import/provider';
 
-const WEB_IMPORT_PROXY_URL = process.env.NEXT_PUBLIC_WEB_IMPORT_PROXY_URL?.replace(/\/+$/, '');
+import { trimChar, trimEndChar } from './trimChars';
+
+const rawProxyUrl = process.env.NEXT_PUBLIC_WEB_IMPORT_PROXY_URL;
+const WEB_IMPORT_PROXY_URL = rawProxyUrl === undefined ? undefined : trimEndChar(rawProxyUrl, '/');
 
 interface WebImportProxyResponse {
   html?: unknown;
@@ -14,7 +17,7 @@ interface WebImportProxyResponse {
 
 export function createWebImportProvider(baseUrl = WEB_IMPORT_PROXY_URL): WebImportProvider | null {
   if (!baseUrl) return null;
-  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
+  const normalizedBaseUrl = trimEndChar(baseUrl, '/');
 
   return {
     async fetch(url: string): Promise<WebImportFetchResult> {
@@ -42,13 +45,12 @@ export function createWebImportProvider(baseUrl = WEB_IMPORT_PROXY_URL): WebImpo
 }
 
 export function buildMarkdownDownloadName(title: string): string {
-  const name = title
+  const slug = title
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
+    .replace(/[^a-z0-9]+/g, '-');
+  const name = trimChar(slug, '-').slice(0, 80);
 
   return `${name || 'web-import'}.md`;
 }

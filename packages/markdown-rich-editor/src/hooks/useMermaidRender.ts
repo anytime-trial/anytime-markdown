@@ -73,7 +73,15 @@ function isInsideForeignObject(node: Node): boolean {
  * mermaid の描画に必須なので残す。
  */
 function stripExternalUrlFunctions(styleValue: string): string {
-  return styleValue.replaceAll(/url\s*\(\s*(['"]?)(?!#)[^)]*\)/gi, "");
+  // 捕捉グループ ['"]? は位置合わせ専用で置換に使っていない。量指定子として残すと
+  // [^)]* と重なり super-linear になる（Sonar S8786）ため、先読みの中へ畳む。
+  //
+  // 旧実装 /url\s*\(\s*(['"]?)(?!#)[^)]*\)/ は ['"]? が空へバックトラックできたため、
+  // url('#arrowhead') / url("#arrowhead") を「外部参照」と見なして落としていた。
+  // これは本関数の意図（同一文書内フラグメント参照は mermaid の描画に必須なので残す）と
+  // 食い違うので、引用符と # の間の空白も含めて先読みで除外する。
+  // 外部 URL は引用符の有無にかかわらず従来どおり除去する。
+  return styleValue.replaceAll(/url\s*\((?!\s*(?:['"]\s*)?#)[^)]*\)/gi, "");
 }
 
 /**

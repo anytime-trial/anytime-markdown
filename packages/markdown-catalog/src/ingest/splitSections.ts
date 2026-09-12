@@ -33,8 +33,8 @@ function extractHeadingPositions(lines: string[]): HeadingPos[] {
       continue;
     }
     if (inCodeBlock) continue;
-    const m = /^(#{1,6})\s+(.+)$/.exec(line);
-    if (m) headings.push({ level: m[1].length, text: m[2].trimEnd(), lineIdx: i });
+    const m = /^(#{1,6})\s+(\S.*)?$/.exec(line);
+    if (m) headings.push({ level: m[1].length, text: (m[2] ?? '').trimEnd(), lineIdx: i });
   }
   return headings;
 }

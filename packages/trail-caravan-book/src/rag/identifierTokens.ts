@@ -13,7 +13,9 @@ const ASCII_IDENTIFIER = /^[A-Za-z0-9]+$/;
 function splitCamelAndDigits(segment: string): string[] {
   return segment
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    // ([A-Z]+) は後続の [A-Z] と重なり super-linear になる（Sonar S8786）。
+    // 貪欲 + バックトラックの結果は「大文字 1 個ぶん残す」なので、1 文字に固定しても同値。
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
     .replace(/([A-Za-z])([0-9])/g, '$1 $2')
     .replace(/([0-9])([A-Za-z])/g, '$1 $2')
     .split(' ')
