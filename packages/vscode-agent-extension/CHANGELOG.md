@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Bundled skill `anytime-dev-audit` (manifest 8 → 9): a new diagnostic area covers external tool settings and Trail ingest wiring. `ingest-wiring-check.cjs` judges seven points (D1–D7) — resolved watched repositories, commit-ingest freshness, permanently skipped pipelines, LLM reachability, `lep.json` `stage` validity, the document index, and leftover paths pointing at other projects — reading the **actual ingested data** rather than the pipeline ledger. Measured on 2026-09-12 in anytime-travel: commit ingest had been stopped for 11 days while `caravan_pipeline_runs.CommitResolver` returned `success` 786 times in a row, so a success count is not evidence of health. VS Code settings are merged Machine → User → workspace, values that cannot be read are reported as "unmeasurable (reason)" instead of 0, and a workspace without `.anytime/trail/db` reports D1–D5 as out of scope rather than failing. The exit code separates `2` (the diagnosis itself aborted) from `1` (an error finding), so "could not measure" is never read as "the wiring is broken".
+
 ## [1.18.0] - 2026-08-22
 
 ### Added

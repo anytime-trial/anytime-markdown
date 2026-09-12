@@ -1,12 +1,12 @@
 ---
 name: anytime-dev-audit
 effort: medium
-description: PC 環境（ディレクトリ構造）と Claude Code 設定（CLAUDE.md / rules / skills / hooks / settings / MCP / メモリ）の全レイヤーを read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「Claude Code 設定の診断」「CLAUDE.md の見直し」「CLAUDE.md レビュー」「/anytime-dev-audit」の指示で使用する。開発活動の健全性（Trail DB のデルタ分析・ふりかえり）は anytime-dev-retro を使う。
+description: PC 環境（ディレクトリ構造）と Claude Code 設定（CLAUDE.md / rules / skills / hooks / settings / MCP / メモリ）の全レイヤーを read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「Claude Code 設定の診断」「CLAUDE.md の見直し」「CLAUDE.md レビュー」「/anytime-dev-audit」の指示で使用する。VS Code 拡張の設定と Trail の ingest 配線（「取込が止まっている」「データが更新されない」「パイプラインが skip される」）の診断も担う。開発活動の健全性（Trail DB のデルタ分析・ふりかえり）は anytime-dev-retro を使う。
 ---
 
 # anytime-dev-audit — セットアップ監査（Claude Code 環境の read-only 診断）
 
-更新日: 2026-08-19
+更新日: 2026-09-12
 
 PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）を read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。`anytime-dev-retro`（Trail DB のデルタ分析・インシデント要件化）が「**開発活動**の健全性」を見るのに対し、本スキルは「**環境・設定**の健全性」を見る（2026-07-14 に `anytime-dev-health` の references から独立スキルへ分離）。Claude Code 標準の `/doctor`（v2.1.205+。旧 `/checkup`）とは役割分担する: インストール健全性・未使用 skill/MCP のコスト対比・CLAUDE.md トリム提案は `/doctor` の実行を推奨事項として提示し、本スキルで再実装しない（本スキルはディレクトリ構造・プロジェクト固有運用まで含む広域監査を担う）。初回実施と是正の実例は 20260713 監査レポート（`<docsRoot>/report/20260713-claude-code-setup-audit.ja.md`） / 是正プラン `plan/20260713-setup-audit-remediation.ja.md`、診断観点の設計と出典は設計書 `spec/90.skill/anytime-dev-audit.ja.md` を参照。
 
@@ -14,6 +14,7 @@ PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）�
 
 - **read-only**: 診断フェーズでは変更を一切行わない。「コマンド実行禁止」は「状態を変更しないコマンド（ls / find / du / stat / git の読み取り系 / wc / grep）は可」と解釈し、その解釈を冒頭で宣言する。書き込み・削除・設定変更はプラン承認後の是正フェーズまで禁止。
 - **構造のみ診断**: ディレクトリはツリーと命名のみを見る。個人ファイルの中身は開かない（設定ファイル・CLAUDE.md・SKILL.md は診断対象そのものなので読んでよい）。
+- **DB 非接続。ただし ingest 配線診断（§1.4）だけは例外**: 他の領域では DB ファイルを開かない。§1.4 の D2・D3 は「台帳の status ではなく取り込まれた実データ」でしか測れないため、readonly 接続に限って許す（2026-09-12 に人が承認）。接続手段が無い場合は 0 ではなく「測定不能（理由）」として出す。
 - **開始前にスキャンルートを確認**: WSL 内のみ / Windows 側（/mnt/c）込み / 概要のみ、を AskUserQuestion で確定する。出力形式（チャットのみ / report ファイル可）も同時に確認する。
 
 ## 1. 診断対象（網羅チェックリスト）
@@ -35,6 +36,7 @@ PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）�
 | 自動化 | CI（workflows）・git hooks（pre-commit の set -e 有無まで見る）・npm scripts・スケジュール実行 |
 | Git ワークフロー | コミット規約・レビュー・承認フロー・worktree 運用 |
 | 日々の活用 | 反復作業のスキル化/フック化/サブエージェント化候補・「毎回言っている指示」の CLAUDE.md 移設候補 |
+| 外部ツール設定・ingest 配線 | Trail / markdown 拡張の設定（`anytimeTrail.workspace.path`・`anytimeMarkdown.docsRoot`）と `lep.json`（`sources.gitRoots` / `stage` / `llm.providers.*.baseUrl`）。設定値の妥当性だけでなく、**取り込まれた実データの鮮度**まで見る（§1.4） |
 
 ### 1.1. 数値目安（2026-07 時点の公式推奨）
 
@@ -49,6 +51,8 @@ PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）�
 | skill の compaction 後再注入 | 1 スキル 5,000 トークン・合計 25,000 トークン | 古いものから優先ドロップ。重要指示は本文冒頭へ |
 | MCP ツール出力 | 10,000 トークン超で警告・既定 25,000 で切り詰め | 恒常的な超過サーバーは設計見直し候補 |
 | hooks timeout | 既定 600 秒（prompt 系 30 秒等） | 無制限・過大 timeout の放置を指摘 |
+| コミット取込の遅れ（D2） | 24 時間以内 | 超過かつ未取込コミットありで error。台帳の success 回数は根拠にしない |
+| 同一 scope の連続 skip（D3） | 50 回未満 | 直近 50 回が連続 skipped なら恒常 skip として warn |
 
 ### 1.2. 2026 年上半期新機能に伴う追加観点
 
@@ -85,12 +89,51 @@ global CLAUDE.md（必要なら各プロジェクト CLAUDE.md も）を、公�
 
 4. read-only 原則（§0）は本照合にも適用する。書き換え案は所見として提示し、CLAUDE.md の変更は是正フェーズ（§5）へ回す。
 
+### 1.4. 外部ツール設定・ingest 配線の判定（D1〜D7）
+
+設定レイヤーの他の領域と違い、ここは**実データを見ないと故障が見えない**。2026-09-12 の anytime-travel 実測では、監視対象が空配列でコミット取込が 11 日間止まっている間も `caravan_pipeline_runs` の `CommitResolver` は 786 回すべて `success` を返し、`commitsLast7d: 0` が正常値の顔でレポートへ出ていた。**パイプラインの成功回数を健全性の根拠にしない。**
+
+判定は同梱スクリプトが行う（散文の手順ではなく決定論判定に寄せる。所見のブレを無くし、閾値と発火条件をテストで固定するため）。
+
+```
+node .claude/skills/anytime-dev-audit/ingest-wiring-check.cjs [--json] [--workspace <dir>] [--no-network]
+```
+
+終了コードは **0 = error 判定なし**（warn・測定不能・対象外は 0）/ **1 = error 判定あり** / **2 = 診断そのものが中断した**。2 を 1 と混同しない — 前者は「配線が壊れている」ではなく「測れていない」。`--no-network` は D4 の疎通を止めて「測定不能」にする。
+
+構成は `ingest-wiring-check.cjs`（CLI・合成）/ `ingest-wiring-judge.cjs`（判定・純関数）/ `ingest-wiring-collect.cjs`（事実収集・I/O）/ `ingest-wiring-settings.cjs`（VS Code 設定の JSONC 解析と階層合成）/ `ingest-wiring-exec.cjs`（外部プロセス起動）の 5 本。
+
+| # | 項目 | 取得方法 | 判定 | 重大度 |
+| --- | --- | --- | --- | --- |
+| D1 | 監視リポジトリの解決結果 | `lep.json` の `sources.gitRoots` ∪ `anytimeTrail.workspace.path`（**後者が非空ならワークスペースフォルダを上書きする**）。各要素の実在と git working tree 判定（symlink は実パスで突き合わせる） | 有効な解決結果が **0 件** / 実在しないパスを含む / **git working tree でないパスを含む** / **本ワークスペース自身が有効な監視対象に無い**。測定不能へ落とすのは**確定した失敗が 1 つも無い**ときだけで、判定できなかったパスは所見へ併記する | error |
+| D2 | コミット取込の鮮度 | `activity.db` の `MAX(activity_session_commits.committed_at)`（`activity_repos` にワークスペース名の行があれば当該リポジトリで絞る）と `git log -1 --format=%cI` の差 | 差が **24 時間超**、かつ未取込のコミットが存在する | error |
+| D3 | パイプラインの恒常 skip | `caravan-book.db` の `caravan_pipeline_runs` を scope 別に新しい順で集計 | 同一 scope の `skipped` が **直近 50 回連続**。`error_detail` の理由コードを併記 | warn |
+| D4 | LLM 到達性 | `lep.json` の `llm.providers.*.baseUrl` へ疎通（タイムアウト 3 秒） | 到達不可。Dev Container 内で `localhost` を指していれば `host.docker.internal` を提案 | warn |
+| D5 | `lep.json` の値検証 | 4 階層を deep merge したうえで `stage` を許容集合（`disabled` / `sources` / `primary` / `memory` / `primary+memory` / `all`）と照合。**大文字小文字を区別する**。未指定は内蔵 default が効く正常形なので発火させない | 値があって許容集合外（起動時にフォールバックが起きている）、または**解析できない階層がある**（そのファイルの設定は production でも全て無視される）。測定不能は候補ファイルが 1 つも存在しないときだけ | warn |
+| D6 | ドキュメント索引 | `anytimeMarkdown.docsRoot` の値と `.anytime/markdown/catalog.db` の実在 | docsRoot が空、または catalog.db が無い（docsRoot 空かつ `.anytime/markdown` 自体が無い環境は「未導入」として対象外） | warn |
+| D7 | 他プロジェクトの設定残骸 | D1・D6 で参照したパスがワークスペース外を指すか | ワークスペース外を指す。値と実在有無を併記 | warn |
+
+設計上の制約:
+
+1. **read-only**。§0 の大原則をそのまま適用する。DB は readonly で開き、設定の書き換えは是正フェーズ（承認後）でのみ行う。
+2. **0 と測定不能を区別する**。値が取れなかった項目は 0 ではなく「測定不能（理由）」として出す（`anytime-dev-retro` が `semanticWired` で `null` を返す設計と揃える）。sqlite の読み取り手段は better-sqlite3 → `sqlite3` CLI の順で探し、どちらも無ければ測定不能とする。
+3. **台帳でなく実データで測る**。D2 が最重要項目である理由がこれで、成功回数を根拠にしない。
+4. **対象が無い環境で誤警報しない**。`.anytime/trail/db` が無いワークスペースでは D1〜D5 を「対象外」として静かにスキップする（未導入と故障を混同しない）。
+5. **意図された外部パスを残骸と呼ばない**。D7 は、ワークスペースの CLAUDE.md が `- docsRoot: <path>` で宣言した値と一致するパスを除外する（docs を別リポジトリへ置く運用は設計であって残骸ではない）。
+6. **診断ツール自身の欠落をユーザーの設定の error にしない**。git 実行ファイルを解決できない・`safe.directory` で拒否される等で判定できなかった場合は、「git working tree でない」と断定せず測定不能へ落とす。確定してよいのは git が `not a git repository` と明言した場合だけで、未列挙の失敗（`Permission denied` 等）は測定不能側へ倒す（列挙すべきは「測定不能にする理由」ではなく「断定してよい理由」）。ただし**確定した失敗が別にあるなら測定不能で覆い隠さない**。
+7. **外部コマンドはコマンド名で起動しない**。`git` / `sqlite3` は PATH の**絶対パス要素だけ**を走査して絶対パスへ解決してから実行する（解決できなければフォールバックしない）。監査対象は任意のユーザーリポジトリで、Windows の `CreateProcess` はカレントディレクトリを PATH より先に探すため、リポジトリにコミットされた `git.exe` が実行され得る（POSIX でも PATH の空要素・相対要素は cwd を指す。SonarCloud S4036）。根拠と `ANYTIME_GIT_PATH` による差し替えは `packages/trail-activity/src/gitExecutable.ts` を正本とする。
+8. **本番の解決規則を再現する**。`lep.json` は 4 階層（内蔵 default ＜ `~/.anytime/trail/lep.json` ＜ `<workspace>/.anytime/trail/lep.json` ＜ `<workspace>/.anytime/trail/lep.local.json`）の deep merge で解決し、`activity_repos.repo_name` は sanitize せず git ルートの basename（worktree 直下は親リポジトリ名）を使う。1 ファイルだけ・独自 slug で照合すると、`lep.local.json` 運用や worktree 実行で「監視対象 0 件」「Trail 未導入」と誤判定する。
+
+**VS Code 設定の読み取り元**は Machine → User → ワークスペースの順に後勝ちで合成する（`~/.vscode-server/data/Machine/settings.json` → `~/.vscode-server/data/User/settings.json`（無ければ `~/.config/Code/User/settings.json`）→ `<workspace>/.vscode/settings.json`）。値の由来ファイルを所見へ併記すること — どの層に残骸が残っているかが是正先を決める。
+
+**上流の限界**: D1〜D5 は外形的な検知にすぎない。監視対象 0 件・LLM 不達・stage フォールバックを `success` で終わらせず台帳へ警告として残すのは Trail 拡張側の改修であり、本スキルはそれが入るまでの代替である。所見にはこの区別を書く。
+
 ## 2. 実施構造（並列サブエージェント）
 
 メイン文脈保護のため、調査は read-only サブエージェント（`model: sonnet` 明示・Explore 型）3 系統へ並列委任する:
 
 1. **ディレクトリ構造**: ホーム/ルート直下・git 全数・du・散らかり指標。node_modules/.git/dist は prune。
-2. **グローバル設定**: ~/.claude 全域（CLAUDE.md・rules・skills・agents・output-styles・settings・plugins・~/.claude.json のキー抽出のみ・memory 索引サイズ）。DB ファイルは開かない（readOnly でも WAL 書込があるため sqlite 接続禁止）。
+2. **グローバル設定**: ~/.claude 全域（CLAUDE.md・rules・skills・agents・output-styles・settings・plugins・~/.claude.json のキー抽出のみ・memory 索引サイズ）。DB ファイルは開かない（readOnly でも WAL 書込があるため sqlite 接続禁止。例外は §1.4 の ingest 配線診断のみで、これはサブエージェントへ委任せずメインでスクリプトを実行する）。
 3. **プロジェクト設定・自動化**: プロジェクト CLAUDE.md/AGENTS.md・.claude/・.mcp.json・workflows・hooks・scripts・docs リポジトリ構成。
 
 委任プロンプトには「コンテキスト・ツール効率」ルールと read-only 制約を明記する（サブエージェントは CLAUDE.md を継承しない）。
@@ -111,8 +154,9 @@ global CLAUDE.md（必要なら各プロジェクト CLAUDE.md も）を、公�
 2. **問題点マトリクス**: 影響度（高/中/低）×工数（小/中/大）で優先度付けし、推奨着手順を明示。
 3. **理想構成案**: (a) ディレクトリ（移動マッピング。再編不要ならそう明言する）(b) Claude Code 構成。振り分け原則は「常時必要＝CLAUDE.md／手続き＝skill／強制＝hook・permissions／隔離＝subagent」。
 4. **段階的実行プラン**: フェーズ分け・各フェーズ独立承認可・破壊的操作は「対象提示→退避→承認→実行」の順序を明記。
-5. **前回比デルタ**: `report/` に前回の `*-claude-code-setup-audit*` レポートがあれば、指摘の解消/残存/新規を冒頭サマリに含める（本スキルのデルタ原則を環境監査にも適用）。
-6. report ファイルは `anytime-markdown-output` 書式（`type: report`）で `<docsRoot>/report/` へ。索引再生成は `npm run report:index`。
+5. **ingest 配線の所見**: §1.4 の判定結果を、error / warn / 測定不能 / 対象外の区別を保ったまま載せる。測定不能を「問題なし」に丸めない。
+6. **前回比デルタ**: `report/` に前回の `*-claude-code-setup-audit*` レポートがあれば、指摘の解消/残存/新規を冒頭サマリに含める（本スキルのデルタ原則を環境監査にも適用）。
+7. report ファイルは `anytime-markdown-output` 書式（`type: report`）で `<docsRoot>/report/` へ。索引再生成は `npm run report:index`。
 
 ## 5. 是正フェーズの注意（承認後に別プランで実施）
 
