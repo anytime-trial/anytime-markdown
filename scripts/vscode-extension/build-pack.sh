@@ -11,7 +11,7 @@ echo "=== Anytime Extension Pack: Package & Install ==="
 
 echo "Packaging vsix..."
 cd "$EXT_DIR"
-npx vsce package --no-dependencies -o "$DIST_DIR/anytime-extension-pack.vsix"
+npx "${VSCE_SPEC:-@vscode/vsce@3.9.2}" package --no-dependencies -o "$DIST_DIR/anytime-extension-pack.vsix"
 
 echo "Installing..."
 bash "$REPO_ROOT/scripts/vscode-extension/_install-vsix.sh" "$DIST_DIR/anytime-extension-pack.vsix"

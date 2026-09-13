@@ -5,7 +5,7 @@ description: 本番リリース手順ガイド。「リリース」「本番リ�
 
 # VS Code 拡張機能リリース
 
-更新日: 2026-07-17
+更新日: 2026-09-13
 
 anytime-markdown / anytime-graph / anytime-trail / anytime-database / anytime-sheet / anytime-agent / anytime-history / anytime-extension-pack VS Code 拡張機能および web-app のリリース手順。
 
@@ -316,17 +316,20 @@ done
 
 リリース対象に応じて VSIX を生成する:
 
+> [!IMPORTANT]
+> **CLI は `@vscode/vsce` を exact 固定で呼ぶ。別名の `vsce` を使わない。** `vsce` は 2.15.0 で凍結された非推奨パッケージで、2026-09-13 のリリースで publish 6 件が全て `Request timeout: /_apis/gallery` で落ちた（同時刻に Marketplace の extensionquery API は 0.3 秒で 200 を返しており、Marketplace 障害ではない）。版の単一の正は `ci.yml` / `daily-build.yml` の `env.VSCE_SPEC` で、`run:` 側は `npx "$VSCE_SPEC"` を参照する。同じ spec を `scripts/vscode-extension/build-*.sh`（8 本）と `scripts/acceptance/vsix-smoke.mjs` が `${VSCE_SPEC:-...}` の既定値として持つ。**版を上げるときはこの 4 系統を同時に動かす** — 取りこぼしても package / publish 自体はどちらの版でも通るため CI は緑のままで、同一リリース内に 2 つの版が混在したことを誰も検知できない。
+
 **markdown 系:**
 ```bash
 cd packages/vscode-markdown-extension
-npx vsce package --no-dependencies
+npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 `anytime-markdown-<version>.vsix` が生成されることを確認する。
 
 **graph 系:**
 ```bash
 cd packages/vscode-graph-extension
-npx vsce package --no-dependencies
+npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 `anytime-graph-<version>.vsix` が生成されることを確認する。
 
@@ -340,7 +343,7 @@ npx vsce package --no-dependencies
 
 ```bash
 cd packages/vscode-trail-extension
-npx vsce package --no-dependencies
+npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 `anytime-trail-<version>.vsix` が生成されることを確認する。\
 本番リリース時の per-platform VSIX 4 種は CI で自動生成・自動公開される。
@@ -355,7 +358,7 @@ npx vsce package --no-dependencies
 
 ```bash
 cd packages/vscode-database-extension
-npx @vscode/vsce package --no-dependencies
+npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 
 `anytime-database-<version>.vsix` が生成されることを確認する。\
@@ -364,28 +367,28 @@ npx @vscode/vsce package --no-dependencies
 **sheet 系:**
 ```bash
 cd packages/vscode-sheet-extension
-npx vsce package --no-dependencies
+npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 `anytime-sheet-<version>.vsix` が生成されることを確認する。
 
 **agent 系:**
 ```bash
 cd packages/vscode-agent-extension
-npx vsce package --no-dependencies
+npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 `anytime-agent-<version>.vsix` が生成されることを確認する。
 
 **history 系:**
 ```bash
 cd packages/vscode-history-extension
-npx vsce package --no-dependencies
+npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 `anytime-history-<version>.vsix` が生成されることを確認する。
 
 **extension pack 系:**
 ```bash
 cd packages/vscode-extension-pack
-npx vsce package
+npx @vscode/vsce@3.9.2 package
 ```
 `anytime-extension-pack-<version>.vsix` が生成されることを確認する。
 
@@ -476,22 +479,25 @@ GitHub Actions の実行結果を確認する:
 
 **失敗時**: Actions が失敗した場合は `gh run view --log-failed` でエラーログを確認。VSCE_PAT の期限切れが多い。手動公開で対応する:
 
+> [!NOTE]
+> `gh run rerun --failed` はこのリポジトリの PAT では `Resource not accessible by personal access token` で拒否される。`ci.yml` に `workflow_dispatch` も無いため、**再実行はユーザーが GitHub UI の Re-run failed jobs を押すしかない**。Claude 側から再実行する手段は現状ない。
+
 **手動公開が必要な場合:**
 
 **A. CLI で公開:**
 ```bash
 # markdown 系
 cd packages/vscode-markdown-extension
-npx vsce publish --no-dependencies --pat <token>
+npx @vscode/vsce@3.9.2 publish --no-dependencies --pat <token>
 
 # graph 系
 cd packages/vscode-graph-extension
-npx vsce publish --no-dependencies --pat <token>
+npx @vscode/vsce@3.9.2 publish --no-dependencies --pat <token>
 
 # trail 系（per-platform、4 VSIX を一括 publish）
 cd packages/vscode-trail-extension
 # 事前に ci.yml の build-trail artifact から 4 VSIX をダウンロードしておくこと
-npx @vscode/vsce publish --packagePath \
+npx @vscode/vsce@3.9.2 publish --packagePath \
   anytime-trail-linux-x64.vsix \
   anytime-trail-linux-arm64.vsix \
   anytime-trail-win32-x64.vsix \
@@ -501,7 +507,7 @@ npx @vscode/vsce publish --packagePath \
 # database 系（per-platform、4 VSIX を一括 publish）
 cd packages/vscode-database-extension
 # 事前に ci.yml の build-database artifact から 4 VSIX をダウンロードしておくこと
-npx @vscode/vsce publish --packagePath \
+npx @vscode/vsce@3.9.2 publish --packagePath \
   anytime-database-linux-x64.vsix \
   anytime-database-linux-arm64.vsix \
   anytime-database-win32-x64.vsix \
@@ -509,13 +515,13 @@ npx @vscode/vsce publish --packagePath \
   --pat <token>
 
 # sheet / agent / history 系
-cd packages/vscode-sheet-extension && npx vsce publish --no-dependencies --pat <token>
-cd packages/vscode-agent-extension && npx vsce publish --no-dependencies --pat <token>
-cd packages/vscode-history-extension && npx vsce publish --no-dependencies --pat <token>
+cd packages/vscode-sheet-extension && npx @vscode/vsce@3.9.2 publish --no-dependencies --pat <token>
+cd packages/vscode-agent-extension && npx @vscode/vsce@3.9.2 publish --no-dependencies --pat <token>
+cd packages/vscode-history-extension && npx @vscode/vsce@3.9.2 publish --no-dependencies --pat <token>
 
 # extension pack 系
 cd packages/vscode-extension-pack
-npx vsce publish --pat <token>
+npx @vscode/vsce@3.9.2 publish --pat <token>
 ```
 
 **B. 手動アップロード:**

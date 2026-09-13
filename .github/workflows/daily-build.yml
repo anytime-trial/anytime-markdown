@@ -6,6 +6,11 @@ on:
     - cron: '0 20 * * *'
   workflow_dispatch:
 
+# Marketplace CLI の spec。ci.yml / daily-build.yml / scripts/vscode-extension/build-*.sh /
+# scripts/acceptance/vsix-smoke.mjs の 4 系統で同じ版を使う。ここが単一の正。
+env:
+  VSCE_SPEC: "@vscode/vsce@3.9.2"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -93,7 +98,7 @@ jobs:
         working-directory: packages/vscode-markdown-extension
 
       - name: Package markdown VSIX
-        run: npx vsce package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-markdown-extension
 
       - name: Build graph extension
@@ -101,7 +106,7 @@ jobs:
         working-directory: packages/vscode-graph-extension
 
       - name: Package graph VSIX
-        run: npx vsce package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-graph-extension
 
       - name: Build trail extension
@@ -109,7 +114,7 @@ jobs:
         working-directory: packages/vscode-trail-extension
 
       - name: Package trail VSIX
-        run: npx vsce package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-trail-extension
 
       - name: Build agent extension
@@ -117,11 +122,11 @@ jobs:
         working-directory: packages/vscode-agent-extension
 
       - name: Package agent VSIX
-        run: npx vsce package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-agent-extension
 
       - name: Package extension pack VSIX
-        run: npx vsce package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-extension-pack
 
       - name: Install Playwright browsers
