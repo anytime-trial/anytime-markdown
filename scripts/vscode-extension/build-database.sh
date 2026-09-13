@@ -53,7 +53,7 @@ echo "Packaging vsix..."
 # vsce は vscode:prepublish で webpack を再実行する。Node 24 segfault が再発した場合に
 # 備えて、同様の成果物チェック付きでリトライ可能にする。
 set +e
-npx vsce package --no-dependencies -o "$DIST_DIR/anytime-database.vsix"
+npx "${VSCE_SPEC:-@vscode/vsce@3.9.2}" package --no-dependencies -o "$DIST_DIR/anytime-database.vsix"
 vsce_exit=$?
 set -e
 if [ ! -f "$DIST_DIR/anytime-database.vsix" ]; then
