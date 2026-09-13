@@ -95,3 +95,16 @@ export function outer() {
     expect(out.filter((c) => c.text === 'single reason')).toHaveLength(1);
   });
 });
+
+// /\*+\/$/ を走査版 stripBlockCommentEnd へ置き換えた際の境界を固定する（Sonar S8786）。
+describe('scanDecisionComments — ブロックコメント終端の除去', () => {
+  it.each([
+    ['/** WHY: 星が複数の終端 ***/', '星が複数の終端'],
+    ['/* WHY: 星が 1 つの終端 */', '星が 1 つの終端'],
+    ['/* WHY: 終端の直前に空白 **/', '終端の直前に空白'],
+  ])('%s → %s', (comment, expected) => {
+    const { program, rootDir } = makeProgram(`${comment}\nexport const x = 1;\n`);
+    const out = scanDecisionComments(program, rootDir);
+    expect(out.map((c) => c.text)).toContain(expected);
+  });
+});

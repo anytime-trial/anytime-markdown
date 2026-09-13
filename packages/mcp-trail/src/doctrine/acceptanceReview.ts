@@ -121,7 +121,7 @@ function singleLine(text: string): string {
  * ため、パイプをエスケープしないと以降の列がずれる。
  */
 function escapeTableCell(text: string): string {
-  return singleLine(text).replace(/\|/g, '\\|');
+  return singleLine(text).replaceAll('|', '\\|');
 }
 
 /**

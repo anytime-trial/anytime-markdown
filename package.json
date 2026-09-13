@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.23.1",
+  "version": "1.23.2",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -23,7 +23,7 @@
     "verify:ext-build": "node scripts/run-verified.mjs vscode-graph-extension build -- npm run compile -w anytime-graph",
     "verify:gate": "npm run verify:next-build && npm run verify:ext-build",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
-    "lint": "eslint packages/markdown-editor/src packages/web-app/src",
+    "lint": "eslint packages/markdown-editor/src packages/web-app/src packages/vscode-agent-extension/skills/anytime-dev-audit",
     "lint:fix": "eslint --fix packages/markdown-editor/src packages/web-app/src",
     "prepare": "husky && node scripts/install-extra-hooks.mjs"
   },
@@ -89,21 +89,22 @@
     "diff": "8.0.3",
     "postcss": "8.5.25",
     "uuid": "^14.0.0",
-    "next": "16.2.12",
+    "next": "16.3.5",
     "@auth/core": "0.41.3",
     "next-auth": {
       "@auth/core": "0.41.3"
     },
     "handlebars": "4.7.9",
-    "@xmldom/xmldom": "0.9.10",
+    "@xmldom/xmldom": "0.9.12",
     "brace-expansion": "1.1.18",
     "ignore": "7.0.5",
     "ws": "8.21.0",
     "markdown-it": "14.2.0",
     "linkify-it": "5.0.2",
     "dompurify": "3.4.13",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "nanoid": "3.3.18",
+    "browserslist": "4.28.9",
     "gray-matter": {
       "js-yaml": "3.15.1"
     },
@@ -134,8 +135,8 @@
     "@auth/core": "0.41.3",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
-    "@xmldom/xmldom": "0.9.10",
+    "@xmldom/xmldom": "0.9.12",
     "ignore": "7.0.5",
-    "next": "16.2.12"
+    "next": "16.3.5"
   }
 }

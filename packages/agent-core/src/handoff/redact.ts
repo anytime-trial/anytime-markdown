@@ -10,7 +10,9 @@ const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bAKIA[0-9A-Z]{16}\b/g, R], // AWS access key id
   [/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, R], // GitHub token
   [/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, R], // Slack token
-  [/\b(authorization|bearer)\b\s*[:=]?\s*[A-Za-z0-9._~+/-]{12,}=*/gi, `$1 ${R}`],
+  // \s*[:=]?\s* は 2 つの \s* が空白の並びを分け合えて super-linear（Sonar S8786）。
+  // 区切り文字とその後続空白を 1 つの任意グループに畳む（受理する文字列の集合は同じ）。
+  [/\b(authorization|bearer)\b\s*(?:[:=]\s*)?[A-Za-z0-9._~+/-]{12,}=*/gi, `$1 ${R}`],
   [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{6,}\b/g, R], // JWT
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, R],
 ];
@@ -19,7 +21,9 @@ const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
 // 名前とキーワードの照合を 1 本の正規表現に畳み込む（`[A-Z0-9_]*(?:SECRET|...)[A-Z0-9_]*`）と、
 // `=` を持たない長い大文字行に対して量指定子が二重にバックトラックし O(n^2) になる
 // （CodeQL js/polynomial-redos #948）。構造抽出と秘密名判定を二段に分ける。
-const ENV_ASSIGN = /^([ \t]*(?:export[ \t]+)?[A-Z0-9_]+)[ \t]*=[ \t]*.+$/gim;
+// 値側は [ \t]* と .+ が空白で重なる（Sonar S8786）。値の先頭を \S で固定する
+// （値が空白だけの行は秘密を含まないので、伏字の対象から外れても影響しない）。
+const ENV_ASSIGN = /^([ \t]*(?:export[ \t]+)?[A-Z0-9_]+)[ \t]*=[ \t]*\S[^\n\r\u2028\u2029]*$/gim;
 const SECRET_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY/i;
 
 /** 与えられたテキストから秘密情報を伏字化する。空文字はそのまま返す。

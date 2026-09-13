@@ -11,7 +11,12 @@ export interface ListItemButtonProps {
   readonly className?: string;
 }
 
-/** MUI ListItemButton の置換（クリック可能なリスト行）。`<li role="button">` で構成。 */
+/**
+ * MUI ListItemButton の置換（クリック可能なリスト行）。`<li role="button">` で構成。
+ *
+ * 選択状態は `aria-current` で伝える。`aria-selected` は role="button" がサポートしない
+ * 属性で、支援技術に無視される（Sonar S6811）。
+ */
 export function ListItemButton({
   children,
   selected,
@@ -28,7 +33,7 @@ export function ListItemButton({
     <li
       role="button"
       tabIndex={0}
-      aria-selected={selected}
+      aria-current={selected ? true : undefined}
       className={classes}
       style={style}
       onClick={onClick}

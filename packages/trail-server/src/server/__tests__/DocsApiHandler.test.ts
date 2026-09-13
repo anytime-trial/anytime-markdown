@@ -273,6 +273,42 @@ describe('DocsApiHandler frontmatter parsing edge cases', () => {
     }
   });
 
+  // 正規表現 /^title\\s*:\\s*"?(.+?)"?\\s*$/m を走査版 frontmatterScalar へ置き換えた際の
+  // 境界を固定する（Sonar S8786 の是正）。
+  it.each([
+    ['title: "Quoted"', 'Quoted'],
+    ['title: Bare', 'Bare'],
+    ['title:', 'Untitled'],
+    ['title:   ', 'Untitled'],
+    ['title: ""', 'Untitled'],
+  ])('title 行 %s を %s として読む', async (titleLine, expected) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-title-'));
+    try {
+      const content = `---\n${titleLine}\ntype: "spec"\ndate: "2026-05-01"\nc4Scope: [pkg_a]\n---\n`;
+      fs.writeFileSync(path.join(tmpDir, 'title.md'), content, 'utf-8');
+      const handler = new DocsApiHandler(makeNotifier(), makeC4Resolver(), makeLogger());
+      handler.setDocsPath(tmpDir);
+      await handler.scan();
+      expect(handler.getCurrent()[0].title).toBe(expected);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it('title 行が空値でも、後続の title 行があればそちらを読む', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-title2-'));
+    try {
+      const content = '---\ntitle:\ntitle: Real Title\ntype: "spec"\nc4Scope: [pkg_a]\n---\n';
+      fs.writeFileSync(path.join(tmpDir, 'title2.md'), content, 'utf-8');
+      const handler = new DocsApiHandler(makeNotifier(), makeC4Resolver(), makeLogger());
+      handler.setDocsPath(tmpDir);
+      await handler.scan();
+      expect(handler.getCurrent()[0].title).toBe('Real Title');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
   it('handles file with no frontmatter at all', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-nofm-'));
     try {

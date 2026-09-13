@@ -245,6 +245,34 @@ function stepFence(line: string, fence: FenceState): { fence: FenceState; consum
   return { fence, consumed: false };
 }
 
+const WHITESPACE = /\s/;
+
+/**
+ * ATX 見出し 1 行を読む。`##` のみ（空見出し）も受理し、閉じ ATX（`## X ##`）は落とす。
+ *
+ * 旧実装の /^(#{1,6})(?:\\s+(.*?))?\\s*$/ と /\\s+#+$/ は、非貪欲 / 連長の量指定子が空白と
+ * 重なって super-linear になる（Sonar S8786）。走査で置き換える。
+ */
+function parseHeadingLine(line: string): { level: number; text: string } | null {
+  let level = 0;
+  while (level < line.length && line[level] === '#') level += 1;
+  if (level === 0 || level > 6) return null;
+  const rest = line.slice(level);
+  // `#foo` は見出しではない（`#` の直後に空白が要る）。`##` だけの行は空見出しとして受理する。
+  if (rest !== '' && !WHITESPACE.test(rest[0])) return null;
+  return { level, text: stripClosingHashes(rest.trim()) };
+}
+
+/** 閉じ ATX（空白 + `#` の連なりで終わる）を落とす。空白が無い `##` 単体は見出し本文として残す。 */
+function stripClosingHashes(text: string): string {
+  if (!text.endsWith('#')) return text;
+  let hashStart = text.length;
+  while (hashStart > 0 && text[hashStart - 1] === '#') hashStart -= 1;
+  let wsStart = hashStart;
+  while (wsStart > 0 && WHITESPACE.test(text[wsStart - 1])) wsStart -= 1;
+  return wsStart === hashStart ? text : text.slice(0, wsStart);
+}
+
 /** コードフェンス内を除いて見出し行を収集する。 */
 function collectHeadings(lines: readonly string[], scanStart: number): HeadingHit[] {
   const headings: HeadingHit[] = [];
@@ -257,10 +285,9 @@ function collectHeadings(lines: readonly string[], scanStart: number): HeadingHi
     if (fence) continue;
     // 空見出し（"##" のみ）も列挙する。doc 側（ProseMirror heading ノード連番）との
     // インデックス空間を一致させるため（cross-review 合意 #6）。
-    const headingMatch = /^(#{1,6})(?:\s+(.*?))?\s*$/.exec(line);
-    if (!headingMatch) continue;
-    const text2 = (headingMatch[2] ?? '').replace(/\s+#+$/, '');
-    headings.push({ level: headingMatch[1].length, text: text2, line: i });
+    const heading = parseHeadingLine(line);
+    if (!heading) continue;
+    headings.push({ level: heading.level, text: heading.text, line: i });
   }
   return headings;
 }
@@ -308,7 +335,7 @@ function fnv1a64Hex(input: string): string {
 
 /** 正規化 = 行末空白（\r 含む）除去 + 末尾空行除去。整形ゆらぎで tamper を誤検知しないための最小限 */
 function normalizeSectionText(lines: string[]): string {
-  const trimmed = lines.map((line) => line.replace(/\s+$/, ''));
+  const trimmed = lines.map((line) => line.trimEnd());
   while (trimmed.length > 0 && trimmed.at(-1) === '') trimmed.pop();
   return trimmed.join('\n');
 }

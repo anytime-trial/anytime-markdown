@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-09-13
+
+### Added
+
+- Bundled skill `anytime-dev-audit` (manifest 8 → 10): a new diagnostic area covers external tool settings and Trail ingest wiring. `ingest-wiring-check.cjs` judges seven points (D1–D7) — resolved watched repositories, commit-ingest freshness, permanently skipped pipelines, LLM reachability, `lep.json` `stage` validity, the document index, and leftover paths pointing at other projects — reading the **actual ingested data** rather than the pipeline ledger. Measured on 2026-09-12 in anytime-travel: commit ingest had been stopped for 11 days while `caravan_pipeline_runs.CommitResolver` returned `success` 786 times in a row, so a success count is not evidence of health. VS Code settings are merged Machine → User → workspace, values that cannot be read are reported as "unmeasurable (reason)" instead of 0, and a workspace without `.anytime/trail/db` reports D1–D5 as out of scope rather than failing. The exit code separates `2` (the diagnosis itself aborted) from `1` (an error finding), so "could not measure" is never read as "the wiring is broken".
+
+### Changed
+
+- Bundled skills no longer depend on the `superpowers` plugin (`anytime-cross-review` 7 → 8, `anytime-dev-cycle` 23 → 26, `anytime-loop-start` 16 → 17, `anytime-build-webapp` 6 → 7). The pre-merge review route now names the `pr-review-toolkit:code-reviewer` subagent directly, and the git worktree procedure is written out in the rules instead of being delegated to the plugin's skill. The plugin was injecting 5,421 bytes into every session and shipped a pre-completion re-verification gate that the current default model explicitly asks to remove.
+- Bundled skills (`anytime-analysis` 15 → 16, `anytime-dev-cycle`): stale references to the previous default model (Fable 5) were updated to Opus 5.
+
+### Bundled Packages (tickets-core / section-lock-core / agent-core)
+
+- Ticket slug generation and the frontmatter array parser no longer backtrack super-linearly (Sonar S8786), and the section lock reads ATX headings by scanning.
+- The handoff secret redactor folds its separator and trailing whitespace into one optional group and pins the value side of `KEY=value` with `\S`; the set of strings it redacts is unchanged.
+
 ## [1.18.0] - 2026-08-22
 
 ### Added

@@ -7,7 +7,7 @@ export interface FixCommitParseResult {
 }
 
 const CATEGORY = ['spec', 'logic', 'regression', 'typo', 'deps'] as const;
-const FIX_RE = /^fix(?:\(([^)/]+)(?:\/([a-zA-Z]+))?\))?:\s*(.+)$/;
+const FIX_RE = /^fix(?:\(([^)/]+)(?:\/([a-zA-Z]+))?\))?:\s*(\S.*)$/;
 
 export function parseFixCommit(input: { subject: string }): FixCommitParseResult | null {
   const match = FIX_RE.exec(input.subject.trim());

@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-09-13
+
+### Database Core (database-core / database-viewer)
+
+- リストの選択行が `aria-current` で状態を伝えるようにし、メニューのバックドロップへ `role="presentation"` を付けた（Sonar S6811）。
+
 ## [0.3.11] - 2026-08-20
 
 ### 修正

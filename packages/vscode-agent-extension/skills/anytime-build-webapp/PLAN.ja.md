@@ -13,7 +13,13 @@ clarity: 92
 # anytime-build-webapp スキル実装計画
 
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **実施済みの履歴**（2026-05-17 完了）。本文中の Phase 2 / Phase 5 は当時の設計で、
+> `superpowers:writing-plans` / `executing-plans` への委譲を前提にしている。2026-09-13 に
+> 両 Phase をスキル自己完結の手順へ作り直したため（監査 20260913 X1）、**現行の仕様は
+> `SKILL.md` を正とする**。以下は当時の記録として残す。
+>
+> **For agentic workers:** 本プランを実行する場合は、未完了タスクの先頭から順に 1 件ずつ
+> 実装し、タスクごとに検証してからチェックボックス（`- [ ]` → `- [x]`）を更新する。
 
 **Goal:** `.claude/skills/anytime-build-webapp/` に、要求から T3 Stack MVP を `anytime-lab` クローン + リネーム + T3 重ね合わせで生成するオーケストレータスキルを実装する。
 

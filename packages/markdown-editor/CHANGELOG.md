@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.23.2] - 2026-09-13
+
+### Fixed
+
+- `useMermaidRender` no longer strips `url('#id')` / `url("#id")` from mermaid styles. The optional quote group could backtrack to empty, so quoted same-document fragment references were classified as external URLs and removed, which broke arrowheads and gradients.
+- Regular expressions with super-linear backtracking (Sonar S8786) were replaced with scanning helpers: heading slug generation (`toGitHubSlug`), screenmock frontmatter parsing, and the leading / trailing newline trims used by the screenmock block mutations.
+- Deprecated global APIs were replaced: `replace` with a global regex is now `replaceAll`, and `isFinite` is now `Number.isFinite` in the 3D surface plot data builder.
+
 ## [1.23.0] - 2026-08-22
 
 ### Changed

@@ -116,3 +116,30 @@ describe("chartSpecToCells / cellsToChartSpec — scatter", () => {
     expect(back.title).toBe("相関");
   });
 });
+
+// /\s*[xy]$/i を走査版 stripAxisSuffix へ置き換えた際の等価性を固定する（Sonar S8786）。
+describe("cellsToChartSpec — scatter の軸サフィックス除去", () => {
+  const scatterHeaderToSeriesName = (header: string): string => {
+    const spec = cellsToChartSpec([[header, `${header} y`], ["1", "2"]], "scatter");
+    return spec.series[0].name;
+  };
+
+  test.each([
+    ["売上 x", "売上"],
+    ["売上　X", "売上"],
+    ["売上x", "売上"],
+    ["売上", "売上"],
+  ])("%s -> %s", (header, expected) => {
+    expect(scatterHeaderToSeriesName(header)).toBe(expected);
+  });
+
+  test("除去後が空になる見出しは既定の系列名へ退避する（従来どおり）", () => {
+    expect(scatterHeaderToSeriesName("x")).toBe("series 1");
+  });
+
+  test("正規表現版 /\\s*[xy]$/i と同じ結果になる（結果が非空のもの）", () => {
+    for (const header of ["a x", "a  y", "ax", "a", "ab X", "a\tY"]) {
+      expect(scatterHeaderToSeriesName(header)).toBe(header.replace(/\s*[xy]$/i, "").trim());
+    }
+  });
+});

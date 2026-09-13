@@ -114,14 +114,29 @@ function isDelimiter(line: string): boolean {
   return line.trim() === "---";
 }
 
+/** 末尾の改行を落とす（/\n*$/ のバックトラック回避: Sonar S8786）。 */
+function trimEndNewlines(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "\n") end -= 1;
+  return value.slice(0, end);
+}
+
+/** 先頭・末尾の改行を落とす（/^\n+|\n+$/g のバックトラック回避: Sonar S8786）。 */
+function trimNewlines(value: string): string {
+  let start = 0;
+  while (start < value.length && value[start] === "\n") start += 1;
+  return trimEndNewlines(value.slice(start));
+}
+
 function parseFrontmatter(lines: string[]): { id?: string; title?: string } | null {
   const result: { id?: string; title?: string } = {};
   for (const line of lines) {
     if (!line.trim()) continue;
-    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(line);
+    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(\S.*)?$/.exec(line);
     if (!match) return null;
-    if (match[1] === "id") result.id = match[2].trim();
-    if (match[1] === "title") result.title = match[2].trim();
+    const value = (match[2] ?? "").trim();
+    if (match[1] === "id") result.id = value;
+    if (match[1] === "title") result.title = value;
   }
   return result;
 }
@@ -891,7 +906,7 @@ export function appendScreenmockScreen(source: string, screen: ScreenmockScreenI
     return frontmatter.length ? [...frontmatter, screen.html].join("\n") : screen.html;
   }
   normalized = ensureLeadingFrontmatterBlock(normalized, screen.id);
-  return [normalized.replace(/\n*$/, ""), ...frontmatterForSeparatedBlock(screen), screen.html].join("\n");
+  return [trimEndNewlines(normalized), ...frontmatterForSeparatedBlock(screen), screen.html].join("\n");
 }
 
 /**
@@ -936,7 +951,7 @@ export function removeScreenmockScreen(source: string, screenIndex: number): str
   const block = blocks[screenIndex];
   if (!block) return normalized;
   if (blocks.length === 1) return "";
-  return [...lines.slice(0, block.blockStart), ...lines.slice(block.blockEnd)].join("\n").replace(/^\n+|\n+$/g, "");
+  return trimNewlines([...lines.slice(0, block.blockStart), ...lines.slice(block.blockEnd)].join("\n"));
 }
 
 export function moveScreenmockScreen(source: string, fromIndex: number, toIndex: number): string {
@@ -952,7 +967,7 @@ export function moveScreenmockScreen(source: string, fromIndex: number, toIndex:
   const blockLineGroups = blocks.map((block) => lines.slice(block.blockStart, block.blockEnd));
   const [moved] = blockLineGroups.splice(fromIndex, 1);
   blockLineGroups.splice(clampedToIndex, 0, moved);
-  return blockLineGroups.flat().join("\n").replace(/^\n+|\n+$/g, "");
+  return trimNewlines(blockLineGroups.flat().join("\n"));
 }
 
 export function renameScreenmockScreen(

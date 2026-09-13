@@ -141,7 +141,7 @@ export function parse(transcriptPath: string): TranscriptEvent[] {
 export function firstUserGoal(events: readonly TranscriptEvent[]): string {
   for (const ev of events) {
     if (ev.role === 'user' && ev.text && !isInjectedPreamble(ev.text)) {
-      return ev.text.split(/\s+/).join(' ');
+      return ev.text.replaceAll(/\s+/g, ' ');
     }
   }
   return '';
@@ -151,7 +151,7 @@ export function firstUserGoal(events: readonly TranscriptEvent[]): string {
 export function lastAssistantState(events: readonly TranscriptEvent[]): string {
   for (let i = events.length - 1; i >= 0; i--) {
     const ev = events[i];
-    if (ev.role === 'assistant' && ev.text) return ev.text.split(/\s+/).join(' ');
+    if (ev.role === 'assistant' && ev.text) return ev.text.replaceAll(/\s+/g, ' ');
   }
   return '';
 }

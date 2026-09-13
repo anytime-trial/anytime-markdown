@@ -178,5 +178,5 @@ function buildRawMarkdown(attrs: MdEmbedAttrs): string {
 }
 
 function escapeTitle(title: string): string {
-  return title.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+  return title.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }

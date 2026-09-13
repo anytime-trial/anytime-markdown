@@ -42,7 +42,8 @@ export function Menu({ open, onClose, children, anchorPosition }: Readonly<MenuP
 
   return createPortal(
     <>
-      <div className="dbv-menu-backdrop" onMouseDown={onClose} />
+      {/* 装飾用のバックドロップ。閉じる操作は ESC でも到達できるため支援技術へは提示しない。 */}
+      <div role="presentation" className="dbv-menu-backdrop" onMouseDown={onClose} />
       <div
         ref={paperRef}
         className="dbv-menu-paper"

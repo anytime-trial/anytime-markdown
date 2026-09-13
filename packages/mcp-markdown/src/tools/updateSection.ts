@@ -39,13 +39,13 @@ export function updateSectionInText(
   newContent: string,
   occurrence?: number,
 ): string {
-  const headingMatch = /^(#{1,6})\s+(.+)$/.exec(heading);
+  const headingMatch = /^(#{1,6})\s+(\S.*)?$/.exec(heading);
   if (!headingMatch) {
     throw new Error(`Invalid heading format: ${heading}`);
   }
 
   const targetLevel = headingMatch[1].length;
-  const targetText = headingMatch[2].trimEnd();
+  const targetText = (headingMatch[2] ?? '').trimEnd();
 
   const lines = markdown.split('\n');
   const headings = extractHeadingsFromText(markdown);

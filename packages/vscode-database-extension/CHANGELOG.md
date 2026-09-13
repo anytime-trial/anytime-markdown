@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-09-13
+
+### Database Core (database-core / database-viewer)
+
+- The selected row of a list conveys its state with `aria-current`, and the menu backdrop is marked `role="presentation"` (Sonar S6811).
+
 ## [0.3.11] - 2026-08-20
 
 ### Fixed

@@ -31,6 +31,16 @@ export default tseslint.config(
       // コードレビューチェックリストで人的に確認する
     },
   },
+  // 同梱スキルの .cjs（拡張にバンドルされず、ユーザーのワークスペースへ素のまま展開される）。
+  // CommonJS かつ CLI なので console 出力は正常系。テストは冒頭の ignores が除外する。
+  {
+    files: ["packages/*/skills/**/*.cjs"],
+    languageOptions: { sourceType: "commonjs" },
+    rules: {
+      "no-console": "off",
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   // Import sorting
   {
     plugins: { "simple-import-sort": simpleImportSort },

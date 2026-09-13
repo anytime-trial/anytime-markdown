@@ -7,14 +7,24 @@ import type { DecisionComment } from './analyzeChildProtocol';
  */
 const COMMENT_PATTERN = /(?:WHY|RATIONALE|理由)\s*[:：]\s*(.+)/i;
 
+/**
+ * 末尾の `*+/` を落とす。/\*+\/$/ は一致しない入力で '*' 連長ぶんバックトラックする
+ * （Sonar S8786: super-linear backtracking）。
+ */
+function stripBlockCommentEnd(value: string): string {
+  if (!value.endsWith('/')) return value;
+  let end = value.length - 1;
+  const slashAt = end;
+  while (end > 0 && value[end - 1] === '*') end -= 1;
+  return end === slashAt ? value : value.slice(0, end);
+}
+
 /** コメントの外側デリミタを除去して内側テキストを返す。 */
 function commentInnerText(raw: string, kind: ts.SyntaxKind): string {
   if (kind === ts.SyntaxKind.SingleLineCommentTrivia) {
     return raw.replace(/^\/\/\s?/, '').trim();
   }
-  return raw
-    .replace(/^\/\*+/, '')
-    .replace(/\*+\/$/, '')
+  return stripBlockCommentEnd(raw.replace(/^\/\*+/, ''))
     .split('\n')
     .map((line) => line.replace(/^\s*\*?\s?/, ''))
     .join('\n')

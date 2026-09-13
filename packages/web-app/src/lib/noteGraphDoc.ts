@@ -62,7 +62,7 @@ function parseInlineList(afterColon: string): NoteRelatedEntry[] {
 
 /** ブロックリストの `- ...` 行を1件解釈し、以降 `type:` を紐付ける対象オブジェクトを返す。 */
 function parseBlockListItem(item: string, out: NoteRelatedEntry[]): { to: string; type?: string } | null {
-  const to = /^to:\s*(.+)$/.exec(item);
+  const to = /^to:\s*(\S.*)$/.exec(item);
   if (to) {
     const entry = { to: trimQuotes(to[1]) };
     out.push(entry);
@@ -86,7 +86,7 @@ function parseBlockList(fmLines: readonly string[], startIdx: number, baseIndent
     if (t.startsWith("- ")) {
       current = parseBlockListItem(t.slice(2).trim(), out);
     } else if (current) {
-      const type = /^type:\s*(.+)$/.exec(t);
+      const type = /^type:\s*(\S.*)$/.exec(t);
       if (type) current.type = trimQuotes(type[1]);
     }
   }

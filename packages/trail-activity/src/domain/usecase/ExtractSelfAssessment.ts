@@ -5,7 +5,9 @@
 
 import type { SelfAssessment } from '../model/flightReview';
 
-const DEBRIEF_FENCE = /```debrief\s*\n([\s\S]*?)```/g;
+// \s* は \n を含むため後続の \n と重なり super-linear になる（Sonar S8786）。
+// フェンス行の残り（水平空白 + CR）だけを許す。
+const DEBRIEF_FENCE = /```debrief[^\S\n]*\n([\s\S]*?)```/g;
 
 const SELF_OUTCOMES = new Set(['achieved', 'partial', 'unachieved']);
 
