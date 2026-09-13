@@ -3,7 +3,7 @@ name: daily-research
 description: 日次技術情報収集。プロジェクト関連の技術トピックについて最新情報をWeb検索で調査し、レポートを出力する。
 ---
 
-更新日: 2026-07-16
+更新日: 2026-09-13
 
 > `<docsRoot>` は対象プロジェクトの CLAUDE.md「ドキュメント保存先（docsRoot）」節に定義された docs リポジトリのルートパスに読み替える。
 
@@ -162,5 +162,5 @@ S3 アップロード後、生成したレポートを docs リポジトリ（`<
    git -C <docsRoot> diff --cached --stat     # 身に覚えのない差分が無いか
    ```
 
-3. コミットする。メッセージは Conventional Commits 形式 `docs(research): daily-research [今日の日付 YYYY-MM-DD]`。末尾に `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` トレーラを付与する（現行既定モデル。モデル既定変更時は追随する）。
+3. コミットする。メッセージは Conventional Commits 形式 `docs(research): daily-research [今日の日付 YYYY-MM-DD]`。末尾に `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` トレーラを付与する（現行既定モデル。モデル既定変更時は追随する）。
 4. コミット結果（ハッシュ・1行サマリ）をユーザーに報告する。
