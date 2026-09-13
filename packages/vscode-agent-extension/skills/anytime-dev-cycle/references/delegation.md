@@ -18,7 +18,7 @@ Claude のセッションの外にある実行系へ作業を渡すときの共�
 | ブランチ・worktree 操作、コミット（3 点確認込み）、push・PR・リリース | **Claude**（委譲しない） | 破壊的操作はユーザー承認が要る（AGENTS.md） |
 | プラン作成・進捗管理・変更スコープ確認（`git diff --stat`） | **Claude** | 判断と責任の所在 |
 | 実装・リファクタリング・ユニットテスト・型チェック | **Codex**（既定。§3） | サンドボックス内で実装から検証まで一巡できる。メイン直執行は dev-cycle `SKILL.md` §3 の除外条件 E1〜E5 に該当する場合のみ |
-| コードレビュー | **Claude**（`superpowers:requesting-code-review` / `anytime-cross-review`） | 偽陽性と見落としの後始末コストが節約分を上回る |
+| コードレビュー | **Claude**（`pr-review-toolkit:code-reviewer` subagent / `anytime-cross-review`） | 偽陽性と見落としの後始末コストが節約分を上回る |
 | 要約・分類・構造化抽出・埋め込みなど、**出力を機械的に検証できる定型タスク** | **ollama**（§4） | 判定が `allow` のタスクに限る。可否は実測で毎回取り直す |
 | 長い段階タスクをサブエージェントで回す | 同ディレクトリの `agent-rotation.md` | 文脈圧縮・回転の運用機構 |
 
@@ -179,7 +179,7 @@ packages/<pkg>/src/foo.ts の foo() を Result 型に書き換える。
 | やろうとしていること | なぜ駄目か | 正しい担当 |
 | --- | --- | --- |
 | コード実装・リファクタリング | HumanEval が高くても単関数ベンチにすぎない。実リポジトリの多ファイル編集能力は LiveCodeBench が示すとおり低い | Claude / Codex（§3） |
-| コードレビュー | 偽陽性と見落としの後始末コストが、節約したトークンを上回る | Claude（`superpowers:requesting-code-review`） |
+| コードレビュー | 偽陽性と見落としの後始末コストが、節約したトークンを上回る | Claude（`pr-review-toolkit:code-reviewer` subagent） |
 | 多段 agentic ループ | 段数 n の成功率は tool F1 の n 乗。F1 0.75 のモデルは 3 段で成功率 0.43 | tool F1 ≥ 0.95 のモデルのみ。無ければ Claude |
 | 長文をそのまま投げる | `num_ctx` 未指定だと **4096 でロードされ、超過分は例外なく黙って切り捨てられる** | `ollama-delegate.cjs` 経由（入力長を事前検査する） |
 

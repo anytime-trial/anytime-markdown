@@ -1,6 +1,6 @@
 # 要件書テンプレート
 
-Phase 1 のインタビュー回答を本テンプレートに埋め込み、Phase 2 で `writing-plans` に渡す。\
+Phase 1 のインタビュー回答を本テンプレートに埋め込み、Phase 2 でスキル本体がプランを作成する際の入力にする。\
 プレースホルダ `{{...}}` は Phase 1 完了時に置換される。
 
 
@@ -129,4 +129,4 @@ Q2 で `Customer, Order, Product` が回答された場合の `{{Q2_ENTITIES_TAB
 ```
 
 > [!IMPORTANT]
-> リレーションは Phase 1 で確定せず、Phase 2 の `writing-plans` 内で再確認する余地を残す。
+> リレーションは Phase 1 で確定せず、Phase 2 のプラン作成時に再確認する余地を残す。

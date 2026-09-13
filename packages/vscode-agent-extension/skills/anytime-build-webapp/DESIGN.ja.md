@@ -18,7 +18,10 @@ clarity: 90
 
 `/anytime-build-webapp` は、ユーザの自然言語要求から **T3 Stack ベースのフルスタック Web アプリ MVP** を WSL + Dev Container 上に生成する汎用オーケストレータスキルである。
 
-既存 superpowers（`brainstorming` / `writing-plans` / `executing-plans`）を順に呼び出す薄い藣介として実装し、Web 構築特有の制御（4 問インタビュー・スタック固定・DevContainer 雛形）だけを skill 本体に持つ。
+全 Phase を skill 本体で完結させ、外部プラグインのスキルへ委譲しない（当初は superpowers の
+`brainstorming` / `writing-plans` / `executing-plans` を呼び出す媒介型だったが、2026-09-13 に
+プラグイン依存を解消した。監査 20260913 X1）。Web 構築特有の制御（4 問インタビュー・スタック
+固定・DevContainer 雛形）に加え、プラン作成（Phase 2）と実装ループ（Phase 5）も本体が持つ。
 
 完了条件は **`npm run dev` が起ち、ブラウザで `http://localhost:<APP_PORT>` が表示される**こと。デプロイ・CI/CD は対象外。
 
@@ -44,7 +47,7 @@ clarity: 90
 | 3 | スタック方針 | Next.js（T3 Stack）固定・上書き不可（2026-08-22 に Python BE 経路を廃止） |
 | 4 | デフォルトスタック | T3 Stack（`Next.js` + `tRPC` + `Prisma` + `Tailwind` + `NextAuth`） |
 | 5 | 起動形式 | `/anytime-build-webapp` 対話型 + 上限 4 問 |
-| 6 | superpowers 連携 | 藣介型（`brainstorming` → `writing-plans` → `executing-plans`） |
+| 6 | 外部スキル連携 | なし（全 Phase を skill 本体で完結。`design-md` のみ Phase 4D で併用） |
 | 7 | 完了ライン | Dev Container 内で `npm run dev` がブラウザから見える |
 | 8 | 配置先 | `.claude/skills/anytime-build-webapp/` |
 | 9 | 開発 DB | Postgres を `docker-compose.yml` で同梱 |
@@ -59,7 +62,7 @@ clarity: 90
 ├── SKILL.md                    # メインスキル (YAML frontmatter + 手順本文)
 ├── DESIGN.ja.md                # 本設計書
 ├── questions.md                # 4 問インタビュー定義
-├── requirements-template.md    # writing-plans に渡す要件 md のテンプレ
+├── requirements-template.md    # Phase 2 のプラン作成へ渡す要件 md のテンプレ
 ├── stacks/
 │   ├── _frontend-next.md       # フロント共通 (Next.js + Tailwind + Auth.js)
 │   ├── t3-default.md           # T3 固有差分 (tRPC + Prisma + Postgres + Dockerfile)
@@ -79,7 +82,7 @@ clarity: 90
 | --- | --- |
 | `SKILL.md` | YAML frontmatter（`name`・`description`）+ Phase 1〜6 の手順本文 |
 | `questions.md` | 4 問テンプレと打ち切り条件 |
-| `requirements-template.md` | インタビュー回答を埋め込んで `writing-plans` に渡す要件 md の雛形 |
+| `requirements-template.md` | インタビュー回答を埋め込んで Phase 2 のプラン作成へ渡す要件 md の雛形 |
 | `stacks/t3-default.md` | デフォルトスタックの構成定義（追加するパッケージ・Prisma schema・tRPC 雛形） |
 | `stacks/overrides.md` | スタック固定の方針（上書きを受け付けない）と将来追加手順 |
 | `scaffold/base-repo.md` | ベースリポジトリ（`anytime-lab`）の仕様と取得手順 |
@@ -146,11 +149,11 @@ T3 アプリは **既存リポジトリ `git@github.com:anytime-trial/anytime-la
 ```yaml
 ---
 name: anytime-build-webapp
-description: 要求から Next.js（T3 Stack）フルスタック Web アプリの MVP を WSL + Dev Container 上に生成する汎用スキル。/anytime-build-webapp で起動し、4 問インタビュー → 要件書生成 → writing-plans → executing-plans を順に呼ぶオーケストレータ。--devcontainer で Dev Container ファイル一式を生成できる。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
+description: 要求から Next.js（T3 Stack）フルスタック Web アプリの MVP を WSL + Dev Container 上に生成する汎用スキル。/anytime-build-webapp で起動し、4 問インタビュー → 要件書生成 → プラン作成 → 実装 を Phase 1〜6 として順に実行するオーケストレータ。--devcontainer で Dev Container ファイル一式を生成できる。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
 ---
 ```
 
-`description` を厚めに書くのは superpowers 流儀。Claude Code のスキル選択ロジックが `description` を判断材料にするため、トリガーキーワード（`/anytime-build-webapp`・`フルスタック`・`T3`・`Next.js`・`MVP`）を自然文に含める。
+`description` は厚めに書く。Claude Code のスキル選択ロジックが `description` を判断材料にするため、トリガーキーワード（`/anytime-build-webapp`・`フルスタック`・`T3`・`Next.js`・`MVP`）を自然文に含める。
 
 
 ## 5. 4 問インタビュー
@@ -204,11 +207,11 @@ flowchart TD
     A1{"要件承認?<br/>(What の承認)"}
     A1 -- No --> P1
     A1 -- Yes --> P2
-    P2["Phase 2: Plan<br/>superpowers:writing-plans 呼び出し<br/>(requirements.md + stacks/t3-default.md)"] --> P3
+    P2["Phase 2: Plan<br/>(skill 本体)<br/>requirements.md + stacks/t3-default.md からプラン作成"] --> P3
     P3["Phase 3: Plan Summary<br/>プラン要約を通知(承認ゲート無し)"] --> P4
     P4["Phase 4: Scaffold<br/>(skill 本体)<br/>git clone anytime-lab → リネーム<br/>→ T3 重ね合わせ + Prisma schema 反映"] --> P45
     P45["Phase 4D: Apply Design Tokens<br/>(skill 本体 + design-md スキル)<br/>URL/DESIGN.md → tailwind.config.ts + 基底 CSS"] --> P5
-    P5["Phase 5: Implementation<br/>superpowers:executing-plans 呼び出し"] --> P6
+    P5["Phase 5: Implementation<br/>(skill 本体)<br/>プランのタスクを 1 件ずつ実装・検証"] --> P6
     P6["Phase 6: Verification<br/>(skill 本体)<br/>DevContainer build + npm run dev<br/>+ curl localhost:3000 確認"] --> End
     End(["完了通知<br/>WSL ホストで http://localhost:3000 を開く"])
 ```
@@ -220,11 +223,11 @@ flowchart TD
 | Phase | 実装場所 | 主要処理 |
 | --- | --- | --- |
 | 1. Interview | skill 本体 | `questions.md` を読み込み 4 問実施、回答を `requirements.md` に整形し**要件承認（What の承認）**を取る |
-| 2. Plan | `superpowers:writing-plans` 呼び出し | 要件 md とスタック定義を渡して実装プラン生成 |
+| 2. Plan | skill 本体 | 要件 md とスタック定義から実装プランを `<docsRoot>/plan/` へ生成 |
 | 3. Plan Summary | skill 本体 | プラン要約を通知（承認は Phase 1 の要件承認で済み・ゲート無し） |
 | 4. Scaffold | skill 本体 | `anytime-lab` クローン + リネーム + T3 重ね合わせ + Prisma schema 反映 |
 | 4D. Apply Design Tokens | skill 本体 + `design-md` | URL / DESIGN.md からデザイントークン抽出、`tailwind.config.ts` と `globals.css` に反映 |
-| 5. Implementation | `superpowers:executing-plans` 呼び出し | プランを順次実行、tRPC ルータ・画面・テスト実装 |
+| 5. Implementation | skill 本体 | プランのタスクを 1 件ずつ実装・検証、tRPC ルータ・画面・テスト実装 |
 | 6. Verification | skill 本体 | DevContainer 起動 → `npm run dev` → `curl` 200 確認 |
 
 
@@ -352,7 +355,7 @@ volumes:
 | `docker compose up` 失敗 | Docker daemon 起動状態を診断、案内表示 | Phase 6（skill 本体） |
 | Prisma migration 失敗 | schema の妥当性を確認、ユーザに schema 修正案を提示 | Phase 6（skill 本体） |
 | `curl localhost:3000` が 200 以外 | ログを表示、`npm run dev` の出力もダンプ | Phase 6（skill 本体） |
-| Phase 5 実装中のテスト失敗 | プラン内のリトライ手順に従う | Phase 5（`executing-plans`） |
+| Phase 5 実装中のテスト失敗 | プラン内のリトライ手順に従う | Phase 5（skill 本体） |
 | `git clone anytime-lab` 失敗 | SSH 鍵設定・GitHub 到達性を診断、案内表示 | Phase 4（skill 本体） |
 | リネーム置換失敗（対象ファイル不存在等） | 中断してユーザに `anytime-lab` 構成変更の有無を確認 | Phase 4（skill 本体） |
 
@@ -360,9 +363,9 @@ volumes:
 ### 9.1.1. リトライ責任の分界
 
 
-- **Phase 5（`executing-plans`）の責任**: プラン記載タスクの実行中エラー（型エラー・lint・unit test 失敗等）はプラン内ロジックでリトライする
+- **Phase 5（skill 本体）の責任**: プラン記載タスクの実行中エラー（型エラー・lint・unit test 失敗等）は、そのタスクの反復ループ内でリトライする（無進捗を観測したら中断してユーザーへ報告する）
 - **Phase 6（skill 本体）の責任**: 実装完了後の起動・統合検証（`docker compose up` / `npm run dev` / `curl` 確認）が失敗した場合、skill 本体が原因切り分けとリトライを主導する
-- **Phase 5 → Phase 6 遷移**: `executing-plans` が「プラン全タスク完了」を返した時点で Phase 6 に移行する。`executing-plans` 自身が起動検証を持たないため、skill 本体側で別途検証を実行する
+- **Phase 5 → Phase 6 遷移**: skill 本体がプランの全タスク完了（全チェックボックスが `[x]`）を確認した時点で Phase 6 に移行する。Phase 5 は起動検証を持たないため、Phase 6 で別途検証を実行する
 
 
 ### 9.2. 不可逆操作の防御
@@ -428,7 +431,7 @@ volumes:
 - ゴール・出力スコープ・スタック・起動形式・配置先・完了ライン・DB・ベースリポの 10 要件が確定済み
 - ベースリポを `anytime-lab` に固定したことで Dev Container を毎回自作せずに済み、再現性とメンテ性が向上
 - デザイントークン参照源（URL / DESIGN.md / なし）が 3 経路で明示され、`design-md` スキルとの責任分界も明確
-- 既存 superpowers との連携点（Phase 2 と Phase 5）と `design-md` 連携点（Phase 4D）が明確に分離されている
+- Phase 2（プラン作成）と Phase 5（実装ループ）を本体に持ち、`design-md` 連携点（Phase 4D）だけが外部依存として分離されている
 - Phase 5 と Phase 6 のリトライ責任分界を明示済み（9.1.1）
 - OpenHands `agent-builder.md` / `/onboard` で実証済みパターンを踏襲しているため設計リスクが低い
 

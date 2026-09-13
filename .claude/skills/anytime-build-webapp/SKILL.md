@@ -8,7 +8,7 @@ externalRepoRefs: true
 
 # anytime-build-webapp スキル
 
-更新日: 2026-08-22
+更新日: 2026-09-13
 
 
 `/anytime-build-webapp` 起動時に本ファイルがロードされる。以下の Phase 1〜6 を順に実行する。
@@ -98,11 +98,17 @@ WSL ホストで Dev Container をこれから作る場合に指定する。**�
 ## Phase 2: Plan
 
 
-1. **`Skill` ツールで `superpowers:writing-plans` を起動**する
-2. 渡すコンテキスト: `requirements.md`（CWD のもの）・`<skillDir>/scaffold/base-repo.md`・
+プランは本スキルが直接書く（外部スキルへ委譲しない）。
+
+1. 入力として次を読む: `requirements.md`（CWD のもの）・`<skillDir>/scaffold/base-repo.md`・
    `<skillDir>/stacks/_frontend-next.md`・`<skillDir>/stacks/t3-default.md`
-   （`--devcontainer` 指定時は `<skillDir>/scaffold/devcontainer.md` も渡す）
-3. `writing-plans` が生成したプラン（通常 `docs/superpowers/plans/<date>-<topic>.md`）のパスを保持
+   （`--devcontainer` 指定時は `<skillDir>/scaffold/devcontainer.md` も）
+2. プランファイルを `<docsRoot>/plan/<YYYYMMDD>-<topic>.ja.md` へ作成する。構成は
+   `anytime-doc-authoring` のプランファイル節（`type: plan` のフロントマター・「変更対象
+   ファイル」節・チェックボックス形式のタスク一覧）に従う
+3. 各タスクには**検証手段を先に書く**（`npx tsc --noEmit` / `npm run build` / dev サーバー
+   疎通など）。検証手段を書けないタスクは分解し直すか、requirements.md を具体化する
+4. 生成したプランファイルのパスを保持する
 
 
 ## Phase 3: Plan Summary
@@ -118,7 +124,7 @@ WSL ホストで Dev Container をこれから作る場合に指定する。**�
 ## Phase 4: Scaffold
 
 
-本 Phase は **skill 本体** で完結する。`executing-plans` には委譲しない。
+本 Phase も Phase 2 / Phase 5 と同様、**skill 本体**で完結する。
 
 
 ### 4.1. クローン
@@ -268,11 +274,19 @@ Q4（デザイン参照源）/ CLI 引数の値で分岐する。詳細は `DESI
 ## Phase 5: Implementation
 
 
-1. **`Skill` ツールで `superpowers:executing-plans` を起動**する
-2. Phase 2 で生成したプランファイルを渡す
-3. `executing-plans` の完了通知（`done` イベント）を待つ
-4. 実装中のエラーは `executing-plans` が責任を持つ（Phase 5 内のリトライ）
-5. `executing-plans` が完了通知を返したら **Phase 6 に進む**（skill 本体に制御が戻る）
+実装も本スキルが直接行う（外部スキルへ委譲しない）。ループ形状は**反復ループ**
+（1 ターン = タスク 1 件の実装 + そのタスクの検証 1 回）。
+
+1. Phase 2 で生成したプランファイルを読み、**未完了タスクの先頭から順に**実行する
+   （`anytime-dev-cycle` §2.2 の再開性手順と同じ。完了済みタスクはやり直さない）
+2. 1 タスクごとに、プランへ書いた検証手段を実行する。通過したらプランファイルの
+   チェックボックスを `[x]` へ更新してから次のタスクへ進む
+3. 検証が失敗したら、同じ手を繰り返さず原因を調べて方針を変える。次のいずれかを
+   観測したら中断してユーザーへ報告する（`~/.claude/rules/bugfix-workflow.md`「無進捗の検知」）
+   - 同一ファイルを 3 回以上読み直して編集も検証もしていない
+   - 編集の往復が 2 巡した（直す → 戻す → また直す）
+   - 失敗テスト数・エラー件数が 3 ターン以上変化しない
+4. 全タスクが `[x]` になったら **Phase 6 に進む**
 
 
 ## Phase 6: Verification
