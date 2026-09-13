@@ -346,6 +346,6 @@ S3 アップロード後、生成物を docs リポジトリ（`<docsRoot>`）�
    git -C <docsRoot> diff --cached --stat     # 身に覚えのない差分が無いか
    ```
 
-3. レポートをコミットする。メッセージは `docs(research): weekly-research [今日の日付 YYYY-MM-DD]`。末尾に `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` トレーラを付与する（現行既定モデル。モデル既定変更時は追随する）。
+3. レポートをコミットする。メッセージは `docs(research): weekly-research [今日の日付 YYYY-MM-DD]`。末尾に `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` トレーラを付与する（現行既定モデル。モデル既定変更時は追随する）。
 4. トピック 11 で提案書を生成した場合は、提案書ファイルを別途ステージ（`git ... add proposal/[YYYYMMDD]-[topic].ja.md`）し、上記3点確認のうえ別コミットする。メッセージは `docs(proposal): Trail 改善提案 [topic]`。
 5. 各コミット結果（ハッシュ・1行サマリ）と、トピック 11 で起票したチケット ID（未起票の場合はその理由）をユーザーに報告する。チケットは create_ticket がチケットリポジトリへ直接コミット済みのため、docs リポジトリ側のコミット対象には含めない。
