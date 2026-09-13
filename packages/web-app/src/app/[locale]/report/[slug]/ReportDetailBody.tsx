@@ -11,17 +11,23 @@ import LandingHeader from '../../components/LandingHeader';
 import MarkdownViewer from '../../components/MarkdownViewer';
 
 interface ReportDetailBodyProps {
-  report: { meta: ReportMeta; content: string } | null;
+  /**
+   * 記事のメタ情報。本文（Markdown 原文）はここへ渡さない — 表示に使わないまま
+   * RSC ペイロードへ載り、記事 1 本で数十 KB を空費していた。
+   */
+  meta: ReportMeta | null;
+  /** サーバで HTML 化した本文。クローラと初回表示が読むのはこれ */
+  bodyHtml: string;
   prev: ReportMeta | null;
   next: ReportMeta | null;
 }
 
-export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyProps>) {
+export default function ReportDetailBody({ meta, bodyHtml }: Readonly<ReportDetailBodyProps>) {
   const t = useTranslations('Landing');
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  if (!report) {
+  if (!meta) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <LandingHeader />
@@ -32,7 +38,6 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
     );
   }
 
-  const { meta } = report;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -122,6 +127,7 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
       {/* Article Body */}
       <Container maxWidth="lg" sx={{ flex: 1, px: { xs: 0, md: 3 }, '& #main-content': { px: { xs: 0, md: 3 } } }}>
         <MarkdownViewer
+          staticHtml={bodyHtml}
           docKey={meta.key}
           contentApiPath="/api/reports/content"
           noScroll

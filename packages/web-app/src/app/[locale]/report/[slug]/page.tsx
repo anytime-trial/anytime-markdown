@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { buildSingleSourceAlternates, singleSourceHref } from '../../../../lib/localeAlternates';
 import { getReportBySlug, listReports } from '../../../../lib/reportClient';
 import { buildNavigation } from '../../../../lib/reportUtils';
+import { renderMarkdownToSafeHtml } from '../../../../lib/renderMarkdownHtml';
 import { SITE_NAME } from '../../../../lib/siteMetadata';
 import type { ReportMeta } from '../../../../types/report';
 import ReportDetailBody from './ReportDetailBody';
@@ -144,7 +145,16 @@ export default async function ReportDetailPage({ params }: Readonly<Props>) {
           />
         </>
       )}
-      <ReportDetailBody report={report} prev={nav.prev} next={nav.next} />
+      {/*
+        本文はここで HTML 化してサーバの返す HTML へ載せる。対話ビューア（`ssr: false`）
+        任せにすると、クローラの受け取る本文が 0 要素になる。
+      */}
+      <ReportDetailBody
+        meta={report?.meta ?? null}
+        bodyHtml={report ? renderMarkdownToSafeHtml(report.content) : ''}
+        prev={nav.prev}
+        next={nav.next}
+      />
     </>
   );
 }

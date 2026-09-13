@@ -10,28 +10,46 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
+import StaticMarkdownHtml from './StaticMarkdownHtml';
 
-const viewerLoading = () => (
-  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-    <CircularProgress aria-label="Loading viewer" />
-  </Box>
-);
+/**
+ * サーバ生成の本文 HTML を、対話ビューアが立ち上がるまでの表示として配る。
+ *
+ * context を経由するのは、`next/dynamic` の `loading` がモジュールスコープで固定され、
+ * 呼び出し側から props を渡せないため。ここを spinner のままにすると、チャンク取得の間だけ
+ * 一度描画した本文がスピナーへ差し替わる（内容が消えて見える）。
+ */
+const StaticBodyContext = createContext<string | null>(null);
+
+/**
+ * サーバ生成の本文があればそれを、無ければスピナーを出す。
+ * 「読み込み中」の表示が 2 系統（本文 fetch 中とチャンク取得中）あるため、両方でこれを使う。
+ */
+const ViewerLoading = () => {
+  const staticHtml = useContext(StaticBodyContext);
+  if (staticHtml) return <StaticMarkdownHtml html={staticHtml} />;
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <CircularProgress aria-label="Loading viewer" />
+    </Box>
+  );
+};
 
 // 脱React G4: vanilla orchestrator（rich codeblock 注入版）へ一本化
 const VanillaRichMarkdownEditor = dynamic(() => import('./VanillaRichMarkdownEditor'), {
   ssr: false,
-  loading: viewerLoading,
+  loading: ViewerLoading,
 });
 
 // read-only・最小（chromeless）表示用の Web Component ラッパ（minimal 指定時に使用）。
 const VanillaMarkdownView = dynamic(() => import('./VanillaMarkdownView'), {
   ssr: false,
-  loading: viewerLoading,
+  loading: ViewerLoading,
 });
 
 interface MarkdownViewerProps {
@@ -57,9 +75,14 @@ interface MarkdownViewerProps {
   minimal?: boolean;
   /** 本文カラム幅（measure）プリセット。未指定時は既定（standard）。report 記事は "wide" 等を指定。 */
   measure?: MeasurePreset;
+  /**
+   * サーバ側で生成済みの本文 HTML。対話ビューアは `ssr: false` でサーバ側に何も出さないため、
+   * これを渡した呼び出し元だけが「クローラと初回表示に本文が届く」状態になる。
+   */
+  staticHtml?: string;
 }
 
-export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset: _bottomOffset, fallbackDocKey, minimal, measure }: Readonly<MarkdownViewerProps>) {
+export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset: _bottomOffset, fallbackDocKey, minimal, measure, staticHtml }: Readonly<MarkdownViewerProps>) {
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
@@ -113,7 +136,10 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
     fetchContent();
   }, [fetchContent]);
 
+  // サーバ生成の本文がある間はスピナーを出さない。ここがサーバの返す HTML そのものなので、
+  // スピナーに差し替えるとクローラの見る本文が消える（この画面が空ページ化していた原因）。
   if (loading) {
+    if (staticHtml) return <StaticMarkdownHtml html={staticHtml} />;
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight }} role="status">
         <CircularProgress aria-label="Loading" />
@@ -122,19 +148,26 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   }
 
   if (error || content === null) {
+    // 本文が既にサーバ側で描画されている場合、取得失敗は「対話ビューアへ昇格できない」
+    // 縮退でしかない。本文を消してエラーだけ出すと読める記事が読めなくなるため、
+    // 本文は残したまま失敗を告知する（黙って握り潰さない）。
+    const severity = staticHtml ? 'warning' : 'error';
     return (
-      <Box sx={{ px: 3, py: 4 }}>
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={fetchContent}>
-              {t('docsViewRetry')}
-            </Button>
-          }
-        >
-          {error ?? t('docsViewLoadError')}
-        </Alert>
-      </Box>
+      <>
+        <Box sx={{ px: 3, py: 4 }}>
+          <Alert
+            severity={severity}
+            action={
+              <Button color="inherit" size="small" onClick={fetchContent}>
+                {t('docsViewRetry')}
+              </Button>
+            }
+          >
+            {error ?? t('docsViewLoadError')}
+          </Alert>
+        </Box>
+        {staticHtml && <StaticMarkdownHtml html={staticHtml} />}
+      </>
     );
   }
 
@@ -142,6 +175,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   const EditorComponent = minimal ? VanillaMarkdownView : VanillaRichMarkdownEditor;
 
   return (
+    <StaticBodyContext.Provider value={staticHtml ?? null}>
     <Box sx={{ minHeight, overflow: 'hidden' }}>
       <EmbedProvidersBoundary>
       {/* 脱React G4: bottomOffset は vanilla 未対応（fixedEditorHeight で代替）。 */}
@@ -166,5 +200,6 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
       />
       </EmbedProvidersBoundary>
     </Box>
+    </StaticBodyContext.Provider>
   );
 }

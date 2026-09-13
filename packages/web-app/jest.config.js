@@ -22,8 +22,9 @@ const config = {
   // next-intl 系は依存も含めて ESM を返す（next-intl → use-intl → @formatjs/*、
   // intl-messageformat）。1 つずつ足すと到達順に同じエラーが再発するため、依存鎖を
   // まとめて transform 対象に含める。
+  // marked も browser 条件で ESM（lib/marked.esm.js）を返すため、next-intl 系と同じ扱いにする。
   transformIgnorePatterns: [
-    "/node_modules/(?!(next-intl|use-intl|@formatjs|intl-messageformat)/)",
+    "/node_modules/(?!(next-intl|use-intl|@formatjs|intl-messageformat|marked)/)",
   ],
   moduleNameMapper: {
     // @anytime-markdown/markdown-* → vendored ソースへ解決（共有 alias ヘルパ）
