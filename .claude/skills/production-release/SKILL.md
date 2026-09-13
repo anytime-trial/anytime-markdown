@@ -317,7 +317,7 @@ done
 リリース対象に応じて VSIX を生成する:
 
 > [!IMPORTANT]
-> **CLI は `@vscode/vsce` を exact 固定で呼ぶ。別名の `vsce` を使わない。** `vsce` は 2.15.0 で凍結された非推奨パッケージで、2026-09-13 のリリースで publish 6 件が全て `Request timeout: /_apis/gallery` で落ちた（同時刻に Marketplace の extensionquery API は 0.3 秒で 200 を返しており、Marketplace 障害ではない）。`ci.yml` / `daily-build.yml` も同じ版へ揃えてある。版を上げるときは両方を同時に動かす。
+> **CLI は `@vscode/vsce` を exact 固定で呼ぶ。別名の `vsce` を使わない。** `vsce` は 2.15.0 で凍結された非推奨パッケージで、2026-09-13 のリリースで publish 6 件が全て `Request timeout: /_apis/gallery` で落ちた（同時刻に Marketplace の extensionquery API は 0.3 秒で 200 を返しており、Marketplace 障害ではない）。版の単一の正は `ci.yml` / `daily-build.yml` の `env.VSCE_SPEC` で、`run:` 側は `npx "$VSCE_SPEC"` を参照する。同じ spec を `scripts/vscode-extension/build-*.sh`（8 本）と `scripts/acceptance/vsix-smoke.mjs` が `${VSCE_SPEC:-...}` の既定値として持つ。**版を上げるときはこの 4 系統を同時に動かす** — 取りこぼしても package / publish 自体はどちらの版でも通るため CI は緑のままで、同一リリース内に 2 つの版が混在したことを誰も検知できない。
 
 **markdown 系:**
 ```bash

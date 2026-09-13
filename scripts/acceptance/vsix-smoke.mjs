@@ -45,7 +45,10 @@ export function classifyPackageFailure({ error, stderr }) {
 export function packageVsix({ target, root = ROOT, timeoutMs }) {
   const pkgDir = path.join(root, "packages", target.pkg);
   const outPath = path.join(pkgDir, `vsix-smoke-${target.pkg}.vsix`);
-  const r = spawnSync("npx", ["vsce", "package", "--no-dependencies", "-o", outPath], {
+  // CI（ci.yml / daily-build.yml）と同じ spec を引く。別名の `vsce` は 2.15.0 で凍結された
+  // 非推奨パッケージで、ゲートと出荷物で別のパッケージャを使うと green が証拠にならない。
+  const vsceSpec = process.env.VSCE_SPEC ?? "@vscode/vsce@3.9.2";
+  const r = spawnSync("npx", [vsceSpec, "package", "--no-dependencies", "-o", outPath], {
     cwd: pkgDir,
     encoding: "utf8",
     timeout: timeoutMs,

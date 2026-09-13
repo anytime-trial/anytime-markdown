@@ -36,7 +36,7 @@ until npm run package; do
 done
 
 echo "Packaging vsix..."
-npx vsce package --no-dependencies -o "$DIST_DIR/anytime-trail.vsix"
+npx "${VSCE_SPEC:-@vscode/vsce@3.9.2}" package --no-dependencies -o "$DIST_DIR/anytime-trail.vsix"
 
 echo "Installing..."
 bash "$REPO_ROOT/scripts/vscode-extension/_install-vsix.sh" "$DIST_DIR/anytime-trail.vsix"

@@ -10,6 +10,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Marketplace CLI の spec。ci.yml / daily-build.yml / scripts/vscode-extension/build-*.sh /
+# scripts/acceptance/vsix-smoke.mjs の 4 系統で同じ版を使う。ここが単一の正。
+env:
+  VSCE_SPEC: "@vscode/vsce@3.9.2"
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -198,7 +203,7 @@ jobs:
 
       - name: Package markdown VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-markdown-extension
 
       - name: Upload markdown VSIX artifact
@@ -216,7 +221,7 @@ jobs:
 
       - name: Package graph VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-graph-extension
 
       - name: Upload graph VSIX artifact
@@ -263,7 +268,7 @@ jobs:
 
       - name: Package history VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-history-extension
 
       - name: Upload history VSIX artifact
@@ -284,7 +289,7 @@ jobs:
 
       - name: Package sheet VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-sheet-extension
 
       - name: Upload sheet VSIX artifact
@@ -307,7 +312,7 @@ jobs:
 
       - name: Package agent VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-agent-extension
 
       - name: Upload agent VSIX artifact
@@ -320,7 +325,7 @@ jobs:
 
       - name: Package extension pack VSIX
         if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies
+        run: npx "$VSCE_SPEC" package --no-dependencies
         working-directory: packages/vscode-extension-pack
 
       - name: Upload extension pack VSIX artifact
@@ -486,7 +491,7 @@ jobs:
       # 最新版に暗黙追随して「触っていないのに壊れた」を再発させないため。
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx @vscode/vsce@3.9.2 publish --packagePath *.vsix --pat "$VSCE_PAT"
+        run: npx "$VSCE_SPEC" publish --packagePath *.vsix --pat "$VSCE_PAT"
         working-directory: packages/vscode-markdown-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -549,7 +554,7 @@ jobs:
 
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx @vscode/vsce@3.9.2 publish --packagePath *.vsix --pat "$VSCE_PAT"
+        run: npx "$VSCE_SPEC" publish --packagePath *.vsix --pat "$VSCE_PAT"
         working-directory: packages/vscode-graph-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -612,7 +617,7 @@ jobs:
 
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx @vscode/vsce@3.9.2 publish --packagePath *.vsix --pat "$VSCE_PAT"
+        run: npx "$VSCE_SPEC" publish --packagePath *.vsix --pat "$VSCE_PAT"
         working-directory: packages/vscode-history-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -677,7 +682,7 @@ jobs:
       - name: Publish all platform VSIX to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
         run: |
-          npx @vscode/vsce@3.9.2 publish \
+          npx "$VSCE_SPEC" publish \
             --packagePath \
               anytime-trail-linux-x64.vsix \
               anytime-trail-linux-arm64.vsix \
@@ -746,7 +751,7 @@ jobs:
 
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx @vscode/vsce@3.9.2 publish --packagePath *.vsix --pat "$VSCE_PAT"
+        run: npx "$VSCE_SPEC" publish --packagePath *.vsix --pat "$VSCE_PAT"
         working-directory: packages/vscode-sheet-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -809,7 +814,7 @@ jobs:
 
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx @vscode/vsce@3.9.2 publish --packagePath *.vsix --pat "$VSCE_PAT"
+        run: npx "$VSCE_SPEC" publish --packagePath *.vsix --pat "$VSCE_PAT"
         working-directory: packages/vscode-agent-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -872,7 +877,7 @@ jobs:
 
       - name: Publish to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
-        run: npx @vscode/vsce@3.9.2 publish --packagePath *.vsix --pat "$VSCE_PAT"
+        run: npx "$VSCE_SPEC" publish --packagePath *.vsix --pat "$VSCE_PAT"
         working-directory: packages/vscode-extension-pack
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -928,7 +933,7 @@ jobs:
           TARGET_ARCH: ${{ matrix.arch }}
         run: npm run package
       - name: Package trail VSIX
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies --target ${{ matrix.target }} --out anytime-trail-${{ matrix.target }}.vsix
+        run: npx "$VSCE_SPEC" package --no-dependencies --target ${{ matrix.target }} --out anytime-trail-${{ matrix.target }}.vsix
         working-directory: packages/vscode-trail-extension
       - name: Upload trail VSIX artifact
         if: github.ref == 'refs/heads/master'
@@ -965,7 +970,7 @@ jobs:
         run: npm run package
         working-directory: packages/vscode-database-extension
       - name: Package database VSIX
-        run: npx @vscode/vsce@3.9.2 package --no-dependencies --target ${{ matrix.target }} --out anytime-database-${{ matrix.target }}.vsix
+        run: npx "$VSCE_SPEC" package --no-dependencies --target ${{ matrix.target }} --out anytime-database-${{ matrix.target }}.vsix
         working-directory: packages/vscode-database-extension
       - name: Upload database VSIX artifact
         if: github.ref == 'refs/heads/master'
@@ -1020,7 +1025,7 @@ jobs:
       - name: Publish all platform VSIX to Marketplace
         if: steps.tag_check.outputs.exists == 'false'
         run: |
-          npx @vscode/vsce@3.9.2 publish \
+          npx "$VSCE_SPEC" publish \
             --packagePath \
               anytime-database-linux-x64.vsix \
               anytime-database-linux-arm64.vsix \
