@@ -8,6 +8,12 @@ on:
 
 # Marketplace CLI の spec。ci.yml / daily-build.yml / scripts/vscode-extension/build-*.sh /
 # scripts/acceptance/vsix-smoke.mjs の 4 系統で同じ版を使う。ここが単一の正。
+#
+# Why not `npx "$VSCE_SPEC"`: build-trail / build-database の matrix は windows-2022 を含み、
+# Windows runner の既定シェルは PowerShell なので `$VSCE_SPEC` は環境変数ではなく未設定の
+# PowerShell 変数として空に展開される（2026-09-13 に 4 ジョブが
+# "The variable '$VSCE_SPEC' cannot be retrieved because it has not been set." で落ちた）。
+# `${{ env.VSCE_SPEC }}` はシェルに渡る前に展開されるためどの runner でも同じに動く。
 env:
   VSCE_SPEC: "@vscode/vsce@3.9.2"
 
@@ -98,7 +104,7 @@ jobs:
         working-directory: packages/vscode-markdown-extension
 
       - name: Package markdown VSIX
-        run: npx "$VSCE_SPEC" package --no-dependencies
+        run: npx "${{ env.VSCE_SPEC }}" package --no-dependencies
         working-directory: packages/vscode-markdown-extension
 
       - name: Build graph extension
@@ -106,7 +112,7 @@ jobs:
         working-directory: packages/vscode-graph-extension
 
       - name: Package graph VSIX
-        run: npx "$VSCE_SPEC" package --no-dependencies
+        run: npx "${{ env.VSCE_SPEC }}" package --no-dependencies
         working-directory: packages/vscode-graph-extension
 
       - name: Build trail extension
@@ -114,7 +120,7 @@ jobs:
         working-directory: packages/vscode-trail-extension
 
       - name: Package trail VSIX
-        run: npx "$VSCE_SPEC" package --no-dependencies
+        run: npx "${{ env.VSCE_SPEC }}" package --no-dependencies
         working-directory: packages/vscode-trail-extension
 
       - name: Build agent extension
@@ -122,11 +128,11 @@ jobs:
         working-directory: packages/vscode-agent-extension
 
       - name: Package agent VSIX
-        run: npx "$VSCE_SPEC" package --no-dependencies
+        run: npx "${{ env.VSCE_SPEC }}" package --no-dependencies
         working-directory: packages/vscode-agent-extension
 
       - name: Package extension pack VSIX
-        run: npx "$VSCE_SPEC" package --no-dependencies
+        run: npx "${{ env.VSCE_SPEC }}" package --no-dependencies
         working-directory: packages/vscode-extension-pack
 
       - name: Install Playwright browsers
