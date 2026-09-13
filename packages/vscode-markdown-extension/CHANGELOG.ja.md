@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.23.2] - 2026-09-13
+
+### 変更
+
+- 同梱スキル `anytime-doc-authoring`（manifest 15 → 16）: 実装後テスト設計の手順から `superpowers` プラグインのスキルへの依存を外し、本リポジトリのレビュー経路を指すようにした。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- mermaid のスタイルで `url('#id')` のフラグメント参照が外部 URL と誤判定されて消えていたのを修正した。
+- スラグ生成・screenmock 解析・3D サーフェス生成から super-linear バックトラック（Sonar S8786）と非推奨グローバル API を除いた。
+
+
 ## [1.23.1] - 2026-08-25
 
 ### 修正

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-09-13
+
+### Fixed
+
+- `ListItemButton` conveys its selected state with `aria-current`. `aria-selected` is not supported on `role="button"` and was silently ignored by assistive technology (Sonar S6811).
+- The menu backdrop is marked `role="presentation"`, so the decorative overlay is no longer exposed as an element in its own right.
+
+
 ## [0.3.11] - 2026-08-20
 
 ### Changed

@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-13
+
+### Graph Core (graph-core)
+
+- draw.io インポートとグラフ DSL パーサが不正入力で super-linear にバックトラックしないようにした（Sonar S8786）。
+- 同梱の `sha256` がコードポイントを `codePointAt` で読むようにした。
+
+
 ## [1.3.1] - 2026-08-25
 
 ### 修正

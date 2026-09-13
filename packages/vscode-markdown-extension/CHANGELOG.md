@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.23.2] - 2026-09-13
+
+### Changed
+
+- Bundled skill `anytime-doc-authoring` (manifest 15 → 16): the post-implementation test design procedure no longer depends on the `superpowers` plugin's skills and points at this repository's own review route instead.
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- Mermaid styles keep their `url('#id')` fragment references, which were previously dropped as external URLs.
+- Super-linear regex backtracking (Sonar S8786) and deprecated global APIs were cleared out of slug generation, screenmock parsing and the 3D surface plot builder.
+
+
 ## [1.23.1] - 2026-08-25
 
 ### Fixed

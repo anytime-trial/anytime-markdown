@@ -98,3 +98,10 @@ packages/web-app/public/THIRD-PARTY-NOTICES.md
 /packages/markdown-rich-editor/src/**/*.d.ts
 !/packages/markdown-rich-editor/src/plotly-gl3d.d.ts
 /packages/markdown-engine/src/**/*.d.ts
+
+# next dev（16.3 の generate-agent-files）が e2e 起動のたびに web-app 直下へ書き出す
+# エージェント指示ファイル。本リポジトリのツール中立規約の正本はルート AGENTS.md 単一と
+# 決めているため、第三者パッケージが生成する指示を追跡対象にしない（採用するなら
+# ルート AGENTS.md へ手で取り込む）。
+/packages/web-app/AGENTS.md
+/packages/web-app/CLAUDE.md

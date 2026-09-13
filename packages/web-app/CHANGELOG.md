@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.51.1] - 2026-09-13
+
+### Fixed
+
+- Character trims that backtracked super-linearly (Sonar S8786) were replaced by a shared `trimChars` helper: cooccurrence export filenames, docs image URLs, release timeline entry ids and the web import proxy base URL. The helper throws when given more than one character, so a mistaken call fails instead of silently doing nothing.
+- The note graph frontmatter parser pins its value boundary with `\S` in the `to:` / `type:` lines.
+- Modal dialogs move their key handler from the `role="dialog"` paper to the `role="presentation"` backdrop, so a non-interactive role no longer carries a JSX key handler (Sonar S6847) while the React propagation order that lets inner handlers claim ESC first is preserved.
+
+
 ## [0.51.0] - 2026-09-05
 
 ### Added

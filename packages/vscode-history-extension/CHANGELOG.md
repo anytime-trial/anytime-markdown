@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-09-13
+
+### Changed
+
+- Picked up the bundled `trail-activity` 1.5.3 fixes: `reduce` without an initial value, and the super-linear `debrief` fence pattern (Sonar S8786).
+
+
 ## [0.3.3] - 2026-08-11
 
 ### Changed

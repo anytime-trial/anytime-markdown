@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-13
+
+### Fixed
+
+- `importDrawio` strips HTML tags with an index scan instead of `/<[^>]*>/g`, which backtracked over the whole remaining input on an unclosed `<` (Sonar S8786).
+- The graph DSL parser pins its label boundary with `\S` in bullet lists, indent trees, cooccurrence links and `cluster` lines, removing the super-linear overlap between the lazy quantifier and the surrounding `\s*`.
+- `sha256` reads code points through `codePointAt`; unpaired surrogates still map to U+FFFD.
+
+
 ## [1.3.0] - 2026-08-20
 
 ### Changed

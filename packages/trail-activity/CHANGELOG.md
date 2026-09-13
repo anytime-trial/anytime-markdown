@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-09-13
+
+### Fixed
+
+- `minIso` / `maxIso` pass an explicit initial value to `reduce`, so the reduction can no longer throw on an empty accumulator.
+- The `debrief` fence pattern no longer lets `\s*` overlap the following newline, which made matching super-linear (Sonar S8786).
+
+
 ## [1.5.2] - 2026-09-01
 
 ### Fixed

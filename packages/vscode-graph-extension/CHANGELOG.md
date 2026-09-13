@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-13
+
+### Graph Core (graph-core)
+
+- draw.io import and the graph DSL parser no longer backtrack super-linearly on malformed input (Sonar S8786).
+- The bundled `sha256` helper reads code points through `codePointAt`.
+
+
 ## [1.3.1] - 2026-08-25
 
 ### Fixed
