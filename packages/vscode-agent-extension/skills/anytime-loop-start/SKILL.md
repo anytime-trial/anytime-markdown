@@ -5,7 +5,7 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 
 # anytime-loop-start — チケット駆動自動実行（1 tick・ループ開始）
 
-更新日: 2026-07-20
+更新日: 2026-09-13
 
 チケット正本は Git リポジトリの `.tickets/` 配下の Markdown（フォーマットは要件定義書
 `spec/00.requirements/ticket-system-requirements.ja.md` の FR-2 / §8。web-app の /tickets ボードと同一）。

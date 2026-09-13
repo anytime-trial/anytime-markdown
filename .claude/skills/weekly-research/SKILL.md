@@ -3,7 +3,7 @@ name: weekly-research
 description: 週次調査。Claude Code/Anthropic・Codex/OpenAI・Gemini/Google の最新動向、プロジェクト利用モジュールの最新バージョン・Breaking Changes・セキュリティ修正、代替モジュールの動向、GitHub急上昇ランキングを調査する。前回実施から1週間経過している場合のみ実行する。
 ---
 
-更新日: 2026-07-18
+更新日: 2026-09-13
 
 > `<docsRoot>` は対象プロジェクトの CLAUDE.md「ドキュメント保存先（docsRoot）」節に定義された docs リポジトリのルートパスに読み替える。
 
