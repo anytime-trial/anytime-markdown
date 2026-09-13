@@ -10,7 +10,7 @@
 
 これは anytime-markdown 固有（ts-jest/testMatch/jsdom・VS Code 拡張の Extension Host reload・脱React vanilla 移行を前提）。
 
-> **REQUIRED BACKGROUND**: 実装前の純粋関数は `superpowers:test-driven-development`（RED-GREEN-REFACTOR）が担う。本ガイドはそれが届かない出口（配線/mount/型/i18n）を**実装後**に補完する相補関係。テスト網羅の監査は段6 で `pr-test-analyzer`（行カバレッジでなく振る舞いカバレッジ・契約をテスト）に委ねられる。
+> **REQUIRED BACKGROUND**: 実装前の純粋関数は global `~/.claude/CLAUDE.md`「実装時」の TDD 規約（実装前にユニットテストを作成）が担う。本ガイドはそれが届かない出口（配線/mount/型/i18n）を**実装後**に補完する相補関係。テスト網羅の監査は段6 で `pr-test-analyzer`（行カバレッジでなく振る舞いカバレッジ・契約をテスト）に委ねられる。
 
 ## なぜユニット green ≠ 完了か（検知ギャップ）
 
@@ -102,7 +102,7 @@
 
 ## エビデンスの残し方
 
-テスト結果は**主張（pass/fail の語）ではなく、実行した検証コマンドの実出力**（コマンド＋結果行＋exit code）で残す（`superpowers:verification-before-completion`「evidence before claims」）。「テスト通過」は不十分で `Tests: 34 passed, 34 total`（実出力）が要る。
+テスト結果は**主張（pass/fail の語）ではなく、実行した検証コマンドの実出力**（コマンド＋結果行＋exit code）で残す（主張の前に証拠を置く）。「テスト通過」は不十分で `Tests: 34 passed, 34 total`（実出力）が要る。
 
 | 層 | 残すエビデンス（実出力） |
 | --- | --- |
@@ -125,5 +125,5 @@
 - Testing Trophy（Static/Unit/Integration/E2E・「実利用に似ているほど信頼が高い」）: [Kent C. Dodds](https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications)
 - Characterization / Golden Master test（旧振る舞いのスナップショットで回帰検出）: Michael Feathers『Working Effectively with Legacy Code』／[Wikipedia](https://en.wikipedia.org/wiki/Characterization_test)
 - 振る舞いカバレッジ監査（行カバレッジでなく契約をテスト）: `pr-test-analyzer`（pr-review-toolkit）
-- 実装前の純粋関数 TDD: `superpowers:test-driven-development`
+- 実装前の純粋関数 TDD: global `~/.claude/CLAUDE.md`「実装時」
 - 検証器の事前テスト（pass/fail fixture・客観/意味の判定切り分け・基盤失敗の区別）: [langchain-ai/langchain-skills eval-engineering/verifier-design](https://github.com/langchain-ai/langchain-skills/blob/main/config/skills/eval-engineering/references/verifier-design.md)

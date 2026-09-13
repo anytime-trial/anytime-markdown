@@ -6,11 +6,11 @@ description: develop マージ前に Claude(pr-review-toolkit:code-reviewer suba
 
 # anytime-cross-review — Claude × Codex 相互レビュー
 
-更新日: 2026-08-09
+更新日: 2026-09-13
 
 develop マージ前の品質ゲートを Claude と Codex の**二者独立レビュー＋相互検証**へ拡張する。設計は `<docsRoot>/plan/20260623-codex-cross-review-design.ja.md`。
 
-- **適用範囲**: 高重大度の変更（定義は `anytime-dev-cycle` SKILL.md 冒頭）。実装と同一基盤モデルだけで検証すると欠陥を共有し、AI レビュアー自身が騙され得る（cognitive monoculture / verification subversion）ため、実装とは別系統モデル（Codex）による独立検証を行う。`anytime-dev-cycle` 段6 は高重大度のとき本スキルを選択する。それ以外の変更は `superpowers:requesting-code-review` でよい。
+- **適用範囲**: 高重大度の変更（定義は `anytime-dev-cycle` SKILL.md 冒頭）。実装と同一基盤モデルだけで検証すると欠陥を共有し、AI レビュアー自身が騙され得る（cognitive monoculture / verification subversion）ため、実装とは別系統モデル（Codex）による独立検証を行う。`anytime-dev-cycle` 段6 は高重大度のとき本スキルを選択する。それ以外の変更は `pr-review-toolkit:code-reviewer` subagent の単独レビューでよい。
 - 対象: 作業ブランチ → develop の diff（`<base>..HEAD`・既定 base=develop）。
 - 同梱ラッパ: `.claude/skills/anytime-cross-review/codex-review.cjs`（Codex review を headless 起動・read-only ガード付き）。**正本は `packages/vscode-agent-extension/skills/anytime-cross-review/`** で、`.claude/skills/` 配下は anytime-agent 拡張が配置する複製（git 追跡外・拡張を配り直すまで古いまま）。修正は正本へ入れる。
 - Codex CLI の起動作法・環境制約（bwrap 不可のため `--dangerously-bypass-approvals-and-sandbox` 必須）は `.claude/skills/anytime-dev-cycle/references/codex-cli.md` を参照する（委譲系と共通）。
@@ -37,7 +37,7 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 
 ### 2. Round 1 — 独立デュアルレビュー（並行）
 
-- **Claude**: `pr-review-toolkit:code-reviewer` subagent に diff レビューを依頼する（`anytime-trail-review` 出力。`superpowers:requesting-code-review` と同様、subagent session 経由で caravan_reviews に ingest され reviewer=`pr-review-toolkit:code-reviewer`）。
+- **Claude**: `pr-review-toolkit:code-reviewer` subagent に diff レビューを依頼する（`anytime-trail-review` 出力。subagent session 経由で caravan_reviews に ingest され reviewer=`pr-review-toolkit:code-reviewer`）。
 - **Codex**: `node .claude/skills/anytime-cross-review/codex-review.cjs --base <base>` を実行する（**worktree からは §0 の絶対パス + `--cwd` 形式で起動する**）。
   - stdout = レビュー本文（`### N.` 形式・bold マーカー）、stderr に `findings=N maxSeverity=...`。
   - exit 0 = 成功 / 2 = codex 失敗（非ゼロ終了・timeout）/ 3 = read-only 逸脱（codex がファイルを変更）。
