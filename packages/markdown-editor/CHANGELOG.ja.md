@@ -15,7 +15,6 @@
 - super-linear バックトラックする正規表現（Sonar S8786）を走査ヘルパーへ置き換えた（見出しスラグ生成 `toGitHubSlug`、screenmock のフロントマター解析、screenmock ブロック操作の前後改行トリム）。
 - 非推奨のグローバル API を置き換えた（グローバル正規表現の `replace` → `replaceAll`、3D サーフェスのデータ生成の `isFinite` → `Number.isFinite`）。
 
-
 ## [1.23.0] - 2026-08-22
 
 ### 変更

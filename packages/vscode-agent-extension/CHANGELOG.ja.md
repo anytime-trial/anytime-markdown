@@ -17,6 +17,10 @@
 - 同梱スキルから `superpowers` プラグインへの依存を外した（`anytime-cross-review` 7 → 8、`anytime-dev-cycle` 23 → 26、`anytime-loop-start` 16 → 17、`anytime-build-webapp` 6 → 7）。マージ前レビューの経路は `pr-review-toolkit:code-reviewer` subagent を直接指し、git worktree の手順はプラグインのスキルへ委ねずルール側に書き出した。同プラグインは毎セッション 5,421 バイトを常時注入し、現行の既定モデルが明示的に削除を求める「完了前の再検証ゲート」を同梱していた。
 - 同梱スキル（`anytime-analysis` 15 → 16、`anytime-dev-cycle`）: 旧既定モデル名（Fable 5）の残骸を Opus 5 へ追随させた。
 
+### Bundled Packages (tickets-core / section-lock-core / agent-core)
+
+- チケットの slug 生成とフロントマター配列パーサから super-linear バックトラック（Sonar S8786）を除き、セクションロックの ATX 見出し読み取りを走査に置き換えた。
+- ハンドオフの秘密情報伏字化で、区切り文字と後続空白を 1 つの任意グループへ畳み、`KEY=value` の値側を `\S` で固定した。伏字化する文字列の集合は変わらない。
 
 ## [1.18.0] - 2026-08-22
 

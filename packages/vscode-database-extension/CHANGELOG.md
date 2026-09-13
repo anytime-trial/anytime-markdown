@@ -12,7 +12,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - The selected row of a list conveys its state with `aria-current`, and the menu backdrop is marked `role="presentation"` (Sonar S6811).
 
-
 ## [0.3.11] - 2026-08-20
 
 ### Fixed

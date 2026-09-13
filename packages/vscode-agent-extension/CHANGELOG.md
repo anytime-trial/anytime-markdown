@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Bundled skills no longer depend on the `superpowers` plugin (`anytime-cross-review` 7 → 8, `anytime-dev-cycle` 23 → 26, `anytime-loop-start` 16 → 17, `anytime-build-webapp` 6 → 7). The pre-merge review route now names the `pr-review-toolkit:code-reviewer` subagent directly, and the git worktree procedure is written out in the rules instead of being delegated to the plugin's skill. The plugin was injecting 5,421 bytes into every session and shipped a pre-completion re-verification gate that the current default model explicitly asks to remove.
 - Bundled skills (`anytime-analysis` 15 → 16, `anytime-dev-cycle`): stale references to the previous default model (Fable 5) were updated to Opus 5.
 
+### Bundled Packages (tickets-core / section-lock-core / agent-core)
+
+- Ticket slug generation and the frontmatter array parser no longer backtrack super-linearly (Sonar S8786), and the section lock reads ATX headings by scanning.
+- The handoff secret redactor folds its separator and trailing whitespace into one optional group and pins the value side of `KEY=value` with `\S`; the set of strings it redacts is unchanged.
+
 ## [1.18.0] - 2026-08-22
 
 ### Added

@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - No functional changes. The version is aligned with the `anytime-database` release set.
 
-
 ## [0.3.11] - 2026-08-20
 
 ### Changed

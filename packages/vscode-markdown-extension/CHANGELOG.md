@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Mermaid styles keep their `url('#id')` fragment references, which were previously dropped as external URLs.
 - Super-linear regex backtracking (Sonar S8786) and deprecated global APIs were cleared out of slug generation, screenmock parsing and the 3D surface plot builder.
 
+### Bundled Packages (mcp-markdown / markdown-catalog / section-lock-core / chart-core)
+
+- The heading parsers in `get_outline` / `get_section` / `update_section`, in the catalog's section splitter and in the section lock now pin the heading text with `\S` instead of letting `(.+)` overlap the surrounding whitespace (Sonar S8786). This widens what they accept: a heading line whose text is empty (`"## "`) now matches with an empty title where it previously did not match at all.
+- The section lock reads ATX headings and strips closing hashes by scanning, and normalises line ends with `trimEnd()`.
+- `chart-core` strips the trailing ` x` / ` y` axis suffix from a header by scanning instead of `/\s*[xy]$/i`.
 
 ## [1.23.1] - 2026-08-25
 

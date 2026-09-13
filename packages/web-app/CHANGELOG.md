@@ -14,6 +14,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - The note graph frontmatter parser pins its value boundary with `\S` in the `to:` / `type:` lines.
 - Modal dialogs move their key handler from the `role="dialog"` paper to the `role="presentation"` backdrop, so a non-interactive role no longer carries a JSX key handler (Sonar S6847) while the React propagation order that lets inner handlers claim ESC first is preserved.
 
+### Bundled Packages (tickets-core / cms-core)
+
+- `slugifyTitle` trims hyphens by scanning instead of `/^-+|-+$/g`, and the ticket frontmatter array parser pins its item boundary with `\S`.
+- The Google Drive base64url encoder strips trailing `=` by scanning instead of `/=+$/`.
+
+### Security
+
+- `next` 16.2.12 → 16.3.5. This clears two unauthenticated RCE advisories (Windows-hosted servers, and the Image Optimization API when AVIF files are used; fixed in >= 16.3.3) and with them all 5 critical findings reported by `npm audit`.
+- `sharp` 0.35.3 → 0.35.4 (libheif advisories), `@xmldom/xmldom` 0.9.10 → 0.9.12, and `browserslist` pinned to 4.28.9 through the root overrides — three high findings that a patch-level bump resolves.
 
 ## [0.51.0] - 2026-09-05
 

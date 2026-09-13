@@ -12,7 +12,6 @@
 
 - 同梱する `trail-activity` 1.5.3 の修正（初期値なしの `reduce`、super-linear な `debrief` フェンス正規表現。Sonar S8786）を取り込んだ。
 
-
 ## [0.3.3] - 2026-08-11
 
 ### 変更

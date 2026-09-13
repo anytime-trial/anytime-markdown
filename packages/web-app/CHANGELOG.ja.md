@@ -14,6 +14,15 @@
 - ノートグラフのフロントマター解析で `to:` / `type:` 行の値境界を `\S` で固定した。
 - モーダルダイアログのキーハンドラを `role="dialog"` の paper から `role="presentation"` のバックドロップへ移した。非対話ロールが JSX のキーハンドラを持つ状態（Sonar S6847）を解消しつつ、内側のハンドラが先に ESC を受け取る React の伝播順を保つ。
 
+### Bundled Packages (tickets-core / cms-core)
+
+- `slugifyTitle` のハイフン除去を `/^-+|-+$/g` から走査へ置き換え、チケットのフロントマター配列パーサの要素境界を `\S` で固定した。
+- Google Drive の base64url エンコードで、末尾 `=` の除去を `/=+$/` から走査へ置き換えた。
+
+### セキュリティ
+
+- `next` 16.2.12 → 16.3.5。未認証 RCE 2 件（Windows ホストのサーバ、および AVIF 使用時の Image Optimization API。修正版 >= 16.3.3）と、それに紐づく `npm audit` の critical 5 件を解消した。
+- `sharp` 0.35.3 → 0.35.4（libheif の脆弱性）、`@xmldom/xmldom` 0.9.10 → 0.9.12、`browserslist` をルートの overrides で 4.28.9 に固定した。patch 更新で直る high 3 件。
 
 ## [0.51.0] - 2026-09-05
 

@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Regular expressions with super-linear backtracking (Sonar S8786) were replaced with scanning helpers: heading slug generation (`toGitHubSlug`), screenmock frontmatter parsing, and the leading / trailing newline trims used by the screenmock block mutations.
 - Deprecated global APIs were replaced: `replace` with a global regex is now `replaceAll`, and `isFinite` is now `Number.isFinite` in the 3D surface plot data builder.
 
-
 ## [1.23.0] - 2026-08-22
 
 ### Changed

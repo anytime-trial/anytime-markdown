@@ -17,6 +17,11 @@
 - mermaid のスタイルで `url('#id')` のフラグメント参照が外部 URL と誤判定されて消えていたのを修正した。
 - スラグ生成・screenmock 解析・3D サーフェス生成から super-linear バックトラック（Sonar S8786）と非推奨グローバル API を除いた。
 
+### Bundled Packages (mcp-markdown / markdown-catalog / section-lock-core / chart-core)
+
+- `get_outline` / `get_section` / `update_section` の見出しパーサ、カタログのセクション分割、セクションロックで、見出し本文を `\S` で固定した（`(.+)` と前後の空白の重なりによる Sonar S8786 の解消）。**受理範囲が広がる**: 本文が空の見出し行（`"## "`）は、従来まったく一致しなかったが、今後は空タイトルとして一致する。
+- セクションロックの ATX 見出し読み取りと閉じハッシュ除去を走査に置き換え、行末の正規化を `trimEnd()` にした。
+- `chart-core` が見出し末尾の ` x` / ` y` を `/\s*[xy]$/i` ではなく走査で落とすようにした。
 
 ## [1.23.1] - 2026-08-25
 

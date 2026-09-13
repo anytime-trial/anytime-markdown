@@ -8,12 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [1.5.3] - 2026-09-13
 
-### Trail Core (trail-activity / trail-server / trail-caravan-book / trail-db / mcp-trail / agent-core)
+### Trail Core (trail-activity / trail-server / trail-caravan-book / trail-db / mcp-trail / agent-core / code-analysis)
 
 - Super-linear regex backtracking (Sonar S8786) was removed from the ingest and analysis paths: debrief fence extraction, commit body and fix-commit parsing, review finding helpers, target path normalisation, identifier tokenisation, decision comment scanning, the docs API handler, the spec doc index, git command output parsing and the metrics threshold loader.
 - The handoff secret redactor folds its separator and trailing whitespace into one optional group and pins the value side of `KEY=value` with `\S`; the set of strings it redacts is unchanged.
 - `minIso` / `maxIso` no longer reduce without an initial value.
-
+- The Python import resolver converts dotted module paths with `replaceAll` instead of a global-regex `replace`.
 
 ## [1.5.2] - 2026-09-01
 
