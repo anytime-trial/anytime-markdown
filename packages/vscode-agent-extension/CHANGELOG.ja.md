@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-09-13
+
+### 追加
+
+- 同梱スキル `anytime-dev-audit`（manifest 8 → 10）: 外部ツール設定と Trail の ingest 配線を診断する領域を追加した。`ingest-wiring-check.cjs` が 7 点（D1〜D7 = 監視リポジトリの解決、コミット取込の鮮度、恒久 skip のパイプライン、LLM 到達性、`lep.json` の `stage` 妥当性、ドキュメント索引、他プロジェクトを指す残留パス）を、パイプライン台帳ではなく**実際に取り込まれたデータ**を読んで判定する。2026-09-12 に anytime-travel で実測したところ、`caravan_pipeline_runs.CommitResolver` が 786 回連続で `success` を返す裏でコミット取込は 11 日間止まっていた。success の回数は健全性の証拠にならない。VS Code 設定は Machine → User → workspace の順にマージし、読めなかった値は 0 ではなく「測定不能（理由）」として報告する。`.anytime/trail/db` が無いワークスペースでは D1〜D5 を失敗ではなく対象外として扱う。終了コードは `2`（診断自体が中断）と `1`（error 指摘）を分けるので、「測定できなかった」が「配線が壊れている」と読まれることはない。
+
+### 変更
+
+- 同梱スキルから `superpowers` プラグインへの依存を外した（`anytime-cross-review` 7 → 8、`anytime-dev-cycle` 23 → 26、`anytime-loop-start` 16 → 17、`anytime-build-webapp` 6 → 7）。マージ前レビューの経路は `pr-review-toolkit:code-reviewer` subagent を直接指し、git worktree の手順はプラグインのスキルへ委ねずルール側に書き出した。同プラグインは毎セッション 5,421 バイトを常時注入し、現行の既定モデルが明示的に削除を求める「完了前の再検証ゲート」を同梱していた。
+- 同梱スキル（`anytime-analysis` 15 → 16、`anytime-dev-cycle`）: 旧既定モデル名（Fable 5）の残骸を Opus 5 へ追随させた。
+
+### Bundled Packages (tickets-core / section-lock-core / agent-core)
+
+- チケットの slug 生成とフロントマター配列パーサから super-linear バックトラック（Sonar S8786）を除き、セクションロックの ATX 見出し読み取りを走査に置き換えた。
+- ハンドオフの秘密情報伏字化で、区切り文字と後続空白を 1 つの任意グループへ畳み、`KEY=value` の値側を `\S` で固定した。伏字化する文字列の集合は変わらない。
+
 ## [1.18.0] - 2026-08-22
 
 ### 追加

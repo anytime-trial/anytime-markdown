@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-09-13
+
+### 修正
+
+- `ListItemButton` の選択状態を `aria-current` で伝えるようにした。`aria-selected` は `role="button"` がサポートせず支援技術に無視されていた（Sonar S6811）。
+- メニューのバックドロップに `role="presentation"` を付け、装飾用のオーバーレイを支援技術へ提示しないようにした。
+
 ## [0.3.11] - 2026-08-20
 
 ### 変更

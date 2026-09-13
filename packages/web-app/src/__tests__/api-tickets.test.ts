@@ -33,7 +33,9 @@ jest.mock("@anytime-markdown/tickets-core", () => {
 
 class MockNextResponse {
   _body: unknown;
-  _status: number;
+  // NextResponse の既定ステータス。json() が必ず上書きするが、宣言だけで未代入だと
+  // strictPropertyInitialization に触れる（TS2564）。
+  _status = 200;
   _headers: Record<string, string> = {};
 
   static json = (body: unknown, init?: { status?: number; headers?: Record<string, string> }) => {

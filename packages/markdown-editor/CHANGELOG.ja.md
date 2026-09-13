@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [1.23.2] - 2026-09-13
+
+### 修正
+
+- `useMermaidRender` が mermaid のスタイルから `url('#id')` / `url("#id")` を落としていた問題を修正した。引用符の任意グループが空へバックトラックするため、同一文書内のフラグメント参照を外部 URL と誤判定して除去し、矢印やグラデーションが消えていた。
+- super-linear バックトラックする正規表現（Sonar S8786）を走査ヘルパーへ置き換えた（見出しスラグ生成 `toGitHubSlug`、screenmock のフロントマター解析、screenmock ブロック操作の前後改行トリム）。
+- 非推奨のグローバル API を置き換えた（グローバル正規表現の `replace` → `replaceAll`、3D サーフェスのデータ生成の `isFinite` → `Number.isFinite`）。
+
 ## [1.23.0] - 2026-08-22
 
 ### 変更

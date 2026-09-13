@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-09-13
+
+### Trail Core (trail-activity / trail-server / trail-caravan-book / trail-db / mcp-trail / agent-core / code-analysis)
+
+- 取込・解析経路から super-linear バックトラック（Sonar S8786）を除去した（debrief フェンス抽出、コミット本文と fix コミットの解析、レビュー指摘ヘルパー、対象パス正規化、識別子トークナイズ、Decision コメント走査、Docs API ハンドラ、設計書索引、git 出力の解析、メトリクス閾値ローダ）。
+- ハンドオフの秘密情報伏字化で、区切り文字と後続空白を 1 つの任意グループへ畳み、`KEY=value` の値側を `\S` で固定した。伏字化する文字列の集合は変わらない。
+- `minIso` / `maxIso` が初期値なしで `reduce` しないようにした。
+- Python の import 解決で、ドット区切りのモジュールパス変換をグローバル正規表現の `replace` から `replaceAll` へ置き換えた。
+
 ## [1.5.2] - 2026-09-01
 
 ### Trail Core (trail-activity / trail-server / code-analysis)
