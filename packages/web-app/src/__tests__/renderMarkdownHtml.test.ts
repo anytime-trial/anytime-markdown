@@ -77,5 +77,98 @@ describe('renderMarkdownToSafeHtml', () => {
       const html = renderMarkdownToSafeHtml('[記事](/report/other)\n');
       expect(html).toContain('href="/report/other"');
     });
+
+    // protocol-relative はスキームを持たないので前方一致の検査を素通りする。
+    // 遷移先は外部オリジンだが、継承するスキームは http(s) に限られるため許可する。
+    // 「スキームが無い＝同一オリジン」と読み替えないよう、挙動をここで固定する。
+    it('protocol-relative URL は外部オリジンだが許可する', () => {
+      const html = renderMarkdownToSafeHtml('[外部](//example.com/x)\n');
+      expect(html).toContain('href="//example.com/x"');
+    });
+  });
+
+  describe('URL の正規化', () => {
+    // ブラウザが位置を問わず無視するのは tab / LF / CR だけ。空白まで落とすと
+    // 正当なリンクがエラーもログもなく別の URL へ化ける。
+    it('URL 中の空白を落とさずエンコードする', () => {
+      const html = renderMarkdownToSafeHtml('[記事](</report/a b>)\n');
+      expect(html).toContain('href="/report/a%20b"');
+    });
+
+    it('画像パス中の空白もエンコードする', () => {
+      const html = renderMarkdownToSafeHtml('![図](<my image.png>)\n');
+      expect(html).toContain('src="my%20image.png"');
+    });
+
+    it('スキーム名へ挟んだ tab は除去して javascript: と判定する', () => {
+      const html = renderMarkdownToSafeHtml('[押す](<java\tscript:alert(1)>)\n');
+      expect(html.toLowerCase()).not.toContain('javascript:');
+      expect(html).not.toContain('href=');
+    });
+  });
+
+  /**
+   * この実装の安全性は「本文由来のタグ・属性を出力できる marked のトークンが
+   * html / link / image の 3 つだけ」という前提に依存している。個別ベクタの列挙は
+   * 未知の経路が増えても落ちないため、構文を並べた fixture に対して出力の性質を検査する。
+   * marked を更新したときに最初に落ちるゲートがこれになる。
+   */
+  describe('出力の性質（marked 更新時のゲート）', () => {
+    const ALL_SYNTAX = [
+      '# 見出し1',
+      '## 見出し2',
+      '',
+      '段落と<b onclick="alert(1)">インライン HTML</b>と`コード`。',
+      '',
+      '<div class="raw"><script>alert(1)</script></div>',
+      '',
+      '> 引用の中の<img src=x onerror=alert(1)>',
+      '',
+      '- [ ] チェックボックス',
+      '- [x] 済み',
+      '',
+      '| 見出し | 右寄せ |',
+      '| --- | ---: |',
+      '| <i>セル</i> | 2 |',
+      '',
+      '```ts" onmouseover="alert(1)',
+      'const a = 1;',
+      '```',
+      '',
+      '[参照リンク][ref] と <https://example.com/auto> と https://example.com/gfm',
+      '',
+      '![画像](javascript:alert(1))',
+      '',
+      '[ref]: vbscript:alert(1)',
+      '',
+      '---',
+    ].join('\n');
+
+    const html = renderMarkdownToSafeHtml(ALL_SYNTAX);
+
+    it('危険な要素を出力しない', () => {
+      expect(html).not.toMatch(/<(script|iframe|style|object|embed|form)\b/i);
+    });
+
+    // 検査対象は「要素になった属性」だけ。エスケープ済みの本文テキストには
+    // `onclick=` の文字列がそのまま残るため、生文字列への素当ては誤検知する。
+    it('イベントハンドラ属性を出力しない', () => {
+      const tags = html.match(/<[a-z][^>]*>/gi) ?? [];
+      expect(tags.length).toBeGreaterThan(0);
+      for (const tag of tags) {
+        expect(tag).not.toMatch(/\son[a-z]+\s*=/i);
+      }
+    });
+
+    it('href / src のスキームは許可リストのものだけにする', () => {
+      const urls = [...html.matchAll(/(?:href|src)="([^"]*)"/g)].map((m) => m[1]);
+      expect(urls.length).toBeGreaterThan(0);
+      for (const url of urls) {
+        const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url);
+        if (scheme) {
+          expect(['http:', 'https:', 'mailto:']).toContain(`${scheme[1].toLowerCase()}:`);
+        }
+      }
+    });
   });
 });

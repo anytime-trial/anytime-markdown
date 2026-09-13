@@ -26,6 +26,14 @@ import StaticMarkdownHtml from './StaticMarkdownHtml';
  */
 const StaticBodyContext = createContext<string | null>(null);
 
+/** 本文取得の失敗を、どのキー・どの経路で落ちたかが分かる形で残す */
+function logContentFetchFailure(docKey: string, apiPath: string, cause: unknown): void {
+  console.warn(
+    `[${new Date().toISOString()}] [WARN] [MarkdownViewer] content fetch failed: key=${docKey} path=${apiPath}`,
+    cause instanceof Error ? cause.stack : cause,
+  );
+}
+
 /**
  * サーバ生成の本文があればそれを、無ければスピナーを出す。
  * 「読み込み中」の表示が 2 系統（本文 fetch 中とチャンク取得中）あるため、両方でこれを使う。
@@ -114,7 +122,11 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
       const text = await res.text();
       setContent(text);
       editorKeyRef.current += 1;
-    } catch {
+    } catch (e: unknown) {
+      // 静的本文がある画面では取得失敗が warning 止まりになる（読者から見て本文は読める）。
+      // ここで握り潰すと「本文は出ているが対話ビューアへ一度も昇格していない」状態が
+      // 痕跡を残さず恒久化するため、必ず識別子付きで残す。
+      logContentFetchFailure(resolvedDocKey, contentApiPath, e);
       // ロケール別キーで失敗した場合、フォールバックキー（言語サフィックスなしファイル）を試行
       if (fallbackDocKey) {
         try {
@@ -124,7 +136,9 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
           setContent(text);
           editorKeyRef.current += 1;
           return;
-        } catch { /* フォールバックも失敗 */ }
+        } catch (fallbackError: unknown) {
+          logContentFetchFailure(fallbackDocKey, contentApiPath, fallbackError);
+        }
       }
       setError(t('docsViewLoadError'));
     } finally {

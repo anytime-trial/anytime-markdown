@@ -24,21 +24,33 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/** ブラウザの URL パーサが位置を問わず取り除く文字（tab / LF / CR）のコードポイント */
+const URL_IGNORED_CHAR_CODES = new Set([0x09, 0x0a, 0x0d]);
+
 /**
  * URL を検査し、許可できないものは null を返す。
  *
- * 制御文字と空白は判定前に落とす。`java\tscript:` のようにスキーム名へ挟むだけで
- * ブラウザは javascript: として解釈するため、除去しないまま前方一致で見ると素通りする。
+ * tab / LF / CR を落とすのは、`java<tab>script:` のようにスキーム名へ挟むだけで
+ * ブラウザが javascript: として解釈するため。除去しないまま前方一致で見ると素通りする。
+ *
+ * Why not すべての空白・制御文字を落とす: ブラウザが位置を問わず無視するのはこの 3 文字だけで、
+ * 空白は前後を除いて `%20` になる。まとめて落とすと `/report/a b` が `/report/ab` へ化け、
+ * 正当なリンクがエラーもログもなく別の URL になる。
  */
 function sanitizeUrl(raw: string): string | null {
-  const cleaned = Array.from(raw).filter((ch) => ch.charCodeAt(0) > 0x20 && ch.charCodeAt(0) !== 0x7f).join('');
+  const cleaned = Array.from(raw)
+    .filter((ch) => !URL_IGNORED_CHAR_CODES.has(ch.charCodeAt(0)))
+    .join('')
+    .trim();
   if (cleaned === '') return null;
 
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
-  // スキームが無いものは相対 URL・ルート相対・フラグメントのいずれかで、遷移先は同一オリジン
-  if (!scheme) return cleaned;
+  if (scheme && !ALLOWED_URL_SCHEMES.has(`${scheme[1].toLowerCase()}:`)) return null;
 
-  return ALLOWED_URL_SCHEMES.has(`${scheme[1].toLowerCase()}:`) ? cleaned : null;
+  // スキームが無いものは相対・ルート相対・フラグメント、または protocol-relative（`//host/...`）。
+  // 最後のものだけは外部オリジンへ出るが、継承するスキームはページと同じ http(s) に限られるため
+  // 許可スキームの制約からは外れない（「スキーム無し＝同一オリジン」ではない点に注意）。
+  return cleaned.split(' ').join('%20');
 }
 
 function titleAttribute(title: string | null | undefined): string {
