@@ -62,7 +62,7 @@ clarity: 90
 ├── SKILL.md                    # メインスキル (YAML frontmatter + 手順本文)
 ├── DESIGN.ja.md                # 本設計書
 ├── questions.md                # 4 問インタビュー定義
-├── requirements-template.md    # writing-plans に渡す要件 md のテンプレ
+├── requirements-template.md    # Phase 2 のプラン作成へ渡す要件 md のテンプレ
 ├── stacks/
 │   ├── _frontend-next.md       # フロント共通 (Next.js + Tailwind + Auth.js)
 │   ├── t3-default.md           # T3 固有差分 (tRPC + Prisma + Postgres + Dockerfile)
@@ -82,7 +82,7 @@ clarity: 90
 | --- | --- |
 | `SKILL.md` | YAML frontmatter（`name`・`description`）+ Phase 1〜6 の手順本文 |
 | `questions.md` | 4 問テンプレと打ち切り条件 |
-| `requirements-template.md` | インタビュー回答を埋め込んで `writing-plans` に渡す要件 md の雛形 |
+| `requirements-template.md` | インタビュー回答を埋め込んで Phase 2 のプラン作成へ渡す要件 md の雛形 |
 | `stacks/t3-default.md` | デフォルトスタックの構成定義（追加するパッケージ・Prisma schema・tRPC 雛形） |
 | `stacks/overrides.md` | スタック固定の方針（上書きを受け付けない）と将来追加手順 |
 | `scaffold/base-repo.md` | ベースリポジトリ（`anytime-lab`）の仕様と取得手順 |
@@ -149,11 +149,11 @@ T3 アプリは **既存リポジトリ `git@github.com:anytime-trial/anytime-la
 ```yaml
 ---
 name: anytime-build-webapp
-description: 要求から Next.js（T3 Stack）フルスタック Web アプリの MVP を WSL + Dev Container 上に生成する汎用スキル。/anytime-build-webapp で起動し、4 問インタビュー → 要件書生成 → writing-plans → executing-plans を順に呼ぶオーケストレータ。--devcontainer で Dev Container ファイル一式を生成できる。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
+description: 要求から Next.js（T3 Stack）フルスタック Web アプリの MVP を WSL + Dev Container 上に生成する汎用スキル。/anytime-build-webapp で起動し、4 問インタビュー → 要件書生成 → プラン作成 → 実装 を Phase 1〜6 として順に実行するオーケストレータ。--devcontainer で Dev Container ファイル一式を生成できる。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
 ---
 ```
 
-`description` を厚めに書くのは superpowers 流儀。Claude Code のスキル選択ロジックが `description` を判断材料にするため、トリガーキーワード（`/anytime-build-webapp`・`フルスタック`・`T3`・`Next.js`・`MVP`）を自然文に含める。
+`description` は厚めに書く。Claude Code のスキル選択ロジックが `description` を判断材料にするため、トリガーキーワード（`/anytime-build-webapp`・`フルスタック`・`T3`・`Next.js`・`MVP`）を自然文に含める。
 
 
 ## 5. 4 問インタビュー
@@ -355,7 +355,7 @@ volumes:
 | `docker compose up` 失敗 | Docker daemon 起動状態を診断、案内表示 | Phase 6（skill 本体） |
 | Prisma migration 失敗 | schema の妥当性を確認、ユーザに schema 修正案を提示 | Phase 6（skill 本体） |
 | `curl localhost:3000` が 200 以外 | ログを表示、`npm run dev` の出力もダンプ | Phase 6（skill 本体） |
-| Phase 5 実装中のテスト失敗 | プラン内のリトライ手順に従う | Phase 5（`executing-plans`） |
+| Phase 5 実装中のテスト失敗 | プラン内のリトライ手順に従う | Phase 5（skill 本体） |
 | `git clone anytime-lab` 失敗 | SSH 鍵設定・GitHub 到達性を診断、案内表示 | Phase 4（skill 本体） |
 | リネーム置換失敗（対象ファイル不存在等） | 中断してユーザに `anytime-lab` 構成変更の有無を確認 | Phase 4（skill 本体） |
 
@@ -363,9 +363,9 @@ volumes:
 ### 9.1.1. リトライ責任の分界
 
 
-- **Phase 5（`executing-plans`）の責任**: プラン記載タスクの実行中エラー（型エラー・lint・unit test 失敗等）はプラン内ロジックでリトライする
+- **Phase 5（skill 本体）の責任**: プラン記載タスクの実行中エラー（型エラー・lint・unit test 失敗等）は、そのタスクの反復ループ内でリトライする（無進捗を観測したら中断してユーザーへ報告する）
 - **Phase 6（skill 本体）の責任**: 実装完了後の起動・統合検証（`docker compose up` / `npm run dev` / `curl` 確認）が失敗した場合、skill 本体が原因切り分けとリトライを主導する
-- **Phase 5 → Phase 6 遷移**: `executing-plans` が「プラン全タスク完了」を返した時点で Phase 6 に移行する。`executing-plans` 自身が起動検証を持たないため、skill 本体側で別途検証を実行する
+- **Phase 5 → Phase 6 遷移**: skill 本体がプランの全タスク完了（全チェックボックスが `[x]`）を確認した時点で Phase 6 に移行する。Phase 5 は起動検証を持たないため、Phase 6 で別途検証を実行する
 
 
 ### 9.2. 不可逆操作の防御

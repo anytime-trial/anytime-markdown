@@ -5,13 +5,13 @@ description: 分析と分析結果の出力。対象を調査・分析し、結�
 
 # 分析と分析結果の出力（anytime-analysis）
 
-更新日: 2026-08-14
+更新日: 2026-09-13
 
 ## Overview
 
 対象を調査・分析し、分析結果を次のいずれかの形で出力する（旧名 `anytime-proposal`。2026-07-30 に共起グラフ出力を統合し分析スキルへ再定義）。
 
-- **提案書**: RFC / ADR / 軽量提案の 3 形式を使い分けて生成し、プロジェクト規約の `proposal/` に保存する（§1〜§8）。proposal は **「やるべきか（Why / What）」** を扱う意思決定の材料・記録である。実装手順（How）は対象外で、採用後に `plan`（または superpowers `writing-plans`）が担う
+- **提案書**: RFC / ADR / 軽量提案の 3 形式を使い分けて生成し、プロジェクト規約の `proposal/` に保存する（§1〜§8）。proposal は **「やるべきか（Why / What）」** を扱う意思決定の材料・記録である。実装手順（How）は対象外で、採用後に `anytime-dev-cycle` 段3 の実装計画（`<docsRoot>/plan/`）が担う
 - **共起グラフ**: 調査・分析で抽出した用語と共起関係を `.cooc.json` として出力し、共起ビューアで可視化する（§9）
 
 出力は `anytime-markdown-output` スキル（`type: proposal`）に準拠する。\
@@ -442,8 +442,8 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 委任プロンプトに本スキルの §9（`.claude/skills/anytime-analysis/SKILL.md` の該当節を Read して従う）と、鉄則 1〜3 を明記する（サブエージェントは CLAUDE.md / rules を継承しない）。
 
 
-## 補足: proposal と plan / brainstorming の関係
+## 補足: proposal と plan の関係
 
 - **anytime-analysis**（本スキル）= Why / What。採否を判断する材料・記録
-- **plan**（または superpowers `writing-plans`）= How。採用後の実装手順
-- superpowers `brainstorming` は「新規アイデアを対話で詰める前段」に向く。確定提案・意思決定の記録には本スキル（ADR / RFC / 軽量）を使う
+- **plan**（`anytime-dev-cycle` 段3 が `<docsRoot>/plan/` へ作成）= How。採用後の実装手順
+- 新規アイデアを対話で詰める前段（何を作るかがまだ定まっていない段階）は AskUserQuestion での要件確認が担う。確定提案・意思決定の記録には本スキル（ADR / RFC / 軽量）を使う

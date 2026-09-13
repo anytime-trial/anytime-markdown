@@ -124,7 +124,7 @@ WSL ホストで Dev Container をこれから作る場合に指定する。**�
 ## Phase 4: Scaffold
 
 
-本 Phase は **skill 本体** で完結する。`executing-plans` には委譲しない。
+本 Phase も Phase 2 / Phase 5 と同様、**skill 本体**で完結する。
 
 
 ### 4.1. クローン
