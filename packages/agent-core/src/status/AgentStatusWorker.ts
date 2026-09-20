@@ -19,12 +19,13 @@
 
 import * as http from 'node:http';
 import type { AgentStatusStore } from './AgentStatusStore';
-import { generateHandoff } from '../handoff/generate';
+import { generateHandoff, generateCodexHandoff } from '../handoff/generate';
 import {
   AGENT_STATUS_API_VERSION,
   type CommitUpsertInput,
   type EditUpsertInput,
   type GitActivityInput,
+  type HandoffRequestInput,
   type SummaryUpsertInput,
 } from './types';
 
@@ -101,10 +102,13 @@ export class AgentStatusWorker {
   /**
    * @param store SQLite ストア
    * @param token 書き込み系を保護する Bearer トークン。省略時は認証なし（後方互換）。
+   * @param codexSessionsRootDir Codex rollout のルート。省略時は `~/.codex/sessions`
+   *   （テストで一時ディレクトリを注入するためのフック）。
    */
   constructor(
     private readonly store: AgentStatusStore,
     private readonly token?: string,
+    private readonly codexSessionsRootDir?: string,
   ) {}
 
   /** token 未設定なら常に許可。設定時は `Authorization: Bearer <token>` 一致で許可。 */
@@ -189,13 +193,28 @@ export class AgentStatusWorker {
     sendJson(res, 200, { ok: true });
   }
 
+  /**
+   * Codex（source: 'codex'）は rollout を直接読んでレンダリングを返すだけで、
+   * AgentStatusStore には一切書き込まない（Codex の sessionId で upsertSummary すると
+   * agent_sessions に幽霊行ができ、Agent Mapping に存在しない Claude セッションが出現する）。
+   * それ以外（省略時含む）は既存 Claude 経路（transcript 解決 → 圧縮ステート組成 →
+   * summary 保存 → レンダリング返却）を後方互換のまま呼ぶ。
+   */
   private async postHandoff(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const body = JSON.parse(await readBody(req)) as { sessionId?: string };
+    const body = JSON.parse(await readBody(req)) as HandoffRequestInput;
     if (!body?.sessionId) {
       sendJson(res, 400, { error: 'sessionId required' });
       return;
     }
-    // transcript 解決 → 圧縮ステート組成 → summary 保存（handoff_at 確定）→ レンダリング返却。
+    if (body.source === 'codex') {
+      const result = generateCodexHandoff(body.sessionId, { rootDir: this.codexSessionsRootDir });
+      if (!result) {
+        sendJson(res, 404, { error: 'Codex rollout not found or unreadable' });
+        return;
+      }
+      sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
     const result = generateHandoff(this.store, body.sessionId);
     if (!result) {
       sendJson(res, 404, { error: 'transcript not found' });

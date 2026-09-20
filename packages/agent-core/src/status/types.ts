@@ -2,6 +2,8 @@
 //
 // SQLite を一切 import しない純粋な型のみ。ワーカー・クライアント・consumer 拡張が共有する。
 
+import type { AgentSource } from '../mapping/types';
+
 /** read API のバージョン。内部スキーマ変更から consumer を保護する安定契約。
  *  v2: handoff payload（summary JSON / handoff_at）と /summary エンドポイント・Bearer 認証を追加。 */
 export const AGENT_STATUS_API_VERSION = 2;
@@ -112,6 +114,15 @@ export interface CommitUpsertInput {
   readonly committedAt?: string;
   /** 更新時刻。省略時はワーカーが現在時刻を補う */
   readonly updatedAt?: string;
+}
+
+/**
+ * POST /api/agent-status/handoff の body。
+ * source 省略時は 'claude' として扱う（既存呼び出し元との後方互換）。
+ */
+export interface HandoffRequestInput {
+  readonly sessionId: string;
+  readonly source?: AgentSource;
 }
 
 /** GET レスポンスのエンベロープ（単一） */

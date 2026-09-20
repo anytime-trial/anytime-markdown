@@ -60,11 +60,11 @@ Sessions are grouped under **Claude Code** and **Codex** headings, each sorted b
 
 Right-click a Claude session for **Hand Off to New Session**, **Copy Session ID**, or **Delete Status File**.
 
-### Codex sessions (read-only)
+### Codex sessions (mostly read-only)
 
 Codex (OpenAI CLI) sessions for the current workspace are surfaced by scanning the Codex rollout files under `~/.codex/sessions`. Only sessions within the retention period whose working directory is inside the current workspace's worktrees are listed.
 
-Codex has no agent-status lifecycle hook, so the view is **read-only** for Codex: only **last activity** and **context tokens** (⚠️ badge) are shown. Editing-lock, commit count, and session handoff are Claude-only; the right-click menu offers **Copy Session ID** only. The **Today** summary is Claude-only and is labeled *Today (Claude)*. Turn the group off with `anytimeAgent.showCodexSessions`.
+Codex has no agent-status lifecycle hook, so only **last activity** and **context tokens** (⚠️ badge) are shown; editing-lock and commit count are Claude-only. **Hand Off to New Session** is available for Codex sessions too (see §4); the right-click menu offers **Hand Off to New Session** and **Copy Session ID**. The **Today** summary is Claude-only and is labeled *Today (Claude)*. Turn the group off with `anytimeAgent.showCodexSessions`.
 
 
 ## 4. Session Handoff
@@ -73,8 +73,8 @@ When a session grows too large, hand it off to a fresh session — the work so f
 
 Right-click the session and choose **Hand Off to New Session**:
 
-- **One-click start** — launch a new `claude` session in a terminal with the handoff injected automatically
-- **Clipboard fallback** — or copy the handoff document path and paste it at the start of a new session
+- **Claude sessions**: launch a new `claude` session in a terminal with the handoff injected automatically (one-click start), or copy the handoff document path and paste it at the start of a new session (clipboard fallback)
+- **Codex sessions**: reads only the selected session's rollout and starts a new Codex session — via `codex [PROMPT]`, not `codex fork`/`codex resume` — in the source session's recorded working directory. The handoff body is passed as an argv element rather than concatenated into a shell string, so rollout content is never re-interpreted by a shell. A missing rollout, missing working directory, or a Codex CLI that fails to launch is reported with no new terminal created (the clipboard fallback is shared with Claude)
 
 
 ## 5. Work Protection (Git Activity, Worktree Ownership, Snapshots)

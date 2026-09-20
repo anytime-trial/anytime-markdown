@@ -396,7 +396,7 @@ export class SessionTreeItem extends vscode.TreeItem {
       ? `**ブランチ:** \`${context.branch}\`  •  **worktree:** \`${context.worktreeName}\`\n\n`
       : '';
     const sourceInfo = isCodex
-      ? `**Source:** Codex（読み取り専用 — 編集中ロック / コミット / 引き継ぎは非対応）\n\n`
+      ? `**Source:** Codex（読み取り専用 — 編集中ロック / コミットは非対応。新セッションへの引き継ぎは対応）\n\n`
       : '';
     // セッションが動作しているワークスペース名を hover に表示する。
     // 解決済みの context.workspacePath を優先する（ワークスペース見出しと同じ名前を出すため）。
@@ -429,7 +429,7 @@ export class SessionTreeItem extends vscode.TreeItem {
     );
   }
 
-  /** contextValue: Codex は codexSession(.bloated)（handoff/delete メニュー対象外、copy のみ）。 */
+  /** contextValue: Codex は codexSession(.bloated)（delete メニュー対象外。handoff/copy は可）。 */
   private _buildContextValue(isCodex: boolean, bloated: boolean, state: MappingState): string {
     if (isCodex) {
       return bloated ? 'codexSession.bloated' : 'codexSession';

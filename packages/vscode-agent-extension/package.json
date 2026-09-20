@@ -302,7 +302,7 @@
       "view/item/context": [
         {
           "command": "anytime-agent.mapping.handoffSession",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
+          "when": "view == anytimeAgent.mapping && viewItem =~ /^(session|codexSession)/",
           "group": "1_open@2"
         },
         {

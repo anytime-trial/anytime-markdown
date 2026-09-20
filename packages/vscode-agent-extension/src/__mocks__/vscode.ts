@@ -3,7 +3,7 @@
 /** チケットパネル（webview）用。GitHub 認証・ロケール・設定更新先の各 API を追加で提供する。 */
 export const authentication = { getSession: jest.fn() };
 
-export const env = { language: 'ja' };
+export const env = { language: 'ja', clipboard: { writeText: jest.fn() } };
 
 export const ConfigurationTarget = { Global: 1, Workspace: 2, WorkspaceFolder: 3 };
 
