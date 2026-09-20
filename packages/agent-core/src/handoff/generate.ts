@@ -90,25 +90,38 @@ export function generateHandoff(
 const CODEX_META_MAX_BYTES = 256 * 1024;
 const DEFAULT_MAX_CODEX_SCAN = 2000;
 
-/** 先頭 1 行（改行まで）を上限付きで読む。CodexSessionScanner.readFirstLine と同一契約。 */
+/**
+ * 先頭 1 行（改行まで）を上限付きで読む。CodexSessionScanner.readFirstLine と同一契約。
+ *
+ * バイト列のまま `Buffer.concat` で溜め、改行バイト（0x0A）が見つかってから初めて UTF-8 デコード
+ * する。チャンク境界ごとに `toString('utf8')` して文字列連結すると、マルチバイト文字がチャンク
+ * 境界で分断されたときに片方が不正シーケンス（U+FFFD）へ化け、後続の JSON.parse が壊れる
+ * （session_meta の base_instructions.text は実測 22KB 級で非 ASCII を含みうる）。
+ */
 function readFirstLineSync(path: string, maxBytes: number): string | null {
   let fd: number | null = null;
   try {
     fd = openSync(path, 'r');
-    const chunk = Buffer.alloc(64 * 1024);
-    let acc = '';
+    const chunks: Buffer[] = [];
     let pos = 0;
+    const NEWLINE = 0x0a;
     while (pos < maxBytes) {
-      const want = Math.min(chunk.length, maxBytes - pos);
+      const want = Math.min(64 * 1024, maxBytes - pos);
+      const chunk = Buffer.alloc(want);
       const read = readSync(fd, chunk, 0, want, pos);
       if (read === 0) break;
-      acc += chunk.toString('utf8', 0, read);
-      const nl = acc.indexOf('\n');
-      if (nl !== -1) return acc.slice(0, nl);
+      const filled = read === want ? chunk : chunk.subarray(0, read);
+      const nl = filled.indexOf(NEWLINE);
+      if (nl !== -1) {
+        chunks.push(filled.subarray(0, nl));
+        return Buffer.concat(chunks).toString('utf8');
+      }
+      chunks.push(Buffer.from(filled));
       pos += read;
     }
-    return pos >= maxBytes ? null : acc;
-  } catch {
+    return pos >= maxBytes ? null : Buffer.concat(chunks).toString('utf8');
+  } catch (err) {
+    console.error(`[handoff] failed to read first line: ${path.replaceAll(/[\r\n]/g, '↵')}`, err);
     return null;
   } finally {
     if (fd !== null) {
@@ -126,7 +139,7 @@ function collectCodexRolloutFiles(rootDir: string, maxFiles: number): string[] {
   if (maxFiles <= 0) return [];
   let entries: string[];
   try {
-    entries = readdirSync(rootDir, { recursive: true }) as string[];
+    entries = readdirSync(rootDir, { recursive: true, encoding: 'utf8' });
   } catch (err) {
     console.error(`[handoff] failed to read Codex sessions dir: ${rootDir}`, err);
     return [];

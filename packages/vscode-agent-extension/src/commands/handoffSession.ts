@@ -16,7 +16,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import type { AgentSource } from '@anytime-markdown/agent-core';
 import type { SessionTreeItem } from '../providers/AgentMappingItem';
 
@@ -74,10 +74,30 @@ async function requestHandoff(
   return { ok: true, data: { injection: data.injection ?? '', cwd: data.cwd } };
 }
 
-/** `codex` CLI が起動可能か（PATH 上に存在し実行できるか）を確認する。 */
-function isCodexCliAvailable(): boolean {
-  const result = spawnSync('codex', ['--version'], { stdio: 'ignore', timeout: 5000 });
-  return result.error === undefined && result.status === 0;
+/**
+ * `codex` CLI が起動可能か（PATH 上に存在し実行できるか）を確認する。
+ *
+ * 同期版（spawnSync）は拡張ホストを最大 timeout 分ブロックするため使わない。Windows では
+ * npm 由来の CLI が `codex.cmd`/`codex.ps1` シムになっており `shell: false` では解決できない
+ * ため、Windows でのみ `shell: true` にする（引数は固定の `--version` のみで注入面は無い）。
+ */
+function isCodexCliAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const child = spawn('codex', ['--version'], {
+      stdio: 'ignore',
+      shell: process.platform === 'win32',
+      timeout: 5000,
+    });
+    const finish = (available: boolean) => {
+      if (!settled) {
+        settled = true;
+        resolve(available);
+      }
+    };
+    child.on('error', () => finish(false));
+    child.on('exit', (code) => finish(code === 0));
+  });
 }
 
 function launchClaudeTerminal(root: string, handoffPath: string): void {
@@ -130,10 +150,19 @@ async function handoffSession(item?: SessionTreeItem): Promise<void> {
   }
   const { injection, cwd } = generated.data;
 
-  // Codex は起動ディレクトリが必須（FR-05）。記録済み cwd が無い/実在しなければ起動できない。
-  if (source === 'codex' && (!cwd || !fs.existsSync(cwd))) {
-    void vscode.window.showErrorMessage('引き継ぎ元セッションの作業ディレクトリが見つかりません。');
-    return;
+  // 起動先を discriminated union で確定する（`cwd as string` のような型アサーションを避け、
+  // 「codex かつ cwd 実在」という状態をガードの時点で型に落とす）。
+  type LaunchTarget = { readonly kind: 'codex'; readonly cwd: string } | { readonly kind: 'claude' };
+  let target: LaunchTarget;
+  if (source === 'codex') {
+    // Codex は起動ディレクトリが必須（FR-05）。記録済み cwd が無い/実在しなければ起動できない。
+    if (!cwd || !fs.existsSync(cwd)) {
+      void vscode.window.showErrorMessage('引き継ぎ元セッションの作業ディレクトリが見つかりません。');
+      return;
+    }
+    target = { kind: 'codex', cwd };
+  } else {
+    target = { kind: 'claude' };
   }
 
   // handoff doc を書き出す（Claude は注入 hook が読む。Codex は失敗時のパスコピー用）。
@@ -147,33 +176,39 @@ async function handoffSession(item?: SessionTreeItem): Promise<void> {
     return;
   }
 
-  if (source === 'codex' && !isCodexCliAvailable()) {
-    void vscode.window.showErrorMessage(
-      'Codex CLI を起動できません（PATH 上に見つからないか実行できません）。パスコピーで手動引き継ぎしてください。',
+  const copy = 'パスをコピー';
+  const copyHandoffPath = async (): Promise<void> => {
+    await vscode.env.clipboard.writeText(handoffPath);
+    void vscode.window.showInformationMessage(
+      'handoff doc のパスをコピーしました。新セッションの冒頭に貼り付けてください。',
     );
+  };
+
+  if (target.kind === 'codex' && !(await isCodexCliAvailable())) {
+    // 起動不能でも handoff doc は保存済みなので、パスコピーによる手動引継ぎ導線は残す（FR-07）。
+    const choice = await vscode.window.showErrorMessage(
+      'Codex CLI を起動できません（PATH 上に見つからないか実行できません）。',
+      copy,
+    );
+    if (choice === copy) await copyHandoffPath();
     return;
   }
 
   // 新セッション起動 or クリップボード fallback
-  const openLabel = source === 'codex' ? '新ターミナルで codex 起動' : '新ターミナルで claude 起動';
-  const copy = 'パスをコピー';
+  const openLabel = target.kind === 'codex' ? '新ターミナルで codex 起動' : '新ターミナルで claude 起動';
   const choice = await vscode.window.showInformationMessage(
     '引き継ぎを生成しました。新しいセッションを開きますか？',
     openLabel,
     copy,
   );
   if (choice === openLabel) {
-    if (source === 'codex') {
-      // cwd は直前の existsSync チェックで非 undefined が確定している。
-      launchCodexTerminal(cwd as string, injection);
+    if (target.kind === 'codex') {
+      launchCodexTerminal(target.cwd, injection);
     } else {
       launchClaudeTerminal(root, handoffPath);
     }
   } else if (choice === copy) {
-    await vscode.env.clipboard.writeText(handoffPath);
-    void vscode.window.showInformationMessage(
-      'handoff doc のパスをコピーしました。新セッションの冒頭に貼り付けてください。',
-    );
+    await copyHandoffPath();
   }
 }
 

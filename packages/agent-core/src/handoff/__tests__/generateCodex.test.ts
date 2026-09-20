@@ -114,6 +114,14 @@ describe('parseCodexTranscript / parseCodexLines', () => {
     expect(parseCodexLines([])).toEqual([]);
     expect(parseCodexLines(['', '   '])).toEqual([]);
   });
+
+  it('rollout が上限（32MB）を超える場合は読み込まず null', () => {
+    // レビュー指摘: ロケータ側（先頭行 256KB 上限）に対し本体の readFileSync が無制限だった。
+    const file = join(dir, 'rollout-huge.jsonl');
+    const oversizeBytes = 32 * 1024 * 1024 + 1024;
+    writeFileSync(file, Buffer.alloc(oversizeBytes, 'x'));
+    expect(parseCodexTranscript(file)).toBeNull();
+  }, 20000);
 });
 
 describe('findCodexRolloutPath', () => {
@@ -168,6 +176,26 @@ describe('findCodexRolloutPath', () => {
 
   it('ルートディレクトリが存在しない場合は null', () => {
     expect(findCodexRolloutPath('sid-a', join(dir, 'does-not-exist'))).toBeNull();
+  });
+
+  it('64KB のチャンク境界をまたぐマルチバイト文字を含む sessionId でも厳密一致で見つかる', () => {
+    // レビュー指摘: readFirstLineSync がチャンクごとに toString('utf8') していると、
+    // マルチバイト文字がチャンク境界で分断されたときに文字化けし得る。絵文字（4 byte UTF-8）の
+    // 先頭バイトを意図的に 65536 バイト目の直前へ配置して境界をまたがせ、文字化けすれば
+    // sessionId の厳密一致（===）が崩れて null になることを検知条件にする
+    // （cwd 側で同じことをしても sessionId 一致だけで locate は成功してしまい検知できない）。
+    const dateDir = join(dir, '2026', '09', '20');
+    mkdirSync(dateDir, { recursive: true });
+    const prefix = '{"type":"session_meta","payload":{"id":"';
+    const emoji = '\u{1F600}'; // 😀 = F0 9F 98 80（4 byte）
+    const targetEmojiStartOffset = 65536 - 2;
+    const padding = 'x'.repeat(targetEmojiStartOffset - Buffer.byteLength(prefix, 'utf8'));
+    const sessionId = `${padding}${emoji}`;
+    const line = `${prefix}${sessionId}","cwd":"/repo/boundary","timestamp":"2026-09-20T00:00:00.000Z"}}\n`;
+    const file = join(dateDir, 'rollout-boundary.jsonl');
+    writeFileSync(file, line);
+
+    expect(findCodexRolloutPath(sessionId, dir)).toBe(file);
   });
 });
 

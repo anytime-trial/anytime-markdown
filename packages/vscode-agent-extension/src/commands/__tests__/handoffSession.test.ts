@@ -1,19 +1,44 @@
 // commands/handoffSession.test.ts — 「新セッションへ引き継ぎ」コマンドのテスト。
-// worker との通信は global.fetch を、Codex CLI 起動可否は node:child_process.spawnSync をモックし、
+// worker との通信は global.fetch を、Codex CLI 起動可否は node:child_process.spawn をモックし、
 // ワークスペース/handoff doc の書き出しは実 FS の一時ディレクトリを使う
 // （このリポジトリの慣例 — AgentMappingProviderUsage.test.ts と同様）。
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { registerHandoffSessionCommand } from '../handoffSession';
 import type { SessionTreeItem } from '../../providers/AgentMappingItem';
 
-jest.mock('node:child_process', () => ({ spawnSync: jest.fn() }));
+jest.mock('node:child_process', () => ({ spawn: jest.fn() }));
 
 function makeItem(sessionId: string, source: 'claude' | 'codex'): SessionTreeItem {
   return { session: { sessionId, source } } as unknown as SessionTreeItem;
+}
+
+type SpawnEventHandler = (...args: unknown[]) => void;
+
+/** isCodexCliAvailable() が使う spawn().on('error'|'exit', ...) を模した非同期モック。 */
+interface MockChildProcess {
+  readonly on: jest.Mock<MockChildProcess, [string, SpawnEventHandler]>;
+}
+
+function mockSpawnOutcome(outcome: { exitCode?: number; error?: Error }): MockChildProcess {
+  const handlers: Record<string, SpawnEventHandler[]> = {};
+  const child: MockChildProcess = {
+    on: jest.fn((event: string, cb: SpawnEventHandler) => {
+      (handlers[event] ??= []).push(cb);
+      return child;
+    }),
+  };
+  queueMicrotask(() => {
+    if (outcome.error) {
+      handlers.error?.forEach((cb) => cb(outcome.error));
+    } else {
+      handlers.exit?.forEach((cb) => cb(outcome.exitCode ?? 0));
+    }
+  });
+  return child;
 }
 
 /** registerHandoffSessionCommand を呼び、登録されたコマンドハンドラを取り出す。 */
@@ -40,8 +65,8 @@ describe('handoffSession command', () => {
       { uri: { fsPath: root } },
     ];
     global.fetch = jest.fn();
-    (spawnSync as jest.Mock).mockReset();
-    (spawnSync as jest.Mock).mockReturnValue({ status: 0, error: undefined });
+    (spawn as jest.Mock).mockReset();
+    (spawn as jest.Mock).mockImplementation(() => mockSpawnOutcome({ exitCode: 0 }));
     (vscode.window.createTerminal as jest.Mock).mockClear();
     (vscode.window.showErrorMessage as jest.Mock).mockClear();
     (vscode.window.showInformationMessage as jest.Mock).mockReset();
@@ -165,15 +190,31 @@ describe('handoffSession command', () => {
   it('Codex CLI が起動できない環境ではエラーを表示し起動しない', async () => {
     const codexCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-codex-cwd2-'));
     mockFetchOnce(200, { ok: true, injection: 'x', cwd: codexCwd });
-    (spawnSync as jest.Mock).mockReturnValue({ status: null, error: new Error('ENOENT') });
+    (spawn as jest.Mock).mockImplementation(() => mockSpawnOutcome({ error: new Error('ENOENT') }));
 
     const handler = registerAndGetHandler();
     await handler(makeItem('codex-sid', 'codex'));
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Codex CLI'));
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Codex CLI'), 'パスをコピー');
     expect(vscode.window.createTerminal).not.toHaveBeenCalled();
     // 起動不能でも handoff doc 自体は保存済み（パスコピーで手動引き継ぎできる: FR-07）。
     expect(fs.existsSync(path.join(root, '.anytime', 'agent', 'handoff', 'codex-sid.md'))).toBe(true);
+
+    fs.rmSync(codexCwd, { recursive: true, force: true });
+  });
+
+  it('Codex CLI 起動不能でも「パスをコピー」を選べば clipboard へパスが入る（デッドエンドにしない）', async () => {
+    const codexCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-codex-cwd3-'));
+    mockFetchOnce(200, { ok: true, injection: 'x', cwd: codexCwd });
+    (spawn as jest.Mock).mockImplementation(() => mockSpawnOutcome({ error: new Error('ENOENT') }));
+    (vscode.window.showErrorMessage as jest.Mock).mockResolvedValue('パスをコピー');
+
+    const handler = registerAndGetHandler();
+    await handler(makeItem('codex-sid', 'codex'));
+
+    expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining(path.join('.anytime', 'agent', 'handoff', 'codex-sid.md')),
+    );
 
     fs.rmSync(codexCwd, { recursive: true, force: true });
   });

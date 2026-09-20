@@ -12,11 +12,15 @@
 // Reasoning は目的・進捗・変更ファイル・実行コマンドのいずれにも該当しないため無視する。
 // 未知の item.type は fail-safe に無視する（rollout 形式は公開安定 API ではないため）。
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { parseCodexSessionMeta } from '../codex/parseCodexRollout';
 import type { TranscriptEvent } from './types';
 
 const MAX_DETAIL = 160;
+// 引継ぎ対象は 1 セッション分の rollout のみ（低頻度なユーザー操作）だが、rollout は untrusted な
+// 外部ファイルであり長時間セッションで肥大化しうる。無制限 readFileSync は拡張ホストの同期フリーズ /
+// OOM につながるため上限を設け、超過時は fail-safe に null を返す（レビュー指摘）。
+const MAX_ROLLOUT_BYTES = 32 * 1024 * 1024;
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
@@ -109,16 +113,27 @@ export interface CodexTranscriptResult {
  * 読み取り不能・先頭行が session_meta でない（型不一致・パース失敗含む）場合は null。
  */
 export function parseCodexTranscript(rolloutPath: string): CodexTranscriptResult | null {
+  const safePath = rolloutPath.replaceAll(/[\r\n]/g, '↵');
   let raw: string;
   try {
+    const size = statSync(rolloutPath).size;
+    if (size > MAX_ROLLOUT_BYTES) {
+      console.error(`[handoff] Codex rollout exceeds ${MAX_ROLLOUT_BYTES}B (${size}B); refusing to read: ${safePath}`);
+      return null;
+    }
     raw = readFileSync(rolloutPath, 'utf8');
   } catch (err) {
-    const safePath = rolloutPath.replaceAll(/[\r\n]/g, '↵');
     console.error('[handoff] failed to read Codex rollout: %s', safePath, err);
     return null;
   }
   const lines = raw.split('\n');
   const meta = parseCodexSessionMeta(lines[0] ?? '');
   if (meta === null) return null;
-  return { events: parseCodexLines(lines), cwd: meta.cwd };
+  const events = parseCodexLines(lines);
+  if (events.length === 0) {
+    // rollout 形式が変わると 0 件のまま「成功」を返しうる（fail-safe な無視の裏返し）。
+    // 痕跡だけは残す（呼び出し側の判定は変えない）。
+    console.error(`[handoff] Codex rollout produced 0 events (format drift?): ${safePath}`);
+  }
+  return { events, cwd: meta.cwd };
 }
