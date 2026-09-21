@@ -14,7 +14,8 @@ export type DiagramIcon =
   | 'zoomOut' | 'zoomIn' | 'fit' | 'reset'
   | 'addElement' | 'rename' | 'remove' | 'connect'
   | 'clearSelection' | 'resetSize'
-  | 'insertAbove' | 'insertLeft';
+  | 'insertAbove' | 'insertLeft'
+  | 'editMode' | 'viewMode';
 
 /**
  * 各アイコンの線。複数本に分かれるものは配列で持つ。
@@ -34,6 +35,10 @@ export type DiagramIcon =
  * - `insertAbove` / `insertLeft`: 壁＋そこから離れていく矢印。「この辺に空きを割り込ませ、
  *   そのぶん向こうへ押しのける」。向きは矢印で示す（置き場所では示さない — 箱の最小の高さでは
  *   上辺と左辺に取っ手を並べる余地が無く、位置だけが意味を担うと小さい箱で読めなくなる）。
+ * - `editMode` / `viewMode`: 編集と閲覧の切り替え。**行き先を描く**（いまの状態ではなく）。
+ *   閲覧中は鉛筆（押すと編集へ）、編集中は目（押すと閲覧へ）。いまの状態を描くと、押したときに
+ *   何が起きるのかが絵から読めない。鉛筆は名札の書き換え（`rename`）と同じ形だが、あちらは
+ *   選択の帯の中に在り、こちらは図の外の操作列に在るので取り違えない。
  * - `resetSize`: 小さな四角＋円弧の矢印。「箱の大きさを既定へ戻す」。`reset`（図の見え方を戻す）
  *   と同じ円弧を使い、四角を添えて対象が箱であることを示す。
  */
@@ -50,6 +55,8 @@ const PATHS: Record<DiagramIcon, readonly string[]> = {
   resetSize: ['M3 13h9v8H3z', 'M21 9.5a6 6 0 1 0-1.9 4.4', 'M21 3.5v6h-6'],
   insertAbove: ['M4 4h16', 'M12 9v10', 'M8 15l4 4 4-4'],
   insertLeft: ['M4 4v16', 'M9 12h10', 'M15 8l4 4-4 4'],
+  editMode: ['M4 8v12h12v-7', 'M20 4.6a1.9 1.9 0 0 0-2.7 0L9 12.9 8 16l3.1-1 8.3-8.3a1.9 1.9 0 0 0 0-2.1z'],
+  viewMode: ['M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
 };
 
 /** 線画を 1 つ作る。押下を受けるのは親のボタンなので、絵そのものは支援技術から隠す。 */

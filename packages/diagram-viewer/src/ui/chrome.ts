@@ -11,6 +11,7 @@
 import {
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
+  DIAGRAM_LINE_ROUTES,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_SHAPES,
   type DiagramDocument,
@@ -18,6 +19,7 @@ import {
   type DiagramLayout,
   type DiagramLineColor,
   type DiagramLineLook,
+  type DiagramLineRoute,
   type DiagramLineStyle,
   type DiagramShape,
   type DiagramSpacing,
@@ -31,12 +33,12 @@ import { createIcon, type DiagramIcon } from './icons';
 
 export interface ChromeCallbacks {
   onLocate(name: string): void;
-  onStartEditing(): void;
-  onStopEditing(): void;
   onSave(): void;
   onConfirm(kind: 'discard' | 'reset'): void;
   onClearSelection(): void;
   onResetSpacing(): void;
+  /** 編集と閲覧を切り替える。いまどちらかは呼ばれた側が知っている。 */
+  onToggleEditing(): void;
   /** 選んでいる 1 つの要素の名札を書き換える。 */
   onRenameSelected(): void;
   /** 選んでいる 1 つの要素を図から取り除く。 */
@@ -108,18 +110,26 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   // 拡大・縮小・全体表示・初期表示はここに置かない。図の枠の中へ浮かせてある
   // （`viewControls.ts`）。対象と操作を同じ場所へ置くため。
   const toolbar = el(doc, 'div', { className: 'anytime-diagram-toolbar', attrs: { role: 'group' } });
-  const findLabel = el(doc, 'label');
-  const findText = doc.createTextNode('');
+  /*
+    要素へ移動する選び口。**見出しの字は置かない**（操作列を短くするためのユーザー指示）。
+
+    字を消しても名前は残す。`aria-label` を付けずに字だけ消すと、読み上げでは名前の無い
+    選び口になり、何を選ぶ場所なのか画面を見ない利用者には届かない。
+  */
   const find = el(doc, 'select');
   find.addEventListener('change', () => callbacks.onLocate(find.value));
-  findLabel.append(findText, find);
   const choosePerson = el(doc, 'option', { attrs: { value: '' } });
 
-  const startEditing = button(doc, callbacks.onStartEditing);
+  /*
+    編集と閲覧の切り替え。**2 つのボタンではなく 1 つの絵**にする（ユーザー指示）。
+
+    出す・出さないで切り替えていた頃は、同じ場所に別の字が現れるので押す前にどちらの状態か
+    読み取る必要があった。1 つにすると位置が動かず、絵が行き先を示す。
+  */
+  const modeToggle = iconButton(doc, 'editMode', callbacks.onToggleEditing);
   const save = button(doc, callbacks.onSave);
-  const stopEditing = button(doc, callbacks.onStopEditing);
   const resetLayout = button(doc, () => callbacks.onConfirm('reset'));
-  toolbar.append(findLabel, startEditing, save, stopEditing, resetLayout);
+  toolbar.append(find, modeToggle, save, resetLayout);
 
   /*
     選択の区画は**図の枠の中**へ浮かせる（`mountDiagramViewer` が枠の中へ入れる）。対象（選んだ
@@ -169,13 +179,16 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
     callbacks.onLineLook({ line: value }));
   const lineColor = picker<DiagramLineColor>(doc, DIAGRAM_LINE_COLORS, (value) =>
     callbacks.onLineLook({ color: value }));
+  const lineRoute = picker<DiagramLineRoute>(doc, DIAGRAM_LINE_ROUTES, (value) =>
+    callbacks.onLineLook({ route: value }));
   const startCap = picker<DiagramEndpoint>(doc, DIAGRAM_ENDPOINTS, (value) =>
     callbacks.onLineLook({ start: value }));
   const endCap = picker<DiagramEndpoint>(doc, DIAGRAM_ENDPOINTS, (value) =>
     callbacks.onLineLook({ end: value }));
   const deleteConnector = iconButton(doc, 'remove', callbacks.onDeleteConnector);
   connectorBar.append(
-    connectorName, lineStyle.label, lineColor.label, startCap.label, endCap.label, deleteConnector,
+    connectorName, lineStyle.label, lineColor.label, lineRoute.label,
+    startCap.label, endCap.label, deleteConnector,
   );
 
   const blocked = el(doc, 'p', {
@@ -204,11 +217,12 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       setClass(note, 'anytime-diagram-hidden', state.compact || state.document.note === '');
       blocked.textContent = t('gridLinesBlocked');
 
-      findText.nodeValue = `${t('findPerson')} `;
+      find.setAttribute('aria-label', t('findPerson'));
       choosePerson.textContent = t('choosePerson');
-      startEditing.textContent = t('editLayout');
-      stopEditing.textContent = t('stopEditing');
       resetLayout.textContent = t('resetLayout');
+      // 絵は**行き先**を描く（編集中なら閲覧へ戻る目、閲覧中なら編集へ入る鉛筆）。
+      setIcon(modeToggle, state.editing ? 'viewMode' : 'editMode');
+      label(modeToggle, state.editing ? t('stopEditing') : t('editLayout'));
       label(clearSelection, t('clearSelection'));
       label(spacingReset, t('spacingReset'));
       label(renameSelected, t('renameElement'));
@@ -226,13 +240,13 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       }
       find.value = state.selected;
 
-      setClass(startEditing, 'anytime-diagram-hidden', !(state.editable && state.canSave && !state.editing));
-      for (const control of [save, stopEditing, resetLayout]) {
+      setClass(modeToggle, 'anytime-diagram-hidden', !(state.editable && state.canSave));
+      modeToggle.disabled = state.saving;
+      for (const control of [save, resetLayout]) {
         setClass(control, 'anytime-diagram-hidden', !state.editing);
       }
       save.textContent = state.saving ? t('saving') : t('save');
       save.disabled = !state.changed || state.saving;
-      stopEditing.disabled = state.saving;
       resetLayout.disabled = state.saving || state.draft === null || isEmptyLayout(state.draft);
 
       setClass(selectionBar, 'anytime-diagram-hidden', !state.editing);
@@ -276,6 +290,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
     deleteConnector.disabled = state.saving;
     lineStyle.apply(t('lineStyle'), look.line, (value) => t(`lineStyle.${value}`), state.saving);
     lineColor.apply(t('lineColor'), look.color, (value) => t(`lineColor.${value}`), state.saving);
+    lineRoute.apply(t('lineRoute'), look.route, (value) => t(`lineRoute.${value}`), state.saving);
     startCap.apply(t('startCap'), look.start, (value) => t(`endpoint.${value}`), state.saving);
     endCap.apply(t('endCap'), look.end, (value) => t(`endpoint.${value}`), state.saving);
   }
@@ -391,6 +406,14 @@ function iconButton(doc: Document, icon: DiagramIcon, onClick: () => void): HTML
   element.className = 'anytime-diagram-iconbutton';
   element.appendChild(createIcon(doc, icon, 15));
   return element;
+}
+
+/** 絵を差し替える。**ボタンそのものは作り直さない**（押している最中に焦点が図の外へ飛ぶ）。 */
+function setIcon(element: HTMLButtonElement, icon: DiagramIcon): void {
+  if (element.dataset.icon === icon) return;
+  element.dataset.icon = icon;
+  element.textContent = '';
+  element.appendChild(createIcon(element.ownerDocument, icon, 15));
 }
 
 /** 絵だけのボタンの名前は `aria-label` と `title` の両方へ置く（読み上げと吹き出しの両方）。 */

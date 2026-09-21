@@ -5,10 +5,12 @@ import {
   type DiagramConnector,
   type DiagramDocument,
   type DiagramFamily,
+  type DiagramAnchor,
   type DiagramGroupAxis,
   type DiagramShape,
   EMPTY_DIAGRAM_LAYOUT,
   parseDiagramDocument,
+  readDiagramAnchor,
   serializeDiagramDocument,
   validateDiagramLayout,
 } from '@anytime-markdown/diagram-core';
@@ -26,8 +28,14 @@ export interface WriteDiagramInput {
   families: DiagramFamily[];
   /** 家族に属さない要素。省いたら**既存ファイルのものを引き継ぐ**（配置差分と同じ扱い）。 */
   nodes?: string[];
-  /** 手で引いた接続線。省いたら既存ファイルのものを引き継ぐ。 */
-  connectors?: DiagramConnector[];
+  /**
+   * 手で引いた接続線。省いたら既存ファイルのものを引き継ぐ。
+   *
+   * 端（`from` / `to`）は**ファイルに書く形**で受ける（要素は文字列、線は `{ line: id }`、
+   * 家族は `{ family: [親…] }`）。型の付いた端で受けると、MCP の呼び手が図の内部表現を
+   * 知らないと線を 1 本も引けない。
+   */
+  connectors?: WriteDiagramConnector[];
   /** 要素ごとの形。省いたら既存ファイルのものを引き継ぐ（四角の要素は書かない）。 */
   shapes?: Record<string, DiagramShape>;
   annotations?: Record<string, string>;
@@ -43,6 +51,21 @@ export interface WriteDiagramInput {
  * 要素（`nodes`）と接続線（`connectors`）は**渡せるが、省いたら引き継ぐ**。画面で足した要素と線を
  * 「家族を 1 件書き換えただけ」の呼び出しが消さないようにするため。
  */
+/** 書き込み要求の中の接続線 1 本。端はファイルの形。 */
+export type WriteDiagramConnector = Omit<DiagramConnector, 'from' | 'to'> & {
+  from: unknown;
+  to: unknown;
+};
+
+/** ファイルの形の端を型の付いた端へ。読めない端は**書かせない**（次に開けない図を作らない）。 */
+function toAnchor(value: unknown, where: string): DiagramAnchor {
+  const anchor = readDiagramAnchor(value);
+  if (anchor === undefined) {
+    throw new Error(`[diagram] connectors.${where} は要素名（文字列）か { line: id } か { family: [親…] } です`);
+  }
+  return anchor;
+}
+
 export async function writeDiagram(input: WriteDiagramInput, rootDir: string): Promise<{ path: string }> {
   validateDiagramExtension(input.path);
   const filePath = resolveSecurePath(rootDir, input.path);
@@ -57,7 +80,13 @@ export async function writeDiagram(input: WriteDiagramInput, rootDir: string): P
     families: input.families,
     nodes: input.nodes ?? existing?.nodes ?? [],
     shapes: input.shapes ?? existing?.shapes ?? {},
-    connectors: input.connectors ?? existing?.connectors ?? [],
+    connectors: input.connectors === undefined
+      ? existing?.connectors ?? []
+      : input.connectors.map((connector) => ({
+        ...connector,
+        from: toAnchor(connector.from, 'from'),
+        to: toAnchor(connector.to, 'to'),
+      })),
     annotations: input.annotations ?? {},
     layout: existing?.layout ?? EMPTY_DIAGRAM_LAYOUT,
   };

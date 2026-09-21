@@ -89,14 +89,14 @@ describe('図の描画', () => {
 describe('編集の入口', () => {
   it('編集できると告げられ、保存の口があるときだけ出す', () => {
     mount();
-    expect(byText('配置を編集')?.classList.contains('anytime-diagram-hidden')).toBe(true);
+    expect(byLabel('編集に切り替える')?.classList.contains('anytime-diagram-hidden')).toBe(true);
     handle!.destroy();
     mount({ editable: true });
     // 保存の口が無ければ、押しても保存できない入口を出さない。
-    expect(byText('配置を編集')?.classList.contains('anytime-diagram-hidden')).toBe(true);
+    expect(byLabel('編集に切り替える')?.classList.contains('anytime-diagram-hidden')).toBe(true);
     handle!.destroy();
     mount({ editable: true, onSave: () => {} });
-    expect(byText('配置を編集')?.classList.contains('anytime-diagram-hidden')).toBe(false);
+    expect(byLabel('編集に切り替える')?.classList.contains('anytime-diagram-hidden')).toBe(false);
   });
 
   it('編集に入る前は升目の塗りも掴む取っ手も出さない', () => {
@@ -108,7 +108,7 @@ describe('編集の入口', () => {
 
   it('編集に入ると升目の塗り・取っ手・縁のアイコンが出る', () => {
     mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden')).toBe(false);
     expect(container.querySelector('.anytime-diagram-grid path')?.getAttribute('d')).not.toBe('');
     expect(container.querySelector('.anytime-diagram-handle')?.classList.contains('anytime-diagram-hidden')).toBe(false);
@@ -117,7 +117,7 @@ describe('編集の入口', () => {
 
   it('箱の大きさの取っ手は左上の 1 人にだけ出す', () => {
     mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     const shown = [...container.querySelectorAll('.anytime-diagram-size')]
       .filter((handleEl) => !handleEl.classList.contains('anytime-diagram-hidden'));
     // 右辺・下辺・右下の 3 つ。全部の箱に付けると「その箱だけが変わる」と読める形で並ぶ。
@@ -126,7 +126,7 @@ describe('編集の入口', () => {
 
   it('縁のアイコンは図より前に置く（タブ順が人物の取っ手の後ろにならない）', () => {
     mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     const viewport = container.querySelector('.anytime-diagram-viewport')!;
     const children = [...viewport.children].map((child) => child.className.split(' ')[0]);
     expect(children.indexOf('anytime-diagram-gutter')).toBeLessThan(children.indexOf('anytime-diagram-surface'));
@@ -159,13 +159,13 @@ describe('保存済みの配置', () => {
 describe('保存', () => {
   it('変更が無いうちは保存を押せない', () => {
     mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(byText('保存')!.disabled).toBe(true);
   });
 
   it('自動配置に戻すと確認を挟む', () => {
     mount({ document: { ...DOC, layout: { placements: { 子: { column: 4, row: 3 } } } }, editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     byText('自動配置に戻す')!.click();
     const dialog = container.querySelector('.anytime-diagram-confirm')!;
     expect(dialog.classList.contains('anytime-diagram-hidden')).toBe(false);
@@ -177,7 +177,7 @@ describe('保存', () => {
   it('保存が失敗したら理由を出す（握り潰さない）', async () => {
     const onSave = jest.fn().mockRejectedValue(new Error('書き込めません'));
     mount({ document: { ...DOC, layout: { placements: { 子: { column: 4, row: 3 } } } }, editable: true, onSave });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     byText('自動配置に戻す')!.click();
     byText('戻す')!.click();
     byText('保存')!.click();
@@ -191,10 +191,10 @@ describe('保存', () => {
   it('下書きの変化を宿主へ伝える', () => {
     const onDraftChange = jest.fn();
     mount({ editable: true, onSave: () => {}, onDraftChange });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     // 下書きは**図の全体**（要素と線も編集するため）。配置差分だけを渡していた頃の形ではない。
     expect(onDraftChange).toHaveBeenCalledWith(DOC);
-    byText('編集を終う')!.click();
+    byLabel('閲覧に切り替える')!.click();
     expect(onDraftChange).toHaveBeenLastCalledWith(null);
   });
 });
@@ -202,7 +202,7 @@ describe('保存', () => {
 describe('図の差し替え', () => {
   it('選択も下書きも持ち越さない（別の図の人物名を次の操作へ渡さない）', () => {
     mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(handle!.getDraft()).not.toBeNull();
     handle!.update({ document: { ...DOC, title: '別の系図' } });
     expect(handle!.getDraft()).toBeNull();
@@ -211,11 +211,11 @@ describe('図の差し替え', () => {
 
   it('locale を差し替えると操作列の文言も入れ替わる', () => {
     mount({ editable: true, onSave: () => {} });
-    expect(byText('配置を編集')).toBeDefined();
+    expect(byLabel('編集に切り替える')).not.toBeNull();
     expect(byLabel('全体表示')).not.toBeNull();
     handle!.update({ locale: 'en' });
-    expect(byText('配置を編集')).toBeUndefined();
-    expect(byText('Edit layout')).toBeDefined();
+    expect(byLabel('編集に切り替える')).toBeNull();
+    expect(byLabel('Switch to editing')).not.toBeNull();
     // 絵だけのボタンも名前を入れ替える（読み上げと吹き出しの両方を見る）。
     expect(byLabel('全体表示')).toBeNull();
     expect(byLabel('Fit to view')).not.toBeNull();
@@ -228,7 +228,7 @@ describe('行・列を増減できない図', () => {
     // 自動配置の人物と、そこへ手で置かれた人物が重なっている図。差分へ引き写すと保存が断られる。
     const target = { ...DOC, layout: { placements: { 子: { column: 0, row: 0 } } } };
     mount({ document: target, editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(container.querySelectorAll('.anytime-diagram-gutter button')).toHaveLength(0);
     const blocked = container.querySelector('[role="status"]')!;
     expect(blocked.classList.contains('anytime-diagram-hidden')).toBe(false);
@@ -337,7 +337,7 @@ describe('図を覆うもの', () => {
 
   it('編集に入っても覆いは描かれない（人物と縁のアイコンに手が届く）', () => {
     mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(getComputedStyle(confirmOverlay()).display).toBe('none');
   });
 
@@ -347,7 +347,7 @@ describe('図を覆うもの', () => {
       editable: true,
       onSave: () => {},
     });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     byText('自動配置に戻す')!.click();
     expect(getComputedStyle(confirmOverlay()).display).toBe('flex');
     byText('やめる')!.click();
@@ -390,7 +390,7 @@ describe('要素と接続線', () => {
 
   const startEditing = (): DiagramViewerHandle => {
     const view = mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     return view;
   };
 
@@ -407,7 +407,7 @@ describe('要素と接続線', () => {
   it('編集中だけ空いた升目に ＋ が出る', () => {
     mount({ editable: true, onSave: () => {} });
     expect(adders()).toHaveLength(0);
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(adders().length).toBeGreaterThan(0);
   });
 
@@ -459,7 +459,16 @@ describe('要素と接続線', () => {
       .toContain('is-connect-source');
     connectPoint('父').click();
     expect(view.getDraft()!.connectors).toEqual([
-      { id: 'c1', from: '祖父', to: '父', line: 'solid', color: 'default', start: 'none', end: 'arrow' },
+      {
+        id: 'c1',
+        from: { kind: 'element', name: '祖父' },
+        to: { kind: 'element', name: '父' },
+        line: 'solid',
+        color: 'default',
+        route: 'straight',
+        start: 'none',
+        end: 'arrow',
+      },
     ]);
     expect(links()).toHaveLength(1);
   });
@@ -478,8 +487,9 @@ describe('要素と接続線', () => {
     connectPoint('祖父').click();
     connectPoint('父').click();
     const selects = [...container.querySelectorAll<HTMLSelectElement>('.anytime-diagram-connectorbar select')];
-    expect(selects).toHaveLength(4);
-    const [line, colour, start, end] = selects as [HTMLSelectElement, HTMLSelectElement, HTMLSelectElement, HTMLSelectElement];
+    expect(selects).toHaveLength(5);
+    const [line, colour, , start, end] = selects as HTMLSelectElement[] as [
+      HTMLSelectElement, HTMLSelectElement, HTMLSelectElement, HTMLSelectElement, HTMLSelectElement];
     line.value = 'dashed';
     line.dispatchEvent(new Event('change', { bubbles: true }));
     colour.value = 'danger';
@@ -529,7 +539,7 @@ describe('要素と接続線', () => {
   it('保存は図の全体を渡す', async () => {
     const onSave = jest.fn();
     mount({ editable: true, onSave });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     adders()[0]!.click();
     byText('保存')!.click();
     await Promise.resolve();
@@ -546,14 +556,14 @@ describe('上・左への割り込み', () => {
 
   const startEditing = (options: Partial<DiagramViewerOptions> = {}): DiagramViewerHandle => {
     const view = mount({ editable: true, onSave: () => {}, ...options });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     return view;
   };
 
   it('編集中だけ札に上・左の取っ手が出る', () => {
     mount({ editable: true, onSave: () => {} });
     expect(insertHandle('父', 'row').classList).toContain('anytime-diagram-hidden');
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(insertHandle('父', 'row').classList).not.toContain('anytime-diagram-hidden');
     expect(insertHandle('父', 'column').classList).not.toContain('anytime-diagram-hidden');
   });
@@ -587,7 +597,7 @@ describe('家族ごと消えるときの知らせ', () => {
 
   it('家族が落ちたら、何が起きたかを図の中で知らせる', () => {
     const view = mount({ document: WITH_SINGLE_PARENT, editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     container.querySelector<HTMLButtonElement>('[data-person="独神"] .anytime-diagram-pick')!.click();
     byLabel('要素を取り除く')!.click();
     // 化生 は「独神 → 化生」にしか出てこない。拾わないと 1 人消して 2 人消える。
@@ -617,7 +627,7 @@ describe('線の選択', () => {
 
   const drawLine = (): DiagramViewerHandle => {
     const view = mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     container.querySelector<HTMLButtonElement>('[data-person="祖父"] .anytime-diagram-connect')!.click();
     container.querySelector<HTMLButtonElement>('[data-person="子"] .anytime-diagram-connect')!.click();
     return view;
@@ -656,7 +666,7 @@ describe('線の選択', () => {
 describe('最初からある線（家族の線）の見た目', () => {
   const selectFamilyLine = (): DiagramViewerHandle => {
     const view = mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));
     return view;
@@ -666,9 +676,10 @@ describe('最初からある線（家族の線）の見た目', () => {
   it('押すと設定の区画が出て、種別から決まる今の値が入っている', () => {
     selectFamilyLine();
     expect(bar().classList).not.toContain('anytime-diagram-hidden');
-    const [line, colour, start, end] = [...bar().querySelectorAll<HTMLSelectElement>('select')];
-    // 親子の家族なので実線・既定・印なし。
-    expect([line!.value, colour!.value, start!.value, end!.value]).toEqual(['solid', 'default', 'none', 'none']);
+    const [line, colour, route, start, end] = [...bar().querySelectorAll<HTMLSelectElement>('select')];
+    // 親子の家族なので実線・既定・折れ線・印なし。
+    expect([line!.value, colour!.value, route!.value, start!.value, end!.value])
+      .toEqual(['solid', 'default', 'orthogonal', 'none', 'none']);
   });
 
   it('消す口は出さない（家族の線を消すことは家族を消すこと）', () => {
@@ -684,7 +695,8 @@ describe('最初からある線（家族の線）の見た目', () => {
     colour!.value = 'danger';
     colour!.dispatchEvent(new Event('change', { bubbles: true }));
     const families = view.getDraft()!.families;
-    expect(families[0]!.look).toEqual({ line: 'dashed', color: 'danger', start: 'none', end: 'none' });
+    expect(families[0]!.look)
+      .toEqual({ line: 'dashed', color: 'danger', route: 'orthogonal', start: 'none', end: 'none' });
     // 別の家族は触らない（種別ごとではなく 1 件ごと）。
     expect(families[1]!.look).toBeUndefined();
   });
@@ -703,7 +715,7 @@ describe('最初からある線（家族の線）の見た目', () => {
 describe('要素の形', () => {
   const startEditing = (): DiagramViewerHandle => {
     const view = mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     return view;
   };
   const pick = (name: string): void => {
@@ -772,12 +784,94 @@ describe('要素の形', () => {
 describe('形の変更は「変更あり」として扱う', () => {
   it('形だけ変えても保存が押せる（編集を終うときに黙って捨てられない）', () => {
     mount({ editable: true, onSave: () => {} });
-    byText('配置を編集')!.click();
+    byLabel('編集に切り替える')!.click();
     expect(byText('保存')!.disabled).toBe(true);
     container.querySelector<HTMLButtonElement>('[data-person="父"] .anytime-diagram-pick')!.click();
     const select = container.querySelector<HTMLSelectElement>('.anytime-diagram-selection select')!;
     select.value = 'diamond';
     select.dispatchEvent(new Event('change', { bubbles: true }));
     expect(byText('保存')!.disabled).toBe(false);
+  });
+});
+
+describe('線の中点から線を引く', () => {
+  const startEditing = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const connectPoint = (name: string): HTMLButtonElement =>
+    container.querySelector(`[data-person="${name}"] .anytime-diagram-connect`)!;
+  const midpoints = (): HTMLButtonElement[] =>
+    [...container.querySelectorAll<HTMLButtonElement>('.anytime-diagram-midpoint:not(.anytime-diagram-hidden)')];
+
+  const drawLine = (view: DiagramViewerHandle): DiagramViewerHandle => {
+    connectPoint('祖父').click();
+    connectPoint('父').click();
+    return view;
+  };
+
+  it('編集していない間は中点の取っ手を出さない', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(midpoints()).toHaveLength(0);
+  });
+
+  it('描けている線 1 本につき取っ手が 1 つ出る（家族の線にも出る）', () => {
+    const view = startEditing();
+    const familyLines = midpoints().length;
+    expect(familyLines).toBeGreaterThan(0);
+    drawLine(view);
+    expect(midpoints()).toHaveLength(familyLines + 1);
+  });
+
+  it('中点を押してから札を押すと、その線の中点に取り付いた線ができる', () => {
+    const view = drawLine(startEditing());
+    const handle = midpoints().find((button) => button.dataset.lineAnchor === 'l:c1')!;
+    handle.click();
+    expect(handle.classList).toContain('is-connect-source');
+    connectPoint('子').click();
+    const made = view.getDraft()!.connectors.find((item) => item.id !== 'c1')!;
+    expect(made.from).toEqual({ kind: 'line', line: 'c1' });
+    expect(made.to).toEqual({ kind: 'element', name: '子' });
+  });
+
+  it('元の線を消すと、その中点に取り付いていた線も消える', () => {
+    const view = drawLine(startEditing());
+    midpoints().find((button) => button.dataset.lineAnchor === 'l:c1')!.click();
+    connectPoint('子').click();
+    expect(view.getDraft()!.connectors).toHaveLength(2);
+    // 元の線を選び直してから消す。
+    container.querySelector<SVGPathElement>('.anytime-diagram-links g[data-connector="c1"] .link-hit')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    byLabel('この線を消す')!.click();
+    expect(view.getDraft()!.connectors).toEqual([]);
+  });
+});
+
+describe('線の経路', () => {
+  it('選び直すと下書きと描かれる path が変わる', () => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="祖父"] .anytime-diagram-connect')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="父"] .anytime-diagram-connect')!.click();
+    const route = [...container.querySelectorAll<HTMLSelectElement>('.anytime-diagram-connectorbar select')][2]!;
+    expect(route.value).toBe('straight');
+    route.value = 'curved';
+    route.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.connectors[0]!.route).toBe('curved');
+    expect(container.querySelector('.anytime-diagram-links .link-line')!.getAttribute('d')).toContain('C ');
+  });
+
+  it('家族の線の経路を直線にすると縦の車線が消える', () => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const route = [...container.querySelectorAll<HTMLSelectElement>('.anytime-diagram-connectorbar select')][2]!;
+    route.value = 'straight';
+    route.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.families[0]!.look?.route).toBe('straight');
+    const descent = container.querySelector('.anytime-diagram-edges .edge-birth')!.getAttribute('d')!;
+    expect(descent).not.toContain('V ');
   });
 });

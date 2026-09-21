@@ -5,6 +5,7 @@
  * 升目へ黙って動かさない）。移植元は anytime-travel の `shared/genealogy.ts`。
  */
 
+import { assertNever } from './exhaustive';
 import {
   cellFromPoint,
   cellKey,
@@ -21,9 +22,11 @@ import { MAX_CONNECTORS_PER_DIAGRAM } from './connectors';
 import {
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
+  DIAGRAM_LINE_ROUTES,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
   DIAGRAM_SHAPES,
+  type DiagramAnchor,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramEndpoint,
@@ -32,6 +35,7 @@ import {
   type DiagramLayout,
   type DiagramLineColor,
   type DiagramLineLook,
+  type DiagramLineRoute,
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
@@ -85,6 +89,40 @@ function isLineColor(value: unknown): value is DiagramLineColor {
   return typeof value === 'string' && (DIAGRAM_LINE_COLORS as readonly string[]).includes(value);
 }
 
+function isLineRoute(value: unknown): value is DiagramLineRoute {
+  return typeof value === 'string' && (DIAGRAM_LINE_ROUTES as readonly string[]).includes(value);
+}
+
+/**
+ * 線の端。**文字列は要素、`{ line: "c1" }` は別の線の中点。**
+ *
+ * 文字列だけだった頃のファイルをそのまま読むために、要素は文字列のままにする。読めない値は
+ * `undefined` を返し、呼ぶ側が図ごと断る（線は図の中身なので 1 件でも落とさない）。
+ */
+export function readDiagramAnchor(value: unknown): DiagramAnchor | undefined {
+  if (typeof value === 'string' && value !== '') return { kind: 'element', name: value };
+  if (isObject(value) && typeof value.line === 'string' && value.line !== '') {
+    return { kind: 'line', line: value.line };
+  }
+  if (isObject(value)) {
+    const parents = stringArray(value.family);
+    if (parents !== undefined && parents.length > 0) return { kind: 'family', parents };
+  }
+  return undefined;
+}
+
+/** 端の書き出し。要素は**文字列のまま**書く（項目を足しても既存のファイルの形が変わらない）。 */
+function writeAnchor(
+  anchor: DiagramAnchor,
+): string | { readonly line: string } | { readonly family: readonly string[] } {
+  switch (anchor.kind) {
+    case 'element': return anchor.name;
+    case 'line': return { line: anchor.line };
+    case 'family': return { family: anchor.parents };
+    default: return assertNever(anchor, 'writeAnchor');
+  }
+}
+
 function isShape(value: unknown): value is DiagramShape {
   return typeof value === 'string' && (DIAGRAM_SHAPES as readonly string[]).includes(value);
 }
@@ -120,7 +158,19 @@ function readLineLook(value: unknown, onWarn: Warn): DiagramLineLook | null | un
       + ` / start・end（${DIAGRAM_ENDPOINTS.join(' | ')}）の 4 項目が必要です`);
     return null;
   }
-  return { line: value.line, color: value.color, start: value.start, end: value.end };
+  // 経路だけは**無くてもよい**。経路を持たなかった頃に保存した図を、項目を足した日に読めなく
+  // しない（色を後から足したときと同じ扱い）。書いてある値が読めないときは断る。
+  if (value.route !== undefined && !isLineRoute(value.route)) {
+    onWarn(`[diagram] look.route は ${DIAGRAM_LINE_ROUTES.join(' | ')} のどれかです`);
+    return null;
+  }
+  return {
+    line: value.line,
+    color: value.color,
+    route: value.route ?? 'orthogonal',
+    start: value.start,
+    end: value.end,
+  };
 }
 
 /** 升目の番号として読めるか。負・小数・桁外れは弾く。 */
@@ -376,17 +426,27 @@ function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null
   const seen = new Set<string>();
   for (const item of value) {
     if (!isObject(item) || typeof item.id !== 'string' || item.id === ''
-      || typeof item.from !== 'string' || item.from === ''
-      || typeof item.to !== 'string' || item.to === ''
       || !isLineStyle(item.line) || !isEndpoint(item.start) || !isEndpoint(item.end)) {
-      onWarn('[diagram] connectors の要素は id / from / to（空でない文字列）'
+      onWarn('[diagram] connectors の要素は id（空でない文字列）/ from・to（要素名か { line: id }）'
         + ` / line（${DIAGRAM_LINE_STYLES.join(' | ')}）/ start・end（${DIAGRAM_ENDPOINTS.join(' | ')}）が必要です`);
       return null;
     }
     // 色だけは**無くてもよい**。色を持たなかった頃に保存した線を、項目を足した日に読めなく
     // しない（他の項目と違い、既定が一意に決まる）。書いてある値が読めないときは断る。
+    const from = readDiagramAnchor(item.from);
+    const to = readDiagramAnchor(item.to);
+    if (from === undefined || to === undefined) {
+      onWarn('[diagram] connectors の from・to は要素名（文字列）か { line: 線の id } です');
+      return null;
+    }
+    // 色と経路だけは**無くてもよい**。どちらも既定が一意に決まるので、その項目を持たなかった頃に
+    // 保存した線を、項目を足した日に読めなくしない。書いてある値が読めないときは断る。
     if (item.color !== undefined && !isLineColor(item.color)) {
       onWarn(`[diagram] connectors.color は ${DIAGRAM_LINE_COLORS.join(' | ')} のどれかです`);
+      return null;
+    }
+    if (item.route !== undefined && !isLineRoute(item.route)) {
+      onWarn(`[diagram] connectors.route は ${DIAGRAM_LINE_ROUTES.join(' | ')} のどれかです`);
       return null;
     }
     if (seen.has(item.id)) {
@@ -396,10 +456,11 @@ function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null
     seen.add(item.id);
     connectors.push({
       id: item.id,
-      from: item.from,
-      to: item.to,
+      from,
+      to,
       line: item.line,
       color: item.color ?? 'default',
+      route: item.route ?? 'straight',
       start: item.start,
       end: item.end,
     });
@@ -575,7 +636,13 @@ export function serializeDiagramDocument(document: DiagramDocument): string {
     ...(isEmptyShapes(shapes) ? {} : { shapes }),
     ...(document.connectors.length === 0
       ? {}
-      : { connectors: [...document.connectors].sort((left, right) => (left.id < right.id ? -1 : 1)) }),
+      : { connectors: [...document.connectors]
+        .sort((left, right) => (left.id < right.id ? -1 : 1))
+        .map((connector) => ({
+          ...connector,
+          from: writeAnchor(connector.from),
+          to: writeAnchor(connector.to),
+        })) }),
     annotations: document.annotations,
     ...(isEmptyLayout(layout) ? {} : { layout }),
   }, null, 2)}\n`;
@@ -648,6 +715,80 @@ export interface DiagramElementRemoval {
 const drawsNothing = (family: DiagramFamily): boolean =>
   family.children.length === 0 && family.parents.length < 2;
 
+/** その線が要素 `name` に取り付いているか。線の中点を指す端は要素名を持たない。 */
+function touchesElement(connector: DiagramConnector, name: string): boolean {
+  const at = (anchor: DiagramAnchor) => anchor.kind === 'element' && anchor.name === name;
+  return at(connector.from) || at(connector.to);
+}
+
+/**
+ * 結び目を持つ家族の鍵（親の名前を並べたもの）。**子の居ない家族は数えない。**
+ *
+ * 子が居なければ降りる線が無く、結び目も描かれない。描かれない点を指した線は端が迷子になる。
+ */
+function junctionKeys(families: readonly DiagramFamily[]): Set<string> {
+  const keys = new Set<string>();
+  for (const family of families) {
+    if (family.children.length > 0) keys.add(family.parents.join(SEPARATOR));
+  }
+  return keys;
+}
+
+/**
+ * その線が、結び目の残っていない家族を指しているか。
+ *
+ * **家族が消えたときだけでなく、子を全員失って結び目が消えたときも真**になる。前者だけを見ると、
+ * 「親は残ったまま子だけ消した」図で線がファイルに残り続け、後で同じ親へ子を足した日に
+ * 覚えの無い線が復活する（要素を取り除いたときに接続線を落とすのと同じ理由）。
+ */
+function pointsAtLostJunction(connector: DiagramConnector, alive: ReadonlySet<string>): boolean {
+  const lost = (anchor: DiagramAnchor) => anchor.kind === 'family'
+    && !alive.has(anchor.parents.join(SEPARATOR));
+  return lost(connector.from) || lost(connector.to);
+}
+
+/** 家族の鍵を組むときの区切り。名前に現れない文字を使う（`anchorKey` と同じ約束）。 */
+const SEPARATOR = '\u0000';
+
+/** 要素を指す端だけ名前を付け替える。線を指す端は線の id なので、要素の改名では動かない。 */
+function swapAnchor(anchor: DiagramAnchor, swap: (name: string) => string): DiagramAnchor {
+  switch (anchor.kind) {
+    case 'element': return { kind: 'element', name: swap(anchor.name) };
+    // 家族を指す端は親の名前で指しているので、親が改名されたら一緒に付け替える。
+    case 'family': return { kind: 'family', parents: anchor.parents.map(swap) };
+    case 'line': return anchor;
+    default: return assertNever(anchor, 'swapAnchor');
+  }
+}
+
+/**
+ * 線を消した後の一覧。**消した線の中点にぶら下がっていた線も、推移的に消す。**
+ *
+ * 残さない。残すと端の見つからない線が図に積もり、描画側は黙って描かないので
+ * 「ファイルには在るが永久に見えない線」になる（次に同じ id が振られた日に復活する）。
+ *
+ * 深さで打ち切らず、消える線が増えなくなるまで回す。線どうしが輪を作っていても、輪の中の線は
+ * どれも「消える」側にしか動かないので必ず止まる。
+ */
+export function removeDiagramConnectors(
+  connectors: readonly DiagramConnector[],
+  ids: readonly string[],
+): DiagramConnector[] {
+  const doomed = new Set(ids);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const connector of connectors) {
+      if (doomed.has(connector.id)) continue;
+      const hangsOn = (anchor: DiagramAnchor) => anchor.kind === 'line' && doomed.has(anchor.line);
+      if (hangsOn(connector.from) || hangsOn(connector.to)) {
+        doomed.add(connector.id);
+        grew = true;
+      }
+    }
+  }
+  return connectors.filter((connector) => !doomed.has(connector.id));
+}
+
 /**
  * 要素を 1 つ取り除いた図。**家族に出る人物も消せる。**
  *
@@ -657,6 +798,9 @@ const drawsNothing = (family: DiagramFamily): boolean =>
  *
  * 併せて**その要素に取り付いた接続線・注記・配置差分・形も落とす**。残すと、図に出ない名前を指す
  * 線と差分と形が積もり、次に同じ名前で要素を足したときに覚えの無い線や形が復活する。
+ *
+ * 家族の結び目を指していた線も、**その結び目が消えたなら**一緒に落とす（家族ごと消えた場合と、
+ * 子を全員失って降りる線が無くなった場合の両方）。
  */
 export function removeDiagramElement(document: DiagramDocument, name: string): DiagramElementRemoval {
   const before = diagramPeople(document.families, document.nodes);
@@ -687,7 +831,14 @@ export function removeDiagramElement(document: DiagramDocument, name: string): D
       families,
       nodes: [...nodes, ...rescued],
       shapes,
-      connectors: document.connectors.filter((connector) => connector.from !== name && connector.to !== name),
+      connectors: removeDiagramConnectors(
+        document.connectors,
+        document.connectors
+          // 取り除いた要素に取り付いていた線と、**結び目を失った家族**を指していた線の両方が起点。
+          .filter((connector) => touchesElement(connector, name)
+            || pointsAtLostJunction(connector, junctionKeys(families)))
+          .map((connector) => connector.id),
+      ),
       annotations,
       layout: { ...document.layout, placements },
     },
@@ -733,8 +884,8 @@ export function renameDiagramElement(
     shapes,
     connectors: document.connectors.map((connector) => ({
       ...connector,
-      from: swap(connector.from),
-      to: swap(connector.to),
+      from: swapAnchor(connector.from, swap),
+      to: swapAnchor(connector.to, swap),
     })),
     annotations,
     layout: { ...document.layout, placements },

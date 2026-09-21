@@ -11,8 +11,11 @@ import {
   chartPoint,
   type ChartView,
   columnPitch,
+  anchorKey,
+  DEFAULT_CONNECTOR_LOOK,
   DEFAULT_DIAGRAM_SHAPE,
   DEFAULT_DIAGRAM_SPACING,
+  type DiagramAnchor,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramLayout,
@@ -21,6 +24,7 @@ import {
   type DiagramSpacing,
   diagramPeople,
   diagramShapeOf,
+  elementAnchor,
   familyLook,
   fitChart,
   fittingShift,
@@ -39,8 +43,10 @@ import {
   nextElementName,
   nudgeShift,
   placementFromDrag,
+  removeDiagramConnectors,
   removeDiagramElement,
   renameDiagramElement,
+  sameAnchor,
   resizedSpacing,
   resizeFromDrag,
   rowPitch,
@@ -58,6 +64,7 @@ import { createLinkView, type LinkView } from './ui/connectors';
 import { el, setAttr, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
 import { createGutterView } from './ui/gutter';
+import { createMidpointView } from './ui/midpoints';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
 import { createViewControls } from './ui/viewControls';
 
@@ -116,8 +123,10 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 別々に持つと、指で引きかけたまま Tab へ移ったときに 2 つの始点が並び、どちらから線が
    * 出るのか画面から読めなくなる。
    */
-  let connectSource: string | null = null;
-  let connectDrag: { readonly pointerId: number; readonly from: string; x: number; y: number } | null = null;
+  /** 始点として待ち受けている端。札の接続点と線の中点の**どちらも**ここへ入る。 */
+  let connectSource: DiagramAnchor | null = null;
+  let connectDrag:
+    { readonly pointerId: number; readonly from: DiagramAnchor; x: number; y: number } | null = null;
   let draft: DiagramDocument | null = null;
   let saving = false;
   let notice = '';
@@ -166,8 +175,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   });
   const chrome = createChromeView(doc, tr, {
     onLocate: locate,
-    onStartEditing: startEditing,
-    onStopEditing: stopEditing,
+    // 編集中かどうかは下書きの有無そのもの（`editing` は描画のたびに導く一時の値）。
+    onToggleEditing: () => { if (draft === null) startEditing(); else stopEditing(); },
     onSave: () => { void save(); },
     onConfirm: (kind) => confirmView.show(kind),
     onClearSelection: () => { selection = []; paint(); },
@@ -186,6 +195,17 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   });
   const gutter = createGutterView(doc, tr, { onEditGridLine: editGridLine });
   const cellAdders = createCellAdderView(doc, tr, { onAddElement: addElement });
+  /*
+    線の中点の取っ手。**図の面（surface）へ載せる**（枠ではなく）。枠に貼ると図と一緒に
+    動かないので、平行移動や拡大のたびに線と取っ手が離れる。
+  */
+  const midpoints = createMidpointView(doc, tr, {
+    onConnectPointerDown: startConnect,
+    onConnectPointerMove: onConnectMove,
+    onConnectPointerUp: onConnectUp,
+    onConnectToggle: toggleConnectSource,
+  });
+  surface.appendChild(midpoints.root);
 
   /**
    * 選択と線の区画を枠の左下へ重ねる入れ物。
@@ -593,7 +613,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     const result = removeDiagramElement(draft, name);
     if (!result.removed) return;
     selection = selection.filter((item) => item !== name);
-    if (connectSource === name) connectSource = null;
+    if (connectSource !== null && sameAnchor(connectSource, elementAnchor(name))) connectSource = null;
     notice = result.droppedFamilies === 0
       ? ''
       : tr('removedWithFamilies', {
@@ -610,18 +630,15 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 重ねると 2 本目は 1 本目の真下に隠れ、選んでいるつもりの線と見えている線が食い違う。
    * 逆向き（`to → from`）は別の線として認める — 端の印を左右で付け替えたい場合がある。
    */
-  function connect(from: string, to: string): void {
-    if (draft === null || saving || from === to) return;
-    const people = peopleNow();
-    if (!people.has(from) || !people.has(to)) return;
-    if (draft.connectors.some((item) => item.from === from && item.to === to)) return;
+  function connect(from: DiagramAnchor, to: DiagramAnchor): void {
+    if (draft === null || saving || sameAnchor(from, to)) return;
+    if (!anchorExists(from) || !anchorExists(to)) return;
+    if (draft.connectors.some((item) => sameAnchor(item.from, from) && sameAnchor(item.to, to))) return;
     const connector: DiagramConnector = {
       id: nextConnectorId(draft.connectors),
+      ...DEFAULT_CONNECTOR_LOOK,
       from,
       to,
-      line: 'solid',
-      color: 'default',
-      start: 'none',
       end: 'arrow',
     };
     selectedConnector = connector.id;
@@ -671,34 +688,128 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     });
   }
 
+  /**
+   * 選んでいる線を消す。**その中点にぶら下がっていた線も一緒に消える。**
+   *
+   * 残すと端の見つからない線が図に積もり、描画側は黙って描かないので「ファイルには在るが
+   * 永久に見えない線」になる（`removeDiagramConnectors` が推移的に落とす）。
+   */
   function deleteConnector(): void {
     const id = selectedConnector;
     if (id === null) return;
     selectedConnector = null;
     updateDraft((current) => ({
       ...current,
-      connectors: current.connectors.filter((item) => item.id !== id),
+      connectors: removeDiagramConnectors(current.connectors, [id]),
     }));
   }
 
-  /** 指が差している札の人物名。接続の相手を決めるのに読む。 */
-  function personUnder(clientX: number, clientY: number): string | null {
+  /**
+   * その端が図に在るか。**要素は図に出ているか、線は描けているか。**
+   *
+   * 線は「ファイルに在るか」ではなく「いま描けているか」で見る。端が迷子で描かれていない線の
+   * 中点へ結ばせると、どこにも取り付いていない線が 1 本増える。
+   */
+  function anchorExists(anchor: DiagramAnchor): boolean {
+    if (anchor.kind === 'element') return peopleNow().has(anchor.name);
+    // 線と家族の結び目は「いま取っ手が出ているか」で見る。取っ手の出ていない所へ結ばせると、
+    // どこにも取り付いていない線が 1 本増える。
+    return model.midpoints.some((item) => sameAnchor(item.anchor, anchor));
+  }
+
+  /**
+   * 指が差している端。**札か、線の中点の取っ手。**
+   *
+   * 座標から最寄りの線を探さない。線どうしが交わっている所ではどちらを掴んだか決められず、
+   * 見えている取っ手と結ばれる相手が食い違う。取っ手そのものが DOM に居るので、それを読む。
+   */
+  function anchorUnder(clientX: number, clientY: number): DiagramAnchor | null {
     const element = doc.elementFromPoint(clientX, clientY);
-    const node = element instanceof Element ? element.closest('[data-person]') : null;
-    return node?.getAttribute('data-person') ?? null;
+    if (!(element instanceof Element)) return null;
+    const handle = element.closest('[data-line-anchor]');
+    if (handle !== null) {
+      // 鍵から端を組み立て直さない。組み立て直すと、鍵の作り方（`anchorKey`）を変えた日に
+      // ここだけが古い綴りのまま残る。鍵で引き当てて、端そのものを model から取る。
+      const key = handle.getAttribute('data-line-anchor') ?? '';
+      return model.midpoints.find((item) => item.key === key)?.anchor ?? null;
+    }
+    const node = element.closest('[data-person]');
+    const name = node?.getAttribute('data-person');
+    return name === null || name === undefined ? null : elementAnchor(name);
   }
 
   /** 接続の始点を押した／待ち受け中の始点と結んだ。キーボードと指の両方がここへ来る。 */
-  function toggleConnectSource(name: string): void {
+  function toggleConnectSource(anchor: DiagramAnchor): void {
     if (draft === null || saving) return;
-    if (connectSource !== null && connectSource !== name) {
+    if (connectSource !== null && !sameAnchor(connectSource, anchor)) {
       const from = connectSource;
       connectSource = null;
-      connect(from, name);
+      connect(from, anchor);
       return;
     }
-    connectSource = connectSource === name ? null : name;
+    connectSource = connectSource !== null && sameAnchor(connectSource, anchor) ? null : anchor;
     paint();
+  }
+
+  /**
+   * 始点を押した。**札の接続点と線の中点の取っ手が同じここへ来る。**
+   *
+   * 2 か所に同じ処理を置かない。置くと、待ち受け中の扱い（押下を「結ぶ」と読む）や捕捉の解放を
+   * 片方にだけ足した日に、線からの接続だけが指から外れる。
+   */
+  function startConnect(event: PointerEvent, anchor: DiagramAnchor): void {
+    if (draft === null || saving || event.button !== 0) return;
+    // 待ち受け中の始点があるなら、この押下は「結ぶ」の意味になる。新しい始点で上書きしない。
+    if (connectSource !== null && !sameAnchor(connectSource, anchor)) {
+      const from = connectSource;
+      connectSource = null;
+      connect(from, anchor);
+      return;
+    }
+    const target = event.currentTarget;
+    if (target instanceof Element) target.setPointerCapture(event.pointerId);
+    const rect = viewport.getBoundingClientRect();
+    const point = chartPoint(view, rect, event.clientX, event.clientY);
+    connectSource = anchor;
+    connectDrag = { pointerId: event.pointerId, from: anchor, x: point.x, y: point.y };
+    paint();
+  }
+
+  function onConnectMove(event: PointerEvent): void {
+    if (connectDrag === null || connectDrag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    const rect = viewport.getBoundingClientRect();
+    const point = chartPoint(view, rect, event.clientX, event.clientY);
+    connectDrag = { ...connectDrag, x: point.x, y: point.y };
+    paint();
+  }
+
+  function onConnectUp(event: PointerEvent): void {
+    const drag = connectDrag;
+    if (drag === null || drag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    const target = event.currentTarget;
+    if (target instanceof Element && target.hasPointerCapture(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+    connectDrag = null;
+    const to = anchorUnder(event.clientX, event.clientY);
+    // 相手の上で離していなければ**待ち受けたまま**にする（押しただけの操作＝始点の指定）。
+    if (to === null || sameAnchor(to, drag.from)) { paint(); return; }
+    connectSource = null;
+    connect(drag.from, to);
+  }
+
+  /** 端がいま図のどこに在るか。引きかけの線の付け根を描くのに要る。 */
+  function anchorPoint(anchor: DiagramAnchor): { readonly x: number; readonly y: number } | null {
+    if (anchor.kind === 'element') {
+      const node = model.byName.get(anchor.name);
+      return node === undefined
+        ? null
+        : { x: node.x + model.spacing.nodeWidth / 2, y: node.y + model.spacing.nodeHeight / 2 };
+    }
+    const midpoint = model.midpoints.find((item) => sameAnchor(item.anchor, anchor));
+    return midpoint === undefined ? null : { x: midpoint.x, y: midpoint.y };
   }
 
   /**
@@ -798,46 +909,11 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       paint();
     },
     onConnectPointerDown(event: PointerEvent, name: string): void {
-      if (draft === null || saving || event.button !== 0) return;
-      // 待ち受け中の始点があるなら、この押下は「結ぶ」の意味になる。新しい始点で上書きしない。
-      if (connectSource !== null && connectSource !== name) {
-        const from = connectSource;
-        connectSource = null;
-        connect(from, name);
-        return;
-      }
-      const target = event.currentTarget;
-      if (target instanceof Element) target.setPointerCapture(event.pointerId);
-      const rect = viewport.getBoundingClientRect();
-      const point = chartPoint(view, rect, event.clientX, event.clientY);
-      connectSource = name;
-      connectDrag = { pointerId: event.pointerId, from: name, x: point.x, y: point.y };
-      paint();
+      startConnect(event, elementAnchor(name));
     },
-    onConnectPointerMove(event: PointerEvent): void {
-      if (connectDrag === null || connectDrag.pointerId !== event.pointerId) return;
-      event.stopPropagation();
-      const rect = viewport.getBoundingClientRect();
-      const point = chartPoint(view, rect, event.clientX, event.clientY);
-      connectDrag = { ...connectDrag, x: point.x, y: point.y };
-      paint();
-    },
-    onConnectPointerUp(event: PointerEvent): void {
-      const drag = connectDrag;
-      if (drag === null || drag.pointerId !== event.pointerId) return;
-      event.stopPropagation();
-      const target = event.currentTarget;
-      if (target instanceof Element && target.hasPointerCapture(event.pointerId)) {
-        target.releasePointerCapture(event.pointerId);
-      }
-      connectDrag = null;
-      const to = personUnder(event.clientX, event.clientY);
-      // 相手の上で離していなければ**待ち受けたまま**にする（押しただけの操作＝始点の指定）。
-      if (to === null || to === drag.from) { paint(); return; }
-      connectSource = null;
-      connect(drag.from, to);
-    },
-    onConnectToggle: toggleConnectSource,
+    onConnectPointerMove: onConnectMove,
+    onConnectPointerUp: onConnectUp,
+    onConnectToggle: (name: string) => toggleConnectSource(elementAnchor(name)),
     onInsertGap: insertGap,
     onSizePointerDown(event: PointerEvent, name: string, axes: ResizeAxes): void {
       if (draft === null || saving || event.button !== 0) return;
@@ -1009,17 +1085,21 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     for (const link of model.links) {
       linkViews.get(link.connector.id)?.update({
         link,
+        label: tr('selectConnector', {
+          from: anchorLabel(link.connector.from),
+          to: anchorLabel(link.connector.to),
+        }),
         scale: view.scale,
         selected: selectedConnector === link.connector.id,
         dimmed: selectedConnector !== null && selectedConnector !== link.connector.id,
       });
     }
     // 引いている最中の仮の線。始点は札の縁ではなく中心から出す（相手が決まるまで縁が定まらない）。
-    const dragFrom = connectDrag === null ? undefined : model.byName.get(connectDrag.from);
-    setAttr(previewPath, 'd', connectDrag === null || dragFrom === undefined
+    // 線の中点から引いているときは、その中点そのものが付け根になる。
+    const dragFrom = connectDrag === null ? null : anchorPoint(connectDrag.from);
+    setAttr(previewPath, 'd', connectDrag === null || dragFrom === null
       ? null
-      : `M ${dragFrom.x + model.spacing.nodeWidth / 2} ${dragFrom.y + model.spacing.nodeHeight / 2} `
-        + `L ${connectDrag.x} ${connectDrag.y}`);
+      : `M ${dragFrom.x} ${dragFrom.y} L ${connectDrag.x} ${connectDrag.y}`);
 
     for (const node of model.chart.nodes) {
       nodeViews.get(node.name)?.update({
@@ -1033,10 +1113,11 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         isAnchor: node.name === model.resizeAnchor,
         saving,
         renaming: renaming === node.name,
-        connectSource: connectSource === node.name,
+        connectSource: connectSource !== null && sameAnchor(connectSource, elementAnchor(node.name)),
       });
     }
 
+    midpoints.update({ midpoints: model.midpoints, editing, saving, connectSource });
     viewControls.update({ scale: view.scale, minScale: MIN_SCALE, maxScale: MAX_SCALE });
     // 見え方の操作の区画（枠の左上）と重なる ＋／− は描かない。重ねると上に載っているほうが
     // 押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
@@ -1077,11 +1158,31 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 家族の線には**上書きが無ければ種別の既定**を載せる。載せないと、まだ触っていない線を
    * 選んだときに区画の値が空になり、実際に描かれている線と食い違う。
    */
+  /**
+   * 端の呼び名。**線を指す端は「線 c1」ではなく、その線が結んでいる相手で呼ぶ。**
+   *
+   * 生の id を出さない。id は図の中だけで一意にするための値で、人が付けた名前ではない。
+   * 相手の見つからない線は id を出すしかないので、そのときだけ id を添える。
+   */
+  function anchorLabel(anchor: DiagramAnchor, seen: ReadonlySet<string> = new Set()): string {
+    if (anchor.kind === 'element') return anchor.name;
+    if (anchor.kind === 'family') return tr('familyAnchor', { parents: anchor.parents.join('・') });
+    const target = model.source.connectors.find((item) => item.id === anchor.line);
+    // 輪になった端（A が B を、B が A を指す）で呼び名を組み立て続けない。そういう線は描かれない
+    // ので普段ここへは来ないが、呼び名の側は**描けているか**を知らないので自分で断つ。
+    if (target === undefined || seen.has(anchor.line)) return tr('lineAnchor', { line: anchor.line });
+    const deeper = new Set(seen).add(anchor.line);
+    return tr('lineAnchorBetween', {
+      from: anchorLabel(target.from, deeper),
+      to: anchorLabel(target.to, deeper),
+    });
+  }
+
   function currentLineSelection(): LineSelection | null {
     const connector = model.source.connectors.find((item) => item.id === selectedConnector);
     if (connector !== undefined) {
       return {
-        label: tr('selectConnector', { from: connector.from, to: connector.to }),
+        label: tr('selectConnector', { from: anchorLabel(connector.from), to: anchorLabel(connector.to) }),
         look: connector,
         deletable: true,
       };

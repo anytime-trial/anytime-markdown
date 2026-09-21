@@ -16,7 +16,15 @@ import {
   isDefaultDiagramSpacing,
   rowPitch,
 } from './spacing';
-import type { DiagramFamily, DiagramLayout, DiagramSpacing } from './types';
+// 経路は手で引いた線と共有する（`connectors.ts`）。家族の線だけ別の式で曲げると、同じ「カーブ」を
+// 選んだのに線の出どころで曲がり方が変わる。型だけの逆参照なので実行時の循環にはならない。
+import { routePath } from './connectors';
+import type {
+  DiagramFamily,
+  DiagramLayout,
+  DiagramLineRoute,
+  DiagramSpacing,
+} from './types';
 
 export interface ChartNode {
   readonly name: string;
@@ -70,9 +78,19 @@ const CROWDED_DEGREE = Math.ceil(rowPitch(DEFAULT_DIAGRAM_SPACING) / 2 / CROWDIN
 export function familyConnector(
   family: DiagramFamily,
   nodes: ReadonlyMap<string, ChartNode>,
-  options: { readonly lane?: number; readonly spacing: DiagramSpacing },
+  options: {
+    readonly lane?: number;
+    readonly spacing: DiagramSpacing;
+    /**
+     * 引き回し方。既定は折れ線（家族の形そのものを描く、これまでの引き方）。
+     *
+     * 直線とカーブでは**縦の車線を使わない**。結び目から子へ 1 本ずつ直に引く。車線を残したまま
+     * 直線を引くと、車線の縦棒だけが折れ線のまま残り、2 つの引き方が 1 本の線に混ざる。
+     */
+    readonly route?: DiagramLineRoute;
+  },
 ) {
-  const { lane = 0, spacing } = options;
+  const { lane = 0, spacing, route = 'orthogonal' } = options;
   const { nodeWidth, nodeHeight } = spacing;
   const first = nodes.get(family.parents[0]!)!;
   const second = family.parents[1] === undefined ? undefined : nodes.get(family.parents[1]);
@@ -97,15 +115,23 @@ export function familyConnector(
     })();
   const marriage = second === undefined || !('firstAnchor' in junction)
     ? null
-    : `M ${junction.firstAnchor.x} ${junction.firstAnchor.y} H ${junction.x} V ${junction.secondAnchor.y} H ${junction.secondAnchor.x}`;
+    : (route === 'orthogonal'
+      ? `M ${junction.firstAnchor.x} ${junction.firstAnchor.y} H ${junction.x} V ${junction.secondAnchor.y} H ${junction.secondAnchor.x}`
+      : routePath(junction.firstAnchor, junction.secondAnchor, route));
   const children = family.children.map((name) => nodes.get(name)!);
   const busX = junction.x + 18;
   const childYs = children.map((child) => child.y + nodeHeight / 2);
-  const descent = children.length === 0 ? null : [
-    `M ${junction.x} ${junction.y} H ${busX}`,
-    `M ${busX} ${Math.min(junction.y, ...childYs)} V ${Math.max(junction.y, ...childYs)}`,
-    ...children.map((child) => `M ${busX} ${child.y + nodeHeight / 2} H ${child.x}`),
-  ].join(' ');
+  const descent = children.length === 0
+    ? null
+    : (route === 'orthogonal'
+      ? [
+        `M ${junction.x} ${junction.y} H ${busX}`,
+        `M ${busX} ${Math.min(junction.y, ...childYs)} V ${Math.max(junction.y, ...childYs)}`,
+        ...children.map((child) => `M ${busX} ${child.y + nodeHeight / 2} H ${child.x}`),
+      ].join(' ')
+      : children
+        .map((child) => routePath(junction, { x: child.x, y: child.y + nodeHeight / 2 }, route))
+        .join(' '));
   const points: ConnectorPoint[] = [];
   if (second !== undefined && 'firstAnchor' in junction) {
     points.push({ ...junction.firstAnchor, kind: 'parent' }, { ...junction.secondAnchor, kind: 'parent' });

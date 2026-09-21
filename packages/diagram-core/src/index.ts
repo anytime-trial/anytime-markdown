@@ -7,14 +7,21 @@
  */
 
 export {
+  anchorKey,
   arrowHeadPath,
   borderPoint,
+  type ConnectorEnd,
+  DEFAULT_CONNECTOR_LOOK,
   type ConnectorGeometry,
   connectorGeometry,
   familyLook,
+  midpointOf,
   type ConnectorPointAt,
   MAX_CONNECTORS_PER_DIAGRAM,
+  routePath,
+  sameAnchor,
 } from './connectors';
+export { assertNever } from './exhaustive';
 export {
   createEmptyDiagramDocument,
   diagramPeople,
@@ -25,8 +32,10 @@ export {
   parseDiagramDocument,
   parseDiagramFile,
   parseDiagramFileStrict,
+  readDiagramAnchor,
   readDiagramLayout,
   type DiagramElementRemoval,
+  removeDiagramConnectors,
   removeDiagramElement,
   renameDiagramElement,
   serializeDiagramDocument,
@@ -104,10 +113,12 @@ export {
 export {
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
+  DIAGRAM_LINE_ROUTES,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
   DIAGRAM_SHAPES,
   DEFAULT_DIAGRAM_SHAPE,
+  type DiagramAnchor,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramEndpoint,
@@ -116,12 +127,16 @@ export {
   type DiagramLayout,
   type DiagramLineColor,
   type DiagramLineLook,
+  type DiagramLineRoute,
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
   type DiagramShape,
   type DiagramSpacing,
+  elementAnchor,
   EMPTY_DIAGRAM_LAYOUT,
+  familyAnchor,
+  lineAnchor,
 } from './types';
 export {
   chartPoint,

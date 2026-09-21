@@ -60,6 +60,16 @@ export type DiagramShape = (typeof DIAGRAM_SHAPES)[number];
 export const DEFAULT_DIAGRAM_SHAPE: DiagramShape = 'rect';
 
 /**
+ * 線の引き回し方。
+ *
+ * `straight` は 2 点を直線で、`orthogonal` は縦横だけの折れ線で、`curved` は曲線で結ぶ。
+ * 線種（実線・破線）と別に持つ — 引き回しは「どこを通るか」、線種は「どう描くか」で、
+ * 1 つにまとめると破線の折れ線が表せない。
+ */
+export const DIAGRAM_LINE_ROUTES = ['straight', 'orthogonal', 'curved'] as const;
+export type DiagramLineRoute = (typeof DIAGRAM_LINE_ROUTES)[number];
+
+/**
  * 線 1 本の見た目。**手で引いた線と家族の線が同じ語彙を使う。**
  *
  * 2 つに分けない。分けると、片方へ形を足した日にもう片方が取り残され、同じ画面の同じ区画で
@@ -68,6 +78,12 @@ export const DEFAULT_DIAGRAM_SHAPE: DiagramShape = 'rect';
 export interface DiagramLineLook {
   readonly line: DiagramLineStyle;
   readonly color: DiagramLineColor;
+  /**
+   * 引き回し方。**家族の線の既定は `orthogonal`、手で引いた線の既定は `straight`**（どちらも
+   * これまでの描き方）。既定を種別ごとに変えるのは、家族の線が「親の横棒と子への縦棒」という
+   * 形そのものを描いており、直線に倒すと家族の形が読めなくなるため。
+   */
+  readonly route: DiagramLineRoute;
   /** 起点側の端の印。家族の線では親側（子へ降りる線の結び目）。 */
   readonly start: DiagramEndpoint;
   /** 終点側の端の印。家族の線では**子ごとに 1 つ**付く。 */
@@ -89,9 +105,39 @@ export interface DiagramConnector extends DiagramLineLook {
    * 要素を改名したときに線の同一性（選択中の線・設定した端の印）を保つため。
    */
   readonly id: string;
-  readonly from: string;
-  readonly to: string;
+  readonly from: DiagramAnchor;
+  readonly to: DiagramAnchor;
 }
+
+/**
+ * 線の端。**要素か、別の線の中点。**
+ *
+ * 文字列に `line:` のような接頭辞を付けて見分けない。要素名は人が付けるので、`line:c1` という
+ * 名前の要素を作れてしまい、その図だけ線の端が別物に化ける。種別を持てば名前と衝突しない。
+ *
+ * ファイルへは要素を**文字列のまま**、線を `{ "line": "c1" }` と書く（既存のファイルは形が
+ * 変わらない）。
+ */
+export type DiagramAnchor =
+  | { readonly kind: 'element'; readonly name: string }
+  | { readonly kind: 'line'; readonly line: string }
+  | { readonly kind: 'family'; readonly parents: readonly string[] };
+
+/** 要素を指す端。端を組み立てるたびにオブジェクトリテラルを書かないための短縮。 */
+export const elementAnchor = (name: string): DiagramAnchor => ({ kind: 'element', name });
+/** 別の線の中点を指す端。 */
+export const lineAnchor = (line: string): DiagramAnchor => ({ kind: 'line', line });
+/**
+ * 家族の線（結び目）を指す端。**家族は id を持たないので、親の名前で指す。**
+ *
+ * 一覧の中の位置（添字）で指さない。家族を 1 件消すと後ろが繰り上がり、指していたはずの端が
+ * 黙って別の家族へ移る。親の名前なら、家族を並べ替えても消しても指し先が化けない（指し先の
+ * 家族が消えれば端が見つからなくなり、その線は描かれない）。
+ *
+ * 同じ親の組で種別違いの家族を 2 件作った図では、**先に書いてあるほうを指す**。画面は以前から
+ * 家族を親の名前（`data-family`）で呼んでおり、この 2 件はもともと画面上で見分けが付かない。
+ */
+export const familyAnchor = (parents: readonly string[]): DiagramAnchor => ({ kind: 'family', parents });
 
 export interface DiagramFamily {
   readonly parents: readonly string[];

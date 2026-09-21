@@ -1,6 +1,7 @@
 import {
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
+  DIAGRAM_LINE_ROUTES,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
   DIAGRAM_SHAPES,
@@ -28,6 +29,8 @@ const groupAxisSchema = z.object({
 
 const lookSchema = z.object({
   line: z.enum(DIAGRAM_LINE_STYLES).describe('Line style'),
+  route: z.enum(DIAGRAM_LINE_ROUTES).default('orthogonal')
+    .describe('How the family line is routed. Orthogonal draws the parent bar and the descent bus'),
   color: z.enum(DIAGRAM_LINE_COLORS)
     .describe('Colour role. The literal colour comes from the host theme, so the chart stays readable in dark and light'),
   start: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the start'),
@@ -43,11 +46,25 @@ const familySchema = z.object({
     .describe('Per-family line appearance. Omit to draw with the default for its kind. All four fields are required when given'),
 });
 
+/**
+ * 線の端。要素は名前（文字列）、別の線の中点は { line: id }、家族の線の結び目は { family: [親…] }。
+ *
+ * 文字列に接頭辞を付けて見分けない（要素名は人が付けるので衝突しうる）。
+ */
+const anchorSchema = z.union([
+  z.string().min(1).describe('Element name'),
+  z.object({ line: z.string().min(1) }).describe('Midpoint of the hand-drawn line with this id'),
+  z.object({ family: z.array(z.string().min(1)).min(1) })
+    .describe('Junction of the family line whose parents are these'),
+]);
+
 const connectorSchema = z.object({
   id: z.string().min(1).describe('Stable id, unique within the chart. Keeps the line identified across renames'),
-  from: z.string().min(1).describe('Element the line starts at'),
-  to: z.string().min(1).describe('Element the line ends at'),
+  from: anchorSchema.describe('Where the line starts'),
+  to: anchorSchema.describe('Where the line ends'),
   line: z.enum(DIAGRAM_LINE_STYLES).describe('Line style'),
+  route: z.enum(DIAGRAM_LINE_ROUTES).default('straight')
+    .describe('How the line is routed between its ends (straight | orthogonal | curved)'),
   color: z.enum(DIAGRAM_LINE_COLORS).default('default')
     .describe('Colour role. The literal colour comes from the host theme, so the chart stays readable in dark and light'),
   start: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the from end'),

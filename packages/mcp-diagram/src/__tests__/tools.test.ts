@@ -123,7 +123,10 @@ describe('図の書き換えと配置の引き継ぎ', () => {
       title: '検査用',
       families,
       nodes: ['単独の要素'],
-      connectors: [{ id: 'c1', from: '子', to: '単独の要素', line: 'dashed', color: 'accent', start: 'none', end: 'arrow' }],
+      connectors: [{
+        id: 'c1', from: '子', to: '単独の要素',
+        line: 'dashed', color: 'accent', route: 'straight', start: 'none', end: 'arrow',
+      }],
     }, rootDir);
     // 要素と線を渡さない呼び出しは、既存のものを引き継ぐ（配置差分と同じ扱い）。
     await writeDiagram({ path: FILE, title: '題名を直した', families }, rootDir);
@@ -199,5 +202,37 @@ describe('MCP サーバーの組み立て', () => {
     // 「接続はできるが道具が 1 つも出ない」状態を実行前に捕まえられる。
     const { createMcpServer } = await import('../server');
     expect(() => createMcpServer({ rootDir })).not.toThrow();
+  });
+});
+
+describe('線の端と経路', () => {
+  it('線の中点・家族の結び目に取り付いた線を書いて読み戻せる', async () => {
+    await writeDiagram({
+      path: FILE,
+      title: '検査用',
+      families,
+      nodes: ['単独の要素'],
+      connectors: [
+        { id: 'c1', from: '子', to: '単独の要素', line: 'solid', color: 'default', route: 'curved', start: 'none', end: 'arrow' },
+        { id: 'c2', from: { line: 'c1' }, to: '単独の要素', line: 'solid', color: 'default', route: 'orthogonal', start: 'none', end: 'arrow' },
+        { id: 'c3', from: { family: families[0]!.parents }, to: '単独の要素', line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'none' },
+      ],
+    }, rootDir);
+    const document = parseDiagramFileStrict(await readFile(path.join(rootDir, FILE), 'utf-8'));
+    expect(document.connectors.map((item) => item.from)).toEqual([
+      { kind: 'element', name: '子' },
+      { kind: 'line', line: 'c1' },
+      { kind: 'family', parents: families[0]!.parents },
+    ]);
+    expect(document.connectors.map((item) => item.route)).toEqual(['curved', 'orthogonal', 'straight']);
+  });
+
+  it('読めない端は書かせない（次に開けない図を作らない）', async () => {
+    await expect(writeDiagram({
+      path: FILE,
+      title: '検査用',
+      families,
+      connectors: [{ id: 'c1', from: { node: '子' }, to: '子', line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'none' }],
+    }, rootDir)).rejects.toThrow('connectors.from');
   });
 });

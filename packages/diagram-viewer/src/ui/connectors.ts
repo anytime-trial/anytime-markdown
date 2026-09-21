@@ -27,6 +27,13 @@ export interface LinkCallbacks {
 
 export interface LinkViewState {
   readonly link: DiagramLink;
+  /**
+   * 読み上げに出すこの線の呼び名。**呼び名は外から渡す。**
+   *
+   * 端は要素名だけでなく「別の線の中点」も指すので、呼び名を出すには図の全体が要る。ここで
+   * 組み立てると、線 1 本の部品が図の全体を知る必要が出る。
+   */
+  readonly label: string;
   readonly scale: number;
   readonly selected: boolean;
   readonly dimmed: boolean;
@@ -69,7 +76,7 @@ export function createLinkView(
   return {
     root,
     id,
-    update({ link, scale, selected, dimmed }) {
+    update({ link, label, scale, selected, dimmed }) {
       const { connector, geometry } = link;
       setClass(root, 'is-line-selected', selected);
       // 色は役割の名前をクラスへ写す（実際の色はスタイルシートが宿主のトークンから引く）。
@@ -78,7 +85,6 @@ export function createLinkView(
       setAttr(hit, 'd', geometry.path);
       setAttr(line, 'd', geometry.path);
       setClass(line, 'is-dashed', connector.line === 'dashed');
-      const label = t('selectConnector', { from: connector.from, to: connector.to });
       hit.setAttribute('aria-label', label);
       // 端の印は画面上の大きさを保つ。図の座標では倍率で割った長さになる。
       const size = CAP_PX / Math.max(scale, 0.01);

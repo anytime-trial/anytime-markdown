@@ -447,6 +447,33 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-node.is-connect-source { outline: 2px dashed var(--diagram-accent); outline-offset: 2px; }
 
 /*
+  線の中点の取っ手。図の面へ載せ、線の真上に中心を合わせる（translate(-50%, -50%)）。
+
+  当たり判定は 24px 角まで広げる（WCAG 2.2 Target Size）。見た目を大きくしないのは、線が
+  何本も交わる所で取っ手どうしが重なって、どの線の中点を掴んだのか分からなくなるため。
+*/
+/*
+  取っ手の層は**札より上**に置く。線の中点は札の真下に来ることがあり（線は札の下をくぐる）、
+  下に置くと札が押下を奪って取っ手が押せない。層そのものは当たり判定を持たないので、
+  上に置いても札の操作は塞がない（実機で観測して直した）。
+*/
+.anytime-diagram-midpoints { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.anytime-diagram-midpoint {
+  position: absolute; width: 11px; height: 11px; padding: 0;
+  transform: translate(-50%, -50%); pointer-events: auto; touch-action: none; cursor: crosshair;
+  border: 1px solid var(--diagram-accent); border-radius: 50%;
+  background: var(--diagram-raised);
+}
+.anytime-diagram-midpoint::before { content: ''; position: absolute; inset: -7px; }
+.anytime-diagram-midpoint:hover:not(:disabled) { background: var(--diagram-accent); }
+.anytime-diagram-midpoint:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: 2px; }
+.anytime-diagram-midpoint:disabled { opacity: 0.45; cursor: default; }
+.anytime-diagram-midpoint.is-connect-source {
+  background: var(--diagram-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--diagram-accent) 35%, transparent);
+}
+
+/*
   名札の書き換え口。箱の幅いっぱいに置く。箱は刻みで幅が決まるので、入力欄が箱をはみ出すと
   隣の升目に重なって、どの要素を書き換えているのか分からなくなる。
 */

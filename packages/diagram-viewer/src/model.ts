@@ -17,8 +17,10 @@ import {
   columnPitch,
   type ConnectorGeometry,
   connectorGeometry,
+  type ConnectorEnd,
   type ConnectorPointAt,
   DEFAULT_DIAGRAM_SPACING,
+  type DiagramAnchor,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramFamily,
@@ -32,8 +34,10 @@ import {
   gridBounds,
   type GridCell,
   type GridExtent,
+  anchorKey,
   layoutDiagram,
   MAX_PLACEMENTS_PER_DIAGRAM,
+  midpointOf,
   paintableExtent,
   type PlacedChart,
   rowPitch,
@@ -81,6 +85,19 @@ export interface DiagramLink {
   readonly geometry: ConnectorGeometry;
 }
 
+/**
+ * 線の中点に出す取っ手 1 つ。**手で引いた線と家族の線を同じ形で渡す。**
+ *
+ * 画面の側で出どころを場合分けすると、片方へ手を入れた日にもう片方が取り残される（設定の区画を
+ * 1 つに揃えたのと同じ理由）。`anchor` はそこから線を引いたときに端として保存する値。
+ */
+export interface LineMidpoint {
+  readonly key: string;
+  readonly anchor: DiagramAnchor;
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface DiagramModel {
   /** いま描いている図。編集中は下書き、そうでなければ保存済みの図。 */
   readonly source: DiagramDocument;
@@ -102,6 +119,8 @@ export interface DiagramModel {
   /** 箱の大きさを掴める人物（左上の 1 人）。 */
   readonly resizeAnchor: string;
   readonly lines: GridLines;
+  /** 線の中点の取っ手。描けている線のぶんだけ並ぶ。 */
+  readonly midpoints: readonly LineMidpoint[];
   /** 保存済みと下書きが違うか。 */
   readonly changed: boolean;
 }
@@ -154,7 +173,12 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     const parentColumn = Math.min(...family.parents.map((parent) => byName.get(parent)!.x));
     const lane = laneByColumn.get(parentColumn) ?? 0;
     laneByColumn.set(parentColumn, lane + 1);
-    return { ...familyConnector(family, byName, { lane, spacing }), family, look: familyLook(family) };
+    const look = familyLook(family);
+    return {
+      ...familyConnector(family, byName, { lane, spacing, route: look.route }),
+      family,
+      look,
+    };
   });
 
   const extent = paintableExtent(chart.nodes, [...chart.automatic.values()]);
@@ -174,13 +198,62 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
   }
   const occupied = new Set(occupants.keys());
 
+  /*
+    手で引いた線を解く。**端が別の線の中点を指すことがある**ので、解けた線を覚えながら何周か回す。
+
+    1 周で済ませない。ファイルの並び順は端の依存順とは限らず、1 周だと「後ろに書いてある線の
+    中点」を指した線がその回だけ解けず、保存し直すたびに見えたり消えたりする。
+
+    解けない線（端の要素が図に出ない・輪を作っている・重なって向きが決まらない）は**描かない**。
+    断らずに落とすのは、要素名を直した瞬間に図が保存できなくなるのを避けるため。
+  */
   const links: DiagramLink[] = [];
-  for (const connector of source.connectors) {
-    const from = byName.get(connector.from);
-    const to = byName.get(connector.to);
-    if (from === undefined || to === undefined) continue;
-    const geometry = connectorGeometry(from, to, spacing);
-    if (geometry !== null) links.push({ connector, geometry });
+  const solved = new Map<string, ConnectorGeometry>();
+  const familyByParents = new Map<string, (typeof connectors)[number]>();
+  for (const connector of connectors) {
+    // 子の居ない家族には降りる線が無いので、結び目も無い（端として指せない）。
+    if (connector.family.children.length === 0) continue;
+    const key = anchorKey({ kind: 'family', parents: connector.family.parents });
+    // 同じ親の組が 2 件あれば**先に書いてあるほうを指す**（画面もこの 2 件を見分けていない）。
+    if (!familyByParents.has(key)) familyByParents.set(key, connector);
+  }
+  const endOf = (anchor: DiagramAnchor): ConnectorEnd | undefined => {
+    if (anchor.kind === 'element') return byName.get(anchor.name);
+    if (anchor.kind === 'family') return familyByParents.get(anchorKey(anchor))?.junction;
+    const target = solved.get(anchor.line);
+    return target === undefined ? undefined : midpointOf(target);
+  };
+  for (let pending = [...source.connectors]; pending.length > 0;) {
+    const rest: DiagramConnector[] = [];
+    for (const connector of pending) {
+      const from = endOf(connector.from);
+      const to = endOf(connector.to);
+      if (from === undefined || to === undefined) { rest.push(connector); continue; }
+      const geometry = connectorGeometry(from, to, spacing, connector.route);
+      if (geometry === null) continue;
+      solved.set(connector.id, geometry);
+      links.push({ connector, geometry });
+    }
+    // 1 周回して 1 本も解けなければ、残りは端が見つからないか輪になっている。そこで止める。
+    if (rest.length === pending.length) break;
+    pending = rest;
+  }
+
+  /*
+    中点の取っ手。家族の線は**結び目**を使う（経路の中点ではない）。
+
+    家族の線は親の横棒と子への縦棒でできており、経路全体の中点は「どの子が居るか」で動く。
+    結び目なら家族の形が変わっても同じ意味の点を指し続ける。子の居ない家族には降りる線が無いので
+    取っ手も出さない。
+  */
+  const midpoints: LineMidpoint[] = [];
+  for (const [key, connector] of familyByParents) {
+    midpoints.push({ key, anchor: { kind: 'family', parents: connector.family.parents }, ...connector.junction });
+  }
+  for (const link of links) {
+    const at = midpointOf(link.geometry);
+    const anchor: DiagramAnchor = { kind: 'line', line: link.connector.id };
+    midpoints.push({ key: anchorKey(anchor), anchor, ...at });
   }
 
   return {
@@ -198,6 +271,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     freeCells: editing ? freeCellsPath(spacing, extent, occupied) : '',
     resizeAnchor: anchor?.name ?? '',
     lines: deriveGridLines(chart, placements, byName, spacing),
+    midpoints,
     changed: draft !== null && documentChanged(draft, document),
   };
 }

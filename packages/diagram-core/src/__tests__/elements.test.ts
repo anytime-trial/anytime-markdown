@@ -11,6 +11,7 @@ import {
   nextElementName,
   parseDiagramDocument,
   parseDiagramFile,
+  removeDiagramConnectors,
   removeDiagramElement,
   renameDiagramElement,
   serializeDiagramDocument,
@@ -20,12 +21,43 @@ import { familyLook } from '../connectors';
 import { insertGapEdit, visibleCells } from '../grid';
 import { diagramChart, layoutDiagram } from '../layout';
 import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
-import type { DiagramConnector, DiagramDocument } from '../types';
+import {
+  type DiagramConnector,
+  type DiagramDocument,
+  elementAnchor,
+  familyAnchor,
+  lineAnchor,
+} from '../types';
 import { applied, homes, node, SAMPLE } from './fixture';
 
 const CONNECTOR: DiagramConnector = {
-  id: 'c1', from: '祖父', to: '化生', line: 'dashed', color: 'accent', start: 'circle', end: 'arrow',
+  id: 'c1',
+  from: elementAnchor('祖父'),
+  to: elementAnchor('化生'),
+  line: 'dashed',
+  color: 'accent',
+  route: 'straight',
+  start: 'circle',
+  end: 'arrow',
 };
+
+/**
+ * 読み取りへ直に渡すための**ファイルの形**（端は文字列）。
+ *
+ * 型の付いた `DiagramConnector` をそのまま読み取りへ渡さない。あちらの端はオブジェクトで、
+ * ファイルに書かれる形とは別物である（要素の端は文字列で書く）。
+ */
+const fileAnchor = (anchor: DiagramConnector['from']) => {
+  if (anchor.kind === 'element') return anchor.name;
+  if (anchor.kind === 'line') return { line: anchor.line };
+  return { family: anchor.parents };
+};
+
+const asFile = (connector: DiagramConnector) => ({
+  ...connector,
+  from: fileAnchor(connector.from),
+  to: fileAnchor(connector.to),
+});
 
 const WITH_ELEMENTS: DiagramDocument = {
   ...SAMPLE,
@@ -125,7 +157,7 @@ describe('改名', () => {
     expect(renamed.families[0]!.parents).toContain('始祖');
     expect(renamed.annotations).toEqual({ 始祖: '注記' });
     expect(renamed.layout.placements).toEqual({ 始祖: { column: 1, row: 2 } });
-    expect(renamed.connectors[0]!.from).toBe('始祖');
+    expect(renamed.connectors[0]!.from).toEqual(elementAnchor('始祖'));
   });
 
   it('付け替え先が既に在るなら何もしない（2 つの要素を畳まない）', () => {
@@ -173,7 +205,7 @@ describe('図の全体の検証', () => {
   it('端が図に出ない線は断らない（名前を直した瞬間に保存できなくならない）', () => {
     const result = validateDiagramDocument({
       ...JSON.parse(serializeDiagramDocument(WITH_ELEMENTS)),
-      connectors: [{ ...CONNECTOR, to: '居ない人' }],
+      connectors: [{ ...asFile(CONNECTOR), to: '居ない人' }],
     });
     expect(result.ok).toBe(true);
   });
@@ -322,7 +354,7 @@ describe('家族に出る人物の取り除き', () => {
 
 describe('線の色', () => {
   it('色を持たない古いファイルも読める（既定で埋める）', () => {
-    const { color: _dropped, ...withoutColor } = CONNECTOR;
+    const { color: _dropped, ...withoutColor } = asFile(CONNECTOR);
     const document = parseDiagramDocument({ ...WITH_ELEMENTS, connectors: [withoutColor] });
     expect(document?.connectors[0]!.color).toBe('default');
   });
@@ -330,7 +362,7 @@ describe('線の色', () => {
   it('知らない色名は断る（読めない値を既定へ倒さない）', () => {
     const document = parseDiagramDocument({
       ...WITH_ELEMENTS,
-      connectors: [{ ...CONNECTOR, color: '#ff0000' }],
+      connectors: [{ ...asFile(CONNECTOR), color: '#ff0000' }],
     });
     expect(document).toBeNull();
   });
@@ -340,19 +372,20 @@ describe('家族の線の見た目', () => {
   const FAMILY = SAMPLE.families[0]!;
 
   it('上書きが無ければ種別から決まる（親子は実線、生成は破線）', () => {
-    expect(familyLook(FAMILY)).toEqual({ line: 'solid', color: 'default', start: 'none', end: 'none' });
+    expect(familyLook(FAMILY))
+      .toEqual({ line: 'solid', color: 'default', route: 'orthogonal', start: 'none', end: 'none' });
     expect(familyLook({ ...FAMILY, kind: 'creation' }).line).toBe('dashed');
   });
 
   it('上書きがあればそれを返す', () => {
-    const look = { line: 'dashed', color: 'danger', start: 'circle', end: 'arrow' } as const;
+    const look = { line: 'dashed', color: 'danger', route: 'curved', start: 'circle', end: 'arrow' } as const;
     expect(familyLook({ ...FAMILY, look })).toEqual(look);
   });
 
   it('書いて読み戻すと同じ図になる', () => {
     const styled: DiagramDocument = {
       ...SAMPLE,
-      families: [{ ...FAMILY, look: { line: 'dashed', color: 'accent', start: 'none', end: 'arrow' } },
+      families: [{ ...FAMILY, look: { line: 'dashed', color: 'accent', route: 'orthogonal', start: 'none', end: 'arrow' } },
         ...SAMPLE.families.slice(1)],
     };
     expect(parseDiagramFile(serializeDiagramDocument(styled))).toEqual(styled);
@@ -408,5 +441,105 @@ describe('要素の形', () => {
   it('形は要素名の順に書き出す（差分を読めるようにする）', () => {
     const json = serializeDiagramDocument({ ...SAMPLE, shapes: { 化生: 'circle', 祖父: 'diamond' } });
     expect(Object.keys(JSON.parse(json).shapes)).toEqual(['化生', '祖父'].sort());
+  });
+});
+
+describe('線の中点に取り付く線', () => {
+  const MID: DiagramConnector = {
+    ...CONNECTOR, id: 'c2', from: lineAnchor('c1'), to: elementAnchor('父'),
+  };
+  const WITH_MID: DiagramDocument = { ...WITH_ELEMENTS, connectors: [CONNECTOR, MID] };
+
+  it('書いて読み戻すと同じ図になる（要素は文字列、線は { line: id }）', () => {
+    const json = JSON.parse(serializeDiagramDocument(WITH_MID));
+    expect(json.connectors[0].from).toBe('祖父');
+    expect(json.connectors[1].from).toEqual({ line: 'c1' });
+    expect(parseDiagramFile(serializeDiagramDocument(WITH_MID))).toEqual(WITH_MID);
+  });
+
+  it('端の無い線は図ごと読まない（from・to が要素名でも { line } でもない）', () => {
+    const warnings: string[] = [];
+    const broken = {
+      ...JSON.parse(serializeDiagramDocument(WITH_ELEMENTS)),
+      connectors: [{ ...asFile(CONNECTOR), from: { node: '祖父' } }],
+    };
+    expect(parseDiagramDocument(broken, (message) => warnings.push(message))).toBeNull();
+    expect(warnings.join()).toContain('from・to');
+  });
+
+  it('元の線を消すと、その中点にぶら下がっていた線も消える', () => {
+    expect(removeDiagramConnectors(WITH_MID.connectors, ['c1'])).toEqual([]);
+  });
+
+  it('ぶら下がっている線だけを消しても元の線は残る', () => {
+    expect(removeDiagramConnectors(WITH_MID.connectors, ['c2'])).toEqual([CONNECTOR]);
+  });
+
+  it('要素を取り除くと、その要素の線にぶら下がる線まで落ちる', () => {
+    const removal = removeDiagramElement(WITH_MID, '化生');
+    expect(removal.document.connectors).toEqual([]);
+  });
+
+  it('線どうしが輪を作っていても止まる（消える側にしか動かない）', () => {
+    const loopA: DiagramConnector = { ...CONNECTOR, id: 'a', from: lineAnchor('b'), to: elementAnchor('父') };
+    const loopB: DiagramConnector = { ...CONNECTOR, id: 'b', from: lineAnchor('a'), to: elementAnchor('父') };
+    expect(removeDiagramConnectors([loopA, loopB], ['a'])).toEqual([]);
+  });
+
+  it('要素の改名は線を指す端を動かさない（線の id は要素名ではない）', () => {
+    const renamed = renameDiagramElement(WITH_MID, '父', '親');
+    expect(renamed.connectors[1]!.from).toEqual(lineAnchor('c1'));
+    expect(renamed.connectors[1]!.to).toEqual(elementAnchor('親'));
+  });
+});
+
+describe('線の経路', () => {
+  it('経路を持たない古いファイルも読める（手で引いた線は直線、家族の線は折れ線）', () => {
+    const { route: _dropped, ...withoutRoute } = asFile(CONNECTOR);
+    const document = parseDiagramDocument({ ...WITH_ELEMENTS, connectors: [withoutRoute] });
+    expect(document?.connectors[0]!.route).toBe('straight');
+    const family = parseDiagramDocument({
+      ...JSON.parse(serializeDiagramDocument(SAMPLE)),
+      families: [{ ...SAMPLE.families[0]!, look: { line: 'solid', color: 'default', start: 'none', end: 'none' } },
+        ...SAMPLE.families.slice(1)],
+    });
+    expect(family?.families[0]!.look?.route).toBe('orthogonal');
+  });
+
+  it('知らない経路名は断る（読めない値を既定へ倒さない）', () => {
+    expect(parseDiagramDocument({
+      ...WITH_ELEMENTS,
+      connectors: [{ ...asFile(CONNECTOR), route: 'zigzag' }],
+    })).toBeNull();
+  });
+});
+
+describe('家族の結び目に取り付いた線', () => {
+  const FAMILY = SAMPLE.families[0]!;
+  const HANGING: DiagramConnector = {
+    ...CONNECTOR, id: 'x', from: familyAnchor(FAMILY.parents), to: elementAnchor('独神'),
+  };
+  const WITH_HANGING: DiagramDocument = { ...SAMPLE, connectors: [HANGING] };
+
+  it('書いて読み戻すと同じ図になる（ファイルには { family: [親…] } と書く）', () => {
+    expect(JSON.parse(serializeDiagramDocument(WITH_HANGING)).connectors[0].from)
+      .toEqual({ family: FAMILY.parents });
+    expect(parseDiagramFile(serializeDiagramDocument(WITH_HANGING))).toEqual(WITH_HANGING);
+  });
+
+  it('子を全員消して結び目が無くなると、その線も落ちる（後で子を足した日に復活させない）', () => {
+    let after = WITH_HANGING;
+    for (const child of FAMILY.children) after = removeDiagramElement(after, child).document;
+    expect(after.families[0]!.children).toEqual([]);
+    expect(after.connectors).toEqual([]);
+  });
+
+  it('関わりの無い要素を消しても、結び目の線は残る', () => {
+    expect(removeDiagramElement(WITH_HANGING, '化生').document.connectors).toEqual([HANGING]);
+  });
+
+  it('親の改名に付いてくる', () => {
+    const renamed = renameDiagramElement(WITH_HANGING, FAMILY.parents[0]!, '始祖');
+    expect(renamed.connectors[0]!.from).toEqual(familyAnchor(['始祖', ...FAMILY.parents.slice(1)]));
   });
 });

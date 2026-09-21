@@ -7,8 +7,15 @@
  * **箱の縁どうしを直線で結ぶ**。
  */
 
+import { assertNever } from './exhaustive';
 import type { ChartNode } from './layout';
-import type { DiagramFamily, DiagramLineLook, DiagramSpacing } from './types';
+import type {
+  DiagramAnchor,
+  DiagramFamily,
+  DiagramLineLook,
+  DiagramLineRoute,
+  DiagramSpacing,
+} from './types';
 
 /**
  * その家族の線の見た目。**上書きが無ければ種別から決まる既定**を返す。
@@ -23,9 +30,32 @@ export function familyLook(family: DiagramFamily): DiagramLineLook {
   return family.look ?? {
     line: family.kind === 'birth' ? 'solid' : 'dashed',
     color: 'default',
+    // 家族の線の既定は折れ線。親の横棒と子への縦棒という**家族の形そのもの**を描いており、
+    // 直線に倒すと「誰と誰が親で、どこから子が降りているか」が読めなくなる。
+    route: 'orthogonal',
     start: 'none',
     end: 'none',
   };
+}
+
+/** 手で引いた線の既定の見た目。**経路は直線**（これまでの描き方）。 */
+export const DEFAULT_CONNECTOR_LOOK: DiagramLineLook = Object.freeze({
+  line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'none',
+});
+
+/** 端を辞書の鍵にできる形へ。**種別を混ぜない** — 同じ名前の要素と線を同じ鍵にしない。 */
+export function anchorKey(anchor: DiagramAnchor): string {
+  switch (anchor.kind) {
+    case 'element': return 'e:' + anchor.name;
+    case 'line': return 'l:' + anchor.line;
+    case 'family': return 'f:' + [...anchor.parents].join('\u0000');
+    default: return assertNever(anchor, 'anchorKey');
+  }
+}
+
+/** 2 つの端が同じものを指すか。 */
+export function sameAnchor(left: DiagramAnchor, right: DiagramAnchor): boolean {
+  return anchorKey(left) === anchorKey(right);
 }
 
 /**
@@ -50,10 +80,19 @@ export interface ConnectorGeometry {
   readonly path: string;
 }
 
-const centreOf = (node: ChartNode, spacing: DiagramSpacing) => ({
-  x: node.x + spacing.nodeWidth / 2,
-  y: node.y + spacing.nodeHeight / 2,
-});
+/**
+ * 線の端になれるもの。**箱（札）か、大きさを持たない点**（別の線の中点に取り付いた端）。
+ *
+ * 点を「幅 0・高さ 0 の箱」として渡させない。`borderPoint` は中心から縁までの倍率を出すので、
+ * 0 の辺では倍率が無限大になり、縮退した箱だけ別の経路をたどる。種別で分けて、点はそのまま返す。
+ */
+export type ConnectorEnd = ChartNode | { readonly x: number; readonly y: number };
+
+const isBox = (end: ConnectorEnd): end is ChartNode => (end as ChartNode).name !== undefined;
+
+const centreOf = (end: ConnectorEnd, spacing: DiagramSpacing) => (isBox(end)
+  ? { x: end.x + spacing.nodeWidth / 2, y: end.y + spacing.nodeHeight / 2 }
+  : { x: end.x, y: end.y });
 
 /**
  * 箱の中心から `towards` の向きへ進んで縁に当たる点。
@@ -63,11 +102,13 @@ const centreOf = (node: ChartNode, spacing: DiagramSpacing) => ({
  * 跳ぶ。
  */
 export function borderPoint(
-  node: ChartNode,
+  node: ConnectorEnd,
   spacing: DiagramSpacing,
   towards: { readonly x: number; readonly y: number },
 ): { readonly x: number; readonly y: number } {
   const centre = centreOf(node, spacing);
+  // 点には縁が無い。その点そのものが端になる。
+  if (!isBox(node)) return centre;
   const dx = towards.x - centre.x;
   const dy = towards.y - centre.y;
   if (dx === 0 && dy === 0) return centre;
@@ -85,9 +126,10 @@ export function borderPoint(
  * 読めない矢尻が原点向きで残るため。描かないほうが「線がまだ引けていない」と分かる。
  */
 export function connectorGeometry(
-  from: ChartNode,
-  to: ChartNode,
+  from: ConnectorEnd,
+  to: ConnectorEnd,
   spacing: DiagramSpacing,
+  route: DiagramLineRoute = 'straight',
 ): ConnectorGeometry | null {
   const fromCentre = centreOf(from, spacing);
   const toCentre = centreOf(to, spacing);
@@ -99,7 +141,55 @@ export function connectorGeometry(
     start: { ...start, angle },
     // 終端から線が伸びていく向きは逆（矢尻は線の進む先を向く）。
     end: { ...end, angle: angle + Math.PI },
-    path: `M ${round(start.x)} ${round(start.y)} L ${round(end.x)} ${round(end.y)}`,
+    path: routePath(start, end, route),
+  };
+}
+
+/**
+ * 2 点を結ぶ経路。**端の点は経路で動かさない。**
+ *
+ * 折れ線もカーブも、端そのものは直線のときと同じ場所に置く。経路ごとに取り付き位置を変えると、
+ * 引き回しを選び直すたびに端の印（矢尻・丸）が札の周りを跳ぶ。
+ */
+export function routePath(
+  start: { readonly x: number; readonly y: number },
+  end: { readonly x: number; readonly y: number },
+  route: DiagramLineRoute,
+): string {
+  const head = `M ${round(start.x)} ${round(start.y)}`;
+  if (route === 'straight') return `${head} L ${round(end.x)} ${round(end.y)}`;
+  // 長いほうの軸から曲げる。短いほうから曲げると、横に長い図で線が縦へ大きく張り出して
+  // 間の札を横切る。
+  const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+  if (route === 'orthogonal') {
+    const midX = round((start.x + end.x) / 2);
+    const midY = round((start.y + end.y) / 2);
+    return horizontal
+      ? `${head} H ${midX} V ${round(end.y)} H ${round(end.x)}`
+      : `${head} V ${midY} H ${round(end.x)} V ${round(end.y)}`;
+  }
+  // カーブは制御点を**長いほうの軸だけ**へ伸ばす。両軸へ伸ばすと S 字がねじれ、
+  // 端の印の向き（直線の向きで決めている）と曲線の出だしが食い違う。
+  const first = horizontal
+    ? { x: (start.x + end.x) / 2, y: start.y }
+    : { x: start.x, y: (start.y + end.y) / 2 };
+  const second = horizontal
+    ? { x: (start.x + end.x) / 2, y: end.y }
+    : { x: end.x, y: (start.y + end.y) / 2 };
+  return `${head} C ${round(first.x)} ${round(first.y)} ${round(second.x)} ${round(second.y)}`
+    + ` ${round(end.x)} ${round(end.y)}`;
+}
+
+/**
+ * 線の中点。**経路に依らず両端の真ん中**に置く。
+ *
+ * 経路に沿った本当の中点を取らない。折れ線とカーブで取っ手の位置が変わると、引き回しを
+ * 選び直すだけで「その中点から引いた線」の付け根が動く。両端の真ん中なら引き回しと独立に決まる。
+ */
+export function midpointOf(geometry: ConnectorGeometry): { readonly x: number; readonly y: number } {
+  return {
+    x: round((geometry.start.x + geometry.end.x) / 2),
+    y: round((geometry.start.y + geometry.end.y) / 2),
   };
 }
 
