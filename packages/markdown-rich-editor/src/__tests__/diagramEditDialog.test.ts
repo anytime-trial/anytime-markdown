@@ -1,4 +1,9 @@
-import { createEmptyDiagramDocument, serializeDiagramDocument } from "@anytime-markdown/diagram-core";
+import {
+  createEmptyDiagramDocument,
+  type DiagramDocument,
+  elementAnchor,
+  serializeDiagramDocument,
+} from "@anytime-markdown/diagram-core";
 import { mountDiagramViewer } from "@anytime-markdown/diagram-viewer";
 import { Schema } from "@anytime-markdown/markdown-pm/model";
 import { createCodeEditState } from "../vanilla/codeEditState";
@@ -68,9 +73,43 @@ it("保存時に標準シリアライズの末尾改行だけを落として本�
   expect(onFsTextChange.mock.invocationCallOrder[0]).toBeLessThan(onApply.mock.invocationCallOrder[0] ?? 0);
 });
 
+// 画面から届く図は端を種別付き（`{ kind: "element" }`）で持つ。ファイルの形の検査へ直に渡すと
+// 「線を 1 本でも引いた図は保存できない」になる（利用者の指摘）。
+it("線を引いた図の保存も本文へ適用する", () => {
+  const { onFsTextChange, onApply } = open();
+  const edited: DiagramDocument = {
+    ...doc,
+    nodes: ["要素 1", "要素 2"],
+    connectors: [{
+      id: "c1",
+      from: elementAnchor("要素 1"),
+      to: elementAnchor("要素 2"),
+      line: "solid",
+      color: "default",
+      route: "straight",
+      start: "none",
+      end: "arrow",
+    }],
+  };
+  expect(() => viewerOptions().onSave?.(edited)).not.toThrow();
+  expect(onFsTextChange).toHaveBeenCalledWith(serializeDiagramDocument(edited).trimEnd());
+  expect(onApply).toHaveBeenCalledTimes(1);
+});
+
 it("不正な図の保存は例外にし本文へ適用しない", () => {
   const { onFsTextChange, onApply } = open();
-  expect(() => viewerOptions().onSave?.({ ...doc, version: 2 } as unknown as typeof doc)).toThrow();
+  // 書き出したあとも残る壊れ方で測る。`version` は書き出しが 1 で固定なので、画面の形を
+  // 書き換えても「保存できない図」にはならない（検証するのは実際に書く形）。
+  const line = { line: "solid", color: "default", route: "straight", start: "none", end: "arrow" } as const;
+  const broken: DiagramDocument = {
+    ...doc,
+    nodes: ["要素 1", "要素 2"],
+    connectors: [
+      { id: "c1", from: elementAnchor("要素 1"), to: elementAnchor("要素 2"), ...line },
+      { id: "c1", from: elementAnchor("要素 2"), to: elementAnchor("要素 1"), ...line },
+    ],
+  };
+  expect(() => viewerOptions().onSave?.(broken)).toThrow(/id が重複/);
   expect(onFsTextChange).not.toHaveBeenCalled();
   expect(onApply).not.toHaveBeenCalled();
 });

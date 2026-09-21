@@ -4,6 +4,7 @@ import {
   type DiagramDocument,
   serializeDiagramDocument,
   validateDiagramDocument,
+  validateDiagramDraft,
 } from "@anytime-markdown/diagram-core";
 import { mountDiagramViewer, type DiagramViewerHandle } from "@anytime-markdown/diagram-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
@@ -102,7 +103,9 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
         if (draft !== null) state.onFsTextChange(serializeDiagramDocument(draft).trimEnd());
       },
       onSave(document) {
-        const result = validateDiagramDocument(document);
+        // 届くのは**画面の形**の図（端は種別付き）。ファイルの形を読む `validateDiagramDocument`
+        // へ直に渡すと、線を 1 本でも引いた図が保存のたびに断られる。
+        const result = validateDiagramDraft(document);
         if (!result.ok) throw new Error(result.errors.join("\n"));
         state.onFsTextChange(serializeDiagramDocument(result.document).trimEnd());
         state.onApply();

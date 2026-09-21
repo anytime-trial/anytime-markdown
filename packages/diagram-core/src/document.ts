@@ -1180,3 +1180,20 @@ export function validateDiagramDocument(
   // 開いたまま保存できなくなる）。端の見つからない線は描画側が描かない。
   return { ok: true, document: { ...document, layout: layout.layout } };
 }
+
+/**
+ * 画面が組み立てた図（下書き）の検証。**書き出す形へ直してから読み直す。**
+ *
+ * `validateDiagramDocument` はファイルの形（`JSON.parse` した値）を読む。画面が持つ形とは
+ * 端（`DiagramAnchor`）の書き方が違い、画面の形をそのまま渡すと「線を 1 本でも引いた図は
+ * 保存できない」になる — 端は種別付きの組（`{ kind: 'element' }`）で、ファイルの文字列ではない。
+ *
+ * 呼び手の側で `JSON.parse(serializeDiagramDocument(...))` と書かない。同じ言い回しを宿主ごとに
+ * 書き写すと、書き忘れた 1 か所だけが保存できない画面になる（VS Code 拡張の系図フェンスで実際に
+ * そうなった）。書き出す関数と読み直す関数を組にして、ここ 1 か所で持つ。
+ */
+export function validateDiagramDraft(
+  document: DiagramDocument,
+): { readonly ok: true; readonly document: DiagramDocument } | { readonly ok: false; readonly errors: readonly string[] } {
+  return validateDiagramDocument(JSON.parse(serializeDiagramDocument(document)));
+}
