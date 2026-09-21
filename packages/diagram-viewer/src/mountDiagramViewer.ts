@@ -83,6 +83,14 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   let saveError = '';
   let dragging = false;
   let frame = { width: 0, height: 0 };
+  /**
+   * 開いた直後の全体表示を済ませたか。
+   *
+   * 既定の倍率で開くと、幅 1 万 px の図は左上の数人しか見えない — 何の図なのか分からないまま
+   * 「全体表示」を押させることになる。枠の**実寸が測れてから**でないと収まる倍率を出せない
+   * ので、初回描画で片付けず、寸法が入った最初の描画で 1 度だけ寄せる。
+   */
+  let fitted = false;
 
   const automaticCache = createAutomaticCache();
   let model: DiagramModel = deriveModel({ document: document_, draft, automatic: automaticCache(document_) });
@@ -533,6 +541,10 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
   function paint(): void {
     model = deriveModel({ document: document_, draft, automatic: automaticCache(document_) });
+    if (!fitted && viewport.clientWidth > 0 && viewport.clientHeight > 0) {
+      fitted = true;
+      view = fitChart(viewport.clientWidth, viewport.clientHeight, model.surface.width, model.surface.height);
+    }
     const editing = draft !== null;
     const picked = new Set(chosen());
 
@@ -541,6 +553,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     surface.style.width = `${model.surface.width}px`;
     surface.style.height = `${model.surface.height}px`;
     surface.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+    // 枠の太さを倍率から切り離すのに要る（スタイルシート側で 1.5px をこれで割る）。
+    root.style.setProperty('--diagram-scale', String(view.scale));
     setClass(viewport, 'is-editing', editing);
     setClass(viewport, 'is-dragging', dragging);
 
@@ -612,6 +626,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         selection = [];
         selectedFamily = null;
         saveError = '';
+        // 差し替えた図も全体表示から始める。前の図に合わせた倍率を持ち越すと、大きさの違う
+        // 図では画面の外や豆粒の状態で開く。
+        fitted = false;
       }
       if (next.locale !== undefined || next.document !== undefined) {
         // 札の文言は要素を作るときに焼き込むので、locale が変わったら作り直す。

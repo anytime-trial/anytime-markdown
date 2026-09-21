@@ -2,8 +2,9 @@
  * 図のスタイル。宿主（VS Code webview / web-app）のトークンを**そのまま引く**。
  *
  * 色を自前で持たない。持つと、ダークとライトの切り替えが宿主と別々に動き、片方のモードだけ
- * 読めない配色になる（`--vscode-*` も MUI の `--mui-palette-*` も、モードが変わればその場で
- * 値が入れ替わる）。どちらの宿主でもないときだけ、水墨のライト既定へ落とす。
+ * 読めない配色になる。ただし**「宿主の色」を名前で決め打たない** — web-app には
+ * `--vscode-*` がライト固定で撒かれており（markdown-editor 由来）、実際にモードで
+ * 入れ替わるのは `--am-color-*` のほうだった。参照順の根拠は下の宣言のコメントに書く。
  *
  * 移植元は anytime-travel の `src/styles.css` のうち系図の節。
  */
@@ -16,22 +17,46 @@ const GUTTER_ICON_PX = 20;
 
 export const DIAGRAM_STYLES = `
 .${DIAGRAM_ROOT_CLASS} {
-  --diagram-bg: var(--vscode-editor-background, var(--mui-palette-background-default, #F2EFE8));
-  --diagram-raised: var(--vscode-editorWidget-background, var(--mui-palette-background-paper, #FBF9F3));
-  --diagram-fg: var(--vscode-editor-foreground, var(--mui-palette-text-primary, #1F1E1C));
-  --diagram-muted: var(--vscode-descriptionForeground, var(--mui-palette-text-secondary, #5C5A55));
-  --diagram-border: var(--vscode-panel-border, var(--mui-palette-divider, rgba(31, 30, 28, 0.12)));
-  --diagram-accent: var(--vscode-focusBorder, var(--mui-palette-primary-main, #3D4A52));
-  --diagram-danger: var(--vscode-errorForeground, var(--mui-palette-error-main, #6B2A20));
+  /*
+    宿主のトークンを引く順序は **\`--am-color-*\` が先、\`--vscode-*\` が後**。
+
+    web-app が実際にダーク／ライトで入れ替えているのは \`--am-color-*\`（\`<html data-theme>\` に
+    インラインで置かれる）で、\`--vscode-*\` は markdown-editor が web 向けに撒いている
+    **ライト固定**の一式である。\`--vscode-*\` を先に見ると、web-app をダークにしても図だけが
+    白いまま取り残される（題名は濃い字が濃い地に乗って読めなくなる）。
+
+    VS Code の webview では \`--am-color-*\` が無いので 2 番目の \`--vscode-*\` に落ちる。
+    どちらも無い宿主だけが最後の水墨のライト既定を使う。
+
+    \`--mui-palette-*\` は挟まない。web-app に存在せず（実測で 0 件）、在るように見えるだけの
+    中継は、本当に効いている層がどれなのかを隠す。
+  */
+  --diagram-bg: var(--am-color-bg-default, var(--vscode-editor-background, #F2EFE8));
+  --diagram-raised: var(--am-color-bg-paper, var(--vscode-editorWidget-background, #FBF9F3));
+  --diagram-fg: var(--am-color-text-primary, var(--vscode-editor-foreground, #1F1E1C));
+  --diagram-muted: var(--am-color-text-secondary, var(--vscode-descriptionForeground, #5C5A55));
+  --diagram-border: var(--am-color-divider, var(--vscode-panel-border, rgba(31, 30, 28, 0.12)));
+  --diagram-accent: var(--am-color-primary-main, var(--vscode-focusBorder, #3D4A52));
+  --diagram-danger: var(--am-color-error-main, var(--vscode-errorForeground, #6B2A20));
   --diagram-radius: 6px;
 
   display: flex;
   flex-direction: column;
+  /*
+    宿主の残りの高さをすべて取る。\`flex: 0 1 auto\`（既定）のままだと、縦に伸びる器の中でも
+    中身の高さで止まり、図の枠が最小高さ（240px）へ縮む — 画面は空いているのに図だけが小さい。
+    横並びの器に置かれたときは \`flex-grow\` が幅に効き、高さは \`align-items: stretch\` が埋める。
+  */
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   box-sizing: border-box;
   color: var(--diagram-fg);
-  font-family: var(--vscode-font-family, inherit);
-  font-size: 13px;
+  /* 書体は宿主から継ぐ。\`--vscode-font-family\` は web でもライト一式と一緒に撒かれており、
+     先に見ると site の書体を上書きしてしまう。 */
+  font-family: inherit;
+  /* 器の字も宿主から継ぐ（箱の中だけは px で決める。刻みが箱の大きさを決めているため）。 */
+  font-size: inherit;
 }
 .${DIAGRAM_ROOT_CLASS} *,
 .${DIAGRAM_ROOT_CLASS} *::before,
@@ -67,13 +92,30 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-surface { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 
 .anytime-diagram-edges { position: absolute; inset: 0; pointer-events: none; }
+/*
+  線は**本文の色**から引く（補足の色ではない）。そのうえで、太さを図の倍率から切り離す。
+
+  図は CSS の transform で縮めるので、全体表示（古事記の系図で 14%）では 1.8px の線が 0.25px に
+  なり、アンチエイリアスに溶けて消える。**全体を眺めるときにこそ系統の線が要る**ので、画面上の
+  太さを一定に保つ。
+
+  \`vector-effect: non-scaling-stroke\` は使えない。あれが無視するのは SVG 自身の transform で、
+  ここで縮めているのは HTML の親（\`.anytime-diagram-surface\`）だから効かない。枠と同じく
+  倍率（\`--diagram-scale\`）で割る。上限は倍率の下限（2.5%）で線が帯にならない幅に取る。
+*/
 .anytime-diagram-edges path {
-  fill: none; stroke: var(--diagram-muted); stroke-width: 1.5;
+  fill: none; stroke: color-mix(in srgb, var(--diagram-fg) 62%, transparent);
+  stroke-width: clamp(1.8px, calc(1.8px / var(--diagram-scale, 1)), 14px);
   stroke-linecap: round; stroke-linejoin: round; pointer-events: stroke; cursor: pointer;
 }
 .anytime-diagram-edges g.is-line-dimmed { opacity: 0.12; }
-.anytime-diagram-edges g.is-line-selected path { stroke-width: 2.5; }
-.anytime-diagram-edges path:focus-visible { outline: none; stroke: var(--diagram-accent); stroke-width: 3; }
+.anytime-diagram-edges g.is-line-selected path {
+  stroke-width: clamp(2.5px, calc(2.5px / var(--diagram-scale, 1)), 18px);
+}
+.anytime-diagram-edges path:focus-visible {
+  outline: none; stroke: var(--diagram-accent);
+  stroke-width: clamp(3px, calc(3px / var(--diagram-scale, 1)), 20px);
+}
 .anytime-diagram-edges .edge-spouse { stroke: var(--diagram-accent); stroke-dasharray: 8 5; }
 .anytime-diagram-edges .edge-oath,
 .anytime-diagram-edges .edge-creation { stroke-dasharray: 2 5; }
@@ -87,15 +129,32 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-grid { position: absolute; inset: 0; pointer-events: none; }
 .anytime-diagram-grid path { fill: color-mix(in srgb, var(--diagram-accent) 12%, transparent); }
 
+/*
+  箱の字は **px で決める**（\`em\` で積まない）。根の 13px に \`0.8em\` を 2 段重ねると群の札が
+  8.3px まで落ち、字の形が潰れて「色がぼやけている」ように見えていた。箱の幅（既定 194px）は
+  刻みで決まるので、字だけが宿主の設定で伸び縮みしても収まらなくなる。
+
+  枠は薄い境界色と混ぜない。\`color-mix(accent 45%, border)\` は淡い水色（#7DA7C5）まで落ち、
+  162 個の箱の輪郭が背景へ溶けていた。
+*/
 .anytime-diagram-node {
   position: absolute; display: flex; flex-direction: column; align-items: center; min-width: 0;
-  padding: 4px 8px; overflow-y: auto; text-align: center; font-size: 0.8em;
-  border: 1px solid color-mix(in srgb, var(--diagram-accent) 45%, var(--diagram-border));
+  padding: 4px 8px; overflow-y: auto; text-align: center; font-size: 12px; line-height: 1.35;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--diagram-accent) 72%, var(--diagram-border));
+  /*
+    枠も倍率から切り離す。SVG の \`vector-effect\` に当たるものが HTML の枠には無いので、
+    図の倍率（\`--diagram-scale\`）で割って画面上の太さを 1.5px 前後に保つ。上限を置くのは、
+    倍率の下限（2.5%）では 60px になり、箱が塗り潰しになってしまうため。
+  */
+  border-width: clamp(1.5px, calc(1.5px / var(--diagram-scale, 1)), 10px);
   border-radius: var(--diagram-radius); background: var(--diagram-bg);
 }
 .anytime-diagram-node strong { font-weight: 600; }
 .anytime-diagram-node span,
-.anytime-diagram-node small { color: var(--diagram-muted); font-size: 0.8em; }
+.anytime-diagram-node small {
+  color: color-mix(in srgb, var(--diagram-fg) 70%, transparent); font-size: 10px;
+}
 .anytime-diagram-node.is-selected { outline: 3px solid var(--diagram-accent); }
 .anytime-diagram-node.is-node-dimmed { opacity: 0.16; }
 /*
