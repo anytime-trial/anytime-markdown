@@ -3,6 +3,7 @@ import {
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
+  DIAGRAM_SHAPES,
   DIAGRAM_SPACING_RANGE,
 } from '@anytime-markdown/diagram-core';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -122,7 +123,7 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
     'write_diagram',
     'Create or replace a genealogy diagram. People come from the families plus the standalone nodes list. '
     + 'Saved layout overrides in an existing file are kept — use set_diagram_layout to change placements. '
-    + 'Omitted nodes / connectors are kept from the existing file too, so editing families alone never drops them.',
+    + 'Omitted nodes / connectors / shapes are kept from the existing file too, so editing families alone never drops them.',
     {
       path: pathSchema,
       title: z.string().describe('Chart title'),
@@ -135,6 +136,9 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
         .describe('Standalone elements that appear in no family. Omit to keep the ones already in the file'),
       connectors: z.array(connectorSchema).optional()
         .describe('Hand-drawn lines between elements. Omit to keep the ones already in the file'),
+      shapes: z.record(z.string(), z.enum(DIAGRAM_SHAPES)).optional()
+        .describe('Element name to its flowchart shape. Elements left out are drawn as a rectangle. '
+          + 'Omit the whole field to keep the shapes already in the file'),
       annotations: z.record(z.string(), z.string()).optional().describe('Person name to a short note on their card'),
     },
     async (input) => {

@@ -6,6 +6,7 @@ import {
   type DiagramDocument,
   type DiagramFamily,
   type DiagramGroupAxis,
+  type DiagramShape,
   EMPTY_DIAGRAM_LAYOUT,
   parseDiagramDocument,
   serializeDiagramDocument,
@@ -27,6 +28,8 @@ export interface WriteDiagramInput {
   nodes?: string[];
   /** 手で引いた接続線。省いたら既存ファイルのものを引き継ぐ。 */
   connectors?: DiagramConnector[];
+  /** 要素ごとの形。省いたら既存ファイルのものを引き継ぐ（四角の要素は書かない）。 */
+  shapes?: Record<string, DiagramShape>;
   annotations?: Record<string, string>;
 }
 
@@ -53,6 +56,7 @@ export async function writeDiagram(input: WriteDiagramInput, rootDir: string): P
     groups: input.groups ?? [],
     families: input.families,
     nodes: input.nodes ?? existing?.nodes ?? [],
+    shapes: input.shapes ?? existing?.shapes ?? {},
     connectors: input.connectors ?? existing?.connectors ?? [],
     annotations: input.annotations ?? {},
     layout: existing?.layout ?? EMPTY_DIAGRAM_LAYOUT,

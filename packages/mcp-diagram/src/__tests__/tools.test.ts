@@ -133,6 +133,23 @@ describe('図の書き換えと配置の引き継ぎ', () => {
     expect(document.connectors).toHaveLength(1);
   });
 
+  it('家族を書き換えても、要素の形は消さない', async () => {
+    await writeDiagram({
+      path: FILE,
+      title: '検査用',
+      families,
+      shapes: { 子: 'diamond' },
+    }, rootDir);
+    await writeDiagram({ path: FILE, title: '題名を直した', families }, rootDir);
+    const document = await readDiagram({ path: FILE }, rootDir);
+    expect(document.shapes).toEqual({ 子: 'diamond' });
+  });
+
+  it('既定（四角）は書き出さない', async () => {
+    await writeDiagram({ path: FILE, title: '検査用', families, shapes: { 子: 'rect' } }, rootDir);
+    expect(await readFile(path.join(rootDir, FILE), 'utf-8')).not.toContain('"shapes"');
+  });
+
   it('家族が空でも要素があれば書ける', async () => {
     await writeDiagram({ path: FILE, title: '要素だけの図', families: [], nodes: ['甲', '乙'] }, rootDir);
     const document = await readDiagram({ path: FILE }, rootDir);

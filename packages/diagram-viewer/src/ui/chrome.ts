@@ -12,12 +12,14 @@ import {
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
+  DIAGRAM_SHAPES,
   type DiagramDocument,
   type DiagramEndpoint,
   type DiagramLayout,
   type DiagramLineColor,
   type DiagramLineLook,
   type DiagramLineStyle,
+  type DiagramShape,
   type DiagramSpacing,
   isDefaultDiagramSpacing,
   isEmptyLayout,
@@ -39,6 +41,8 @@ export interface ChromeCallbacks {
   onRenameSelected(): void;
   /** 選んでいる 1 つの要素を図から取り除く。 */
   onRemoveSelected(): void;
+  /** 選んでいる 1 つの要素の形を変える。 */
+  onElementShape(shape: DiagramShape): void;
   /** 選んでいる線の見た目を変える。渡した項目だけを差し替える（手で引いた線・家族の線の両方）。 */
   onLineLook(patch: Partial<DiagramLineLook>): void;
   onDeleteConnector(): void;
@@ -60,6 +64,13 @@ export interface ChromeState {
   readonly spacing: DiagramSpacing;
   readonly draft: DiagramLayout | null;
   readonly shiftable: boolean;
+  /**
+   * ちょうど 1 つ選んでいるときの、その要素の形。
+   *
+   * 選んでいないとき・2 つ以上のときも**既定（四角）を渡す**。空を渡せる形にすると、選び口が
+   * 値の無い状態を持つことになり、押せない間に何が出ているのかを区画の側で決められない。
+   */
+  readonly elementShape: DiagramShape;
   /** 選んでいる線。`null` は線を選んでいない状態。手で引いた線と家族の線の両方が来る。 */
   readonly lineSelection: LineSelection | null;
 }
@@ -134,7 +145,14 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   */
   const renameSelected = iconButton(doc, 'rename', callbacks.onRenameSelected);
   const removeSelected = iconButton(doc, 'remove', callbacks.onRemoveSelected);
-  selectionBar.append(selectionCount, clearSelection, renameSelected, removeSelected, cardSize, spacingReset);
+  /*
+    形の選び口。線の見た目と同じ `picker()` を使い、**選択肢は列挙そのものから作る**。手で並べると、
+    形を足した日にここだけが古い一覧のまま残り、ファイルには書けるのに画面からは選べない形ができる。
+  */
+  const elementShape = picker<DiagramShape>(doc, DIAGRAM_SHAPES, callbacks.onElementShape);
+  selectionBar.append(
+    selectionCount, clearSelection, renameSelected, removeSelected, elementShape.label, cardSize, spacingReset,
+  );
 
   /**
    * 選んだ接続線の見た目。**図の中に浮かせず、選択の帯の隣に置く。**
@@ -226,6 +244,14 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       // どちらの名前を書き換えたのか・どちらが消えたのかが操作の後から分からない。
       renameSelected.disabled = state.saving || state.selectionCount !== 1;
       removeSelected.disabled = state.saving || state.selectionCount !== 1;
+      // 形も**ちょうど 1 つ選んでいるときだけ**。2 つ以上へ同時に当てると、どちらを変えたのかが
+      // 操作の後から分からない（名札の書き換え・取り除きと同じ理由）。
+      elementShape.apply(
+        t('elementShape'),
+        state.elementShape,
+        (value) => t(`shape.${value}`),
+        state.saving || state.selectionCount !== 1,
+      );
       cardSize.textContent = t('cardSize', { width: state.spacing.nodeWidth, height: state.spacing.nodeHeight });
       spacingReset.disabled = state.saving || isDefaultDiagramSpacing(state.draft?.spacing);
 

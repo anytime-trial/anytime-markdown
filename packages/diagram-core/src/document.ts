@@ -23,6 +23,7 @@ import {
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
+  DIAGRAM_SHAPES,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramEndpoint,
@@ -34,7 +35,9 @@ import {
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
+  type DiagramShape,
   type DiagramSpacing,
+  DEFAULT_DIAGRAM_SHAPE,
   EMPTY_DIAGRAM_LAYOUT,
 } from './types';
 
@@ -80,6 +83,26 @@ function isEndpoint(value: unknown): value is DiagramEndpoint {
 
 function isLineColor(value: unknown): value is DiagramLineColor {
   return typeof value === 'string' && (DIAGRAM_LINE_COLORS as readonly string[]).includes(value);
+}
+
+function isShape(value: unknown): value is DiagramShape {
+  return typeof value === 'string' && (DIAGRAM_SHAPES as readonly string[]).includes(value);
+}
+
+/**
+ * 書き出す形。要素名の順に並べ、**既定（四角）は落とす**。
+ *
+ * 並べるのは差分の差分（git diff）を読めるようにするため（配置差分と同じ）。落とすのを読み取り側
+ * だけに置かない — 図を組み立てるのは画面と MCP でもあり、読み取りを通らずに書かれた既定の行が
+ * そのままファイルへ出る（実際に MCP の検査で出た）。**不変条件は書き出す側で守る。**
+ */
+function sortedShapes(shapes: Readonly<Record<string, DiagramShape>>): Record<string, DiagramShape> {
+  const sorted: Record<string, DiagramShape> = {};
+  for (const name of Object.keys(shapes).sort()) {
+    const shape = shapes[name]!;
+    if (shape !== DEFAULT_DIAGRAM_SHAPE) sorted[name] = shape;
+  }
+  return sorted;
 }
 
 /**
@@ -307,6 +330,32 @@ function readFamilies(value: unknown, onWarn: Warn): DiagramFamily[] | null {
 }
 
 /**
+ * 要素ごとの形。**1 件でも読めなければ図ごと読まない**（接続線と同じ扱い）。
+
+ * 読めない 1 件を落として開く形にしない。落とすと、開いて保存し直すたびに形が 1 つずつ四角へ
+ * 戻り、いつ戻ったのかを後から辿れない。
+ *
+ * 既定（四角）の項目は**読み捨てる**。書いてあっても意味は変わらないが、残すと「持たない決まり」
+ * が読み取りを一周するたびに崩れ、触っていない図の差分に四角の行が湧く。
+ */
+function readShapes(value: unknown, onWarn: Warn): Record<string, DiagramShape> | null {
+  if (value === undefined) return {};
+  if (!isObject(value)) {
+    onWarn('[diagram] shapes: 要素名から形への対応が必要です');
+    return null;
+  }
+  const shapes: Record<string, DiagramShape> = {};
+  for (const [name, shape] of Object.entries(value)) {
+    if (!isShape(shape)) {
+      onWarn(`[diagram] shapes.${name} は ${DIAGRAM_SHAPES.join(' | ')} のどれかです`);
+      return null;
+    }
+    if (shape !== DEFAULT_DIAGRAM_SHAPE) shapes[name] = shape;
+  }
+  return shapes;
+}
+
+/**
  * 手で引いた接続線の一覧。**1 件でも読めなければ図ごと読まない**（家族と同じ扱い）。
  *
  * 読めない 1 件を落として開く形にしない。落とすと、開いて保存し直すたびに線が 1 本ずつ静かに
@@ -376,7 +425,8 @@ export function parseDiagramDocument(value: unknown, onWarn: Warn = () => {}): D
   const groups = readGroupAxes(value.groups, onWarn);
   const families = readFamilies(value.families, onWarn);
   const connectors = readConnectors(value.connectors, onWarn);
-  if (groups === null || families === null || connectors === null) return null;
+  const shapes = readShapes(value.shapes, onWarn);
+  if (groups === null || families === null || connectors === null || shapes === null) return null;
   const nodes = value.nodes === undefined ? [] : stringArray(value.nodes);
   if (nodes === undefined) {
     onWarn('[diagram] nodes: 空でない文字列の配列が必要です');
@@ -402,6 +452,7 @@ export function parseDiagramDocument(value: unknown, onWarn: Warn = () => {}): D
     groups,
     families,
     nodes: [...new Set(nodes)],
+    shapes,
     connectors,
     annotations,
     layout: readDiagramLayout(value.layout, onWarn),
@@ -504,6 +555,8 @@ export function serializeDiagramDocument(document: DiagramDocument): string {
   }
   // 刻みを先に取り出す。`!` で潰すと、`isDefaultDiagramSpacing` が undefined を「既定ではない」側へ
   // 変わった日に `spacing: undefined` を書き出す形へ静かに壊れる。
+  // 形は先に整える（既定を落とした結果が空なら、項目そのものを書かない）。
+  const shapes = sortedShapes(document.shapes);
   const spacing = document.layout.spacing;
   const layout: DiagramLayout = spacing === undefined || isDefaultDiagramSpacing(spacing)
     ? { placements }
@@ -519,6 +572,7 @@ export function serializeDiagramDocument(document: DiagramDocument): string {
     // 空の項目は書かない（触っていない図に空の入れ物を増やさない）。読み取りは項目が無ければ
     // 空として受けるので、要素も接続線も持たない既存のファイルは形が変わらない。
     ...(document.nodes.length === 0 ? {} : { nodes: [...document.nodes].sort() }),
+    ...(isEmptyShapes(shapes) ? {} : { shapes }),
     ...(document.connectors.length === 0
       ? {}
       : { connectors: [...document.connectors].sort((left, right) => (left.id < right.id ? -1 : 1)) }),
@@ -526,6 +580,9 @@ export function serializeDiagramDocument(document: DiagramDocument): string {
     ...(isEmptyLayout(layout) ? {} : { layout }),
   }, null, 2)}\n`;
 }
+
+const isEmptyShapes = (shapes: Readonly<Record<string, DiagramShape>>): boolean =>
+  Object.keys(shapes).length === 0;
 
 /** 新規作成の雛形。要素 1 つだけの図から始める（＋ で足し、線は手で引く）。 */
 export function createEmptyDiagramDocument(title: string, firstElement = '要素 1'): DiagramDocument {
@@ -538,6 +595,7 @@ export function createEmptyDiagramDocument(title: string, firstElement = '要素
     groups: [],
     families: [],
     nodes: [firstElement],
+    shapes: {},
     connectors: [],
     annotations: {},
     layout: EMPTY_DIAGRAM_LAYOUT,
@@ -597,8 +655,8 @@ const drawsNothing = (family: DiagramFamily): boolean =>
  * しか出てこなかった人物は、`nodes`（単独の要素）へ**拾い直す** — 拾わないと、1 人消したつもりで
  * その家族の相手まで図から消える。位置（配置差分）は触らないので、残った札はその場に留まる。
  *
- * 併せて**その要素に取り付いた接続線・注記・配置差分も落とす**。残すと、図に出ない名前を指す
- * 線と差分が積もり、次に同じ名前で要素を足したときに覚えの無い線が復活する。
+ * 併せて**その要素に取り付いた接続線・注記・配置差分・形も落とす**。残すと、図に出ない名前を指す
+ * 線と差分と形が積もり、次に同じ名前で要素を足したときに覚えの無い線や形が復活する。
  */
 export function removeDiagramElement(document: DiagramDocument, name: string): DiagramElementRemoval {
   const before = diagramPeople(document.families, document.nodes);
@@ -619,6 +677,8 @@ export function removeDiagramElement(document: DiagramDocument, name: string): D
   const rescued = [...before].filter((person) => person !== name && !after.has(person)).sort();
   const annotations = { ...document.annotations };
   delete annotations[name];
+  const shapes = { ...document.shapes };
+  delete shapes[name];
   const placements = { ...document.layout.placements };
   delete placements[name];
   return {
@@ -626,6 +686,7 @@ export function removeDiagramElement(document: DiagramDocument, name: string): D
       ...document,
       families,
       nodes: [...nodes, ...rescued],
+      shapes,
       connectors: document.connectors.filter((connector) => connector.from !== name && connector.to !== name),
       annotations,
       layout: { ...document.layout, placements },
@@ -639,8 +700,9 @@ export function removeDiagramElement(document: DiagramDocument, name: string): D
 /**
  * 要素の名前を付け替えた図。**名前を鍵にしている場所をまとめて直す。**
  *
- * 1 か所ずつ呼び出し側で直させない。名前は家族・要素・注記・配置差分・接続線の 5 か所に現れ、
- * 直し漏れた 1 か所は「図に出ない差分」「端の消えた線」として静かに残る（どちらもエラーを出さない）。
+ * 1 か所ずつ呼び出し側で直させない。名前は家族・要素・注記・配置差分・接続線・形の 6 か所に現れ、
+ * 直し漏れた 1 か所は「図に出ない差分」「端の消えた線」「消えない形」として静かに残る
+ * （どれもエラーを出さない）。
  *
  * 付け替え先が既に在る名前なら**何もしない**（`document` をそのまま返す）。畳むと 2 つの要素が
  * 1 つになり、取り消せない。呼び出し側は先に `diagramPeople` で重なりを断る。
@@ -658,6 +720,8 @@ export function renameDiagramElement(
   for (const [name, text] of Object.entries(document.annotations)) annotations[swap(name)] = text;
   const placements: Record<string, DiagramPlacement> = {};
   for (const [name, cell] of Object.entries(document.layout.placements)) placements[swap(name)] = cell;
+  const shapes: Record<string, DiagramShape> = {};
+  for (const [name, shape] of Object.entries(document.shapes)) shapes[swap(name)] = shape;
   return {
     ...document,
     families: document.families.map((family) => ({
@@ -666,6 +730,7 @@ export function renameDiagramElement(
       children: family.children.map(swap),
     })),
     nodes: [...new Set(document.nodes.map(swap))],
+    shapes,
     connectors: document.connectors.map((connector) => ({
       ...connector,
       from: swap(connector.from),

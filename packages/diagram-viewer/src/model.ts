@@ -214,6 +214,7 @@ export function documentChanged(draft: DiagramDocument, saved: DiagramDocument):
   if (layoutKey(draft.layout ?? EMPTY_DIAGRAM_LAYOUT) !== layoutKey(saved.layout ?? EMPTY_DIAGRAM_LAYOUT)) return true;
   const sameReferences = draft.families === saved.families
     && draft.nodes === saved.nodes
+    && draft.shapes === saved.shapes
     && draft.connectors === saved.connectors
     && draft.annotations === saved.annotations;
   if (sameReferences) return false;
@@ -225,6 +226,9 @@ function contentKey(document: DiagramDocument) {
   return {
     families: document.families,
     nodes: [...document.nodes].sort(),
+    // 形も中身。落とすと、形だけ変えた図が「変更なし」になって保存が押せず、編集を終うときに
+    // 黙って捨てられる（実機で観測）。名前を鍵にする項目は並べ替えてから比べる。
+    shapes: Object.keys(document.shapes).sort().map((name) => [name, document.shapes[name]]),
     connectors: [...document.connectors].sort((left, right) => (left.id < right.id ? -1 : 1)),
     annotations: Object.keys(document.annotations).sort().map((name) => [name, document.annotations[name]]),
   };

@@ -79,6 +79,13 @@ export {
   type PlacedChart,
 } from './layout';
 export {
+  type ShapeOutline,
+  SHAPE_OUTLINE_INSET,
+  diagramShapeOf,
+  shapeOutline,
+  shapeTextInset,
+} from './shapes';
+export {
   cellFromPoint,
   cellKey,
   cellLimit,
@@ -99,6 +106,8 @@ export {
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
+  DIAGRAM_SHAPES,
+  DEFAULT_DIAGRAM_SHAPE,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramEndpoint,
@@ -110,6 +119,7 @@ export {
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
+  type DiagramShape,
   type DiagramSpacing,
   EMPTY_DIAGRAM_LAYOUT,
 } from './types';

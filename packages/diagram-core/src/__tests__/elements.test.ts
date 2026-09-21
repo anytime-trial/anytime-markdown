@@ -370,3 +370,43 @@ describe('家族の線の見た目', () => {
     expect(serializeDiagramDocument(SAMPLE)).not.toContain('"look"');
   });
 });
+
+describe('要素の形', () => {
+  const SHAPED: DiagramDocument = { ...SAMPLE, shapes: { 祖父: 'diamond', 化生: 'cylinder' } };
+
+  it('書いた形は読み書きを往復しても変わらない', () => {
+    expect(parseDiagramFile(serializeDiagramDocument(SHAPED))).toEqual(SHAPED);
+  });
+
+  it('形を持たない図は shapes を書かない（触っていない図に項目を増やさない）', () => {
+    expect(serializeDiagramDocument(SAMPLE)).not.toContain('"shapes"');
+  });
+
+  it('既定（四角）は読み捨てる', () => {
+    const parsed = parseDiagramDocument({ ...JSON.parse(serializeDiagramDocument(SAMPLE)), shapes: { 祖父: 'rect' } });
+    expect(parsed?.shapes).toEqual({});
+  });
+
+  it('列挙にない形は図ごと読まない（1 件ずつ四角へ戻さない）', () => {
+    const warnings: string[] = [];
+    const parsed = parseDiagramDocument(
+      { ...JSON.parse(serializeDiagramDocument(SAMPLE)), shapes: { 祖父: 'cloud' } },
+      (message) => warnings.push(message),
+    );
+    expect(parsed).toBeNull();
+    expect(warnings[0]).toContain('shapes.祖父');
+  });
+
+  it('改名すると形の鍵も付いてくる', () => {
+    expect(renameDiagramElement(SHAPED, '祖父', '始祖').shapes).toEqual({ 始祖: 'diamond', 化生: 'cylinder' });
+  });
+
+  it('取り除くと形の鍵も落ちる', () => {
+    expect(removeDiagramElement(SHAPED, '化生').document.shapes).toEqual({ 祖父: 'diamond' });
+  });
+
+  it('形は要素名の順に書き出す（差分を読めるようにする）', () => {
+    const json = serializeDiagramDocument({ ...SAMPLE, shapes: { 化生: 'circle', 祖父: 'diamond' } });
+    expect(Object.keys(JSON.parse(json).shapes)).toEqual(['化生', '祖父'].sort());
+  });
+});

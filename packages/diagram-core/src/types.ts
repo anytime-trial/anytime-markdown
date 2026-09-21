@@ -43,6 +43,23 @@ export const DIAGRAM_LINE_COLORS = ['default', 'accent', 'danger', 'muted'] as c
 export type DiagramLineColor = (typeof DIAGRAM_LINE_COLORS)[number];
 
 /**
+ * 札の形。フローチャートで使う図形の名前で持つ。
+ *
+ * 綴りは Mermaid のフローチャートが呼ぶ名前に寄せる（`stadium` は端子、`cylinder` はデータ）。
+ * 同じ図形を別の綴りで持つと、将来 Mermaid へ書き出す日に対応表を 1 枚挟むことになる。
+ *
+ * 増やすときは **CSS だけで描けるか** を先に決める（`shapes.ts` の `shapeOutline`）。決めずに足すと、
+ * 列挙にはあるのに描かれない形ができる（画面の選び口は列挙から作るので選べてしまう）。
+ */
+export const DIAGRAM_SHAPES = [
+  'rect', 'round', 'stadium', 'diamond', 'parallelogram', 'hexagon', 'cylinder', 'circle',
+] as const;
+export type DiagramShape = (typeof DIAGRAM_SHAPES)[number];
+
+/** 形を書いていない要素の形。**四角**（移植元の図はすべて四角だった）。 */
+export const DEFAULT_DIAGRAM_SHAPE: DiagramShape = 'rect';
+
+/**
  * 線 1 本の見た目。**手で引いた線と家族の線が同じ語彙を使う。**
  *
  * 2 つに分けない。分けると、片方へ形を足した日にもう片方が取り残され、同じ画面の同じ区画で
@@ -159,6 +176,16 @@ export interface DiagramDocument {
    * 揃える仕事が生まれ、揃え損ねた側が「図に出ない要素」「消したのに残る要素」になるため。
    */
   readonly nodes: readonly string[];
+  /**
+   * 要素ごとの形。**既定（四角）と同じ形は持たない**（触っていない図に項目を増やさない）。
+   *
+   * 種別や図の全体ではなく要素 1 つごとに持つ。フローチャートは「この 1 つだけ判断にする」のが
+   * 常なので、まとめて持たせると図を描くのに要る操作が表せない。
+   *
+   * 鍵は要素名。名前を鍵にする 6 か所目なので、改名・取り除きの写しを忘れると
+   * 「図に出ない要素の形」が静かに残る（`renameDiagramElement` / `removeDiagramElement`）。
+   */
+  readonly shapes: Readonly<Record<string, DiagramShape>>;
   /** 手で引いた接続線。家族から導く関係線とは別の層。 */
   readonly connectors: readonly DiagramConnector[];
   /** 特定の人物に添える短い注記。 */

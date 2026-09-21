@@ -9,12 +9,15 @@ import {
   type ChartNode,
   DIAGRAM_SPACING_RANGE,
   type DiagramDocument,
+  type DiagramShape,
   type DiagramSpacing,
+  shapeOutline,
+  shapeTextInset,
 } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
 import { groupLabelsOf, parentsOf } from '../model';
-import { el, setAttr, setClass } from './dom';
+import { el, setAttr, setClass, svg } from './dom';
 import { createIcon } from './icons';
 
 /** どの辺を掴んだか。取っ手ごとに固定なので、毎回作り直さず 1 つを配る。 */
@@ -56,6 +59,8 @@ export interface NodeCallbacks {
 export interface NodeViewState {
   readonly node: ChartNode;
   readonly spacing: DiagramSpacing;
+  /** 札の形。四角なら輪郭の層は作らない（既存の図の描き方をそのまま保つ）。 */
+  readonly shape: DiagramShape;
   readonly editing: boolean;
   readonly picked: boolean;
   readonly dimmed: boolean;
@@ -85,6 +90,19 @@ export function createNodeView(
   callbacks: NodeCallbacks,
 ): NodeView {
   const root = el(doc, 'div', { className: 'anytime-diagram-node', attrs: { 'data-person': name } });
+
+  /**
+   * 四角以外の輪郭を描く層。**中身より先に入れて後ろへ敷く**（DOM 順が重ね順になる）。
+   *
+   * 層は常に作り、使わない形のときはクラスで隠す。形を変えるたびに作り直すと、掴んでいる札の
+   * 子が入れ替わってポインタの捕捉が外れる（札そのものを作り直さないのと同じ理由）。
+   */
+  const shapeLayer = svg(doc, 'svg', { class: 'anytime-diagram-shape', 'aria-hidden': 'true' });
+  const shapeOutlinePath = svg(doc, 'path', { class: 'shape-outline' });
+  const shapeDetailPath = svg(doc, 'path', { class: 'shape-detail' });
+  shapeLayer.append(shapeOutlinePath, shapeDetailPath);
+  root.appendChild(shapeLayer);
+
   const label = el(doc, 'strong', { text: name });
   root.appendChild(label);
 
@@ -272,6 +290,18 @@ export function createNodeView(
       root.style.top = `${node.y}px`;
       root.style.width = `${spacing.nodeWidth}px`;
       root.style.height = `${spacing.nodeHeight}px`;
+      root.setAttribute('data-shape', state.shape);
+      // 輪郭は**札の大きさが変わるたびに引き直す**。SVG を伸縮させると、線の太さまで一緒に
+      // 伸びて縦横で違う太さになる（`preserveAspectRatio` を外した拡大の副作用）。
+      // 文字の余白も札の大きさから引き直す（CSS の百分率は親の幅を基準にしてしまう）。
+      const inset = shapeTextInset(state.shape, spacing.nodeWidth, spacing.nodeHeight);
+      root.style.padding = `${inset.y}px ${inset.x}px`;
+      const outline = shapeOutline(state.shape, spacing.nodeWidth, spacing.nodeHeight);
+      setClass(shapeLayer, 'anytime-diagram-hidden', outline === null);
+      if (outline !== null) {
+        setAttr(shapeOutlinePath, 'd', outline.outline);
+        setAttr(shapeDetailPath, 'd', outline.detail);
+      }
       setClass(root, 'is-selected', state.picked);
       setClass(root, 'is-node-dimmed', state.dimmed);
       setClass(root, 'is-moved', state.moved);

@@ -11,13 +11,16 @@ import {
   chartPoint,
   type ChartView,
   columnPitch,
+  DEFAULT_DIAGRAM_SHAPE,
   DEFAULT_DIAGRAM_SPACING,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramLayout,
   type DiagramLineLook,
+  type DiagramShape,
   type DiagramSpacing,
   diagramPeople,
+  diagramShapeOf,
   familyLook,
   fitChart,
   fittingShift,
@@ -171,6 +174,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
     onRenameSelected: () => { startRename(lastChosen()); },
     onRemoveSelected: () => { removeElement(lastChosen()); },
+    onElementShape: changeShape,
     onLineLook: styleLine,
     onDeleteConnector: deleteConnector,
   });
@@ -650,6 +654,23 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     }));
   }
 
+  /**
+   * 選んでいる 1 つの要素の形を変える。**既定（四角）へ戻したら鍵ごと落とす。**
+   *
+   * 既定を書き残すと、形を試してから戻しただけの図に `shapes` の行が残る（線の見た目で
+   * 既定と同じ `look` を持たないのと同じ決まり）。
+   */
+  function changeShape(shape: DiagramShape): void {
+    const name = lastChosen();
+    if (name === '') return;
+    updateDraft((current) => {
+      const shapes = { ...current.shapes };
+      if (shape === DEFAULT_DIAGRAM_SHAPE) delete shapes[name];
+      else shapes[name] = shape;
+      return { ...current, shapes };
+    });
+  }
+
   function deleteConnector(): void {
     const id = selectedConnector;
     if (id === null) return;
@@ -1008,6 +1029,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         picked: picked.has(node.name),
         dimmed: selectedPeople !== null && !selectedPeople.has(node.name),
         moved: node.name in model.placements,
+        shape: diagramShapeOf(model.source, node.name),
         isAnchor: node.name === model.resizeAnchor,
         saving,
         renaming: renaming === node.name,
@@ -1041,6 +1063,10 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       spacing: model.spacing,
       draft: draft?.layout ?? null,
       shiftable: model.lines.shiftable,
+      // 選んだ 1 つの形。0 個・2 個以上のときは既定を出す（選び口はそのとき押せない）。
+      elementShape: picked.size === 1
+        ? diagramShapeOf(model.source, lastChosen())
+        : DEFAULT_DIAGRAM_SHAPE,
       lineSelection: currentLineSelection(),
     });
   }

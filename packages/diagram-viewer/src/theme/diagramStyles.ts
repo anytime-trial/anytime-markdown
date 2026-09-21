@@ -216,6 +216,54 @@ export const DIAGRAM_STYLES = `
   border-radius: var(--diagram-radius); background: var(--diagram-bg);
 }
 .anytime-diagram-node strong { font-weight: 600; }
+
+/*
+  札の形。**border-radius だけで描ける形はここで描き、残りは札の中の SVG が描く**（\`shapes.ts\`）。
+  2 通りに分かれるのは、編集中の札が \`overflow: hidden\` で輪郭線の外半分を切るため。CSS の枠は
+  箱の内側に描かれるので切られず、切られない形をわざわざ SVG へ移す理由が無い。
+*/
+.anytime-diagram-node[data-shape="round"] { border-radius: 14px; }
+.anytime-diagram-node[data-shape="stadium"] { border-radius: 999px; }
+.anytime-diagram-node[data-shape="circle"] { border-radius: 50%; }
+
+/*
+  SVG が輪郭を描く形は、札そのものの枠と背景を消す。消さないと四角の枠が形の外側に残り、
+  「四角の中に菱形が入っている」図になる。
+*/
+.anytime-diagram-node[data-shape="diamond"],
+.anytime-diagram-node[data-shape="parallelogram"],
+.anytime-diagram-node[data-shape="hexagon"],
+.anytime-diagram-node[data-shape="cylinder"] { border-color: transparent; background: transparent; }
+/* 文字の余白は札の大きさから \`shapeTextInset\` が px で出し、\`nodes.ts\` が当てる（百分率は親の幅基準）。 */
+
+/*
+  輪郭の層。**負の重ね順で札の中身の後ろへ敷く**（当たり判定は札そのものが持つ）。
+
+  中身の側を \`position: relative\` で持ち上げない。札の子には絶対配置の取っ手（右上の操作列・
+  辺の大きさの取っ手・接続点）が並んでおり、子をまとめて相対配置へ倒すと**取っ手が内容の流れへ
+  戻って札の外に並ぶ**（実機で観測。名札まで箱の外へ出た）。
+
+  負の重ね順が札そのものの背景より後ろへ回らないよう、札を独立した重ね合わせの文脈にする
+  （\`isolation\`）。しないと、宿主の重ね順しだいで輪郭が図の面の下へ潜る。
+*/
+.anytime-diagram-node { isolation: isolate; }
+.anytime-diagram-shape {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: -1; overflow: visible;
+}
+.anytime-diagram-shape .shape-outline {
+  fill: var(--diagram-bg);
+  stroke: color-mix(in srgb, var(--diagram-accent) 72%, var(--diagram-border));
+  /* 太さは札の枠と同じ式で倍率から切り離す（\`.anytime-diagram-node\` の border-width と揃える）。 */
+  stroke-width: clamp(1.5px, calc(1.5px / var(--diagram-scale, 1)), 10px);
+  stroke-linejoin: round;
+}
+/* 円筒の蓋。塗ると本体の塗りの上に濃い月形が乗るので、線だけで描く。 */
+.anytime-diagram-shape .shape-detail {
+  fill: none;
+  stroke: color-mix(in srgb, var(--diagram-accent) 72%, var(--diagram-border));
+  stroke-width: clamp(1.5px, calc(1.5px / var(--diagram-scale, 1)), 10px);
+}
 .anytime-diagram-node span,
 .anytime-diagram-node small {
   color: color-mix(in srgb, var(--diagram-fg) 70%, transparent); font-size: 10px;

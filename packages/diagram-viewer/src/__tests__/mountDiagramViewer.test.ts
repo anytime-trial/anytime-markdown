@@ -25,6 +25,7 @@ const DOC: DiagramDocument = {
     { parents: ['父', '母'], children: ['子'], kind: 'birth', groups: { volume: 'one' } },
   ],
   nodes: [],
+  shapes: {},
   connectors: [],
   annotations: { 子: '注記' },
   layout: { placements: {} },
@@ -696,5 +697,87 @@ describe('最初からある線（家族の線）の見た目', () => {
     // 1 件目の家族（祖父・祖母 → 父）は子が 1 人。
     const group = container.querySelector('.anytime-diagram-edges > g')!;
     expect(group.querySelectorAll('.edge-cap')).toHaveLength(1);
+  });
+});
+
+describe('要素の形', () => {
+  const startEditing = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byText('配置を編集')!.click();
+    return view;
+  };
+  const pick = (name: string): void => {
+    container.querySelector<HTMLButtonElement>(`[data-person="${name}"] .anytime-diagram-pick`)!.click();
+  };
+  const shapePicker = (): HTMLSelectElement =>
+    [...container.querySelectorAll<HTMLSelectElement>('.anytime-diagram-selection select')][0]!;
+  const choose = (shape: string): void => {
+    const select = shapePicker();
+    select.value = shape;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const card = (name: string): HTMLElement => container.querySelector(`[data-person="${name}"]`)!;
+
+  it('何も選んでいない間は形を変えられない（どれを変えたのか後から分からないため）', () => {
+    startEditing();
+    expect(shapePicker().disabled).toBe(true);
+    pick('父');
+    expect(shapePicker().disabled).toBe(false);
+    pick('母');
+    expect(shapePicker().disabled).toBe(true);
+  });
+
+  it('選んで形を変えると、その 1 つだけが変わる', () => {
+    const view = startEditing();
+    pick('父');
+    choose('diamond');
+    expect(view.getDraft()!.shapes).toEqual({ 父: 'diamond' });
+    expect(card('父').getAttribute('data-shape')).toBe('diamond');
+    expect(card('母').getAttribute('data-shape')).toBe('rect');
+  });
+
+  it('SVG で描く形のときだけ輪郭の層が出る', () => {
+    startEditing();
+    pick('父');
+    const layer = card('父').querySelector('.anytime-diagram-shape')!;
+    expect(layer.classList).toContain('anytime-diagram-hidden');
+    choose('hexagon');
+    expect(card('父').querySelector('.anytime-diagram-shape')!.classList)
+      .not.toContain('anytime-diagram-hidden');
+    expect(card('父').querySelector('.shape-outline')!.getAttribute('d')).toMatch(/^M /);
+    // 角丸は border-radius で描くので層は出さない。
+    choose('round');
+    expect(card('父').querySelector('.anytime-diagram-shape')!.classList)
+      .toContain('anytime-diagram-hidden');
+  });
+
+  it('既定（四角）へ戻すと鍵ごと落ちる', () => {
+    const view = startEditing();
+    pick('父');
+    choose('cylinder');
+    choose('rect');
+    expect(view.getDraft()!.shapes).toEqual({});
+  });
+
+  it('選び直すとその要素の今の形が区画に出る', () => {
+    startEditing();
+    pick('父');
+    choose('stadium');
+    pick('父');
+    pick('母');
+    expect(shapePicker().value).toBe('rect');
+  });
+});
+
+describe('形の変更は「変更あり」として扱う', () => {
+  it('形だけ変えても保存が押せる（編集を終うときに黙って捨てられない）', () => {
+    mount({ editable: true, onSave: () => {} });
+    byText('配置を編集')!.click();
+    expect(byText('保存')!.disabled).toBe(true);
+    container.querySelector<HTMLButtonElement>('[data-person="父"] .anytime-diagram-pick')!.click();
+    const select = container.querySelector<HTMLSelectElement>('.anytime-diagram-selection select')!;
+    select.value = 'diamond';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(byText('保存')!.disabled).toBe(false);
   });
 });
