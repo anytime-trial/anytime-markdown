@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import {
 	parseDiagramFileStrict,
 	serializeDiagramDocument,
-	validateDiagramLayout,
+	validateDiagramDocument,
 } from '@anytime-markdown/diagram-core';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
 import * as vscode from 'vscode';
@@ -23,9 +23,18 @@ function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
 /**
  * `*.diagram.json` のカスタムエディタ。
  *
- * 保存は**配置差分だけ**を受ける。webview が図の全体を送り返す形にすると、描けなかった部分
- * （読み取りに失敗した家族など）を webview 側の解釈で書き戻すことになり、開いただけで中身が
- * 変わる。人物と家族はテキストエディタか MCP（`write_diagram`）で編集する。
+ * 保存は**図の全体**を受ける。要素の追加・改名・手で引いた線は配置差分では表現できないため、
+ * かつての「配置差分だけを受ける」形から広げた。
+ *
+ * 広げても「開いただけで中身が変わる」を招かないのは、次の 2 つが効いているため。
+ *
+ * - webview へ渡す図は `parseDiagramFileStrict` の結果で、**読めない図は 1 か所でも throw する**
+ *   （部分的に読めた図を webview が持つことがない）。
+ * - テキスト側で書き換えられたら `load` を投げ直し、webview の下書きごと差し替える
+ *   （`onDidChangeTextDocument`）。webview が古い写しを持ったまま書き戻すことがない。
+ *
+ * そのうえで、届いた図は `validateDiagramDocument` に通してから書く（webview からのメッセージは
+ * 信頼できない入力として扱う）。
  */
 export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
 	public static readonly viewType = 'anytimeDiagram';
@@ -79,16 +88,13 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
 					webviewPanel.webview.postMessage({ type: 'host', locale: currentLocale() });
 					sendDocument();
 					break;
-				case 'saveLayout': {
+				case 'saveDocument': {
 					try {
 						// webview からのメッセージは信頼できない入力として扱う。画面と同じ検証を
-						// 通してから書く（升目の重なり・件数の上限・刻みの範囲）。
-						const validated = validateDiagramLayout(message.layout);
+						// 通してから書く（升目の重なり・件数の上限・刻みの範囲・線の形）。
+						const validated = validateDiagramDocument(message.document);
 						if (!validated.ok) throw new Error(validated.errors.join('\n'));
-						// 書き戻す土台は**ファイルの現在の中身**で、webview が持つ写しではない。
-						// 写しを土台にすると、開いている間にテキスト側で足した家族が消える。
-						const current = parseDiagramFileStrict(document.getText());
-						const json = serializeDiagramDocument({ ...current, layout: validated.layout });
+						const json = serializeDiagramDocument(validated.document);
 						const edit = new vscode.WorkspaceEdit();
 						edit.replace(document.uri, fullDocumentRange(document), json);
 						webviewEditDepth += 1;
@@ -99,7 +105,7 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
 						}
 						webviewPanel.webview.postMessage({ type: 'saved' });
 					} catch (error) {
-						DiagramLogger.error('[editor] 配置の保存に失敗しました', error);
+						DiagramLogger.error('[editor] 図の保存に失敗しました', error);
 						webviewPanel.webview.postMessage({
 							type: 'saveFailed',
 							message: error instanceof Error ? error.message : String(error),

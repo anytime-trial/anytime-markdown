@@ -41,6 +41,8 @@ export const SAMPLE: DiagramDocument = {
     { parents: ['父', '母'], children: ['子', '妹'], kind: 'birth', groups: { volume: 'two' } },
     { parents: ['独神'], children: ['化生'], kind: 'creation', groups: { volume: 'one' } },
   ],
+  nodes: [],
+  connectors: [],
   annotations: { 独神: '独りで成った神' },
   layout: { placements: {} },
 };

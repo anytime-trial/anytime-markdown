@@ -30,6 +30,17 @@ export interface NodeCallbacks {
   onTogglePick(name: string): void;
   onNudge(name: string, columns: number, rows: number): void;
   onRelease(name: string): void;
+  /** 接続点を掴んだ。相手の札の上で離すと線が 1 本できる。 */
+  onConnectPointerDown(event: PointerEvent, name: string): void;
+  onConnectPointerMove(event: PointerEvent): void;
+  onConnectPointerUp(event: PointerEvent): void;
+  /** キーボードから接続点を押した（始点として待ち受ける／待ち受け中の始点と結ぶ）。 */
+  onConnectToggle(name: string): void;
+  /** 名札の書き換えを始める。 */
+  onStartRename(name: string): void;
+  /** 書き換えを確定する。空や重複は呼ばれた側が断る。 */
+  onCommitRename(from: string, to: string): void;
+  onCancelRename(): void;
   onSizePointerDown(event: PointerEvent, name: string, axes: ResizeAxes): void;
   onSizePointerMove(event: PointerEvent): void;
   onSizePointerUp(event: PointerEvent): void;
@@ -45,6 +56,10 @@ export interface NodeViewState {
   readonly moved: boolean;
   readonly isAnchor: boolean;
   readonly saving: boolean;
+  /** 名札を書き換えている最中か。 */
+  readonly renaming: boolean;
+  /** 接続の始点として待ち受けているか。 */
+  readonly connectSource: boolean;
 }
 
 export interface NodeView {
@@ -64,7 +79,51 @@ export function createNodeView(
   callbacks: NodeCallbacks,
 ): NodeView {
   const root = el(doc, 'div', { className: 'anytime-diagram-node', attrs: { 'data-person': name } });
-  root.appendChild(el(doc, 'strong', { text: name }));
+  const label = el(doc, 'strong', { text: name });
+  root.appendChild(label);
+
+  /**
+   * 名札の書き換え口。**常に作り、使わない間はクラスで隠す。**
+   *
+   * 書き換えのたびに作ると、作った瞬間は焦点を持たない要素なので、入力を始める前に 1 度
+   * 焦点が図の外へ落ちる。
+   */
+  const rename = el(doc, 'input', {
+    className: 'anytime-diagram-rename anytime-diagram-hidden',
+    attrs: { type: 'text', 'aria-label': `${t('renameElement')}: ${name}` },
+  });
+  /** 前回の描画で書き換え中だったか。焦点を当て直す瞬間と、二重の確定を 1 度に絞るために覚える。 */
+  let renaming = false;
+
+  /**
+   * 書き換えを畳む。**畳んだ後の呼び出しは捨てる。**
+   *
+   * 確定すると札そのものが作り直されて DOM から外れ、外れる瞬間に `blur` が飛ぶ。捨てないと
+   * その `blur` が 2 度目の確定を起こし、もう存在しない名前を新しい名前へ付け替えようとして
+   * 「すでに図に在ります」と断られる（実機で観測）。
+   */
+  const finishRename = (commit: boolean): void => {
+    if (!renaming) return;
+    renaming = false;
+    if (commit) callbacks.onCommitRename(name, rename.value);
+    else callbacks.onCancelRename();
+  };
+
+  // 押下を親へ渡さない。渡すと、字を選ぼうとしたドラッグが札の移動になる。
+  rename.addEventListener('pointerdown', (event) => event.stopPropagation());
+  rename.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    finishRename(event.key === 'Enter');
+  });
+  // 焦点を失ったときも確定する。取り消し扱いにすると、打ち終えて図の外を押した人の入力が消える。
+  rename.addEventListener('blur', () => finishRename(true));
+  root.appendChild(rename);
+  root.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    callbacks.onStartRename(name);
+  });
 
   const labels = groupLabelsOf(document_, name);
   const group = el(doc, 'span', { text: labels[0] ?? '' });
@@ -114,6 +173,38 @@ export function createNodeView(
   handle.append(pick, move, release);
   root.appendChild(handle);
 
+  /**
+   * 接続点。箱の**左辺の中央、枠の内側**に 1 つだけ置く。
+   *
+   * 4 辺に置かない。編集中の箱は `overflow: hidden` なので（名前が箱をはみ出さないように、かつ
+   * 取っ手が内容と一緒に流れないように）、**辺をまたぐ位置に置いた取っ手は切り取られ、見えも
+   * 押せもしない**。内側へ収めるほかなく、上辺の中央は操作の取っ手の帯（右上から 120px ほど）と、
+   * 右辺と下辺は箱の大きさの取っ手と場所を奪い合う。どの箱でも空いているのは左辺だけである。
+   *
+   * 1 つで足りるのは、線の取り付き位置が**相手の箱の向き**で決まるため（`connectorGeometry`）。
+   * どの点から引いても同じ線になるので、4 つ並べても選べる線は増えない。
+   *
+   * 押下は親へ渡さない — 渡すと、線を引き始めたはずの指が札を動かす。
+   */
+  const connectPoint = el(doc, 'button', {
+    className: 'anytime-diagram-connect anytime-diagram-hidden',
+    attrs: { type: 'button', 'aria-label': `${t('connectFrom')}: ${name}`, title: t('connectFrom') },
+  });
+  connectPoint.addEventListener('pointerdown', (event) => {
+    event.stopPropagation();
+    callbacks.onConnectPointerDown(event, name);
+  });
+  connectPoint.addEventListener('pointermove', callbacks.onConnectPointerMove);
+  connectPoint.addEventListener('pointerup', callbacks.onConnectPointerUp);
+  connectPoint.addEventListener('pointercancel', callbacks.onConnectPointerUp);
+  // キーボードからの押下だけをここで拾う（`detail === 0`）。指の押下は上の pointer 系で
+  // 完結しており、click まで拾うと 1 回の操作で 2 度数える。
+  connectPoint.addEventListener('click', (event) => {
+    if (event.detail !== 0) return;
+    callbacks.onConnectToggle(name);
+  });
+  root.appendChild(connectPoint);
+
   const sizeHandles = ([
     ['is-width', WIDTH_AXES, t('resizeWidth'), 'nodeWidth'],
     ['is-height', HEIGHT_AXES, t('resizeHeight'), 'nodeHeight'],
@@ -156,10 +247,24 @@ export function createNodeView(
       setClass(root, 'is-selected', state.picked);
       setClass(root, 'is-node-dimmed', state.dimmed);
       setClass(root, 'is-moved', state.moved);
+      setClass(root, 'is-connect-source', state.connectSource);
       setClass(handle, 'anytime-diagram-hidden', !state.editing);
       pick.setAttribute('aria-pressed', String(state.picked));
       pick.textContent = state.picked ? '☑' : '☐';
       setClass(release, 'anytime-diagram-hidden', !state.moved);
+      setClass(connectPoint, 'anytime-diagram-hidden', !state.editing);
+      connectPoint.disabled = state.saving;
+      // 名札と書き換え口は**どちらか一方だけ**を出す。両方出すと、同じ名前が 2 つ並ぶ。
+      setClass(label, 'anytime-diagram-hidden', state.renaming);
+      setClass(rename, 'anytime-diagram-hidden', !state.renaming);
+      if (state.renaming && !renaming) {
+        // 焦点は**書き換えに入った瞬間だけ**当てる。毎回当てると、図を平行移動するたびに
+        // 打ちかけの字が選び直され、次の 1 文字で消える。
+        rename.value = name;
+        rename.focus();
+        rename.select();
+      }
+      renaming = state.renaming;
       for (const { button, sliderKey } of sizeHandles) {
         setClass(button, 'anytime-diagram-hidden', !(state.editing && state.isAnchor));
         button.disabled = state.saving;

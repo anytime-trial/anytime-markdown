@@ -27,6 +27,7 @@ import type { DiagramT } from '../i18n';
 import type { GridLines } from '../model';
 import { GUTTER_TRACK_PX } from '../theme/diagramStyles';
 import { el } from './dom';
+import { type BlockedBox, overlapsBox } from './overlap';
 
 export interface GutterCallbacks {
   onEditGridLine(axis: GridAxis, index: number, kind: 'insert' | 'remove'): void;
@@ -46,7 +47,7 @@ export interface GutterState {
    * （挿入は最大で全員を升目へ固定するので、取り違えの取り消しが重い）。隠れた切れ目は図を
    * 平行移動すれば操作の区画の外へ出てくる。
    */
-  readonly blocked?: { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number };
+  readonly blocked?: readonly BlockedBox[];
 }
 
 export interface GutterView {
@@ -133,12 +134,7 @@ function applySpec(button: HTMLButtonElement, spec: Spec, saving: boolean): void
  * アイコンまで隠れた扱いになる。
  */
 export function covered(spec: Spec, blocked: GutterState['blocked']): boolean {
-  if (blocked === undefined) return false;
-  const x = spec.left ?? GUTTER_TRACK_PX;
-  const y = spec.top ?? GUTTER_TRACK_PX;
-  const half = GUTTER_ICON_PX / 2;
-  return x + half >= blocked.left && x - half <= blocked.right
-    && y + half >= blocked.top && y - half <= blocked.bottom;
+  return overlapsBox(spec.left ?? GUTTER_TRACK_PX, spec.top ?? GUTTER_TRACK_PX, GUTTER_ICON_PX / 2, blocked);
 }
 
 function buildSpecs(state: GutterState, t: DiagramT): readonly Spec[] {

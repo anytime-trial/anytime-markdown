@@ -125,14 +125,44 @@ export function familyConnector(
  * **配置差分はここでは扱わない**（`applyDiagramPlacements` が後から当てる）。差分を先に当てて
  * 並べ替えの入力にすると、動かした 1 人が同じ列の全員の行をずらす。
  */
-export function layoutDiagram(families: readonly DiagramFamily[]): AutomaticChart {
+export function layoutDiagram(
+  families: readonly DiagramFamily[],
+  extraNames: readonly string[] = [],
+): AutomaticChart {
   const names = [...new Set(families.flatMap((f) => [...f.parents, ...f.children]))];
   const parents = new Map(names.map((name) => [name, new Set<string>()]));
   for (const f of families) for (const child of f.children) for (const parent of f.parents) parents.get(child)!.add(parent);
   const ranks = resolveColumns(families, names, parents);
   const find = componentFinder(families, names);
-  const nodes = placeNodes(families, names, ranks, find);
+  const placed = placeNodes(families, names, ranks, find);
+  const nodes = [...placed, ...placeExtras(extraNames, placed)];
   return { nodes, edges: buildEdges(families), automatic: new Map(nodes.map((node) => [node.name, node])) };
+}
+
+/**
+ * 家族に属さない要素の自動配置。**家族の図の下へ、列 0 に積む。**
+ *
+ * 家族の並べ替えへ混ぜない。混ぜると、要素を 1 つ足すたびに同じ列の全員の行番号が 1 つずつ
+ * ずれ、保存済みの升目が別の人物を指す（差分は名前で持つので、名前ごと動く人物と動かない
+ * 人物が入れ替わる）。ここで決まる場所は仮の置き場で、＋ から足した要素は押した升目への
+ * 配置差分を必ず持つ。
+ *
+ * 並びは**序数比較**で固定する（`localeCompare` を混ぜると環境の照合順で行番号が変わる）。
+ */
+function placeExtras(extraNames: readonly string[], placed: readonly ChartNode[]): ChartNode[] {
+  const known = new Set(placed.map((node) => node.name));
+  const fresh = [...new Set(extraNames)].filter((name) => !known.has(name))
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  // 家族の図といちばん下の行を共有しない。共有すると列 0 の人物と升目が重なり、重なりを見て
+  // 行・列の増減を止める判定（`deriveGridLines`）が図を開いた時点で塞がる。
+  const below = placed.reduce((row, node) => Math.max(row, node.row), -2) + 2;
+  return fresh.map((name, index) => ({
+    name,
+    column: 0,
+    row: below + index,
+    x: MARGIN,
+    y: MARGIN + (below + index) * rowPitch(DEFAULT_DIAGRAM_SPACING),
+  }));
 }
 
 /**
@@ -379,8 +409,11 @@ export function applyDiagramPlacements(
     nodes,
     edges: chart.edges,
     automatic: chart.automatic,
-    width: Math.max(...nodes.map((n) => n.x + nodeWidth)) + MARGIN,
-    height: Math.max(...nodes.map((n) => n.y + nodeHeight)) + MARGIN,
+    // 要素が 1 つも無い図も受ける。`Math.max()` は引数が空だと -Infinity を返し、枠の大きさが
+    // NaN 混じりの負の値になって図そのものが消える（読み取りは要素 0 件を断るが、下書きの
+    // 途中経過や検査からは空の図が来る）。
+    width: Math.max(MARGIN, ...nodes.map((n) => n.x + nodeWidth)) + MARGIN,
+    height: Math.max(MARGIN, ...nodes.map((n) => n.y + nodeHeight)) + MARGIN,
   };
 }
 
@@ -388,6 +421,10 @@ export function applyDiagramPlacements(
 export function diagramChart(
   families: readonly DiagramFamily[],
   overrides: DiagramLayout | null = null,
+  extraNames: readonly string[] = [],
 ): PlacedChart {
-  return applyDiagramPlacements(applyDiagramSpacing(layoutDiagram(families), overrides?.spacing), overrides);
+  return applyDiagramPlacements(
+    applyDiagramSpacing(layoutDiagram(families, extraNames), overrides?.spacing),
+    overrides,
+  );
 }

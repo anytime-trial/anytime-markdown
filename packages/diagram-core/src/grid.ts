@@ -308,6 +308,67 @@ export function visibleGutterIndices(options: {
 }
 
 /**
+ * 空いた升目に置く ＋ の大きさ（px）。スタイルシートの `width` / `height` と同じ値。
+ *
+ * 縁の ＋（`GUTTER_ICON_PX`）より大きい。升目の**真ん中**に置くので隣と競合せず、狙いやすさを
+ * 優先できる。縁のほうは切れ目ごとに並ぶので、大きくすると隣と重なる倍率が上がる。
+ */
+export const CELL_ADD_ICON_PX = 28;
+
+/**
+ * 空いた升目に ＋ を描くために要る、**画面に映る升目**。
+ *
+ * 全部の升目に置かない。升目は数千枚まで増えうるうえ、枠の外の要素は `overflow: hidden` が
+ * **描画を切るだけでタブ順からは外さない**（縁のアイコンと同じ理由）。
+ *
+ * 升目の画面上の大きさが ＋ の 2 倍を下回る倍率では 1 つも返さない。全体表示（14%）では升目が
+ * 数十 px まで縮み、＋ が升目からはみ出して**隣の升目の ＋ と重なる** — 重なった所では後から
+ * 描いたほうが押下を取り、押したつもりと違う升目へ要素が増える（増えた要素は取り消しが利かない）。
+ */
+export function visibleCells(options: {
+  readonly spacing: DiagramSpacing;
+  readonly extent: GridExtent;
+  /** 図の平行移動と倍率。 */
+  readonly view: { readonly x: number; readonly y: number; readonly scale: number };
+  /** 枠の内寸（px）。**幅か高さが 0 なら未計測**で、そのときは 1 つも返さない。 */
+  readonly frame: { readonly width: number; readonly height: number };
+  /** 置かない升目（人物が載っている升目の鍵）。 */
+  readonly occupied: ReadonlySet<string>;
+  /** 返す枚数の上限。超えたら空を返す（間引くと「どの升目に出るか」が読めなくなる）。 */
+  readonly limit: number;
+}): readonly GridCell[] {
+  const { spacing, extent, view, frame, occupied, limit } = options;
+  if (frame.width <= 0 || frame.height <= 0) return [];
+  const column = columnPitch(spacing);
+  const row = rowPitch(spacing);
+  if (column * view.scale < CELL_ADD_ICON_PX * 2 || row * view.scale < CELL_ADD_ICON_PX * 2) return [];
+  /**
+   * ＋ は升目の**真ん中**に出るので、真ん中の画面上の位置で映るかを決める。
+   *
+   * 升目の左上で測ると、左上が枠の外にあるだけの升目（真ん中は見えている）を落とし、画面の縁で
+   * ＋ が 1 列ぶん欠ける。番号を総当たりで絞らないのは、升目が数千枚まで増えうるため。
+   */
+  const range = (pitch: number, half: number, offset: number, size: number, count: number) => {
+    const indexAt = (screen: number) => ((screen - offset) / view.scale - MARGIN - half) / pitch;
+    return {
+      from: Math.max(0, Math.ceil(indexAt(-CELL_ADD_ICON_PX))),
+      to: Math.min(count - 1, Math.floor(indexAt(size + CELL_ADD_ICON_PX))),
+    };
+  };
+  const columns = range(column, spacing.nodeWidth / 2, view.x, frame.width, extent.columns);
+  const rows = range(row, spacing.nodeHeight / 2, view.y, frame.height, extent.rows);
+  const cells: GridCell[] = [];
+  for (let index = columns.from; index <= columns.to; index += 1) {
+    for (let line = rows.from; line <= rows.to; line += 1) {
+      if (occupied.has(cellKey({ column: index, row: line }))) continue;
+      if (cells.length >= limit) return [];
+      cells.push({ column: index, row: line });
+    }
+  }
+  return cells;
+}
+
+/**
  * 挿入・削除に共通の升目のずらし。
  *
  * `automatic`（自動配置の升目）を**必須**で受ける。この操作で動かした人物が自動配置の升目へ

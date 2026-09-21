@@ -15,6 +15,9 @@ export const DIAGRAM_ROOT_CLASS = 'anytime-diagram';
 /** 縁のアイコンの大きさ（px）。`@anytime-markdown/diagram-core` の `GUTTER_ICON_PX` と同じ値。 */
 const GUTTER_ICON_PX = 20;
 
+/** 空いた升目の ＋ の大きさ（px）。`@anytime-markdown/diagram-core` の `CELL_ADD_ICON_PX` と同じ値。 */
+const CELL_ADD_ICON_PX = 28;
+
 /**
  * 縁のアイコンを並べる帯の位置（枠の上端・左端からの px）。
  *
@@ -77,6 +80,35 @@ export const DIAGRAM_STYLES = `
 
 .anytime-diagram-toolbar,
 .anytime-diagram-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+
+/*
+  枠の中へ浮かせる区画（選択・線の見た目）。左下に重ね、下から上へ積む。
+
+  \`align-items: flex-start\` で**中身の幅だけ**を取る。枠いっぱいに広げると、区画そのものは
+  透けていても押下を奪い、図の下半分でドラッグ（平行移動）が効かなくなる。
+*/
+.anytime-diagram-panels {
+  position: absolute; left: 8px; bottom: 8px; z-index: 2;
+  display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 4px;
+  max-width: calc(100% - 16px); pointer-events: none;
+}
+.anytime-diagram-panels > * { pointer-events: auto; }
+.anytime-diagram-panel {
+  margin: 0; padding: 3px 8px; gap: 6px;
+  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
+  background: var(--diagram-raised); font-size: 11px;
+}
+.anytime-diagram-panel output { color: var(--diagram-muted); font-variant-numeric: tabular-nums; }
+.anytime-diagram-panel select { font: inherit; font-size: 11px; padding: 1px 2px; }
+/* 枠の中は図に譲る面積が惜しいので、操作は線画にする（値だけを字で残す）。 */
+.anytime-diagram-panel .anytime-diagram-iconbutton {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0;
+  border: 0; border-radius: 4px; background: transparent; color: var(--diagram-fg); cursor: pointer;
+}
+.anytime-diagram-panel .anytime-diagram-iconbutton:hover:not(:disabled) { background: var(--diagram-bg); color: var(--diagram-accent); }
+.anytime-diagram-panel .anytime-diagram-iconbutton:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: -2px; }
+.anytime-diagram-panel .anytime-diagram-iconbutton:disabled { opacity: 0.4; cursor: default; }
 .anytime-diagram-toolbar button,
 .anytime-diagram-toolbar select,
 .anytime-diagram-selection button {
@@ -225,6 +257,103 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-gutter .is-row { left: ${GUTTER_TRACK_PX}px; }
 /* 詰める側は取り消しの操作なので、入れる側と字だけでなく線種でも分ける。 */
 .anytime-diagram-gutter .is-remove { border-style: dashed; }
+
+/*
+  手で引いた線。家族の線と**別の層**に置く（\`fill: none\` が端の印の塗りを消さないように）。
+  線の太さは家族の線と同じく倍率から切り離し、全体表示でも消えないようにする。
+*/
+.anytime-diagram-links { position: absolute; inset: 0; pointer-events: none; }
+.anytime-diagram-links .link-line {
+  fill: none; stroke: var(--diagram-accent);
+  stroke-width: clamp(1.8px, calc(1.8px / var(--diagram-scale, 1)), 14px);
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.anytime-diagram-links .link-line.is-dashed {
+  /* 破線の刻みも倍率で割る。割らないと、縮めた図で刻みが詰まって実線と見分けが付かない。 */
+  stroke-dasharray: calc(9px / var(--diagram-scale, 1)) calc(6px / var(--diagram-scale, 1));
+}
+.anytime-diagram-links .link-cap { fill: var(--diagram-accent); stroke: none; }
+/*
+  当たり判定だけの太い線。見た目は透明で、**押せる幅**（WCAG 2.2 の対象の大きさ）を作る。
+  見える線は画面上 1.8px しかなく、狙って押すには細すぎる。
+*/
+.anytime-diagram-links .link-hit {
+  fill: none; stroke: transparent;
+  stroke-width: clamp(14px, calc(14px / var(--diagram-scale, 1)), 90px);
+  pointer-events: stroke; cursor: pointer;
+}
+.anytime-diagram-links g.is-line-dimmed { opacity: 0.18; }
+.anytime-diagram-links g.is-line-selected .link-line {
+  stroke-width: clamp(3px, calc(3px / var(--diagram-scale, 1)), 18px);
+}
+.anytime-diagram-links .link-hit:focus-visible { outline: none; }
+.anytime-diagram-links .link-hit:focus-visible + .link-line {
+  stroke: var(--diagram-fg);
+  stroke-width: clamp(3.5px, calc(3.5px / var(--diagram-scale, 1)), 20px);
+}
+/* 引いている最中の仮の線。確定した線と見分けが付くよう、細かい破線で薄く引く。 */
+.anytime-diagram-links .link-preview {
+  fill: none; stroke: var(--diagram-accent); opacity: 0.6;
+  stroke-width: clamp(1.5px, calc(1.5px / var(--diagram-scale, 1)), 12px);
+  stroke-dasharray: calc(4px / var(--diagram-scale, 1)) calc(4px / var(--diagram-scale, 1));
+}
+
+/*
+  空いた升目の ＋。縁の ＋（\`anytime-diagram-gutter\`）と同じく**枠に貼り付く**が、置く場所が
+  升目の真ん中なので大きく取れる。形も角丸の四角にして、丸い縁の ＋ と見分けが付くようにする
+  （片方は行・列を増やし、もう片方は要素を増やす。取り違えると図の形が大きく変わる）。
+*/
+.anytime-diagram-celladd { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.anytime-diagram-celladd button {
+  position: absolute; pointer-events: auto;
+  width: ${CELL_ADD_ICON_PX}px; height: ${CELL_ADD_ICON_PX}px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed color-mix(in srgb, var(--diagram-accent) 55%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--diagram-raised) 82%, transparent);
+  color: color-mix(in srgb, var(--diagram-accent) 80%, var(--diagram-muted));
+  cursor: pointer; transform: translate(-50%, -50%); opacity: 0.55;
+}
+.anytime-diagram-celladd button:hover:not(:disabled),
+.anytime-diagram-celladd button:focus-visible {
+  opacity: 1; border-style: solid; border-color: var(--diagram-accent); color: var(--diagram-accent);
+}
+.anytime-diagram-celladd button:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: 1px; }
+.anytime-diagram-celladd button:disabled { opacity: 0.25; cursor: default; }
+
+/*
+  接続点。箱の**左辺の中央・枠の内側**に置く。
+
+  辺の上（\`left: -5px\` のように箱をまたぐ位置）には置けない。編集中の箱は \`overflow: hidden\` で、
+  はみ出した部分は**描かれず当たり判定も持たない** — 見た目には在るのに押せない取っ手になる
+  （実機で 1 度そうなった）。内側なら切り取られない。
+
+  左辺を選ぶのは、上辺が操作の取っ手の帯、右辺と下辺が箱の大きさの取っ手と重なるため。
+  当たり判定は \`::before\` で広げ、見た目は小さく保つ（大きい丸は箱の中身を隠す）。
+*/
+.anytime-diagram-connect {
+  position: absolute; left: 5px; top: 50%; transform: translateY(-50%);
+  width: 9px; height: 9px; padding: 0;
+  border: 1.5px solid var(--diagram-raised); border-radius: 999px;
+  background: var(--diagram-accent); cursor: crosshair; touch-action: none;
+}
+.anytime-diagram-connect::before { content: ''; position: absolute; inset: -8px; }
+.anytime-diagram-connect:hover:not(:disabled) { background: var(--diagram-fg); }
+.anytime-diagram-connect:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: 2px; }
+.anytime-diagram-connect:disabled { opacity: 0.4; cursor: default; }
+/* 始点として待ち受けている札は、相手を選ぶまで印を出し続ける（どこから線が出るか読めるように）。 */
+.anytime-diagram-node.is-connect-source { outline: 2px dashed var(--diagram-accent); outline-offset: 2px; }
+
+/*
+  名札の書き換え口。箱の幅いっぱいに置く。箱は刻みで幅が決まるので、入力欄が箱をはみ出すと
+  隣の升目に重なって、どの要素を書き換えているのか分からなくなる。
+*/
+.anytime-diagram-rename {
+  width: 100%; min-width: 0; padding: 1px 3px; margin-bottom: 1px;
+  font: inherit; font-size: 12px; text-align: center;
+  color: var(--diagram-fg); background: var(--diagram-raised);
+  border: 1px solid var(--diagram-accent); border-radius: 3px;
+}
 
 .anytime-diagram-error { color: var(--diagram-danger); }
 /*

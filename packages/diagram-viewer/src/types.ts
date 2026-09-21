@@ -1,4 +1,4 @@
-import type { DiagramDocument, DiagramLayout } from '@anytime-markdown/diagram-core';
+import type { DiagramDocument } from '@anytime-markdown/diagram-core';
 
 export interface DiagramViewerOptions {
   readonly document: DiagramDocument;
@@ -15,17 +15,21 @@ export interface DiagramViewerOptions {
    * 読み物（導入文・末尾の注記）を省いて図に高さを譲るか。
    *
    * 編集の画面が真で渡す。配置を直す作業に読み物は要らない一方、常時数行を占めると図の高さが
-   * そのぶん削られる。**凡例と操作の説明は省かない**（線の意味と掴み方は編集中にこそ引く）。
+   * そのぶん削られる。操作の説明文は真偽にかかわらず出さない（画面から外した）。
    */
   readonly compact?: boolean;
   /**
-   * 保存。差分の全体を渡す。
+   * 保存。**図の全体**を渡す。
+   *
+   * 配置差分だけを渡していた頃の形から広げてある。要素の追加・改名・手で引いた線は配置差分では
+   * 表現できず、差分の中へ押し込むと「配置差分」が図の中身を持つことになる。宿主は受け取った図を
+   * `validateDiagramDocument` に通してから書く（画面が組み立てた形をそのまま信じない）。
    *
    * 投げた例外は「保存できなかった」として図の中に出す（宿主のダイアログへ飛ばさない）。
    */
-  readonly onSave?: (layout: DiagramLayout) => void | Promise<void>;
+  readonly onSave?: (document: DiagramDocument) => void | Promise<void>;
   /** 下書きの変化。宿主が「未保存あり」の印を出すのに読む。`null` は編集していない状態。 */
-  readonly onDraftChange?: (draft: DiagramLayout | null) => void;
+  readonly onDraftChange?: (draft: DiagramDocument | null) => void;
 }
 
 export interface DiagramViewerUpdate {
@@ -44,6 +48,6 @@ export interface DiagramViewerHandle {
    */
   update(next: DiagramViewerUpdate): void;
   /** 編集中の下書き。`null` は編集していない状態。 */
-  getDraft(): DiagramLayout | null;
+  getDraft(): DiagramDocument | null;
   destroy(): void;
 }

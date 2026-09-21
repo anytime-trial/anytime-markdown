@@ -1,0 +1,212 @@
+/**
+ * 単独の要素（`nodes`）・手で引いた接続線（`connectors`）・改名・空いた升目の ＋。
+ *
+ * 移植元（家族だけの系図）に無かった層なので、家族の検査（`document.test.ts` ほか）とは
+ * 別のファイルに置く。どの規則が効いて結果が決まったのかを 1 ファイルの中で追えるようにする。
+ */
+
+import {
+  createEmptyDiagramDocument,
+  diagramPeople,
+  nextElementName,
+  parseDiagramDocument,
+  parseDiagramFile,
+  renameDiagramElement,
+  serializeDiagramDocument,
+  validateDiagramDocument,
+} from '../document';
+import { visibleCells } from '../grid';
+import { diagramChart, layoutDiagram } from '../layout';
+import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
+import type { DiagramConnector, DiagramDocument } from '../types';
+import { SAMPLE } from './fixture';
+
+const CONNECTOR: DiagramConnector = {
+  id: 'c1', from: '祖父', to: '化生', line: 'dashed', start: 'circle', end: 'arrow',
+};
+
+const WITH_ELEMENTS: DiagramDocument = {
+  ...SAMPLE,
+  nodes: ['単独の要素'],
+  connectors: [CONNECTOR],
+};
+
+describe('単独の要素', () => {
+  it('家族に出ない名前も図に描ける要素として数える', () => {
+    expect(diagramPeople(SAMPLE.families, ['単独の要素']).has('単独の要素')).toBe(true);
+  });
+
+  it('家族にも出る名前を書いても札は 1 枚に畳まれる', () => {
+    const people = diagramPeople(SAMPLE.families, ['祖父']);
+    expect([...people].filter((name) => name === '祖父')).toHaveLength(1);
+  });
+
+  it('家族が 0 件でも要素があれば読める', () => {
+    const document = parseDiagramDocument({
+      version: 1, title: '図', lead: '', note: '', legend: '',
+      groups: [], families: [], nodes: ['甲', '乙'],
+    });
+    expect(document?.nodes).toEqual(['甲', '乙']);
+  });
+
+  it('家族も要素も無い図は読まない', () => {
+    const warnings: string[] = [];
+    const document = parseDiagramDocument({
+      version: 1, title: '図', lead: '', note: '', legend: '', groups: [], families: [],
+    }, (message) => warnings.push(message));
+    expect(document).toBeNull();
+    expect(warnings.join('')).toContain('描ける要素がありません');
+  });
+
+  it('自動配置では家族の図と行を共有しない（重なりで行・列の増減が塞がらない）', () => {
+    const chart = layoutDiagram(SAMPLE.families, ['単独の要素']);
+    const extra = chart.nodes.find((node) => node.name === '単独の要素')!;
+    const familyRows = chart.nodes.filter((node) => node.name !== '単独の要素' && node.column === 0)
+      .map((node) => node.row);
+    expect(familyRows).not.toContain(extra.row);
+    expect(extra.row).toBeGreaterThan(Math.max(...familyRows));
+  });
+
+  it('要素を足しても家族側の升目は動かない', () => {
+    const before = layoutDiagram(SAMPLE.families).nodes.map((node) => `${node.name}:${node.column},${node.row}`);
+    const after = layoutDiagram(SAMPLE.families, ['単独の要素']).nodes
+      .filter((node) => node.name !== '単独の要素')
+      .map((node) => `${node.name}:${node.column},${node.row}`);
+    expect(after).toEqual(before);
+  });
+
+  it('要素が 1 つも無くても枠の大きさが負にならない', () => {
+    const chart = diagramChart([], null, []);
+    expect(chart.width).toBeGreaterThan(0);
+    expect(chart.height).toBeGreaterThan(0);
+  });
+});
+
+describe('接続線の読み書き', () => {
+  it('書いて読み戻すと同じ図になる', () => {
+    expect(parseDiagramFile(serializeDiagramDocument(WITH_ELEMENTS))).toEqual(WITH_ELEMENTS);
+  });
+
+  it('要素も接続線も無い図には空の入れ物を書かない', () => {
+    const json = serializeDiagramDocument(SAMPLE);
+    expect(json).not.toContain('"nodes"');
+    expect(json).not.toContain('"connectors"');
+  });
+
+  it('読めない線が 1 本でもあれば図ごと読まない（1 本ずつ静かに消さない）', () => {
+    const warnings: string[] = [];
+    const document = parseDiagramDocument({
+      ...WITH_ELEMENTS,
+      connectors: [{ ...CONNECTOR, line: 'dotted' }],
+    }, (message) => warnings.push(message));
+    expect(document).toBeNull();
+    expect(warnings.join('')).toContain('connectors');
+  });
+
+  it('id が重複した線を受けない', () => {
+    const document = parseDiagramDocument({
+      ...WITH_ELEMENTS,
+      connectors: [CONNECTOR, { ...CONNECTOR, to: '妹' }],
+    });
+    expect(document).toBeNull();
+  });
+});
+
+describe('改名', () => {
+  const renamed = renameDiagramElement(
+    { ...WITH_ELEMENTS, annotations: { 祖父: '注記' }, layout: { placements: { 祖父: { column: 1, row: 2 } } } },
+    '祖父',
+    '始祖',
+  );
+
+  it('家族・注記・配置差分・接続線を同時に付け替える', () => {
+    expect(renamed.families[0]!.parents).toContain('始祖');
+    expect(renamed.annotations).toEqual({ 始祖: '注記' });
+    expect(renamed.layout.placements).toEqual({ 始祖: { column: 1, row: 2 } });
+    expect(renamed.connectors[0]!.from).toBe('始祖');
+  });
+
+  it('付け替え先が既に在るなら何もしない（2 つの要素を畳まない）', () => {
+    expect(renameDiagramElement(WITH_ELEMENTS, '祖父', '祖母')).toBe(WITH_ELEMENTS);
+  });
+
+  it('図に出ない名前は付け替えない', () => {
+    expect(renameDiagramElement(WITH_ELEMENTS, '居ない', '新しい')).toBe(WITH_ELEMENTS);
+  });
+
+  it('単独の要素も付け替えられる', () => {
+    expect(renameDiagramElement(WITH_ELEMENTS, '単独の要素', '改名後').nodes).toEqual(['改名後']);
+  });
+});
+
+describe('新しい名前', () => {
+  it('空いている番号を選ぶ', () => {
+    expect(nextElementName(new Set(['要素 1', '要素 3']))).toBe('要素 2');
+  });
+
+  it('図が空なら 1 から始める', () => {
+    expect(nextElementName(new Set())).toBe('要素 1');
+  });
+
+  it('新規作成の雛形はそのまま読み戻せる', () => {
+    const empty = createEmptyDiagramDocument('新しい図');
+    expect(parseDiagramFile(serializeDiagramDocument(empty))).toEqual(empty);
+  });
+});
+
+describe('図の全体の検証', () => {
+  it('読み戻せる図は通る', () => {
+    const result = validateDiagramDocument(JSON.parse(serializeDiagramDocument(WITH_ELEMENTS)));
+    expect(result.ok).toBe(true);
+  });
+
+  it('同じ升目に重なった配置は断る（読み取りのように黙って寄せない）', () => {
+    const result = validateDiagramDocument({
+      ...JSON.parse(serializeDiagramDocument(WITH_ELEMENTS)),
+      layout: { placements: { 祖父: { column: 1, row: 1 }, 祖母: { column: 1, row: 1 } } },
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it('端が図に出ない線は断らない（名前を直した瞬間に保存できなくならない）', () => {
+    const result = validateDiagramDocument({
+      ...JSON.parse(serializeDiagramDocument(WITH_ELEMENTS)),
+      connectors: [{ ...CONNECTOR, to: '居ない人' }],
+    });
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('空いた升目の ＋', () => {
+  const base = {
+    spacing: DEFAULT_DIAGRAM_SPACING,
+    extent: { columns: 4, rows: 4 },
+    view: { x: 0, y: 0, scale: 1 },
+    frame: { width: 2000, height: 2000 },
+    occupied: new Set<string>(),
+    limit: 200,
+  };
+
+  it('人物の載っている升目には出さない', () => {
+    const cells = visibleCells({ ...base, occupied: new Set(['0,0']) });
+    expect(cells).toHaveLength(15);
+    expect(cells).not.toContainEqual({ column: 0, row: 0 });
+  });
+
+  it('枠に入らない升目は数えない', () => {
+    const cells = visibleCells({ ...base, frame: { width: 300, height: 300 } });
+    expect(cells.every((cell) => cell.column <= 1 && cell.row <= 1)).toBe(true);
+  });
+
+  it('升目が ＋ の 2 倍より小さくなる倍率では 1 つも出さない', () => {
+    expect(visibleCells({ ...base, view: { x: 0, y: 0, scale: 0.14 } })).toEqual([]);
+  });
+
+  it('枠が未計測（0）なら出さない', () => {
+    expect(visibleCells({ ...base, frame: { width: 0, height: 0 } })).toEqual([]);
+  });
+
+  it('上限を超えたら間引かずに空を返す', () => {
+    expect(visibleCells({ ...base, limit: 4 })).toEqual([]);
+  });
+});

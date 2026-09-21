@@ -6,7 +6,7 @@ import { trimChar } from '../../../lib/trimChars';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { createDiagramT } from '@anytime-markdown/diagram-viewer';
-import type { DiagramDocument, DiagramLayout } from '@anytime-markdown/diagram-core';
+import type { DiagramDocument } from '@anytime-markdown/diagram-core';
 import type { DiagramViewerHandle } from '@anytime-markdown/diagram-viewer';
 
 /**
@@ -55,19 +55,19 @@ export default function DiagramPage() {
   }, [locale]);
 
   /**
-   * 保存（＝書き出し）。**図の全体はページが持つ**写しから組み立てる。
+   * 保存（＝書き出し）。viewer が返す**図の全体**を書き出す。
    *
-   * viewer が返すのは配置差分だけ。人物と家族は viewer が書き換えないので、読み込んだ図に
-   * 配置だけを差し替えて書き出す。
+   * 受け取った図はそのまま信じず、書き出す前に `validateDiagramDocument` を通す（VS Code 拡張と
+   * 同じ検査）。通さないと、開き直せないファイルを落として初めて壊れていたと分かる。
    */
-  async function saveLayout(layout: DiagramLayout): Promise<void> {
-    const current = documentRef.current;
-    if (current === null) throw new Error(t('invalid'));
-    const next: DiagramDocument = { ...current, layout };
-    documentRef.current = next;
-    const { serializeDiagramDocument } = await import('@anytime-markdown/diagram-core');
+  async function saveDocument(next: DiagramDocument): Promise<void> {
+    if (documentRef.current === null) throw new Error(t('invalid'));
+    const { serializeDiagramDocument, validateDiagramDocument } = await import('@anytime-markdown/diagram-core');
+    const validated = validateDiagramDocument(JSON.parse(serializeDiagramDocument(next)));
+    if (!validated.ok) throw new Error(validated.errors.join('\n'));
+    documentRef.current = validated.document;
     downloadBlob(
-      new Blob([serializeDiagramDocument(next)], { type: 'application/json' }),
+      new Blob([serializeDiagramDocument(validated.document)], { type: 'application/json' }),
       fileNameRef.current,
     );
   }
@@ -90,7 +90,7 @@ export default function DiagramPage() {
           document: diagram,
           locale: localeRef.current,
           editable: true,
-          onSave: saveLayout,
+          onSave: saveDocument,
         });
       } else {
         handleRef.current.update({ document: diagram });

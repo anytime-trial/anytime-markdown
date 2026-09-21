@@ -16,6 +16,44 @@
 export const DIAGRAM_RELATIONS = ['birth', 'creation', 'oath'] as const;
 export type DiagramRelation = (typeof DIAGRAM_RELATIONS)[number];
 
+/** 手で引いた線の引き方。 */
+export const DIAGRAM_LINE_STYLES = ['solid', 'dashed'] as const;
+export type DiagramLineStyle = (typeof DIAGRAM_LINE_STYLES)[number];
+
+/**
+ * 線の端の印。
+ *
+ * 綴りは兄弟パッケージ `@anytime-markdown/graph-core` の `EndpointShape` に合わせる
+ * （あちらは `'none' | 'arrow' | 'circle' | 'diamond' | 'bar'`）。同じ概念を別の綴りで 2 か所に
+ * 持つと、片方へ形を足した日にもう片方が取り残される。
+ */
+export const DIAGRAM_ENDPOINTS = ['none', 'circle', 'arrow'] as const;
+export type DiagramEndpoint = (typeof DIAGRAM_ENDPOINTS)[number];
+
+/**
+ * 手で引いた接続線 1 本。家族から導く関係線とは別に持つ。
+ *
+ * 家族（`DiagramFamily`）へ寄せない。家族は「親から子へ」という向きと世代の意味を持ち、自動配置の
+ * 列を決める入力でもある。手で引いた線に同じ意味を負わせると、装飾のつもりで引いた 1 本が図の
+ * 並びを組み替える。
+ */
+export interface DiagramConnector {
+  /**
+   * 図の中で一意の id。
+   *
+   * 端の名前（`from` / `to`）を鍵にしない。同じ 2 つを別の線種で 2 本結べるようにするためと、
+   * 要素を改名したときに線の同一性（選択中の線・設定した端の印）を保つため。
+   */
+  readonly id: string;
+  readonly from: string;
+  readonly to: string;
+  readonly line: DiagramLineStyle;
+  /** `from` 側の端の印。 */
+  readonly start: DiagramEndpoint;
+  /** `to` 側の端の印。 */
+  readonly end: DiagramEndpoint;
+}
+
 export interface DiagramFamily {
   readonly parents: readonly string[];
   readonly children: readonly string[];
@@ -82,6 +120,15 @@ export interface DiagramDocument {
   readonly legend: string;
   readonly groups: readonly DiagramGroupAxis[];
   readonly families: readonly DiagramFamily[];
+  /**
+   * 家族に現れない要素の名前。図に置けるのは「家族に出る人物」と「ここに在る要素」の和。
+   *
+   * 家族に出る人物をここへ写さない（和で取る）のは、写しを持つと家族を直したときに 2 か所を
+   * 揃える仕事が生まれ、揃え損ねた側が「図に出ない要素」「消したのに残る要素」になるため。
+   */
+  readonly nodes: readonly string[];
+  /** 手で引いた接続線。家族から導く関係線とは別の層。 */
+  readonly connectors: readonly DiagramConnector[];
   /** 特定の人物に添える短い注記。 */
   readonly annotations: Readonly<Record<string, string>>;
   /** 自動配置に対する上書き。動かした人物と、既定と違う刻みだけが載る。 */

@@ -24,6 +24,8 @@ const DOC: DiagramDocument = {
     { parents: ['祖父', '祖母'], children: ['父'], kind: 'birth', groups: { volume: 'one' } },
     { parents: ['父', '母'], children: ['子'], kind: 'birth', groups: { volume: 'one' } },
   ],
+  nodes: [],
+  connectors: [],
   annotations: { 子: '注記' },
   layout: { placements: {} },
 };
@@ -54,7 +56,7 @@ afterEach(() => {
 });
 
 describe('図の描画', () => {
-  it('人物を 1 人につき 1 つ描き、題名・導入文・注記・凡例をデータから出す', () => {
+  it('人物を 1 人につき 1 つ描き、題名・導入文・注記をデータから出す', () => {
     mount();
     const nodes = container.querySelectorAll('.anytime-diagram-node');
     expect(nodes).toHaveLength(5);
@@ -62,7 +64,6 @@ describe('図の描画', () => {
       .toEqual(['子', '母', '父', '祖母', '祖父']);
     expect(container.querySelector('.anytime-diagram-title')?.textContent).toBe(DOC.title);
     expect(container.querySelector('.anytime-diagram-lead')?.textContent).toBe(DOC.lead);
-    expect(container.textContent).toContain(DOC.legend);
     expect(container.textContent).toContain('注記');
   });
 
@@ -76,8 +77,6 @@ describe('図の描画', () => {
     mount({ compact: true });
     const lead = container.querySelector('.anytime-diagram-lead');
     expect(lead?.classList.contains('anytime-diagram-hidden')).toBe(true);
-    // 凡例と操作の説明は省かない（線の意味と掴み方は編集中にこそ引く）。
-    expect(container.textContent).toContain(DOC.legend);
   });
 
   it('家族 1 件につき 1 本の系統線を描く', () => {
@@ -192,7 +191,8 @@ describe('保存', () => {
     const onDraftChange = jest.fn();
     mount({ editable: true, onSave: () => {}, onDraftChange });
     byText('配置を編集')!.click();
-    expect(onDraftChange).toHaveBeenCalledWith(DOC.layout);
+    // 下書きは**図の全体**（要素と線も編集するため）。配置差分だけを渡していた頃の形ではない。
+    expect(onDraftChange).toHaveBeenCalledWith(DOC);
     byText('編集を終う')!.click();
     expect(onDraftChange).toHaveBeenLastCalledWith(null);
   });
@@ -286,7 +286,7 @@ describe('縁のアイコンと操作の区画の重なり', () => {
     key: 'k', axis: 'column', kind: 'insert', index: 0, left: null, top: null, label: 'l', ...over,
   });
   /** 枠の左上に浮かぶ操作の区画（幅 150 × 高さ 32、8px の余白つき）を模す。 */
-  const panel = { left: 8, top: 8, right: 158, bottom: 40 };
+  const panel = [{ left: 8, top: 8, right: 158, bottom: 40 }];
 
   it('区画に掛かる列のアイコンは描かない', () => {
     // 列のアイコンは縦位置が帯に固定されている（top は null）。区画の縦幅に入る。
@@ -309,7 +309,7 @@ describe('縁のアイコンと操作の区画の重なり', () => {
   it('固定されている側を 0 とみなさない（帯の位置で測る）', () => {
     // 行のアイコンの横位置を 0 と見ると、区画の左端 8px より手前になり「掛かっていない」と
     // 誤判定する。実際は帯（14px）に居るので掛かる。
-    expect(covered(spec({ axis: 'row', top: 20 }), { ...panel, left: 8 })).toBe(true);
+    expect(covered(spec({ axis: 'row', top: 20 }), [{ ...panel[0]!, left: 8 }])).toBe(true);
   });
 
   it('区画が無ければ何も落とさない', () => {
@@ -362,5 +362,168 @@ describe('後片付け', () => {
     handle!.destroy();
     handle = null;
     expect(container.children).toHaveLength(0);
+  });
+});
+
+/**
+ * 要素の追加・改名・手引きの線。
+ *
+ * jsdom は版組みをしないので、枠の内寸（`clientWidth` / `clientHeight`）は 0 のまま返る。
+ * 0 は「未計測」を表し、空いた升目の ＋ は 1 つも出ない（計測前に描くと画面の外へ並ぶため）。
+ * ここでは**内寸だけを差し込んで**配線を測る。実寸の見え方は実機で確かめる。
+ */
+describe('要素と接続線', () => {
+  const FRAME = { width: 1200, height: 800 };
+  let sizes: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    sizes = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => FRAME.width });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => FRAME.height });
+  });
+
+  afterEach(() => {
+    if (sizes === undefined) return;
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', sizes);
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', sizes);
+  });
+
+  const startEditing = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byText('配置を編集')!.click();
+    return view;
+  };
+
+  const adders = (): HTMLButtonElement[] =>
+    [...container.querySelectorAll<HTMLButtonElement>('.anytime-diagram-celladd button')];
+
+  const connectPoint = (person: string): HTMLButtonElement =>
+    container.querySelector<HTMLButtonElement>(
+      `.anytime-diagram-node[data-person="${person}"] .anytime-diagram-connect`,
+    )!;
+
+  const links = (): Element[] => [...container.querySelectorAll('.anytime-diagram-links g[data-connector]')];
+
+  it('編集中だけ空いた升目に ＋ が出る', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(adders()).toHaveLength(0);
+    byText('配置を編集')!.click();
+    expect(adders().length).toBeGreaterThan(0);
+  });
+
+  it('＋ を押すと要素が 1 つ増え、そのまま名札を書き換えられる', () => {
+    const view = startEditing();
+    const before = container.querySelectorAll('.anytime-diagram-node').length;
+    adders()[0]!.click();
+    expect(container.querySelectorAll('.anytime-diagram-node')).toHaveLength(before + 1);
+    expect(view.getDraft()!.nodes).toEqual(['要素 1']);
+    const input = container.querySelector<HTMLInputElement>('.anytime-diagram-rename:not(.anytime-diagram-hidden)');
+    expect(input).not.toBeNull();
+    expect(input!.value).toBe('要素 1');
+  });
+
+  it('足した要素は押した升目に載る', () => {
+    const view = startEditing();
+    const label = adders()[0]!.getAttribute('aria-label')!;
+    const [, column, row] = /(\d+) 列 (\d+) 行目/.exec(label)!;
+    adders()[0]!.click();
+    expect(view.getDraft()!.layout.placements['要素 1'])
+      .toEqual({ column: Number(column) - 1, row: Number(row) - 1 });
+  });
+
+  it('名札を書き換えると家族・配置・線の名前が一度に変わる', () => {
+    const view = startEditing();
+    adders()[0]!.click();
+    const input = container.querySelector<HTMLInputElement>('.anytime-diagram-rename:not(.anytime-diagram-hidden)')!;
+    input.value = '新しい札';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(view.getDraft()!.nodes).toEqual(['新しい札']);
+    expect(Object.keys(view.getDraft()!.layout.placements)).toEqual(['新しい札']);
+    expect(container.querySelector('.anytime-diagram-node[data-person="新しい札"]')).not.toBeNull();
+  });
+
+  it('すでに在る名前へは書き換えず、理由を出す', () => {
+    const view = startEditing();
+    adders()[0]!.click();
+    const input = container.querySelector<HTMLInputElement>('.anytime-diagram-rename:not(.anytime-diagram-hidden)')!;
+    input.value = '祖父';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(view.getDraft()!.nodes).toEqual(['要素 1']);
+    expect(container.textContent).toContain('すでに図に在ります');
+  });
+
+  it('接続点を 2 つ押すと線が 1 本できる', () => {
+    const view = startEditing();
+    connectPoint('祖父').click();
+    expect(container.querySelector('.anytime-diagram-node[data-person="祖父"]')!.className)
+      .toContain('is-connect-source');
+    connectPoint('父').click();
+    expect(view.getDraft()!.connectors).toEqual([
+      { id: 'c1', from: '祖父', to: '父', line: 'solid', start: 'none', end: 'arrow' },
+    ]);
+    expect(links()).toHaveLength(1);
+  });
+
+  it('同じ向きの同じ組は 2 本引かない', () => {
+    const view = startEditing();
+    connectPoint('祖父').click();
+    connectPoint('父').click();
+    connectPoint('祖父').click();
+    connectPoint('父').click();
+    expect(view.getDraft()!.connectors).toHaveLength(1);
+  });
+
+  it('線を選ぶと線種と両端を変えられる', () => {
+    const view = startEditing();
+    connectPoint('祖父').click();
+    connectPoint('父').click();
+    const selects = [...container.querySelectorAll<HTMLSelectElement>('.anytime-diagram-connectorbar select')];
+    expect(selects).toHaveLength(3);
+    const [line, start, end] = selects as [HTMLSelectElement, HTMLSelectElement, HTMLSelectElement];
+    line.value = 'dashed';
+    line.dispatchEvent(new Event('change', { bubbles: true }));
+    start.value = 'circle';
+    start.dispatchEvent(new Event('change', { bubbles: true }));
+    end.value = 'none';
+    end.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.connectors[0]).toMatchObject({ line: 'dashed', start: 'circle', end: 'none' });
+    expect(container.querySelector('.anytime-diagram-links .link-line')!.classList).toContain('is-dashed');
+  });
+
+  it('線を消すと図からも消える', () => {
+    const view = startEditing();
+    connectPoint('祖父').click();
+    connectPoint('父').click();
+    byLabel('この線を消す')!.click();
+    expect(view.getDraft()!.connectors).toEqual([]);
+    expect(links()).toHaveLength(0);
+  });
+
+  it('要素を取り除くと、その要素に付いた線も落ちる', () => {
+    const view = startEditing();
+    adders()[0]!.click();
+    connectPoint('要素 1').click();
+    connectPoint('父').click();
+    expect(view.getDraft()!.connectors).toHaveLength(1);
+    byLabel('要素を取り除く')!.click();
+    expect(view.getDraft()!.nodes).toEqual([]);
+    expect(view.getDraft()!.connectors).toEqual([]);
+  });
+
+  it('家族に出る人物は取り除けない（口は在るが押せない）', () => {
+    startEditing();
+    container.querySelector<HTMLButtonElement>('[data-person="祖父"] .anytime-diagram-pick')!.click();
+    expect(byLabel('要素を取り除く')!.disabled).toBe(true);
+  });
+
+  it('保存は図の全体を渡す', async () => {
+    const onSave = jest.fn();
+    mount({ editable: true, onSave });
+    byText('配置を編集')!.click();
+    adders()[0]!.click();
+    byText('保存')!.click();
+    await Promise.resolve();
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0]![0].nodes).toEqual(['要素 1']);
   });
 });

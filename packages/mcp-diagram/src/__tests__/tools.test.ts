@@ -117,6 +117,29 @@ describe('図の書き換えと配置の引き継ぎ', () => {
     expect(document.families).toHaveLength(3);
   });
 
+  it('家族を書き換えても、画面で足した要素と線は消さない', async () => {
+    await writeDiagram({
+      path: FILE,
+      title: '検査用',
+      families,
+      nodes: ['単独の要素'],
+      connectors: [{ id: 'c1', from: '子', to: '単独の要素', line: 'dashed', start: 'none', end: 'arrow' }],
+    }, rootDir);
+    // 要素と線を渡さない呼び出しは、既存のものを引き継ぐ（配置差分と同じ扱い）。
+    await writeDiagram({ path: FILE, title: '題名を直した', families }, rootDir);
+    const document = await readDiagram({ path: FILE }, rootDir);
+    expect(document.title).toBe('題名を直した');
+    expect(document.nodes).toEqual(['単独の要素']);
+    expect(document.connectors).toHaveLength(1);
+  });
+
+  it('家族が空でも要素があれば書ける', async () => {
+    await writeDiagram({ path: FILE, title: '要素だけの図', families: [], nodes: ['甲', '乙'] }, rootDir);
+    const document = await readDiagram({ path: FILE }, rootDir);
+    expect(document.families).toEqual([]);
+    expect(document.nodes).toEqual(['乙', '甲']);
+  });
+
   it('壊れたファイルへの上書きは止める（整えた配置を消さない）', async () => {
     writeFileSync(path.join(rootDir, 'broken.diagram.json'), '{ not json', 'utf-8');
     await expect(writeDiagram({ path: 'broken.diagram.json', title: 'x', families }, rootDir))

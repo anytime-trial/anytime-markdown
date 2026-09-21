@@ -5,7 +5,7 @@
  * 書き込みが拒否された保存でも編集が終わったように見え、直した配置が失われる。
  */
 
-import type { DiagramDocument, DiagramLayout } from '@anytime-markdown/diagram-core';
+import type { DiagramDocument } from '@anytime-markdown/diagram-core';
 import { type DiagramViewerHandle,mountDiagramViewer } from '@anytime-markdown/diagram-viewer';
 
 interface VSCodeApi {
@@ -33,12 +33,12 @@ function renderInvalid(message: string): void {
 	root.appendChild(pre);
 }
 
-function saveLayout(layout: DiagramLayout): Promise<void> {
+function saveDocument(next: DiagramDocument): Promise<void> {
 	// 前の要求が残っていたら、応答が来ないまま置き去りにせず拒否する（押した人へ理由が届く）。
 	pendingSave?.reject(new Error('A previous save is still pending.'));
 	return new Promise<void>((resolve, reject) => {
 		pendingSave = { resolve, reject };
-		vscode.postMessage({ type: 'saveLayout', layout });
+		vscode.postMessage({ type: 'saveDocument', document: next });
 	});
 }
 
@@ -56,7 +56,7 @@ function render(diagram: DiagramDocument): void {
 		editable: true,
 		// 図を画面いっぱいに出す。読み物（導入文・末尾の注記）はテキストエディタ側で読める。
 		compact: true,
-		onSave: saveLayout,
+		onSave: saveDocument,
 	});
 }
 

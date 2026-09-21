@@ -7,18 +7,32 @@
  */
 
 export {
+  arrowHeadPath,
+  borderPoint,
+  type ConnectorGeometry,
+  connectorGeometry,
+  type ConnectorPointAt,
+  MAX_CONNECTORS_PER_DIAGRAM,
+} from './connectors';
+export {
   createEmptyDiagramDocument,
   diagramPeople,
   isEmptyLayout,
   MAX_PLACEMENTS_PER_DIAGRAM,
+  nextConnectorId,
+  nextElementName,
   parseDiagramDocument,
   parseDiagramFile,
   parseDiagramFileStrict,
   readDiagramLayout,
+  removeDiagramElement,
+  renameDiagramElement,
   serializeDiagramDocument,
+  validateDiagramDocument,
   validateDiagramLayout,
 } from './document';
 export {
+  CELL_ADD_ICON_PX,
   columnBoundaryX,
   columnCentreX,
   fittingShift,
@@ -46,6 +60,7 @@ export {
   rowBoundaryY,
   rowCentreY,
   shiftCell,
+  visibleCells,
   visibleGutterIndices,
 } from './grid';
 export {
@@ -77,11 +92,16 @@ export {
   rowPitch,
 } from './spacing';
 export {
+  DIAGRAM_ENDPOINTS,
+  DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
+  type DiagramConnector,
   type DiagramDocument,
+  type DiagramEndpoint,
   type DiagramFamily,
   type DiagramGroupAxis,
   type DiagramLayout,
+  type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
   type DiagramSpacing,

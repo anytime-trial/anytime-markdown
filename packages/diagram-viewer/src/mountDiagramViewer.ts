@@ -12,9 +12,11 @@ import {
   type ChartView,
   columnPitch,
   DEFAULT_DIAGRAM_SPACING,
+  type DiagramConnector,
+  type DiagramDocument,
   type DiagramLayout,
+  diagramPeople,
   type DiagramSpacing,
-  EMPTY_DIAGRAM_LAYOUT,
   fitChart,
   fittingShift,
   type GridAxis,
@@ -27,8 +29,12 @@ import {
   MIN_SCALE,
   nearestCell,
   nearestFreeCell,
+  nextConnectorId,
+  nextElementName,
   nudgeShift,
   placementFromDrag,
+  removeDiagramElement,
+  renameDiagramElement,
   resizedSpacing,
   resizeFromDrag,
   rowPitch,
@@ -40,8 +46,10 @@ import { createDiagramT, type DiagramT } from './i18n';
 import { createAutomaticCache, deriveModel, type DiagramModel } from './model';
 import { DIAGRAM_ROOT_CLASS, DIAGRAM_STYLES } from './theme/diagramStyles';
 import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
+import { createCellAdderView } from './ui/cellAdders';
 import { createChromeView, createConfirmView, RESET_LAYOUT } from './ui/chrome';
-import { el, setClass, svg } from './ui/dom';
+import { createLinkView, type LinkView } from './ui/connectors';
+import { el, setAttr, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
 import { createGutterView } from './ui/gutter';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
@@ -81,7 +89,20 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   let view: ChartView = INITIAL_VIEW;
   let selection: readonly string[] = [];
   let selectedFamily: number | null = null;
-  let draft: DiagramLayout | null = null;
+  /** 選んでいる接続線の id。家族の線とは同時に選ばない（見た目を変えられるのは手引きの線だけ）。 */
+  let selectedConnector: string | null = null;
+  /** 名札を書き換えている要素。`null` は書き換えていない状態。 */
+  let renaming: string | null = null;
+  /**
+   * 接続の始点として待ち受けている要素。
+   *
+   * 指でのドラッグと、キーボードでの「始点を押す → 終点を押す」の両方がこの 1 つを共有する。
+   * 別々に持つと、指で引きかけたまま Tab へ移ったときに 2 つの始点が並び、どちらから線が
+   * 出るのか画面から読めなくなる。
+   */
+  let connectSource: string | null = null;
+  let connectDrag: { readonly pointerId: number; readonly from: string; x: number; y: number } | null = null;
+  let draft: DiagramDocument | null = null;
   let saving = false;
   let saveError = '';
   let dragging = false;
@@ -110,7 +131,17 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   const gridPath = svg(doc, 'path');
   gridSvg.appendChild(gridPath);
   const edgesSvg = svg(doc, 'svg', { class: 'anytime-diagram-edges' });
-  surface.append(gridSvg, edgesSvg);
+  /**
+   * 手で引いた線の層。家族の線とは**別の `<svg>`** に分ける。
+   *
+   * 同じ `<svg>` に混ぜると、家族の線に当てているスタイル（`fill: none` ほか）が端の印の
+   * 塗りまで消す。層を分ければ、どちらの規則も相手を気にせず書ける。
+   */
+  const linksSvg = svg(doc, 'svg', { class: 'anytime-diagram-links' });
+  /** 接続を引いている最中の仮の線。引いていない間は `d` を外して隠す。 */
+  const previewPath = svg(doc, 'path', { class: 'link-preview' });
+  linksSvg.appendChild(previewPath);
+  surface.append(gridSvg, edgesSvg, linksSvg);
 
   const viewControls = createViewControls(doc, tr, {
     onZoom: zoom,
@@ -125,25 +156,42 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onConfirm: (kind) => confirmView.show(kind),
     onClearSelection: () => { selection = []; paint(); },
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
+    onRenameSelected: () => { startRename(lastChosen()); },
+    onRemoveSelected: () => { removeElement(lastChosen()); },
+    onConnectorStyle: styleConnector,
+    onDeleteConnector: deleteConnector,
   });
   const confirmView = createConfirmView(doc, tr, (kind) => {
-    setDraft(kind === 'discard' ? null : RESET_LAYOUT);
-    selection = [];
+    // 「破棄」は編集そのものをやめ、「自動配置に戻す」は**配置だけ**を戻す（要素や線は残す）。
+    setDraft(kind === 'discard' ? null : { ...(draft ?? document_), layout: RESET_LAYOUT });
+    clearTransientSelection();
     paint();
   });
   const gutter = createGutterView(doc, tr, { onEditGridLine: editGridLine });
+  const cellAdders = createCellAdderView(doc, tr, { onAddElement: addElement });
+
+  /**
+   * 選択と線の区画を枠の左下へ重ねる入れ物。
+   *
+   * 枠の外の帯から移した。対象（選んだ札・選んだ線）と、それに効く操作を同じ場所へ置くため
+   * — 見え方の操作を枠の中へ移したのと同じ理由。左下を選ぶのは、左上が見え方の操作で、
+   * 上端と左端には行・列を増やす ＋ の帯が走っているため。
+   */
+  const panels = el(doc, 'div', { className: 'anytime-diagram-panels' });
+  panels.append(chrome.selectionBar, chrome.connectorBar);
 
   // 縁のアイコンは**図より前に置く**。後ろに置くとタブ順が人物数ぶんの取っ手の後になり、
   // 最初の ＋ へ届くまで何百回も Tab を押すことになる。重ね順は z-index で決める。
-  viewport.append(gutter.root, surface, viewControls.root, confirmView.root);
+  viewport.append(gutter.root, cellAdders.root, surface, viewControls.root, panels, confirmView.root);
   root.append(
-    style, chrome.title, chrome.lead, chrome.toolbar, chrome.selectionBar,
-    chrome.help, chrome.editHelp, chrome.blocked, chrome.error, viewport, chrome.note,
+    style, chrome.title, chrome.lead, chrome.toolbar,
+    chrome.blocked, chrome.error, viewport, chrome.note,
   );
   container.appendChild(root);
 
   const nodeViews = new Map<string, NodeView>();
   const edgeViews: EdgeView[] = [];
+  const linkViews = new Map<string, LinkView>();
 
   // ---- 入力 ---------------------------------------------------------------
   const pointers = new Map<number, { x: number; y: number }>();
@@ -254,17 +302,27 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     paint();
   }
 
-  function setDraft(next: DiagramLayout | null): void {
+  function setDraft(next: DiagramDocument | null): void {
     draft = next;
     options.onDraftChange?.(next);
   }
 
+  /** 編集を抜けるとき・図を差し替えるときに畳む、その場かぎりの選択。 */
+  function clearTransientSelection(): void {
+    selection = [];
+    selectedFamily = null;
+    selectedConnector = null;
+    renaming = null;
+    connectSource = null;
+    connectDrag = null;
+  }
+
   function startEditing(): void {
-    setDraft(document_.layout ?? EMPTY_DIAGRAM_LAYOUT);
+    setDraft(document_);
     saveError = '';
     // 選択は編集ごとに空から始める。前の編集の選択が残っていると、最初の矢印キーが覚えのない
     // 人物まで動かす。
-    selection = [];
+    clearTransientSelection();
     paint();
   }
 
@@ -272,15 +330,26 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   function stopEditing(): void {
     if (model.changed) { confirmView.show('discard'); return; }
     setDraft(null);
-    selection = [];
+    clearTransientSelection();
     paint();
   }
 
   /** 下書きを 1 段進める。編集に入っていない状態からは触らない（掴めるのは編集中だけ）。 */
-  function updateDraft(next: (current: DiagramLayout) => DiagramLayout): void {
+  function updateDraft(next: (current: DiagramDocument) => DiagramDocument): void {
     if (draft === null) return;
     setDraft(next(draft));
     paint();
+  }
+
+  /**
+   * 下書きの**配置だけ**を 1 段進める。
+   *
+   * 配置を触る操作（掴んで動かす・矢印キー・行列の増減）は指の動きごとに走る。図の全体を
+   * 組み直す口と分けておくと、そのたびに家族や線の配列まで作り直さずに済む（作り直すと
+   * 自動配置の記憶が毎フレーム外れる）。
+   */
+  function updateLayout(next: (current: DiagramLayout) => DiagramLayout): void {
+    updateDraft((current) => ({ ...current, layout: next(current.layout) }));
   }
 
   /**
@@ -289,7 +358,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 持つと、既定と同じ図なのに「未保存の変更あり」になり、保存すると既定の値が焼き付く。
    */
   function changeSpacing(next: DiagramSpacing): void {
-    updateDraft((current) => {
+    updateLayout((current) => {
       if (!isDefaultDiagramSpacing(next)) return { ...current, spacing: next };
       const { spacing: _dropped, ...rest } = current;
       return rest;
@@ -335,6 +404,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     return selection.filter((name) => model.byName.has(name));
   }
 
+  /** 最後に選んだ 1 人。帯の操作（改名・取り除き）はこれを対象にする。 */
+  function lastChosen(): string {
+    const picked = chosen();
+    return picked[picked.length - 1] ?? '';
+  }
+
   /**
    * いっしょに動かす人物。掴んだ人物が選択に入っていれば選択全体、そうでなければ 1 人。
    *
@@ -353,7 +428,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    */
   function moveBy(names: readonly string[], shift: GridShift): void {
     if (isNoShift(shift)) return;
-    updateDraft((current) => {
+    updateLayout((current) => {
       const next = { ...current.placements };
       for (const name of names) {
         const cell = currentCell(name);
@@ -375,10 +450,139 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
   /** 1 人を自動配置へ戻す。鍵ごと落とすので、以後はデータ側の変化に追従する。 */
   function releasePlacement(name: string): void {
-    if (draft === null || !(name in draft.placements)) return;
-    const placements = { ...draft.placements };
-    delete placements[name];
-    setDraft({ ...draft, placements });
+    if (draft === null || !(name in draft.layout.placements)) return;
+    updateLayout((current) => {
+      const placements = { ...current.placements };
+      delete placements[name];
+      return { ...current, placements };
+    });
+  }
+
+  // ---- 要素と接続線 -------------------------------------------------------
+  /** いま図に居る要素の名前（下書き中は下書きのもの）。 */
+  const peopleNow = (): ReadonlySet<string> => diagramPeople(model.source.families, model.source.nodes);
+
+  /**
+   * 空いた升目へ要素を 1 つ足し、**そのまま名札の書き換えに入る**。
+   *
+   * 仮の名前で置いて終わりにしない。名前は要素の同一性そのもので、`要素 1` が並んだ図は
+   * どの升目のことを話しているのか指せなくなる（配置差分も線もその名前で結ばれる）。
+   */
+  function addElement(cell: GridCell): void {
+    if (draft === null || saving) return;
+    const name = nextElementName(peopleNow());
+    updateDraft((current) => ({
+      ...current,
+      nodes: [...current.nodes, name],
+      layout: { ...current.layout, placements: { ...current.layout.placements, [name]: cell } },
+    }));
+    renaming = name;
+    selection = [name];
+    paint();
+  }
+
+  /**
+   * 名札を書き換える。**空の名前と、すでに在る名前は受けない。**
+   *
+   * 受けると 2 つの要素が 1 つに畳まれ、取り消しが利かない（畳まれた側の配置も線も相手のものに
+   * なる）。断ったときは書き換えを続けさせる — 打った字を捨てて閉じると、何が悪かったのか
+   * 分からないまま入力からやり直すことになる。
+   */
+  function commitRename(from: string, to: string): void {
+    const next = to.trim();
+    if (next === from || next === '') { renaming = null; paint(); return; }
+    if (peopleNow().has(next)) {
+      saveError = tr('renameTaken', { name: next });
+      paint();
+      return;
+    }
+    saveError = '';
+    renaming = null;
+    selection = selection.map((name) => (name === from ? next : name));
+    updateDraft((current) => renameDiagramElement(current, from, next));
+  }
+
+  /** 名札の書き換えに入る。 */
+  function startRename(name: string): void {
+    if (draft === null || saving || name === '') return;
+    renaming = name;
+    saveError = '';
+    paint();
+  }
+
+  /** 図の上で足した要素を取り除く。家族に出る人物は取り除けない（`removeDiagramElement` が断る）。 */
+  function removeElement(name: string): void {
+    if (draft === null || saving) return;
+    selection = selection.filter((item) => item !== name);
+    if (connectSource === name) connectSource = null;
+    updateDraft((current) => removeDiagramElement(current, name));
+  }
+
+  /** 図の上から取り除ける要素か。家族に出る人物は、家族の側を組み替えないと消せない。 */
+  const removable = (name: string): boolean =>
+    model.source.nodes.includes(name) && !diagramPeople(model.source.families).has(name);
+
+  /**
+   * 線を 1 本引く。**同じ向きの同じ組は 2 本引かない。**
+   *
+   * 重ねると 2 本目は 1 本目の真下に隠れ、選んでいるつもりの線と見えている線が食い違う。
+   * 逆向き（`to → from`）は別の線として認める — 端の印を左右で付け替えたい場合がある。
+   */
+  function connect(from: string, to: string): void {
+    if (draft === null || saving || from === to) return;
+    const people = peopleNow();
+    if (!people.has(from) || !people.has(to)) return;
+    if (draft.connectors.some((item) => item.from === from && item.to === to)) return;
+    const connector: DiagramConnector = {
+      id: nextConnectorId(draft.connectors),
+      from,
+      to,
+      line: 'solid',
+      start: 'none',
+      end: 'arrow',
+    };
+    selectedConnector = connector.id;
+    selectedFamily = null;
+    updateDraft((current) => ({ ...current, connectors: [...current.connectors, connector] }));
+  }
+
+  /** 選んでいる線の見た目を変える。渡した項目だけを差し替える。 */
+  function styleConnector(patch: Partial<Pick<DiagramConnector, 'line' | 'start' | 'end'>>): void {
+    const id = selectedConnector;
+    if (id === null) return;
+    updateDraft((current) => ({
+      ...current,
+      connectors: current.connectors.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    }));
+  }
+
+  function deleteConnector(): void {
+    const id = selectedConnector;
+    if (id === null) return;
+    selectedConnector = null;
+    updateDraft((current) => ({
+      ...current,
+      connectors: current.connectors.filter((item) => item.id !== id),
+    }));
+  }
+
+  /** 指が差している札の人物名。接続の相手を決めるのに読む。 */
+  function personUnder(clientX: number, clientY: number): string | null {
+    const element = doc.elementFromPoint(clientX, clientY);
+    const node = element instanceof Element ? element.closest('[data-person]') : null;
+    return node?.getAttribute('data-person') ?? null;
+  }
+
+  /** 接続の始点を押した／待ち受け中の始点と結んだ。キーボードと指の両方がここへ来る。 */
+  function toggleConnectSource(name: string): void {
+    if (draft === null || saving) return;
+    if (connectSource !== null && connectSource !== name) {
+      const from = connectSource;
+      connectSource = null;
+      connect(from, name);
+      return;
+    }
+    connectSource = connectSource === name ? null : name;
     paint();
   }
 
@@ -394,11 +598,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       column: cellLimit(columnPitch(model.spacing)),
       row: cellLimit(rowPitch(model.spacing)),
     };
-    const edits = gridLineEdits(model.chart.nodes, draft.placements, axis, index, limit, model.chart.automatic);
+    const edits = gridLineEdits(
+      model.chart.nodes, draft.layout.placements, axis, index, limit, model.chart.automatic,
+    );
     const next = kind === 'insert' ? edits.insert : edits.remove;
     if (next === null) return;
-    setDraft({ ...draft, placements: next });
-    paint();
+    updateLayout((current) => ({ ...current, placements: next }));
   }
 
   async function save(): Promise<void> {
@@ -409,7 +614,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     try {
       await options.onSave(draft);
       setDraft(null);
-      selection = [];
+      clearTransientSelection();
     } catch (error) {
       saveError = error instanceof Error ? error.message : String(error);
     } finally {
@@ -470,6 +675,54 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onTogglePick: togglePick,
     onNudge: nudgeCells,
     onRelease: releasePlacement,
+    onStartRename: startRename,
+    onCommitRename: commitRename,
+    onCancelRename(): void {
+      renaming = null;
+      saveError = '';
+      paint();
+    },
+    onConnectPointerDown(event: PointerEvent, name: string): void {
+      if (draft === null || saving || event.button !== 0) return;
+      // 待ち受け中の始点があるなら、この押下は「結ぶ」の意味になる。新しい始点で上書きしない。
+      if (connectSource !== null && connectSource !== name) {
+        const from = connectSource;
+        connectSource = null;
+        connect(from, name);
+        return;
+      }
+      const target = event.currentTarget;
+      if (target instanceof Element) target.setPointerCapture(event.pointerId);
+      const rect = viewport.getBoundingClientRect();
+      const point = chartPoint(view, rect, event.clientX, event.clientY);
+      connectSource = name;
+      connectDrag = { pointerId: event.pointerId, from: name, x: point.x, y: point.y };
+      paint();
+    },
+    onConnectPointerMove(event: PointerEvent): void {
+      if (connectDrag === null || connectDrag.pointerId !== event.pointerId) return;
+      event.stopPropagation();
+      const rect = viewport.getBoundingClientRect();
+      const point = chartPoint(view, rect, event.clientX, event.clientY);
+      connectDrag = { ...connectDrag, x: point.x, y: point.y };
+      paint();
+    },
+    onConnectPointerUp(event: PointerEvent): void {
+      const drag = connectDrag;
+      if (drag === null || drag.pointerId !== event.pointerId) return;
+      event.stopPropagation();
+      const target = event.currentTarget;
+      if (target instanceof Element && target.hasPointerCapture(event.pointerId)) {
+        target.releasePointerCapture(event.pointerId);
+      }
+      connectDrag = null;
+      const to = personUnder(event.clientX, event.clientY);
+      // 相手の上で離していなければ**待ち受けたまま**にする（押しただけの操作＝始点の指定）。
+      if (to === null || to === drag.from) { paint(); return; }
+      connectSource = null;
+      connect(drag.from, to);
+    },
+    onConnectToggle: toggleConnectSource,
     onSizePointerDown(event: PointerEvent, name: string, axes: ResizeAxes): void {
       if (draft === null || saving || event.button !== 0) return;
       // 人物のドラッグ（箱を動かす）へ渡さない。縁で始めた操作の意味は「大きさを変える」の 1 つ。
@@ -519,50 +772,84 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
   // ---- 描画 ---------------------------------------------------------------
   /**
-   * 見え方の操作の区画が枠の中で占める位置（枠の左上を原点とする px）。
+   * 枠の中で**別のものが載っている場所**（枠の左上を原点とする px）。ここへは ＋／− を置かない。
    *
-   * 実寸で測るのは、字の大きさや locale で幅が変わるため（`47%` と `100%` で 1 文字違う）。
-   * 決め打ちの数値を置くと、広がった日にその下の ＋ が押せないまま残る。
+   * 実寸で測るのは、字の大きさ・locale・選んだ数で幅が変わるため（`47%` と `100%` で 1 文字違い、
+   * 「1 人を選択中」と「12 人を選択中」でも違う）。決め打ちの数値を置くと、広がった日にその下の
+   * ＋ が押せないまま残る。
+   *
+   * 出ていない区画（`display: none`）は矩形が 0 になるので、**畳んでから数える** — 0 の矩形を
+   * 残すと枠の左上隅の ＋ だけが理由もなく消える。
    */
-  function blockedByViewControls(): { left: number; top: number; right: number; bottom: number } {
-    const box = viewControls.root.getBoundingClientRect();
+  function blockedBoxes(): readonly { left: number; top: number; right: number; bottom: number }[] {
     const frameBox = viewport.getBoundingClientRect();
-    return {
-      left: box.left - frameBox.left,
-      top: box.top - frameBox.top,
-      right: box.right - frameBox.left,
-      bottom: box.bottom - frameBox.top,
-    };
+    return [viewControls.root, chrome.selectionBar, chrome.connectorBar]
+      .map((element) => element.getBoundingClientRect())
+      .filter((box) => box.width > 0 && box.height > 0)
+      .map((box) => ({
+        left: box.left - frameBox.left,
+        top: box.top - frameBox.top,
+        right: box.right - frameBox.left,
+        bottom: box.bottom - frameBox.top,
+      }));
   }
 
   function syncViews(): void {
     const wanted = new Set(model.chart.nodes.map((node) => node.name));
-    for (const [name, nodeView] of nodeViews) {
+    // 控えの写しを回してから外す。外す要素が焦点を持っていると `blur` が同期で飛び、その先で
+    // 描き直しが走りうる（改名の確定がそれ）。控えを直に回していると、その描き直しが同じ控えを
+    // 書き換えながら走ることになる。
+    for (const [name, nodeView] of [...nodeViews]) {
       if (wanted.has(name)) continue;
-      nodeView.root.remove();
       nodeViews.delete(name);
+      nodeView.root.remove();
     }
     for (const node of model.chart.nodes) {
       if (nodeViews.has(node.name)) continue;
-      const nodeView = createNodeView(doc, document_, node.name, tr, nodeCallbacks);
+      // 札の中身（群の札・親・注記）は**いま描いている図**から引く。保存済みの図を渡すと、
+      // 下書きで足した要素の札だけが「図に居ない人物」として空になる。
+      const nodeView = createNodeView(doc, model.source, node.name, tr, nodeCallbacks);
       nodeViews.set(node.name, nodeView);
       surface.appendChild(nodeView.root);
     }
-    while (edgeViews.length > document_.families.length) edgeViews.pop()!.root.remove();
-    for (let index = edgeViews.length; index < document_.families.length; index += 1) {
-      const edgeView = createEdgeView(doc, document_.families[index]!, index, tr, {
+    const families = model.source.families;
+    while (edgeViews.length > families.length) edgeViews.pop()!.root.remove();
+    for (let index = edgeViews.length; index < families.length; index += 1) {
+      const edgeView = createEdgeView(doc, families[index]!, index, tr, {
         onSelectFamily(pressed) {
           selectedFamily = selectedFamily === pressed ? null : pressed;
+          selectedConnector = null;
           paint();
         },
       });
       edgeViews.push(edgeView);
       edgesSvg.appendChild(edgeView.root);
     }
+    const wantedLinks = new Set(model.links.map((link) => link.connector.id));
+    for (const [id, linkView] of linkViews) {
+      if (wantedLinks.has(id)) continue;
+      linkView.root.remove();
+      linkViews.delete(id);
+    }
+    for (const link of model.links) {
+      if (linkViews.has(link.connector.id)) continue;
+      const linkView = createLinkView(doc, link.connector.id, tr, {
+        onSelectLink(pressed) {
+          selectedConnector = selectedConnector === pressed ? null : pressed;
+          selectedFamily = null;
+          paint();
+        },
+      });
+      linkViews.set(link.connector.id, linkView);
+      linksSvg.appendChild(linkView.root);
+    }
   }
 
   function paint(): void {
-    model = deriveModel({ document: document_, draft, automatic: automaticCache(document_) });
+    model = deriveModel({ document: document_, draft, automatic: automaticCache(draft ?? document_) });
+    // 部品の増減は**毎回ここで揃える**。要素と線は編集中に増えるので、差し替えのときだけ揃える
+    // 作りだと、足した要素の札が次に図を開き直すまで現れない。
+    syncViews();
     if (!fitted && viewport.clientWidth > 0 && viewport.clientHeight > 0) {
       fitted = true;
       view = fitChart(viewport.clientWidth, viewport.clientHeight, model.surface.width, model.surface.height);
@@ -580,16 +867,16 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     setClass(viewport, 'is-editing', editing);
     setClass(viewport, 'is-dragging', dragging);
 
-    for (const target of [gridSvg, edgesSvg]) {
+    for (const target of [gridSvg, edgesSvg, linksSvg]) {
       target.setAttribute('width', String(model.surface.width));
       target.setAttribute('height', String(model.surface.height));
     }
     setClass(gridSvg, 'anytime-diagram-hidden', !editing);
     gridPath.setAttribute('d', model.freeCells);
 
-    const selectedConnector = selectedFamily === null ? undefined : model.connectors[selectedFamily];
-    const selectedPeople = selectedConnector === undefined ? null : new Set([
-      ...selectedConnector.family.parents, ...selectedConnector.family.children,
+    const selectedFamilyConnector = selectedFamily === null ? undefined : model.connectors[selectedFamily];
+    const selectedPeople = selectedFamilyConnector === undefined ? null : new Set([
+      ...selectedFamilyConnector.family.parents, ...selectedFamilyConnector.family.children,
     ]);
     for (const [index, edgeView] of edgeViews.entries()) {
       const connector = model.connectors[index];
@@ -600,6 +887,21 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         dimmed: selectedFamily !== null && selectedFamily !== index,
       });
     }
+    for (const link of model.links) {
+      linkViews.get(link.connector.id)?.update({
+        link,
+        scale: view.scale,
+        selected: selectedConnector === link.connector.id,
+        dimmed: selectedConnector !== null && selectedConnector !== link.connector.id,
+      });
+    }
+    // 引いている最中の仮の線。始点は札の縁ではなく中心から出す（相手が決まるまで縁が定まらない）。
+    const dragFrom = connectDrag === null ? undefined : model.byName.get(connectDrag.from);
+    setAttr(previewPath, 'd', connectDrag === null || dragFrom === undefined
+      ? null
+      : `M ${dragFrom.x + model.spacing.nodeWidth / 2} ${dragFrom.y + model.spacing.nodeHeight / 2} `
+        + `L ${connectDrag.x} ${connectDrag.y}`);
+
     for (const node of model.chart.nodes) {
       nodeViews.get(node.name)?.update({
         node,
@@ -610,18 +912,24 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         moved: node.name in model.placements,
         isAnchor: node.name === model.resizeAnchor,
         saving,
+        renaming: renaming === node.name,
+        connectSource: connectSource === node.name,
       });
     }
 
     viewControls.update({ scale: view.scale, minScale: MIN_SCALE, maxScale: MAX_SCALE });
     // 見え方の操作の区画（枠の左上）と重なる ＋／− は描かない。重ねると上に載っているほうが
     // 押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
+    const blocked = blockedBoxes();
     gutter.update({
-      editing, saving, spacing: model.spacing, view, frame, lines: model.lines,
-      blocked: blockedByViewControls(),
+      editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,
+    });
+    cellAdders.update({
+      editing, saving, spacing: model.spacing, view, frame,
+      extent: model.extent, occupied: model.occupied, blocked,
     });
     chrome.update({
-      document: document_,
+      document: model.source,
       names: model.chart.nodes.map((node) => node.name),
       selected: chosen()[chosen().length - 1] ?? '',
       selectionCount: picked.size,
@@ -633,12 +941,13 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       saving,
       saveError,
       spacing: model.spacing,
-      draft,
+      removable: removable(lastChosen()),
+      draft: draft?.layout ?? null,
       shiftable: model.lines.shiftable,
+      connector: model.source.connectors.find((item) => item.id === selectedConnector) ?? null,
     });
   }
 
-  syncViews();
   paint();
 
   return {
@@ -650,8 +959,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         document_ = next.document;
         // 別の図の人物名・升目を次の操作へ持ち越さない。
         setDraft(null);
-        selection = [];
-        selectedFamily = null;
+        clearTransientSelection();
         saveError = '';
         // 差し替えた図も全体表示から始める。前の図に合わせた倍率を持ち越すと、大きさの違う
         // 図では画面の外や豆粒の状態で開く。
@@ -662,9 +970,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         for (const nodeView of nodeViews.values()) nodeView.root.remove();
         nodeViews.clear();
         while (edgeViews.length > 0) edgeViews.pop()!.root.remove();
+        for (const linkView of linkViews.values()) linkView.root.remove();
+        linkViews.clear();
       }
-      model = deriveModel({ document: document_, draft, automatic: automaticCache(document_) });
-      syncViews();
       paint();
     },
     getDraft: () => draft,
@@ -674,6 +982,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       root.remove();
       nodeViews.clear();
       edgeViews.length = 0;
+      linkViews.clear();
     },
   };
 }

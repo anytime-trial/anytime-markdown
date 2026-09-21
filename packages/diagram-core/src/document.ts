@@ -17,12 +17,18 @@ import {
   readDiagramSpacing,
   rowPitch,
 } from './spacing';
+import { MAX_CONNECTORS_PER_DIAGRAM } from './connectors';
 import {
+  DIAGRAM_ENDPOINTS,
+  DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
+  type DiagramConnector,
   type DiagramDocument,
+  type DiagramEndpoint,
   type DiagramFamily,
   type DiagramGroupAxis,
   type DiagramLayout,
+  type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
   type DiagramSpacing,
@@ -59,6 +65,14 @@ function stringRecord(value: unknown): Readonly<Record<string, string>> | undefi
 
 function isRelation(value: unknown): value is DiagramRelation {
   return typeof value === 'string' && (DIAGRAM_RELATIONS as readonly string[]).includes(value);
+}
+
+function isLineStyle(value: unknown): value is DiagramLineStyle {
+  return typeof value === 'string' && (DIAGRAM_LINE_STYLES as readonly string[]).includes(value);
+}
+
+function isEndpoint(value: unknown): value is DiagramEndpoint {
+  return typeof value === 'string' && (DIAGRAM_ENDPOINTS as readonly string[]).includes(value);
 }
 
 /** 升目の番号として読めるか。負・小数・桁外れは弾く。 */
@@ -169,13 +183,22 @@ export function isEmptyLayout(layout: DiagramLayout): boolean {
   return Object.keys(layout.placements).length === 0 && isDefaultDiagramSpacing(layout.spacing);
 }
 
-/** 家族の一覧に現れる人物名。図に描ける人物の正本で、ここに無い名前は図の外側。 */
-export function diagramPeople(families: readonly DiagramFamily[]): ReadonlySet<string> {
+/**
+ * 図に描ける要素の名前。**家族に現れる人物と、家族に属さない要素（`nodes`）の和**。
+ *
+ * 和で取るので、家族に出る名前が `nodes` にも書いてあっても 1 つに畳まれる（図に同じ札が
+ * 2 枚並ばない）。ここに無い名前は図の外側で、配置差分も接続線も掛からない。
+ */
+export function diagramPeople(
+  families: readonly DiagramFamily[],
+  nodes: readonly string[] = [],
+): ReadonlySet<string> {
   const names = new Set<string>();
   for (const family of families) {
     for (const name of family.parents) names.add(name);
     for (const name of family.children) names.add(name);
   }
+  for (const name of nodes) names.add(name);
   return names;
 }
 
@@ -223,7 +246,13 @@ function readGroupAxes(value: unknown, onWarn: Warn): DiagramGroupAxis[] | null 
   return groups;
 }
 
-/** 家族の一覧。**人物はここから導く**ので、空の一覧は「図に描ける人物が 1 人も居ない」に等しい。 */
+/**
+ * 家族の一覧。
+ *
+ * **空を断らない。** かつては「人物は家族から導く」ため空＝描ける人物が 0 人だったが、
+ * 家族に属さない要素（`nodes`）を持てるようになった以上、家族が 0 件でも図は成り立つ
+ * （要素だけを並べて手で線を引く図）。「要素が 1 つも無い」の判定は両方を見た後に行う。
+ */
 function readFamilies(value: unknown, onWarn: Warn): DiagramFamily[] | null {
   if (!Array.isArray(value)) {
     onWarn('[diagram] families: 配列が必要です');
@@ -241,11 +270,45 @@ function readFamilies(value: unknown, onWarn: Warn): DiagramFamily[] | null {
     }
     families.push({ parents, children, kind: family.kind, groups: familyGroups });
   }
-  if (families.length === 0) {
-    onWarn('[diagram] families が空です');
+  return families;
+}
+
+/**
+ * 手で引いた接続線の一覧。**1 件でも読めなければ図ごと読まない**（家族と同じ扱い）。
+ *
+ * 読めない 1 件を落として開く形にしない。落とすと、開いて保存し直すたびに線が 1 本ずつ静かに
+ * 消え、いつ消えたのかを後から辿れない（警告はログに 1 行出るだけで、保存は成功する）。
+ * 配置差分を寛容に読むのは、あれが「図の中身」ではなく自動配置への上書きだからで、線は中身。
+ */
+function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    onWarn('[diagram] connectors: 配列が必要です');
     return null;
   }
-  return families;
+  if (value.length > MAX_CONNECTORS_PER_DIAGRAM) {
+    onWarn(`[diagram] connectors: ${MAX_CONNECTORS_PER_DIAGRAM} 本までです`);
+    return null;
+  }
+  const connectors: DiagramConnector[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (!isObject(item) || typeof item.id !== 'string' || item.id === ''
+      || typeof item.from !== 'string' || item.from === ''
+      || typeof item.to !== 'string' || item.to === ''
+      || !isLineStyle(item.line) || !isEndpoint(item.start) || !isEndpoint(item.end)) {
+      onWarn('[diagram] connectors の要素は id / from / to（空でない文字列）'
+        + ` / line（${DIAGRAM_LINE_STYLES.join(' | ')}）/ start・end（${DIAGRAM_ENDPOINTS.join(' | ')}）が必要です`);
+      return null;
+    }
+    if (seen.has(item.id)) {
+      onWarn(`[diagram] connectors: id が重複しています（${item.id}）`);
+      return null;
+    }
+    seen.add(item.id);
+    connectors.push({ id: item.id, from: item.from, to: item.to, line: item.line, start: item.start, end: item.end });
+  }
+  return connectors;
 }
 
 /**
@@ -265,10 +328,22 @@ export function parseDiagramDocument(value: unknown, onWarn: Warn = () => {}): D
   }
   const groups = readGroupAxes(value.groups, onWarn);
   const families = readFamilies(value.families, onWarn);
-  if (groups === null || families === null) return null;
+  const connectors = readConnectors(value.connectors, onWarn);
+  if (groups === null || families === null || connectors === null) return null;
+  const nodes = value.nodes === undefined ? [] : stringArray(value.nodes);
+  if (nodes === undefined) {
+    onWarn('[diagram] nodes: 空でない文字列の配列が必要です');
+    return null;
+  }
   const annotations = value.annotations === undefined ? {} : stringRecord(value.annotations);
   if (annotations === undefined) {
     onWarn('[diagram] annotations: 文字列の対応が必要です');
+    return null;
+  }
+  // 「描ける要素が 1 つも無い」の判定は家族と要素を**両方読んだ後**に 1 度だけ行う。家族の側だけで
+  // 断っていた頃の判定を残すと、要素だけで成り立つ図（手で並べて線を引く図）が開けない。
+  if (diagramPeople(families, nodes).size === 0) {
+    onWarn('[diagram] 図に描ける要素がありません（families か nodes のどちらかが要ります）');
     return null;
   }
   return {
@@ -279,6 +354,8 @@ export function parseDiagramDocument(value: unknown, onWarn: Warn = () => {}): D
     legend,
     groups,
     families,
+    nodes: [...new Set(nodes)],
+    connectors,
     annotations,
     layout: readDiagramLayout(value.layout, onWarn),
   };
@@ -392,13 +469,19 @@ export function serializeDiagramDocument(document: DiagramDocument): string {
     legend: document.legend,
     groups: document.groups,
     families: document.families,
+    // 空の項目は書かない（触っていない図に空の入れ物を増やさない）。読み取りは項目が無ければ
+    // 空として受けるので、要素も接続線も持たない既存のファイルは形が変わらない。
+    ...(document.nodes.length === 0 ? {} : { nodes: [...document.nodes].sort() }),
+    ...(document.connectors.length === 0
+      ? {}
+      : { connectors: [...document.connectors].sort((left, right) => (left.id < right.id ? -1 : 1)) }),
     annotations: document.annotations,
     ...(isEmptyLayout(layout) ? {} : { layout }),
   }, null, 2)}\n`;
 }
 
-/** 新規作成の雛形。空の `families` は読み取りが断るので、最小の 1 件を入れて作る。 */
-export function createEmptyDiagramDocument(title: string): DiagramDocument {
+/** 新規作成の雛形。要素 1 つだけの図から始める（＋ で足し、線は手で引く）。 */
+export function createEmptyDiagramDocument(title: string, firstElement = '要素 1'): DiagramDocument {
   return {
     version: 1,
     title,
@@ -406,8 +489,124 @@ export function createEmptyDiagramDocument(title: string): DiagramDocument {
     note: '',
     legend: '実線は親子、点線は生成、破線は婚姻を表します。',
     groups: [],
-    families: [{ parents: ['親'], children: ['子'], kind: 'birth', groups: {} }],
+    families: [],
+    nodes: [firstElement],
+    connectors: [],
     annotations: {},
     layout: EMPTY_DIAGRAM_LAYOUT,
   };
+}
+
+/**
+ * 図に既に在る名前と重ならない名前。`要素 1`・`要素 2`… と数字だけを繰り上げる。
+ *
+ * 追加のたびに一意な名前を作るのは、**名前が要素の同一性そのもの**だから。同じ名前を 2 つ置くと、
+ * 配置差分も接続線も注記もどちらを指しているか決められない。
+ */
+export function nextElementName(taken: ReadonlySet<string>, prefix = '要素'): string {
+  for (let index = 1; index <= taken.size + 1; index += 1) {
+    const candidate = `${prefix} ${index}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  // 上の走査は必ず空きを見つける（候補が要素数 + 1 個ある）。ここへ来るのは prefix 付きの名前が
+  // 外から増えた場合だけなので、時刻で衝突を避ける。
+  return `${prefix} ${Date.now()}`;
+}
+
+/** 図の中で使われていない接続線の id。`c1`・`c2`… と数字だけを繰り上げる。 */
+export function nextConnectorId(connectors: readonly DiagramConnector[]): string {
+  const taken = new Set(connectors.map((connector) => connector.id));
+  for (let index = 1; index <= taken.size + 1; index += 1) {
+    if (!taken.has(`c${index}`)) return `c${index}`;
+  }
+  return `c${Date.now()}`;
+}
+
+/**
+ * 要素を 1 つ取り除いた図。**取り除けるのは家族に属さない要素だけ。**
+ *
+ * 家族に出る人物は消さない（`document` をそのまま返す）。消すには家族の側を組み替える必要が
+ * あり、親を 1 人消すと家族の形（`parents` は 1 件以上）まで壊れる。図の上から消せる範囲を
+ * 「図の上で足した要素」に限ると、消せるものと消せないものの境目が操作の履歴と一致する。
+ *
+ * 併せて**その要素に取り付いた接続線・注記・配置差分も落とす**。残すと、図に出ない名前を指す
+ * 線と差分が積もり、次に同じ名前で要素を足したときに覚えの無い線が復活する。
+ */
+export function removeDiagramElement(document: DiagramDocument, name: string): DiagramDocument {
+  if (!document.nodes.includes(name)) return document;
+  if (diagramPeople(document.families).has(name)) return document;
+  const annotations = { ...document.annotations };
+  delete annotations[name];
+  const placements = { ...document.layout.placements };
+  delete placements[name];
+  return {
+    ...document,
+    nodes: document.nodes.filter((item) => item !== name),
+    connectors: document.connectors.filter((connector) => connector.from !== name && connector.to !== name),
+    annotations,
+    layout: { ...document.layout, placements },
+  };
+}
+
+/**
+ * 要素の名前を付け替えた図。**名前を鍵にしている場所をまとめて直す。**
+ *
+ * 1 か所ずつ呼び出し側で直させない。名前は家族・要素・注記・配置差分・接続線の 5 か所に現れ、
+ * 直し漏れた 1 か所は「図に出ない差分」「端の消えた線」として静かに残る（どちらもエラーを出さない）。
+ *
+ * 付け替え先が既に在る名前なら**何もしない**（`document` をそのまま返す）。畳むと 2 つの要素が
+ * 1 つになり、取り消せない。呼び出し側は先に `diagramPeople` で重なりを断る。
+ */
+export function renameDiagramElement(
+  document: DiagramDocument,
+  from: string,
+  to: string,
+): DiagramDocument {
+  if (from === to || to === '') return document;
+  const people = diagramPeople(document.families, document.nodes);
+  if (!people.has(from) || people.has(to)) return document;
+  const swap = (name: string): string => (name === from ? to : name);
+  const annotations: Record<string, string> = {};
+  for (const [name, text] of Object.entries(document.annotations)) annotations[swap(name)] = text;
+  const placements: Record<string, DiagramPlacement> = {};
+  for (const [name, cell] of Object.entries(document.layout.placements)) placements[swap(name)] = cell;
+  return {
+    ...document,
+    families: document.families.map((family) => ({
+      ...family,
+      parents: family.parents.map(swap),
+      children: family.children.map(swap),
+    })),
+    nodes: [...new Set(document.nodes.map(swap))],
+    connectors: document.connectors.map((connector) => ({
+      ...connector,
+      from: swap(connector.from),
+      to: swap(connector.to),
+    })),
+    annotations,
+    layout: { ...document.layout, placements },
+  };
+}
+
+/**
+ * 図の全体の検証。保存の入口（webview から届いた図）が通す。
+ *
+ * 画面が組み立てた図をそのまま書かない。webview からのメッセージは信頼できない入力で、
+ * ここを通らない形を書くと、次に開いた画面が「読めません」になる。読み取り（寛容）ではなく
+ * **読み戻せるか**で判定する — 保存の目的は「次に開けること」だから。
+ */
+export function validateDiagramDocument(
+  value: unknown,
+): { readonly ok: true; readonly document: DiagramDocument } | { readonly ok: false; readonly errors: readonly string[] } {
+  const problems: string[] = [];
+  const document = parseDiagramDocument(value, (message) => problems.push(message));
+  if (document === null) return { ok: false, errors: problems.length > 0 ? problems : ['[diagram] 図を読めません'] };
+  // 配置差分だけは読み取りが寛容（読めない 1 件を落とす）なので、保存の入口の厳格な検査を
+  // 改めて通す。通さないと、重なった升目が「落とされた差分」として静かに消えて保存される。
+  const layout = validateDiagramLayout(isObject(value) ? value.layout ?? { placements: {} } : {});
+  if (!layout.ok) return { ok: false, errors: layout.errors };
+  // **端が図に出ない接続線は断らない。** 配置差分で人物名の実在を照合しないのと同じ理由で、
+  // 照合を入れると要素名を直した瞬間に保存できない状態になる（テキスト側で家族を消した図も
+  // 開いたまま保存できなくなる）。端の見つからない線は描画側が描かない。
+  return { ok: true, document: { ...document, layout: layout.layout } };
 }

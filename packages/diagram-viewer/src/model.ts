@@ -15,7 +15,10 @@ import {
   cellLimit,
   type ChartNode,
   columnPitch,
+  type ConnectorGeometry,
+  connectorGeometry,
   DEFAULT_DIAGRAM_SPACING,
+  type DiagramConnector,
   type DiagramDocument,
   type DiagramFamily,
   type DiagramLayout,
@@ -57,12 +60,27 @@ export interface GridLines {
   readonly shiftable: boolean;
 }
 
+/**
+ * 描ける手引きの線 1 本。**端の見つからない線はここに現れない**。
+ *
+ * 落とすのであって断らない。要素名を直すと線の端が一時的に迷子になるが、保存を止めると
+ * 名前を直した瞬間に図が保存できなくなる（配置差分が名前の実在を照合しないのと同じ理由）。
+ */
+export interface DiagramLink {
+  readonly connector: DiagramConnector;
+  readonly geometry: ConnectorGeometry;
+}
+
 export interface DiagramModel {
+  /** いま描いている図。編集中は下書き、そうでなければ保存済みの図。 */
+  readonly source: DiagramDocument;
   readonly chart: PlacedChart;
   readonly byName: ReadonlyMap<string, ChartNode>;
   readonly spacing: DiagramSpacing;
   readonly placements: Readonly<Record<string, { readonly column: number; readonly row: number }>>;
   readonly connectors: readonly FamilyConnector[];
+  /** 手で引いた線のうち、両端が図に出ているもの。 */
+  readonly links: readonly DiagramLink[];
   readonly extent: GridExtent;
   /** 図の枠の大きさ。編集中は升目の広がりを下回らない。 */
   readonly surface: { readonly width: number; readonly height: number };
@@ -79,34 +97,39 @@ export interface DiagramModel {
 }
 
 /**
- * 自動配置の記憶。`document` が同じなら並べ替えをやり直さない。
+ * 自動配置の記憶。**並べ替えの入力（家族と単独の要素）が同じなら**やり直さない。
  *
- * 記憶を持たないと、指を動かすたびに人物数ぶんの並べ替えが走る。
+ * 図そのものを鍵にしない。下書きは図の全体を持つので、升目を 1 つ動かすたびに別の図になり、
+ * 記憶が毎フレーム外れる（指を動かすたびに人物数ぶんの並べ替えが走る）。並べ替えに効くのは
+ * 家族と要素の一覧だけなので、その 2 つの同一性で見る。
  */
 export function createAutomaticCache(): (document: DiagramDocument) => AutomaticChart {
-  let key: DiagramDocument | null = null;
+  let families: readonly DiagramFamily[] | null = null;
+  let nodes: readonly string[] | null = null;
   let value: AutomaticChart | null = null;
   return (document) => {
-    if (key === document && value !== null) return value;
-    key = document;
-    value = layoutDiagram(document.families);
+    if (families === document.families && nodes === document.nodes && value !== null) return value;
+    families = document.families;
+    nodes = document.nodes;
+    value = layoutDiagram(document.families, document.nodes);
     return value;
   };
 }
 
 export interface DeriveOptions {
+  /** 保存済みの図。 */
   readonly document: DiagramDocument;
-  /** 編集中の下書き。`null` は編集していない状態。 */
-  readonly draft: DiagramLayout | null;
+  /** 編集中の下書き（図の全体）。`null` は編集していない状態。 */
+  readonly draft: DiagramDocument | null;
   readonly automatic: AutomaticChart;
 }
 
 export function deriveModel({ document, draft, automatic }: DeriveOptions): DiagramModel {
-  const saved = document.layout ?? EMPTY_DIAGRAM_LAYOUT;
   const editing = draft !== null;
-  const source = draft ?? saved;
-  const placements = source.placements;
-  const spacing = source.spacing ?? DEFAULT_DIAGRAM_SPACING;
+  const source = draft ?? document;
+  const layout = source.layout ?? EMPTY_DIAGRAM_LAYOUT;
+  const placements = layout.placements;
+  const spacing = layout.spacing ?? DEFAULT_DIAGRAM_SPACING;
   const chart = applyDiagramPlacements(applyDiagramSpacing(automatic, spacing), { placements, spacing });
   const byName = new Map(chart.nodes.map((node) => [node.name, node]));
 
@@ -117,7 +140,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
   }
 
   const laneByColumn = new Map<number, number>();
-  const connectors: FamilyConnector[] = document.families.map((family) => {
+  const connectors: FamilyConnector[] = source.families.map((family) => {
     const parentColumn = Math.min(...family.parents.map((parent) => byName.get(parent)!.x));
     const lane = laneByColumn.get(parentColumn) ?? 0;
     laneByColumn.set(parentColumn, lane + 1);
@@ -141,12 +164,23 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
   }
   const occupied = new Set(occupants.keys());
 
+  const links: DiagramLink[] = [];
+  for (const connector of source.connectors) {
+    const from = byName.get(connector.from);
+    const to = byName.get(connector.to);
+    if (from === undefined || to === undefined) continue;
+    const geometry = connectorGeometry(from, to, spacing);
+    if (geometry !== null) links.push({ connector, geometry });
+  }
+
   return {
+    source,
     chart,
     byName,
     spacing,
     placements,
     connectors,
+    links,
     extent,
     surface,
     occupants,
@@ -154,7 +188,35 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     freeCells: editing ? freeCellsPath(spacing, extent, occupied) : '',
     resizeAnchor: anchor?.name ?? '',
     lines: deriveGridLines(chart, placements, byName, spacing),
-    changed: draft !== null && layoutKey(draft) !== layoutKey(saved),
+    changed: draft !== null && documentChanged(draft, document),
+  };
+}
+
+/**
+ * 下書きが保存済みと違うか。
+ *
+ * 升目は毎フレーム変わるので鍵を組んで比べ、図の中身（家族・要素・線・注記）は**まず同一性で**
+ * 見る。中身は押下のたびにしか変わらず、変わらない間は同じ配列を持ち回るので、同一性で済む
+ * 限り人物数ぶんの文字列化を毎フレーム走らせずに済む。同一性が割れたときだけ中身で決める
+ * （同じ値で作り直した直後に「変更あり」と言わないため）。
+ */
+export function documentChanged(draft: DiagramDocument, saved: DiagramDocument): boolean {
+  if (layoutKey(draft.layout ?? EMPTY_DIAGRAM_LAYOUT) !== layoutKey(saved.layout ?? EMPTY_DIAGRAM_LAYOUT)) return true;
+  const sameReferences = draft.families === saved.families
+    && draft.nodes === saved.nodes
+    && draft.connectors === saved.connectors
+    && draft.annotations === saved.annotations;
+  if (sameReferences) return false;
+  return JSON.stringify(contentKey(draft)) !== JSON.stringify(contentKey(saved));
+}
+
+/** 中身の比較に使う形。鍵の順に依らないよう、対応は並べ替えてから組む。 */
+function contentKey(document: DiagramDocument) {
+  return {
+    families: document.families,
+    nodes: [...document.nodes].sort(),
+    connectors: [...document.connectors].sort((left, right) => (left.id < right.id ? -1 : 1)),
+    annotations: Object.keys(document.annotations).sort().map((name) => [name, document.annotations[name]]),
   };
 }
 

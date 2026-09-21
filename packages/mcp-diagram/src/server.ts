@@ -1,4 +1,9 @@
-import { DIAGRAM_RELATIONS, DIAGRAM_SPACING_RANGE } from '@anytime-markdown/diagram-core';
+import {
+  DIAGRAM_ENDPOINTS,
+  DIAGRAM_LINE_STYLES,
+  DIAGRAM_RELATIONS,
+  DIAGRAM_SPACING_RANGE,
+} from '@anytime-markdown/diagram-core';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -24,6 +29,15 @@ const familySchema = z.object({
   children: z.array(z.string()).describe('Child names. May be empty for a couple with no recorded children'),
   kind: z.enum(DIAGRAM_RELATIONS).describe('Relation kind: birth (solid), creation (dotted), oath (dashed)'),
   groups: z.record(z.string(), z.string()).describe('Group axis id to value id, for the badges on each card'),
+});
+
+const connectorSchema = z.object({
+  id: z.string().min(1).describe('Stable id, unique within the chart. Keeps the line identified across renames'),
+  from: z.string().min(1).describe('Element the line starts at'),
+  to: z.string().min(1).describe('Element the line ends at'),
+  line: z.enum(DIAGRAM_LINE_STYLES).describe('Line style'),
+  start: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the from end'),
+  end: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the to end'),
 });
 
 const placementSchema = z.object({
@@ -93,8 +107,9 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
   registerTool(
     server,
     'write_diagram',
-    'Create or replace a genealogy diagram. People are derived from the families, so there is no separate person list. '
-    + 'Saved layout overrides in an existing file are kept — use set_diagram_layout to change placements.',
+    'Create or replace a genealogy diagram. People come from the families plus the standalone nodes list. '
+    + 'Saved layout overrides in an existing file are kept — use set_diagram_layout to change placements. '
+    + 'Omitted nodes / connectors are kept from the existing file too, so editing families alone never drops them.',
     {
       path: pathSchema,
       title: z.string().describe('Chart title'),
@@ -102,7 +117,11 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
       note: z.string().optional().describe('Closing note shown below the chart'),
       legend: z.string().optional().describe('One sentence explaining what the line styles mean in this chart'),
       groups: z.array(groupAxisSchema).optional().describe('Classification axes, in the order badges are shown'),
-      families: z.array(familySchema).min(1).describe('Families. At least one is required: people are derived from them'),
+      families: z.array(familySchema).describe('Families. People are derived from them. May be empty when nodes carries the elements'),
+      nodes: z.array(z.string().min(1)).optional()
+        .describe('Standalone elements that appear in no family. Omit to keep the ones already in the file'),
+      connectors: z.array(connectorSchema).optional()
+        .describe('Hand-drawn lines between elements. Omit to keep the ones already in the file'),
       annotations: z.record(z.string(), z.string()).optional().describe('Person name to a short note on their card'),
     },
     async (input) => {
