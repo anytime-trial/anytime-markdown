@@ -144,6 +144,21 @@ jobs:
         run: npx jest --maxWorkers=1
         working-directory: packages/mcp-graph
 
+      - name: Run diagram-core tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
+        working-directory: packages/diagram-core
+
+      - name: Run diagram-viewer tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
+        working-directory: packages/diagram-viewer
+
+      - name: Run mcp-diagram tests
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1
+        working-directory: packages/mcp-diagram
+
       - name: Run database-core tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
@@ -304,6 +319,29 @@ jobs:
         with:
           name: vsix-sheet-ci
           path: packages/vscode-sheet-extension/*.vsix
+          retention-days: 3
+
+      - name: Run diagram extension tests
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1
+        working-directory: packages/vscode-diagram-extension
+
+      - name: Build diagram extension
+        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+        run: npm run package
+        working-directory: packages/vscode-diagram-extension
+
+      - name: Package diagram VSIX
+        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+        run: npx "${{ env.VSCE_SPEC }}" package --no-dependencies
+        working-directory: packages/vscode-diagram-extension
+
+      - name: Upload diagram VSIX artifact
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-diagram-ci
+          path: packages/vscode-diagram-extension/*.vsix
           retention-days: 3
 
       - name: Run agent extension tests

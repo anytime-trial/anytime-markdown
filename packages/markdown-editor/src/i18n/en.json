@@ -861,6 +861,7 @@
     "trailPage": "C4Model",
     "graphPage": "Graph",
     "cooccurrencePage": "Co-occurrence Network",
+    "diagramPage": "Genealogy Diagram",
     "sheetPage": "Sheet",
     "playlistPage": "Playlist",
     "trailViewerPage": "Analytics (Demo)",

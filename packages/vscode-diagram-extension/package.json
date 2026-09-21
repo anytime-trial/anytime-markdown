@@ -1,0 +1,125 @@
+{
+  "name": "anytime-diagram",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publisher": "anytime-trial",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anytime-trial/anytime-markdown.git"
+  },
+  "homepage": "https://www.anytime-trial.com",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "icon": "images/anytime-diagram-128.png",
+  "categories": [
+    "Visualization"
+  ],
+  "keywords": [
+    "diagram",
+    "genealogy",
+    "family tree",
+    "visualization"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "anytimeDiagram",
+          "title": "%viewsContainers.anytimeDiagram.title%",
+          "icon": "images/diagram-activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "anytimeDiagram": [
+        {
+          "id": "anytimeDiagram.diagrams",
+          "name": "%view.diagrams%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "anytimeDiagram.diagrams",
+        "contents": "%viewsWelcome.diagrams%"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "anytimeDiagram",
+        "displayName": "%customEditor.diagram.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.diagram.json"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "anytime-diagram.newDiagram",
+        "title": "%command.newDiagram%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "anytime-diagram.refreshDiagrams",
+        "title": "%command.refreshDiagrams%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-diagram.registerMcpServer",
+        "title": "%command.registerMcpServer%"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "anytime-diagram.mcp",
+        "label": "Anytime Diagram"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "anytime-diagram.newDiagram",
+          "when": "view == anytimeDiagram.diagrams",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-diagram.refreshDiagrams",
+          "when": "view == anytimeDiagram.diagrams",
+          "group": "navigation@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json",
+    "test": "jest",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/vscode": "1.109.0",
+    "ts-loader": "9.6.0",
+    "typescript": "6.0.3",
+    "webpack": "5.104.1",
+    "webpack-cli": "6.0.1"
+  },
+  "dependencies": {
+    "@anytime-markdown/diagram-core": "*",
+    "@anytime-markdown/diagram-viewer": "*",
+    "@anytime-markdown/mcp-diagram": "*",
+    "@anytime-markdown/vscode-common": "*"
+  }
+}

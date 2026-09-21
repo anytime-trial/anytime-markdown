@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+viewBox="0 0 24 24"
+fill="currentColor"
+stroke="currentColor">
+<!-- 系図の骨格。上の世代 2 人を横線で結び、中央から縦に降ろして下の世代 3 人へ分ける。 -->
+<g stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<line x1="7" y1="5" x2="17" y2="5"/>
+<line x1="12" y1="5" x2="12" y2="12"/>
+<line x1="4" y1="12" x2="20" y2="12"/>
+<line x1="4" y1="12" x2="4" y2="16"/>
+<line x1="12" y1="12" x2="12" y2="16"/>
+<line x1="20" y1="12" x2="20" y2="16"/>
+</g>
+<!-- 人物の箱。上の世代は 2 人、下の世代は 3 人。 -->
+<g stroke="none">
+<rect x="3.5" y="2.5" width="7" height="5" rx="1.2"/>
+<rect x="13.5" y="2.5" width="7" height="5" rx="1.2"/>
+<rect x="1" y="16" width="6" height="5" rx="1.2"/>
+<rect x="9" y="16" width="6" height="5" rx="1.2"/>
+<rect x="17" y="16" width="6" height="5" rx="1.2"/>
+</g>
+</svg>
