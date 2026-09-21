@@ -12,7 +12,7 @@ import type { FamilyConnector } from '../model';
 import { setAttr, setClass, svg } from './dom';
 
 export interface EdgeCallbacks {
-  /** 線を押したとき。同じ家族をもう一度押すと選択が外れる。 */
+  /** 線を押したとき。押したら選ぶ（外すのは図の地を押したとき）。 */
   onSelectFamily(index: number): void;
 }
 

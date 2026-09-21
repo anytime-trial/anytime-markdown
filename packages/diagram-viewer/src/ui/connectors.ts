@@ -21,7 +21,7 @@ import { setAttr, setClass, svg } from './dom';
 const CAP_PX = 9;
 
 export interface LinkCallbacks {
-  /** 線を押したとき。同じ線をもう一度押すと選択が外れる。 */
+  /** 線を押したとき。押したら選ぶ（外すのは図の地を押したとき）。 */
   onSelectLink(id: string): void;
 }
 

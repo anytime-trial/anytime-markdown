@@ -73,6 +73,16 @@ const interactive = (target: EventTarget | null): boolean =>
 const scrollable = (target: EventTarget | null): boolean =>
   target instanceof Element && target.closest('input, select, details, textarea') !== null;
 
+/**
+ * 図の中身（札・線）の上か。地（何も無いところ）を押したときだけ選択を外すのに使う。
+ *
+ * 線は SVG の `path` なので `interactive`（`button` などの要素名で見る）には掛からない。
+ * 判定を分けてあるのは、**線の上で押し始めた平行移動は今までどおり効かせたい**ため — 掛けて
+ * しまうと線の上から図を動かせなくなる。
+ */
+const onDiagramItem = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest('[data-person], [data-connector], [data-family]') !== null;
+
 export function mountDiagramViewer(container: HTMLElement, options: DiagramViewerOptions): DiagramViewerHandle {
   const doc = container.ownerDocument;
   let document_ = options.document;
@@ -231,14 +241,21 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   viewport.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || interactive(event.target)) return;
     viewport.focus({ preventScroll: true });
-    viewport.setPointerCapture(event.pointerId);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    dragging = true;
-    setClass(viewport, 'is-dragging', true);
+    // **ここでは掴まない**（`setPointerCapture` を呼ばない）。指が動いてからにする — 下の
+    // `beginPan` を参照。
+    // 図の地の上を押したら、線の選択は外す。線は自分を押しても外せる場所を持たないので、
+    // 地を押して外せないと、選んだ線の設定が出たまま片付かない。
+    if (!onDiagramItem(event.target)) {
+      selectedConnector = null;
+      selectedFamily = null;
+      paint();
+    }
   });
   viewport.addEventListener('pointermove', (event) => {
     const previous = pointers.get(event.pointerId);
     if (previous === undefined) return;
+    beginPan(event, previous);
     const before = [...pointers.values()];
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     const after = [...pointers.values()];
@@ -256,9 +273,29 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     }
     paint();
   });
+  /**
+   * 平行移動を**指が動いてから**始める。押した瞬間には掴まない。
+   *
+   * 押下と同時に `setPointerCapture` を呼ぶと、以後のポインタ事象が枠へ付け替えられ、離した
+   * ときの `click` も枠に届く — **押した線や札そのものの `click` が発火しない**。線を押しても
+   * 設定の区画が出ない不具合はこれだった（引いた直後だけ出るのは、引いた側で選んでいたため）。
+   *
+   * `interactive` の判定を広げる手もあるが、それだと線の上から図を平行移動できなくなる。
+   * 閾値を置けば「押しただけ」と「掴んで動かした」を分けられ、どちらも失わない。
+   */
+  const DRAG_THRESHOLD_PX = 3;
+  function beginPan(event: PointerEvent, from: { x: number; y: number }): void {
+    if (dragging) return;
+    if (Math.hypot(event.clientX - from.x, event.clientY - from.y) < DRAG_THRESHOLD_PX) return;
+    dragging = true;
+    setClass(viewport, 'is-dragging', true);
+    // 掴むのはここ。掴んでおかないと、枠の外へ指が出た瞬間に平行移動が止まる。
+    if (!viewport.hasPointerCapture(event.pointerId)) viewport.setPointerCapture(event.pointerId);
+  }
+
   const releasePointer = (event: PointerEvent): void => {
     pointers.delete(event.pointerId);
-    dragging = pointers.size > 0;
+    dragging = pointers.size > 0 && dragging;
     setClass(viewport, 'is-dragging', dragging);
     if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
   };
@@ -266,7 +303,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   viewport.addEventListener('pointercancel', releasePointer);
   viewport.addEventListener('lostpointercapture', (event) => {
     pointers.delete(event.pointerId);
-    dragging = pointers.size > 0;
+    dragging = pointers.size > 0 && dragging;
     setClass(viewport, 'is-dragging', dragging);
   });
 
@@ -858,7 +895,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     for (let index = edgeViews.length; index < families.length; index += 1) {
       const edgeView = createEdgeView(doc, families[index]!, index, tr, {
         onSelectFamily(pressed) {
-          selectedFamily = selectedFamily === pressed ? null : pressed;
+          // 押したら**選ぶ**（同じものをもう一度押しても外れない）。外すのは図の地を押したとき。
+          // 切り替えにすると、選んだつもりで押した 2 回目に設定の区画が消える。
+          selectedFamily = pressed;
           selectedConnector = null;
           paint();
         },
@@ -876,7 +915,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       if (linkViews.has(link.connector.id)) continue;
       const linkView = createLinkView(doc, link.connector.id, tr, {
         onSelectLink(pressed) {
-          selectedConnector = selectedConnector === pressed ? null : pressed;
+          selectedConnector = pressed;
           selectedFamily = null;
           paint();
         },

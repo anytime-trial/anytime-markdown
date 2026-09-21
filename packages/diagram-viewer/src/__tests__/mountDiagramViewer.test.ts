@@ -596,3 +596,58 @@ describe('家族ごと消えるときの知らせ', () => {
     expect(notice?.textContent).toContain('化生');
   });
 });
+
+/**
+ * 線を選んだときに設定の区画が出るか。
+ *
+ * **根の原因（押下と同時の `setPointerCapture` が `click` を枠へ付け替える）は jsdom では
+ * 再現しない** — jsdom はポインタの捕捉に伴う事象の付け替えを実装しない。ここで測れるのは
+ * 選び方の規則（押したら選ぶ・地を押したら外す）だけで、捕捉の側は実ブラウザで確認する。
+ */
+describe('線の選択', () => {
+  // jsdom はポインタの捕捉を実装しない。札を掴む経路がそこで落ちるので、空の実装を足す。
+  beforeEach(() => {
+    for (const name of ['setPointerCapture', 'releasePointerCapture', 'hasPointerCapture'] as const) {
+      Object.defineProperty(Element.prototype, name, {
+        configurable: true, writable: true, value: () => false,
+      });
+    }
+  });
+
+  const drawLine = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byText('配置を編集')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="祖父"] .anytime-diagram-connect')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="子"] .anytime-diagram-connect')!.click();
+    return view;
+  };
+  const barShown = (): boolean =>
+    !container.querySelector('.anytime-diagram-connectorbar')!.classList.contains('anytime-diagram-hidden');
+
+  it('図の地を押すと線の選択が外れる', () => {
+    drawLine();
+    expect(barShown()).toBe(true);
+    container.querySelector('.anytime-diagram-viewport')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    expect(barShown()).toBe(false);
+  });
+
+  it('線を押すと選ばれる。もう一度押しても外れない（選んだつもりで消えない）', () => {
+    drawLine();
+    const hit = container.querySelector('.anytime-diagram-links .link-hit')!;
+    container.querySelector('.anytime-diagram-viewport')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    expect(barShown()).toBe(false);
+    hit.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(barShown()).toBe(true);
+    hit.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(barShown()).toBe(true);
+  });
+
+  it('札を押しても線の選択は外れない（図の地ではない）', () => {
+    drawLine();
+    container.querySelector('[data-person="父"]')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    expect(barShown()).toBe(true);
+  });
+});
