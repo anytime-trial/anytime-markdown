@@ -31,6 +31,13 @@ const config = {
       rootToken: "<rootDir>/../ui-core",
       conditions: JSDOM_CONDITIONS,
     }),
+    // diagram-core（系図の純ロジック）も src を直接公開する。ui-core と同じ理由で兄弟ソースへ明示マップする。
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/diagram-core",
+      exports: require("../diagram-core/package.json").exports,
+      rootToken: "<rootDir>/../diagram-core",
+      conditions: JSDOM_CONDITIONS,
+    }),
     // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ
     "\\.module\\.css$": "<rootDir>/__mocks__/cssModuleProxy.js",
     "^@/(.*)$": "<rootDir>/src/$1",

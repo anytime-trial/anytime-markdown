@@ -22,6 +22,7 @@ export function codeBlockToolbarLabel(
       if (language === "mermaid") return t("mermaid");
       if (language === "anytime-thinking-model") return t("anytimeGraph");
       if (language === "anytime-chart") return t("anytimeChart");
+      if (language === "anytime-diagram") return t("anytimeDiagram");
       return t("plantuml");
     case "embed": return "Embed";
     default: return language ? `Code (${language})` : "Code";

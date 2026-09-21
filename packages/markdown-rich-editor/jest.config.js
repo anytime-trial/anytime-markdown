@@ -60,6 +60,18 @@ const config = {
       rootToken: "<rootDir>/../ui-core",
       conditions: JSDOM_CONDITIONS,
     }),
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/diagram-core",
+      exports: require("../diagram-core/package.json").exports,
+      rootToken: "<rootDir>/../diagram-core",
+      conditions: JSDOM_CONDITIONS,
+    }),
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/diagram-viewer",
+      exports: require("../diagram-viewer/package.json").exports,
+      rootToken: "<rootDir>/../diagram-viewer",
+      conditions: JSDOM_CONDITIONS,
+    }),
     // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ。
     // shim 経由でロードされる markdown-editor の UI コンポーネント（EditDialogHeader → Button 等）が
     // import するため、markdown-editor の既存 proxy を共用する。

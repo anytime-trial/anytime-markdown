@@ -47,7 +47,7 @@ export function classifyCodeBlock(language: unknown): CodeBlockKind {
   if (language === "math") return "math";
   if (language === "html") return "html";
   if (language === "markdown") return "markdown";
-  if (language === "mermaid" || language === "plantuml" || language === "anytime-thinking-model" || language === "anytime-chart") return "diagram";
+  if (language === "mermaid" || language === "plantuml" || language === "anytime-thinking-model" || language === "anytime-chart" || language === "anytime-diagram") return "diagram";
   if (language === "screenmock") return "screenmock";
   if (language === "embed" || (typeof language === "string" && language.startsWith("embed "))) return "embed";
   return "regular";

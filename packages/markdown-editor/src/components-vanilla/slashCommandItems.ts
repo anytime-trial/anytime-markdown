@@ -1,3 +1,4 @@
+import { createEmptyDiagramDocument, serializeDiagramDocument } from "@anytime-markdown/diagram-core";
 import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { getDefaultContent } from "../constants/defaultContent";
@@ -185,6 +186,30 @@ function chartSkeleton(): string {
     ? "# チャート — 右のサンプルから種別を選んでください（例: line / bar / scatter）"
     : "# Chart — pick a chart type from the samples on the right (e.g. line / bar / scatter)";
 }
+
+// 系図の雛形は diagram-core の正本を使う。ここで JSON リテラルを書き写すと、保存時に通る
+// serializeDiagramDocument の出力と形が食い違い、開いて保存しただけで本文が丸ごと書き換わる。
+function diagramSkeleton(): string {
+  const title = resolveLocale() === "ja" ? "系図" : "Diagram";
+  // フェンス本文なので末尾の改行は落とす（コードブロックに空行が 1 行増えるため）。
+  return serializeDiagramDocument(createEmptyDiagramDocument(title)).trimEnd();
+}
+
+const DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
+  {
+    id: "anytime-diagram",
+    labelKey: "anytimeDiagram",
+    iconPath: PATH.accountTree,
+    keywords: ["anytime-diagram", "diagram", "系図", "家系図", "関係図", "genealogy", "family tree", "ダイアグラム"],
+    action: (editor) => {
+      editor.chain().focus().insertContent({
+        type: "codeBlock",
+        attrs: { language: "anytime-diagram", autoEditOpen: true },
+        content: [{ type: "text", text: diagramSkeleton() }],
+      }).run();
+    },
+  },
+];
 
 const CHART_ITEMS: readonly VanillaSlashCommandItem[] = [
   {
@@ -433,6 +458,7 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
   },
   ...THINKING_DIAGRAM_ITEMS,
   ...CHART_ITEMS,
+  ...DIAGRAM_ITEMS,
   {
     id: "math",
     labelKey: "slashMath",

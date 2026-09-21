@@ -1,0 +1,118 @@
+/** JSON ペインを持たない、系図エディタ専用の全画面ダイアログ。 */
+import {
+  createEmptyDiagramDocument,
+  type DiagramDocument,
+  serializeDiagramDocument,
+  validateDiagramDocument,
+} from "@anytime-markdown/diagram-core";
+import { mountDiagramViewer, type DiagramViewerHandle } from "@anytime-markdown/diagram-viewer";
+import { createDialog } from "@anytime-markdown/ui-core/Dialog";
+
+import type { CodeEditState } from "./codeEditState";
+import { createDialogHeader } from "./dialogHelpers";
+
+export interface CreateDiagramEditDialogOptions {
+  label: string;
+  isDark: boolean;
+  editorBg: string;
+  readOnly?: boolean;
+  locale?: string;
+  state: CodeEditState;
+  t: (key: string) => string;
+  onClose: () => void;
+}
+
+export interface DiagramEditDialogHandle {
+  el: HTMLElement;
+  destroy: () => void;
+}
+
+export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): DiagramEditDialogHandle {
+  const { state } = opts;
+  const dlg = createDialog({
+    onClose: opts.onClose,
+    fullScreen: true,
+    labelledBy: "diagram-edit-title",
+    paperStyle: { backgroundColor: opts.editorBg },
+  });
+  const header = createDialogHeader({
+    label: opts.label,
+    isDark: opts.isDark,
+    iconText: "⋔",
+    dirty: state.isFsDirty(),
+    t: opts.t,
+    onApply: opts.readOnly ? undefined : () => state.onApply(),
+    onClose: opts.onClose,
+  });
+  header.el.id = "diagram-edit-title";
+  dlg.paper.appendChild(header.el);
+
+  const container = document.createElement("div");
+  container.style.cssText = "flex:1 1 auto;min-height:0;";
+  container.style.colorScheme = opts.isDark ? "dark" : "light";
+  dlg.paper.appendChild(container);
+
+  function showError(message: string): void {
+    const pre = document.createElement("pre");
+    // ビューア内部の知らせ（`anytime-diagram-error`）と混ざらない名前にする。
+    pre.className = "anytime-diagram-fence-error";
+    pre.style.cssText =
+      "margin:8px;padding:8px 12px;white-space:pre-wrap;color:var(--am-color-text-secondary, #888);font-size:0.8125rem;";
+    pre.textContent = `anytime-diagram: ${message}`;
+    container.replaceChildren(pre);
+  }
+
+  let handle: DiagramViewerHandle | undefined;
+  function mount(): void {
+    const code = state.getFsCode();
+    // 本文が空のフェンスは「読めない JSON」ではなく「まだ何も無い図」。空の系図から始めさせる
+    // （パースエラーを見せても利用者にできることが無い）。
+    if (!code.trim()) {
+      mountViewer(createEmptyDiagramDocument(opts.t("anytimeDiagram")));
+      return;
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(code);
+    } catch (err) {
+      showError(`JSON パースエラー (${err instanceof Error ? err.message : String(err)})`);
+      return;
+    }
+    const validated = validateDiagramDocument(value);
+    if (!validated.ok) {
+      showError(validated.errors.join("\n"));
+      return;
+    }
+    mountViewer(validated.document);
+  }
+
+  function mountViewer(document_: DiagramDocument): void {
+    handle = mountDiagramViewer(container, {
+      document: document_,
+      editable: !opts.readOnly,
+      compact: true,
+      ...(opts.locale === undefined ? {} : { locale: opts.locale }),
+      onDraftChange(draft) {
+        if (draft !== null) state.onFsTextChange(serializeDiagramDocument(draft).trimEnd());
+      },
+      onSave(document) {
+        const result = validateDiagramDocument(document);
+        if (!result.ok) throw new Error(result.errors.join("\n"));
+        state.onFsTextChange(serializeDiagramDocument(result.document).trimEnd());
+        state.onApply();
+      },
+    });
+  }
+
+  const unsub = state.subscribe(() => header.update({ dirty: state.isFsDirty() }));
+  mount();
+  return {
+    el: dlg.el,
+    destroy() {
+      unsub();
+      handle?.destroy();
+      header.destroy();
+      dlg.destroy();
+    },
+  };
+}

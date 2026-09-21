@@ -11,6 +11,7 @@ import {
   ANYTIME_GRAPH_PLACEHOLDER_HINT_JA,
 } from "../../utils/anytimeGraphPlaceholder";
 import { mountAnytimeChartPreview } from "../../utils/anytimeChartPreview";
+import { mountAnytimeDiagramPreview } from "../../utils/anytimeDiagramPreview";
 import { ensureMarkdownPreviewStyle, renderMarkdownPreviewHtml } from "../../utils/markdownPreview";
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-editor";
@@ -215,6 +216,10 @@ export function renderCodeBlockPreview(
       innerEl.setAttribute("role", "img");
       innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-chart"));
       return mountAnytimeChartPreview(innerEl, code, ctx.isDark);
+    case "anytime-diagram":
+      innerEl.setAttribute("role", "img");
+      innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-diagram"));
+      return mountAnytimeDiagramPreview(innerEl, code, { isDark: ctx.isDark });
     case "screenmock":
       innerEl.setAttribute("aria-label", "Screenmock preview");
       innerEl.replaceChildren(createScreenmockPreview(code, {

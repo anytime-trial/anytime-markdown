@@ -323,6 +323,7 @@
     "plantuml": "PlantUML",
     "anytimeGraph": "Thinking Diagram",
     "anytimeChart": "Chart",
+    "anytimeDiagram": "Diagram",
     "chartSampleLine": "Line",
     "chartSampleBar": "Bar",
     "chartSampleBarGrouped": "Bar (grouped)",

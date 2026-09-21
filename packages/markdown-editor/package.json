@@ -37,6 +37,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@anytime-markdown/diagram-core": "*",
     "@anytime-markdown/markdown-core": "*",
     "@anytime-markdown/section-lock-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
