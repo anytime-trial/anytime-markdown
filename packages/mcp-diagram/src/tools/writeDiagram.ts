@@ -9,9 +9,9 @@ import {
   type DiagramGroupAxis,
   type DiagramShape,
   EMPTY_DIAGRAM_LAYOUT,
-  validateDiagramDocument,
   readDiagramAnchor,
   serializeDiagramDocument,
+  validateDiagramDraft,
   validateDiagramLayout,
 } from '@anytime-markdown/diagram-core';
 
@@ -100,9 +100,9 @@ export async function writeDiagram(input: WriteDiagramInput, rootDir: string): P
     **理由は検証器が出したものをそのまま返す。** 断り文句を 1 つ決め打っていた頃は、線の id が
     重複しているだけの呼び出しにも「families か nodes に要素が 1 つ要ります」と答えており、
     呼び手（LLM を含む）は直しようのない修正を繰り返すことになっていた。拡張・web-app と
-    同じ入口（`validateDiagramDocument`）を使うので、3 経路で同じ理由が出る。
+    同じ入口（`validateDiagramDraft`）を使うので、3 経路で同じ理由が出る。
   */
-  const validated = validateDiagramDocument(JSON.parse(serializeDiagramDocument(document)));
+  const validated = validateDiagramDraft(document);
   if (!validated.ok) throw new Error(validated.errors.join('\n'));
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, serializeDiagramDocument(document), 'utf-8');

@@ -188,6 +188,98 @@ describe('保存', () => {
     expect(error.classList.contains('anytime-diagram-hidden')).toBe(false);
   });
 
+  /*
+    宿主（markdown 拡張の系図フェンス）は編集そのものを目的にダイアログを開く。閲覧状態から
+    始めて切替を押させるのは、開いた人がまず何もできない画面を 1 枚挟むということ。
+    切替と保存の口は宿主の「適用」が受け持つので、図の側には出さない（ユーザー指示）。
+  */
+  describe('常時編集（alwaysEditing）', () => {
+    /** 幾何に依らない編集 1 つ（升目の ＋ は枠を測ってからでないと出ない）。 */
+    const moved = { ...DOC, layout: { placements: { 子: { column: 4, row: 3 } } } };
+    const resetLayout = (): void => { byText('自動配置に戻す')!.click(); byText('戻す')!.click(); };
+
+    it('開いた時点で編集状態にし、切替と保存の口を出さない', () => {
+      mount({ editable: true, onSave: () => {}, alwaysEditing: true });
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(false);
+      // 編集中なので絵は「閲覧へ戻る」を指している。その 1 つを出さない。
+      expect(byLabel('編集に切り替える')).toBeNull();
+      expect(byLabel('閲覧に切り替える')!.classList.contains('anytime-diagram-hidden')).toBe(true);
+      expect(byText('保存')?.classList.contains('anytime-diagram-hidden')).toBe(true);
+      // 自動配置に戻す口は残す（編集中の操作であって、編集への入口ではない）。
+      expect(byText('自動配置に戻す')?.classList.contains('anytime-diagram-hidden')).toBe(false);
+    });
+
+    it('開いただけでは下書きの変化を伝えない（宿主の未保存の印を点けない）', () => {
+      const onDraftChange = jest.fn();
+      mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });
+      expect(onDraftChange).not.toHaveBeenCalled();
+      resetLayout();
+      expect(onDraftChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('閲覧専用では編集状態にしない', () => {
+      mount({ editable: false, onSave: () => {}, alwaysEditing: true });
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(true);
+    });
+
+    it('宿主から保存を起こせる（図に保存ボタンが無いため）', async () => {
+      const onSave = jest.fn();
+      const view = mount({ document: moved, editable: true, onSave, alwaysEditing: true });
+      resetLayout();
+      await view.save();
+      expect(onSave).toHaveBeenCalledTimes(1);
+      expect(onSave.mock.calls[0]![0].layout.placements).toEqual({});
+    });
+
+    it('保存中は 2 本目の保存を受け付けない', async () => {
+      let finish = (): void => {};
+      const onSave = jest.fn(() => new Promise<void>((resolve) => { finish = () => resolve(); }));
+      const view = mount({ document: moved, editable: true, onSave, alwaysEditing: true });
+      resetLayout();
+      const first = view.save();
+      // 図に保存ボタンが無いぶん、門は save() の中にしか無い（宿主の「適用」は連打できる）。
+      void view.save();
+      finish();
+      await first;
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+
+    it('宿主が書いた形を返せばそれを次の土台にする', async () => {
+      const written: DiagramDocument = { ...DOC, title: '書かれた図' };
+      const view = mount({ document: moved, editable: true, onSave: () => written, alwaysEditing: true });
+      resetLayout();
+      await view.save();
+      expect(view.getDraft()).toBe(written);
+    });
+
+    it('図を差し替えても編集状態のまま続け、宿主へも伝える', () => {
+      const onDraftChange = jest.fn();
+      const view = mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });
+      const next: DiagramDocument = { ...DOC, title: '差し替えた図' };
+      view.update({ document: next });
+      expect(view.getDraft()).toBe(next);
+      // 「編集していない」（null）を伝えたまま終わらない。宿主の未保存の印が画面と食い違う。
+      expect(onDraftChange).toHaveBeenLastCalledWith(next);
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(false);
+    });
+
+    it('保存しても編集状態のまま続け、保存した図を次の土台にする', async () => {
+      const onDraftChange = jest.fn();
+      const view = mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });
+      resetLayout();
+      await view.save();
+      // 編集を抜けない（抜ける口が画面に無い）。抜けると操作列も取っ手も消えて手が止まる。
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(false);
+      expect(view.getDraft()!.layout.placements).toEqual({});
+      // 保存した図を下書きとして伝え直す。伝えないと、宿主は保存済みの中身を未保存として扱う。
+      expect(onDraftChange).toHaveBeenLastCalledWith(view.getDraft());
+    });
+  });
+
   it('下書きの変化を宿主へ伝える', () => {
     const onDraftChange = jest.fn();
     mount({ editable: true, onSave: () => {}, onDraftChange });

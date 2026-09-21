@@ -51,6 +51,7 @@ export {
   setDiagramFamilyGroup,
   setDiagramLineLabel,
   validateDiagramDocument,
+  validateDiagramDraft,
   validateDiagramLayout,
 } from './document';
 export {

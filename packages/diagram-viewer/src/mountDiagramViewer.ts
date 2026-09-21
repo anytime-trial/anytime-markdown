@@ -124,6 +124,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   const doc = container.ownerDocument;
   let document_ = options.document;
   let editable = options.editable ?? false;
+  /** 常に編集状態で出すか。切替と保存の口を図から外し、保存は宿主の `save()` が起こす。 */
+  const alwaysEditing = options.alwaysEditing ?? false;
   let compact = options.compact ?? false;
   let t: DiagramT = createDiagramT(options.locale);
   /**
@@ -174,7 +176,11 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     readonly start: DiagramSpacing;
     readonly scale: number;
   } | null = null;
-  let draft: DiagramDocument | null = null;
+  /*
+    常時編集の宿主は下書きを持った状態から始める。**`setDraft` を通さない**のは、開いただけで
+    「下書きが変わった」と宿主へ伝えると、何も触っていない図に未保存の印が点くため。
+  */
+  let draft: DiagramDocument | null = alwaysEditing && editable ? document_ : null;
   let saving = false;
   let notice = '';
   let dragging = false;
@@ -1167,13 +1173,30 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   }
 
   async function save(): Promise<void> {
-    if (options.onSave === undefined || draft === null) return;
+    // 門はここに置く。図の中の保存ボタンの `disabled` に頼ると、そのボタンを出さない
+    // `alwaysEditing` の宿主（自分の「適用」から呼ぶ）では門が 1 つも無くなり、連打した
+    // 2 本目が保存中の `updateDraft` 抑止を素通りする。
+    if (options.onSave === undefined || draft === null || saving) return;
     saving = true;
     notice = '';
     paint();
     try {
-      await options.onSave(draft);
-      setDraft(null);
+      const saved = draft;
+      // 宿主が実際に書いた形（検証で正規化された図）を返してきたらそれを採る。返さなければ
+      // 渡した下書きのまま。返り値を無視すると、正規化で変わった図を「未保存」として持ち続ける。
+      const persisted = await options.onSave(saved);
+      const kept = persisted ?? saved;
+      /*
+        常時編集では編集を抜けない（抜ける口が画面に無い）。保存した図を次の土台に据えて
+        下書きを置き直す — 据え直さないと「変更あり」が落ちず、宿主の未保存の印も
+        「自動配置に戻す」も保存のたびに点いたまま残る。
+      */
+      if (alwaysEditing) {
+        document_ = kept;
+        setDraft(kept);
+      } else {
+        setDraft(null);
+      }
       clearTransientSelection();
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
@@ -1548,6 +1571,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       selectionCount: picked.size,
       editing,
       editable,
+      alwaysEditing,
       compact,
       canSave: options.onSave !== undefined,
       changed: model.changed,
@@ -1651,6 +1675,10 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         // 差し替えた図も全体表示から始める。前の図に合わせた倍率を持ち越すと、大きさの違う
         // 図では画面の外や豆粒の状態で開く。
         fitted = false;
+        // 常時編集の宿主では新しい図で編集し直す。**`setDraft` を通す** — 直前の
+        // `setDraft(null)` で「編集していない」と伝えたままにすると、宿主が持つ下書きの
+        // 有無が画面と食い違う。
+        if (alwaysEditing && editable) setDraft(document_);
       }
       if (next.locale !== undefined || next.document !== undefined) {
         // 札の文言は要素を作るときに焼き込むので、locale が変わったら作り直す。
@@ -1663,6 +1691,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       paint();
     },
     getDraft: () => draft,
+    save,
     destroy(): void {
       observer?.disconnect();
       viewport.removeEventListener('wheel', onWheel);

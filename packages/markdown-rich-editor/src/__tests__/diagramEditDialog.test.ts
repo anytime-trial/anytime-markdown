@@ -1,4 +1,9 @@
-import { createEmptyDiagramDocument, serializeDiagramDocument } from "@anytime-markdown/diagram-core";
+import {
+  createEmptyDiagramDocument,
+  type DiagramDocument,
+  elementAnchor,
+  serializeDiagramDocument,
+} from "@anytime-markdown/diagram-core";
 import { mountDiagramViewer } from "@anytime-markdown/diagram-viewer";
 import { Schema } from "@anytime-markdown/markdown-pm/model";
 import { createCodeEditState } from "../vanilla/codeEditState";
@@ -68,11 +73,79 @@ it("保存時に標準シリアライズの末尾改行だけを落として本�
   expect(onFsTextChange.mock.invocationCallOrder[0]).toBeLessThan(onApply.mock.invocationCallOrder[0] ?? 0);
 });
 
+// 画面から届く図は端を種別付き（`{ kind: "element" }`）で持つ。ファイルの形の検査へ直に渡すと
+// 「線を 1 本でも引いた図は保存できない」になる（利用者の指摘）。
+it("線を引いた図の保存も本文へ適用する", () => {
+  const { onFsTextChange, onApply } = open();
+  const edited: DiagramDocument = {
+    ...doc,
+    nodes: ["要素 1", "要素 2"],
+    connectors: [{
+      id: "c1",
+      from: elementAnchor("要素 1"),
+      to: elementAnchor("要素 2"),
+      line: "solid",
+      color: "default",
+      route: "straight",
+      start: "none",
+      end: "arrow",
+    }],
+  };
+  expect(() => viewerOptions().onSave?.(edited)).not.toThrow();
+  expect(onFsTextChange).toHaveBeenCalledWith(serializeDiagramDocument(edited).trimEnd());
+  expect(onApply).toHaveBeenCalledTimes(1);
+});
+
 it("不正な図の保存は例外にし本文へ適用しない", () => {
   const { onFsTextChange, onApply } = open();
-  expect(() => viewerOptions().onSave?.({ ...doc, version: 2 } as unknown as typeof doc)).toThrow();
+  // 書き出したあとも残る壊れ方で測る。`version` は書き出しが 1 で固定なので、画面の形を
+  // 書き換えても「保存できない図」にはならない（検証するのは実際に書く形）。
+  const line = { line: "solid", color: "default", route: "straight", start: "none", end: "arrow" } as const;
+  const broken: DiagramDocument = {
+    ...doc,
+    nodes: ["要素 1", "要素 2"],
+    connectors: [
+      { id: "c1", from: elementAnchor("要素 1"), to: elementAnchor("要素 2"), ...line },
+      { id: "c1", from: elementAnchor("要素 2"), to: elementAnchor("要素 1"), ...line },
+    ],
+  };
+  expect(() => viewerOptions().onSave?.(broken)).toThrow(/id が重複/);
   expect(onFsTextChange).not.toHaveBeenCalled();
   expect(onApply).not.toHaveBeenCalled();
+});
+
+// 編集そのものを目的に開くダイアログなので、閲覧状態から始めて切替を押させない。保存の口も
+// 図の中には出さず、ヘッダーの「適用」1 つに寄せる（ユーザー指示）。
+it("図を編集状態で開き、切替と保存の口は図に出さない", () => {
+  open();
+  expect(viewerOptions()).toMatchObject({ alwaysEditing: true });
+});
+
+it("適用ボタンが利用者の編集を検証つきで本文へ適用する", async () => {
+  // 実ビューアで編集を 1 つ通してから適用する。編集を通さないと「常に元の本文を書き戻す」
+  // 実装でも緑になる。
+  const moved: DiagramDocument = { ...doc, layout: { placements: { "要素 1": { column: 2, row: 1 } } } };
+  const { onFsTextChange, onApply, dialog } = open(serializeDiagramDocument(moved).trimEnd(), { locale: "ja" });
+  const click = (text: string): void => {
+    [...dialog.el.querySelectorAll("button")].find((button) => button.textContent === text)!.click();
+  };
+  click("自動配置に戻す");
+  click("戻す");
+  onFsTextChange.mockClear();
+  dialog.el.querySelector<HTMLButtonElement>(".am-dh-apply-btn")?.click();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(onFsTextChange)
+    .toHaveBeenCalledWith(serializeDiagramDocument({ ...moved, layout: { placements: {} } }).trimEnd());
+  expect(onApply).toHaveBeenCalledTimes(1);
+});
+
+// 本文が壊れていて図を出せないときは保存する下書きも無い。従来どおり本文の適用だけを行う
+// （押しても何も起きないボタンにしない）。
+it("図を出せない本文では適用が従来どおり本文を適用する", () => {
+  const { onApply, dialog } = open("{broken");
+  dialog.el.querySelector<HTMLButtonElement>(".am-dh-apply-btn")?.click();
+  expect(onApply).toHaveBeenCalledTimes(1);
 });
 
 it("下書きを dirty 表示・閉じるときの破棄確認へ接続し null は無視する", () => {

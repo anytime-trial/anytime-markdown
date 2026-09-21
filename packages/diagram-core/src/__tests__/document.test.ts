@@ -16,8 +16,10 @@ import {
   readDiagramLayout,
   serializeDiagramDocument,
   validateDiagramDocument,
+  validateDiagramDraft,
   validateDiagramLayout,
 } from '../document';
+import { elementAnchor, type DiagramDocument } from '../types';
 import { DEFAULT_DIAGRAM_SPACING, cellPosition } from '../spacing';
 import { SAMPLE } from './fixture';
 
@@ -52,6 +54,43 @@ describe('図の読み取り', () => {
   it('人物は家族の一覧から導く', () => {
     expect([...diagramPeople(SAMPLE.families)].sort())
       .toEqual(['化生', '叔父', '妹', '子', '母', '父', '独神', '祖母', '祖父']);
+  });
+});
+
+describe('下書きの検証', () => {
+  /** 画面が持っている形の図。端は種別付き（`{ kind: 'element' }`）で、ファイルの文字列ではない。 */
+  const DRAFT: DiagramDocument = {
+    ...SAMPLE,
+    connectors: [{
+      id: 'c1',
+      from: elementAnchor('父'),
+      to: elementAnchor('子'),
+      line: 'solid',
+      color: 'default',
+      route: 'straight',
+      start: 'none',
+      end: 'arrow',
+    }],
+  };
+
+  it('画面が組み立てた図をそのまま通す（線を引いた図の保存を断らない）', () => {
+    const result = validateDiagramDraft(DRAFT);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.document).toEqual(DRAFT);
+  });
+
+  it('版が違う図は往復の前に断る（書き出しが version を 1 で固定するため）', () => {
+    const result = validateDiagramDraft({ ...DRAFT, version: 2 as 1 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors[0]).toContain('version=1');
+  });
+
+  it('ファイルの形の検査へ直に渡すと線の端で断られる（下書き用の入口が要る理由）', () => {
+    // 端はファイルへ文字列で書くので、画面の形のままではこちらを通らない。呼び分けを間違えると
+    // 「線を 1 本でも引いた図は保存できない」という形で表に出る。
+    const result = validateDiagramDocument(DRAFT);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join('\n')).toContain('from・to');
   });
 });
 

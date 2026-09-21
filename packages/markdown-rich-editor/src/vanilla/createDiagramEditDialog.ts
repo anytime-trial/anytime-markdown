@@ -4,6 +4,7 @@ import {
   type DiagramDocument,
   serializeDiagramDocument,
   validateDiagramDocument,
+  validateDiagramDraft,
 } from "@anytime-markdown/diagram-core";
 import { mountDiagramViewer, type DiagramViewerHandle } from "@anytime-markdown/diagram-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
@@ -41,7 +42,7 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
     iconText: "⋔",
     dirty: state.isFsDirty(),
     t: opts.t,
-    onApply: opts.readOnly ? undefined : () => state.onApply(),
+    onApply: opts.readOnly ? undefined : () => apply(),
     onClose: opts.onClose,
   });
   header.el.id = "diagram-edit-title";
@@ -69,6 +70,19 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
   }
 
   let handle: DiagramViewerHandle | undefined;
+
+  /*
+    ヘッダーの「適用」が保存を兼ねる（ユーザー指示）。図の中の保存ボタンは出さないので、
+    保存の口はここ 1 つ — 2 つ出すと、どちらが本文へ効くのかを押す前に読めない。
+
+    図を出せていないとき（本文が壊れている・空）は保存する下書きが無いので、従来どおり本文の
+    適用だけを行う。押しても何も起きないボタンにしない。
+  */
+  function apply(): void {
+    if (handle === undefined) { state.onApply(); return; }
+    void handle.save();
+  }
+
   function mount(): void {
     const code = state.getFsCode();
     // 本文が空のフェンスは「読めない JSON」ではなく「まだ何も無い図」。空の系図から始めさせる
@@ -97,15 +111,23 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
       document: document_,
       editable: !opts.readOnly,
       compact: true,
+      // 編集そのものを目的に開くダイアログ。閲覧から始めて切替を押させない（切替と保存の口は
+      // 図に出さず、保存はヘッダーの「適用」が受け持つ）。
+      alwaysEditing: true,
       ...(opts.locale === undefined ? {} : { locale: opts.locale }),
       onDraftChange(draft) {
         if (draft !== null) state.onFsTextChange(serializeDiagramDocument(draft).trimEnd());
       },
       onSave(document) {
-        const result = validateDiagramDocument(document);
+        // 届くのは**画面の形**の図（端は種別付き）。ファイルの形を読む `validateDiagramDocument`
+        // へ直に渡すと、線を 1 本でも引いた図が保存のたびに断られる。
+        const result = validateDiagramDraft(document);
         if (!result.ok) throw new Error(result.errors.join("\n"));
         state.onFsTextChange(serializeDiagramDocument(result.document).trimEnd());
         state.onApply();
+        // 続きの編集は**書いた形**から始める。検証が正規化した図を返さないと、本文へ適用した
+        // 直後に正規化前の下書きで本文を上書きし、適用済みのはずが未保存に戻る。
+        return result.document;
       },
     });
   }

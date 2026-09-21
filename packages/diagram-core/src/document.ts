@@ -493,6 +493,9 @@ function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null
   return connectors;
 }
 
+/** 版が違う図の断り文句。読み取りと下書きの検証の**両方**が同じ文面を出す。 */
+const WRONG_VERSION = '[diagram] 図の形式が想定と違います（version=1 のオブジェクトが必要）';
+
 /**
  * 図の読み取り。
  *
@@ -500,7 +503,7 @@ function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null
  */
 export function parseDiagramDocument(value: unknown, onWarn: Warn = () => {}): DiagramDocument | null {
   if (!isObject(value) || value.version !== 1) {
-    onWarn('[diagram] 図の形式が想定と違います（version=1 のオブジェクトが必要）');
+    onWarn(WRONG_VERSION);
     return null;
   }
   const { title, lead, note, legend } = value;
@@ -1179,4 +1182,30 @@ export function validateDiagramDocument(
   // 照合を入れると要素名を直した瞬間に保存できない状態になる（テキスト側で家族を消した図も
   // 開いたまま保存できなくなる）。端の見つからない線は描画側が描かない。
   return { ok: true, document: { ...document, layout: layout.layout } };
+}
+
+/**
+ * 画面が組み立てた図（下書き）の検証。**書き出す形へ直してから読み直す。**
+ *
+ * `validateDiagramDocument` はファイルの形（`JSON.parse` した値）を読む。画面が持つ形とは
+ * 端（`DiagramAnchor`）の書き方が違い、画面の形をそのまま渡すと「線を 1 本でも引いた図は
+ * 保存できない」になる — 端は種別付きの組（`{ kind: 'element' }`）で、ファイルの文字列ではない。
+ *
+ * 呼び手の側で `JSON.parse(serializeDiagramDocument(...))` と書かない。同じ言い回しを宿主ごとに
+ * 書き写すと、書き忘れた 1 か所だけが保存できない画面になる（VS Code 拡張の系図フェンスで実際に
+ * そうなった）。書き出す関数と読み直す関数を組にして、ここ 1 か所で持つ。
+ *
+ * **検査するのは「書いた後に読めるか」であって、渡された値そのものではない。** 書き出しが
+ * 正規化する項目（既定と同じ形・空の入れ物）は、断られるのではなく無かったことになる。
+ * 信頼できない入力（webview のメッセージ・外から来た JSON）の関所は `unknown` を受ける
+ * `validateDiagramDocument` のほうで、こちらは**画面が組み立てた図**にだけ使う。
+ *
+ * 版だけは往復の前に確かめる。`serializeDiagramDocument` が `version: 1` を固定で書くので、
+ * 往復に任せると版違いが静かに 1 へ書き換わる（型を迂回した値がここへ来たことになるので断る）。
+ */
+export function validateDiagramDraft(
+  document: DiagramDocument,
+): { readonly ok: true; readonly document: DiagramDocument } | { readonly ok: false; readonly errors: readonly string[] } {
+  if (document.version !== 1) return { ok: false, errors: [WRONG_VERSION] };
+  return validateDiagramDocument(JSON.parse(serializeDiagramDocument(document)));
 }
