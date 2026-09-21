@@ -91,9 +91,16 @@ const INITIAL_VIEW: ChartView = { x: 20, y: 20, scale: 0.7 };
 const RESIZE_PX = 4;
 const COARSE_RESIZE_PX = 20;
 
-/** 押下を渡さない要素。ここで始めたドラッグは図の平行移動にしない。 */
+/**
+ * 押下を渡さない要素。ここで始めたドラッグは図の平行移動にしない。
+ *
+ * **枠の中へ浮かせた札（操作列・選択の区画）は、器ごと渡さない。** 操作要素の名前だけで見ると、
+ * 札の中のボタンとボタンの**隙間**（余白・`gap`）が素通りし、操作しに行った指が図を動かし、
+ * ついでに選択まで外す。札は図の上に載っているのだから、札のどこを押しても図への操作ではない。
+ */
 const interactive = (target: EventTarget | null): boolean =>
-  target instanceof Element && target.closest('button, a, input, select, details') !== null;
+  target instanceof Element
+  && target.closest('button, a, input, select, details, .anytime-diagram-toolbar, .anytime-diagram-panel') !== null;
 /**
  * ホイールの拡大縮小を塞いでよい要素。**中でスクロール・値の増減が起こるものだけ**。
  *

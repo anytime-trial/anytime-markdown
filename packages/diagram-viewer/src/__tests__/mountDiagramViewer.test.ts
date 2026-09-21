@@ -260,6 +260,26 @@ describe('操作列の置き場', () => {
     mount();
     expect(toolbar().classList.contains('anytime-diagram-panel')).toBe(true);
   });
+
+  /*
+    札は図の上に載っているので、**ボタンとボタンの隙間**（余白・`gap`）を押しても図への操作には
+    しない。枠の中へ移すまでは操作列が枠の外に居たので起こり得なかった破れで、素通りさせると
+    操作しに行った指が選択を外し、そのまま動かせば図まで動く。
+  */
+  it('札の隙間を押しても線の選択は外れない（図の地ではない）', () => {
+    mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const bar = (): boolean =>
+      !container.querySelector('.anytime-diagram-connectorbar')!.classList.contains('anytime-diagram-hidden');
+    expect(bar()).toBe(true);
+
+    // jsdom に `PointerEvent` は無い。他の押下の検査と同じく `MouseEvent` で代える。
+    toolbar().dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+
+    expect(bar()).toBe(true);
+  });
 });
 
 /**
