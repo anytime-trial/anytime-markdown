@@ -76,6 +76,9 @@ export function Colophon() {
                 <Link href="/cooccurrence">{tLanding('cooccurrencePage')}</Link>
               </li>
             ) : null}
+            <li>
+              <Link href="/diagram">{tLanding('diagramPage')}</Link>
+            </li>
             {showSheet ? (
               <li>
                 <Link href="/sheet">{tLanding('sheetPage')}</Link>
