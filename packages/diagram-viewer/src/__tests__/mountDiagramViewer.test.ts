@@ -233,6 +233,39 @@ describe('保存', () => {
       expect(onSave.mock.calls[0]![0].layout.placements).toEqual({});
     });
 
+    it('保存中は 2 本目の保存を受け付けない', async () => {
+      let finish = (): void => {};
+      const onSave = jest.fn(() => new Promise<void>((resolve) => { finish = () => resolve(); }));
+      const view = mount({ document: moved, editable: true, onSave, alwaysEditing: true });
+      resetLayout();
+      const first = view.save();
+      // 図に保存ボタンが無いぶん、門は save() の中にしか無い（宿主の「適用」は連打できる）。
+      void view.save();
+      finish();
+      await first;
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+
+    it('宿主が書いた形を返せばそれを次の土台にする', async () => {
+      const written: DiagramDocument = { ...DOC, title: '書かれた図' };
+      const view = mount({ document: moved, editable: true, onSave: () => written, alwaysEditing: true });
+      resetLayout();
+      await view.save();
+      expect(view.getDraft()).toBe(written);
+    });
+
+    it('図を差し替えても編集状態のまま続け、宿主へも伝える', () => {
+      const onDraftChange = jest.fn();
+      const view = mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });
+      const next: DiagramDocument = { ...DOC, title: '差し替えた図' };
+      view.update({ document: next });
+      expect(view.getDraft()).toBe(next);
+      // 「編集していない」（null）を伝えたまま終わらない。宿主の未保存の印が画面と食い違う。
+      expect(onDraftChange).toHaveBeenLastCalledWith(next);
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(false);
+    });
+
     it('保存しても編集状態のまま続け、保存した図を次の土台にする', async () => {
       const onDraftChange = jest.fn();
       const view = mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });

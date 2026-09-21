@@ -125,6 +125,9 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
         if (!result.ok) throw new Error(result.errors.join("\n"));
         state.onFsTextChange(serializeDiagramDocument(result.document).trimEnd());
         state.onApply();
+        // 続きの編集は**書いた形**から始める。検証が正規化した図を返さないと、本文へ適用した
+        // 直後に正規化前の下書きで本文を上書きし、適用済みのはずが未保存に戻る。
+        return result.document;
       },
     });
   }

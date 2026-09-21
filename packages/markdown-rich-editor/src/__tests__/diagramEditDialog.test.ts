@@ -121,16 +121,22 @@ it("図を編集状態で開き、切替と保存の口は図に出さない", (
   expect(viewerOptions()).toMatchObject({ alwaysEditing: true });
 });
 
-it("適用ボタンが保存経路（検証つき）を通して本文へ適用する", async () => {
-  const { onFsTextChange, onApply, dialog } = open();
-  const draft = { ...doc, title: "編集後" };
-  viewerOptions().onDraftChange?.(draft);
+it("適用ボタンが利用者の編集を検証つきで本文へ適用する", async () => {
+  // 実ビューアで編集を 1 つ通してから適用する。編集を通さないと「常に元の本文を書き戻す」
+  // 実装でも緑になる。
+  const moved: DiagramDocument = { ...doc, layout: { placements: { "要素 1": { column: 2, row: 1 } } } };
+  const { onFsTextChange, onApply, dialog } = open(serializeDiagramDocument(moved).trimEnd(), { locale: "ja" });
+  const click = (text: string): void => {
+    [...dialog.el.querySelectorAll("button")].find((button) => button.textContent === text)!.click();
+  };
+  click("自動配置に戻す");
+  click("戻す");
   onFsTextChange.mockClear();
   dialog.el.querySelector<HTMLButtonElement>(".am-dh-apply-btn")?.click();
   await Promise.resolve();
   await Promise.resolve();
-  // 検証を通った図を書き出し直した本文が入る（画面の下書きの文字列をそのまま流さない）。
-  expect(onFsTextChange).toHaveBeenCalledWith(serializeDiagramDocument(doc).trimEnd());
+  expect(onFsTextChange)
+    .toHaveBeenCalledWith(serializeDiagramDocument({ ...moved, layout: { placements: {} } }).trimEnd());
   expect(onApply).toHaveBeenCalledTimes(1);
 });
 
