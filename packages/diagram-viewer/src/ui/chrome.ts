@@ -53,7 +53,8 @@ export interface ChromeState {
   readonly canSave: boolean;
   readonly changed: boolean;
   readonly saving: boolean;
-  readonly saveError: string;
+  /** 図の中に出す短い知らせ（保存の失敗・できない操作の理由）。空なら何も出さない。 */
+  readonly notice: string;
   readonly spacing: DiagramSpacing;
   readonly draft: DiagramLayout | null;
   readonly shiftable: boolean;
@@ -216,8 +217,8 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       // 縁のアイコンを出せない図では、**消える代わりに理由を出す**。編集に入れば出るはずのものが
       // 黙って出ないと、壊れているのか仕様なのかを画面から区別できない。
       setClass(blocked, 'anytime-diagram-hidden', !(state.editing && !state.shiftable));
-      error.textContent = state.saveError;
-      setClass(error, 'anytime-diagram-hidden', state.saveError === '');
+      error.textContent = state.notice;
+      setClass(error, 'anytime-diagram-hidden', state.notice === '');
     },
   };
 

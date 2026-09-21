@@ -59,6 +59,10 @@
     "endpoint.none": "なし",
     "endpoint.circle": "丸（●）",
     "endpoint.arrow": "矢印",
-    "deleteConnector": "この線を消す"
+    "deleteConnector": "この線を消す",
+    "insertAbove": "上へ空きを割り込ませる（同じ列を下へ）",
+    "insertLeft": "左へ空きを割り込ませる（同じ行を右へ）",
+    "insertAboveBlocked": "「{name}」の上に空きを入れられません。同じ列が下まで詰まっています。",
+    "insertLeftBlocked": "「{name}」の左に空きを入れられません。同じ行が右まで詰まっています。"
   }
 }

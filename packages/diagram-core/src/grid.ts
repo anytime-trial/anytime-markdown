@@ -30,6 +30,11 @@ export interface GridExtent {
 /** 升目の軸。列と行で同じ操作（挿入・削除）を書くために、綴りを 1 か所へ寄せる。 */
 export type GridAxis = 'column' | 'row';
 
+/** その軸に沿った座標。`'column'` なら列番号、`'row'` なら行番号。 */
+const along = (axis: GridAxis, cell: GridCell): number => (axis === 'column' ? cell.column : cell.row);
+/** その軸と直交する座標。「同じ列の中だけ」「同じ行の中だけ」を選り分けるのに使う。 */
+const across = (axis: GridAxis, cell: GridCell): number => (axis === 'column' ? cell.row : cell.column);
+
 /**
  * 図が持つ升目の広がり。自動配置が使う範囲に**列と行を 1 つずつ足す**。
  *
@@ -380,9 +385,16 @@ function shiftGridLine(
   placements: Readonly<Record<string, DiagramPlacement>>,
   automatic: ReadonlyMap<string, GridCell>,
   axis: GridAxis,
-  delta: (value: number) => number,
+  /**
+   * その升目を何升ずらすか。**升目そのもの**を受ける（軸の座標だけではない）。
+   *
+   * 行・列を丸ごと動かす操作は軸の座標だけで決まるが、1 つの列の中だけを動かす操作
+   * （`insertGapEdit`）はもう一方の座標も見る必要がある。同じ「ずらし」の実装を 2 つに
+   * 割らないため、判定の口を広いほうへ合わせてある。
+   */
+  delta: (cell: GridCell) => number,
 ): Record<string, DiagramPlacement> {
-  const step = (cell: GridCell): number => delta(axis === 'column' ? cell.column : cell.row);
+  const step = (cell: GridCell): number => delta(cell);
   const move = (cell: GridCell): GridCell => {
     const by = step(cell);
     if (by === 0) return cell;
@@ -424,7 +436,7 @@ export function insertGridLine(
   index: number,
   automatic: ReadonlyMap<string, GridCell>,
 ): Record<string, DiagramPlacement> {
-  return shiftGridLine(nodes, placements, automatic, axis, (value) => (value >= index ? 1 : 0));
+  return shiftGridLine(nodes, placements, automatic, axis, (cell) => (along(axis, cell) >= index ? 1 : 0));
 }
 
 /**
@@ -440,7 +452,7 @@ export function removeGridLine(
   index: number,
   automatic: ReadonlyMap<string, GridCell>,
 ): Record<string, DiagramPlacement> {
-  return shiftGridLine(nodes, placements, automatic, axis, (value) => (value > index ? -1 : 0));
+  return shiftGridLine(nodes, placements, automatic, axis, (cell) => (along(axis, cell) > index ? -1 : 0));
 }
 
 /**
@@ -484,31 +496,79 @@ export function gridLineEdits(
   limit: { readonly column: number; readonly row: number },
   automatic: ReadonlyMap<string, GridCell>,
 ): GridLineEdits {
-  /**
-   * 保存の入口（`validateDiagramLayout`）が受ける形か。
-   *
-   * 重なりも見る。挿入・削除そのものは新しい重なりを作らないが、**すでに同じ升目に居る 2 人**を
-   * 差分へ引き写すと、画面は何も変わらないのに保存だけが断られる。
-   */
-  const storable = (next: Record<string, DiagramPlacement>): boolean => {
-    if (Object.keys(next).length > MAX_PLACEMENTS_PER_DIAGRAM) return false;
-    const taken = new Set<string>();
-    for (const cell of Object.values(next)) {
-      if (cell.column > limit.column || cell.row > limit.row) return false;
-      const key = cellKey(cell);
-      if (taken.has(key)) return false;
-      taken.add(key);
-    }
-    return true;
-  };
   const inserted = insertGridLine(nodes, placements, axis, index, automatic);
   const removed = gridLineOccupant(nodes, placements, axis, index) === null
     ? removeGridLine(nodes, placements, axis, index, automatic)
     : null;
   return {
-    insert: storable(inserted) ? inserted : null,
-    remove: removed !== null && storable(removed) ? removed : null,
+    insert: storable(inserted, limit) ? inserted : null,
+    remove: removed !== null && storable(removed, limit) ? removed : null,
   };
+}
+
+/**
+ * 保存の入口（`validateDiagramLayout`）が受ける形か。
+ *
+ * 重なりも見る。ずらす操作そのものは新しい重なりを作らないが、**すでに同じ升目に居る 2 人**を
+ * 差分へ引き写すと、画面は何も変わらないのに保存だけが断られる。
+ */
+function storable(
+  next: Record<string, DiagramPlacement>,
+  limit: { readonly column: number; readonly row: number },
+): boolean {
+  if (Object.keys(next).length > MAX_PLACEMENTS_PER_DIAGRAM) return false;
+  const taken = new Set<string>();
+  for (const cell of Object.values(next)) {
+    if (cell.column > limit.column || cell.row > limit.row) return false;
+    const key = cellKey(cell);
+    if (taken.has(key)) return false;
+    taken.add(key);
+  }
+  return true;
+}
+
+/**
+ * 1 つの升目の**手前へ空きを割り込ませた**配置差分。動くのは同じ列（行）の中だけ。
+ *
+ * 行・列を 1 本まるごと挿入する `insertGridLine` と分けてある。あちらは図の全体が動くので、
+ * 「この札の上に 1 つ隙間が欲しい」だけのときに関係のない列まで組み替わる。こちらは
+ * **同じ列（行）の、次の空きに当たるところまで**を押し出す。押し出しは空きを埋めて止まるので、
+ * 図の下端・右端は伸びない。
+ *
+ * `axis` は**空く向き**ではなく**ずれる軸**で読む（`gridLineEdits` と同じ約束）。`'row'` なら
+ * 同じ列を下へ、`'column'` なら同じ行を右へ。
+ *
+ * 次の空きが枠の中に無ければ `null`。詰め切った列を押すと、押し出された人物が枠の外へ出る。
+ */
+export function insertGapEdit(
+  nodes: readonly ChartNode[],
+  placements: Readonly<Record<string, DiagramPlacement>>,
+  at: GridCell,
+  axis: GridAxis,
+  limit: { readonly column: number; readonly row: number },
+  automatic: ReadonlyMap<string, GridCell>,
+): Record<string, DiagramPlacement> | null {
+  const line = across(axis, at);
+  const start = along(axis, at);
+  // 同じ列（行）に居る番号。**図に出ない古い差分も数える** — 保存はされるので、空きと見て
+  // 押し出しを止めると、そこで 2 人が同じ升目に重なる。
+  const taken = new Set<number>();
+  for (const cell of Object.values(placements)) {
+    if (across(axis, cell) === line) taken.add(along(axis, cell));
+  }
+  for (const node of nodes) {
+    const cell: GridCell = { column: node.column, row: node.row };
+    if (!(node.name in placements) && across(axis, cell) === line) taken.add(along(axis, cell));
+  }
+  // 空いている升目の手前へは割り込まない（押すものが無く、何も起きない操作になる）。
+  if (!taken.has(start)) return null;
+  const ceiling = axis === 'column' ? limit.column : limit.row;
+  let stop = start + 1;
+  while (stop <= ceiling && taken.has(stop)) stop += 1;
+  if (stop > ceiling) return null;
+  const next = shiftGridLine(nodes, placements, automatic, axis, (cell) =>
+    (across(axis, cell) === line && along(axis, cell) >= start && along(axis, cell) < stop ? 1 : 0));
+  return storable(next, limit) ? next : null;
 }
 
 /** 升目の広がりが占める大きさ（px）。図の枠はこれを下回らない — 外縁の升目が切り落とされるため。 */

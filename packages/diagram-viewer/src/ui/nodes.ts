@@ -15,6 +15,7 @@ import {
 import type { DiagramT } from '../i18n';
 import { groupLabelsOf, parentsOf } from '../model';
 import { el, setAttr, setClass } from './dom';
+import { createIcon } from './icons';
 
 /** どの辺を掴んだか。取っ手ごとに固定なので、毎回作り直さず 1 つを配る。 */
 export const WIDTH_AXES = Object.freeze({ width: true, height: false });
@@ -36,6 +37,11 @@ export interface NodeCallbacks {
   onConnectPointerUp(event: PointerEvent): void;
   /** キーボードから接続点を押した（始点として待ち受ける／待ち受け中の始点と結ぶ）。 */
   onConnectToggle(name: string): void;
+  /**
+   * その札の手前へ空きを 1 つ割り込ませる。`'row'` なら上（同じ列が下へ）、`'column'` なら
+   * 左（同じ行が右へ）。軸の読み方は行・列の増減（`GridAxis`）と揃える。
+   */
+  onInsertGap(name: string, axis: 'row' | 'column'): void;
   /** 名札の書き換えを始める。 */
   onStartRename(name: string): void;
   /** 書き換えを確定する。空や重複は呼ばれた側が断る。 */
@@ -205,6 +211,28 @@ export function createNodeView(
   });
   root.appendChild(connectPoint);
 
+  /**
+   * 上・左へ空きを割り込ませる取っ手。**箱の内側の左上に 2 つ並べる。**
+   *
+   * 「上の取っ手は上辺、左の取っ手は左辺」と置き場所で意味を示せない。編集中の箱は
+   * `overflow: hidden` で外へはみ出せず、箱の高さの下限（72px）では左辺に**接続点と並べる
+   * 余地が無い**（9px の点が縦中央、下端は大きさの取っ手の当たり判定）。位置で示そうとすると、
+   * 小さい箱でだけ取っ手が重なって押せなくなる。向きは矢印の絵で示す。
+   */
+  const insertHandles = ([
+    ['row', 'insertAbove', t('insertAbove')],
+    ['column', 'insertLeft', t('insertLeft')],
+  ] as const).map(([axis, icon, text]) => {
+    const button = el(doc, 'button', {
+      className: `anytime-diagram-insert is-${axis} anytime-diagram-hidden`,
+      attrs: { type: 'button', 'aria-label': `${text}: ${name}`, title: text },
+    });
+    button.appendChild(createIcon(doc, icon, 12));
+    button.addEventListener('click', () => callbacks.onInsertGap(name, axis));
+    root.appendChild(button);
+    return button;
+  });
+
   const sizeHandles = ([
     ['is-width', WIDTH_AXES, t('resizeWidth'), 'nodeWidth'],
     ['is-height', HEIGHT_AXES, t('resizeHeight'), 'nodeHeight'],
@@ -252,8 +280,10 @@ export function createNodeView(
       pick.setAttribute('aria-pressed', String(state.picked));
       pick.textContent = state.picked ? '☑' : '☐';
       setClass(release, 'anytime-diagram-hidden', !state.moved);
-      setClass(connectPoint, 'anytime-diagram-hidden', !state.editing);
-      connectPoint.disabled = state.saving;
+      for (const button of [connectPoint, ...insertHandles]) {
+        setClass(button, 'anytime-diagram-hidden', !state.editing);
+        button.disabled = state.saving;
+      }
       // 名札と書き換え口は**どちらか一方だけ**を出す。両方出すと、同じ名前が 2 つ並ぶ。
       setClass(label, 'anytime-diagram-hidden', state.renaming);
       setClass(rename, 'anytime-diagram-hidden', !state.renaming);

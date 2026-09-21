@@ -341,6 +341,25 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-connect:hover:not(:disabled) { background: var(--diagram-fg); }
 .anytime-diagram-connect:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: 2px; }
 .anytime-diagram-connect:disabled { opacity: 0.4; cursor: default; }
+/*
+  上・左へ空きを割り込ませる取っ手。箱の**内側の左上**に 2 つ並べる。
+
+  クラス名は動かす軸（\`is-row\` = 同じ列を下へ、\`is-column\` = 同じ行を右へ）で、置き場所では
+  ない。置き場所で向きを示せないのは、箱の高さの下限（72px）だと左辺に接続点と並べる余地が
+  無いため — 向きは中の矢印が示す。
+*/
+.anytime-diagram-insert {
+  position: absolute; top: 3px; width: 16px; height: 16px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--diagram-border); border-radius: 4px;
+  background: var(--diagram-raised); color: var(--diagram-muted); cursor: pointer;
+}
+.anytime-diagram-insert.is-row { left: 3px; }
+.anytime-diagram-insert.is-column { left: 22px; }
+.anytime-diagram-insert:hover:not(:disabled) { border-color: var(--diagram-accent); color: var(--diagram-accent); }
+.anytime-diagram-insert:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: 1px; }
+.anytime-diagram-insert:disabled { opacity: 0.45; cursor: default; }
+
 /* 始点として待ち受けている札は、相手を選ぶまで印を出し続ける（どこから線が出るか読めるように）。 */
 .anytime-diagram-node.is-connect-source { outline: 2px dashed var(--diagram-accent); outline-offset: 2px; }
 

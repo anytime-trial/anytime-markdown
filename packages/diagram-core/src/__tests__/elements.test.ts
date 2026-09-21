@@ -15,11 +15,11 @@ import {
   serializeDiagramDocument,
   validateDiagramDocument,
 } from '../document';
-import { visibleCells } from '../grid';
+import { insertGapEdit, visibleCells } from '../grid';
 import { diagramChart, layoutDiagram } from '../layout';
 import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
 import type { DiagramConnector, DiagramDocument } from '../types';
-import { SAMPLE } from './fixture';
+import { applied, homes, node, SAMPLE } from './fixture';
 
 const CONNECTOR: DiagramConnector = {
   id: 'c1', from: '祖父', to: '化生', line: 'dashed', start: 'circle', end: 'arrow',
@@ -208,5 +208,55 @@ describe('空いた升目の ＋', () => {
 
   it('上限を超えたら間引かずに空を返す', () => {
     expect(visibleCells({ ...base, limit: 4 })).toEqual([]);
+  });
+});
+
+describe('上・左への割り込み', () => {
+  const LIMIT = { column: 500, row: 500 };
+  /** 列 1 に 3 人、行 0 に 3 人。割り込みの止まり方を両方の軸で測れる最小の形。 */
+  const NODES = [node('甲', 1, 0), node('乙', 1, 1), node('丙', 1, 3), node('丁', 2, 0), node('戊', 4, 0)];
+  const HOMES = homes(NODES);
+
+  it('上へ割り込むと、同じ列の次の空きまでが 1 升下がる', () => {
+    // 列 1 は 0・1・3 が埋まり 2 が空く。甲の手前へ割り込むと 甲・乙 が下がり、丙は動かない。
+    const next = insertGapEdit(NODES, {}, { column: 1, row: 0 }, 'row', LIMIT, HOMES)!;
+    expect(next).toEqual({ 甲: { column: 1, row: 1 }, 乙: { column: 1, row: 2 } });
+  });
+
+  it('左へ割り込むと、同じ行の次の空きまでが 1 升右へ動く', () => {
+    // 行 0 は 1・2・4 が埋まり 3 が空く。甲の手前へ割り込むと 甲・丁 が動き、戊は動かない。
+    const next = insertGapEdit(NODES, {}, { column: 1, row: 0 }, 'column', LIMIT, HOMES)!;
+    expect(next).toEqual({ 甲: { column: 2, row: 0 }, 丁: { column: 3, row: 0 } });
+  });
+
+  it('別の列・行の人物は巻き込まない（行・列を 1 本入れるのとは違う）', () => {
+    const next = insertGapEdit(NODES, {}, { column: 1, row: 0 }, 'row', LIMIT, HOMES)!;
+    expect(Object.keys(next).sort()).toEqual(['乙', '甲']);
+  });
+
+  it('空いている升目の手前へは割り込まない（押すものが無い）', () => {
+    expect(insertGapEdit(NODES, {}, { column: 1, row: 2 }, 'row', LIMIT, HOMES)).toBeNull();
+  });
+
+  it('次の空きが枠の中に無ければ断る（押し出した人物を枠の外へ出さない）', () => {
+    const packed = [node('甲', 0, 0), node('乙', 0, 1)];
+    expect(insertGapEdit(packed, {}, { column: 0, row: 0 }, 'row', { column: 500, row: 1 }, homes(packed)))
+      .toBeNull();
+  });
+
+  it('図に出ない古い差分も埋まった升目として数える（押し出しをそこで止めない）', () => {
+    // 行 2 に、図に出ない名前の差分が残っている。空きと見て止めると 2 人が重なる。
+    const stale = { 消えた人: { column: 1, row: 2 } };
+    const next = insertGapEdit(NODES, stale, { column: 1, row: 0 }, 'row', LIMIT, HOMES)!;
+    expect(next['消えた人']).toEqual({ column: 1, row: 3 });
+    expect(next['丙']).toEqual({ column: 1, row: 4 });
+  });
+
+  it('動いた先が自動配置と同じ人物は差分を持たない（固定を残さない）', () => {
+    // 乙 を 1 つ上へ手で寄せた図。上へ割り込むと乙は自動配置の升目へ戻るので、鍵ごと落ちる。
+    const moved = { 乙: { column: 1, row: 0 } };
+    const placed = applied(NODES, moved);
+    const next = insertGapEdit(placed, moved, { column: 1, row: 0 }, 'row', LIMIT, HOMES)!;
+    expect(next).not.toHaveProperty('乙');
   });
 });

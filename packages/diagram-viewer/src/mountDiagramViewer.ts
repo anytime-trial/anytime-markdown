@@ -23,6 +23,7 @@ import {
   type GridCell,
   gridLineEdits,
   type GridShift,
+  insertGapEdit,
   isDefaultDiagramSpacing,
   isNoShift,
   MAX_SCALE,
@@ -104,7 +105,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   let connectDrag: { readonly pointerId: number; readonly from: string; x: number; y: number } | null = null;
   let draft: DiagramDocument | null = null;
   let saving = false;
-  let saveError = '';
+  let notice = '';
   let dragging = false;
   let frame = { width: 0, height: 0 };
   /**
@@ -319,7 +320,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
   function startEditing(): void {
     setDraft(document_);
-    saveError = '';
+    notice = '';
     // 選択は編集ごとに空から始める。前の編集の選択が残っていると、最初の矢印キーが覚えのない
     // 人物まで動かす。
     clearTransientSelection();
@@ -492,21 +493,48 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     const next = to.trim();
     if (next === from || next === '') { renaming = null; paint(); return; }
     if (peopleNow().has(next)) {
-      saveError = tr('renameTaken', { name: next });
+      notice = tr('renameTaken', { name: next });
       paint();
       return;
     }
-    saveError = '';
+    notice = '';
     renaming = null;
     selection = selection.map((name) => (name === from ? next : name));
     updateDraft((current) => renameDiagramElement(current, from, next));
+  }
+
+  /**
+   * その札の手前へ空きを 1 つ割り込ませ、同じ列（行）の**次の空きまで**を押しのける。
+   *
+   * 行・列を 1 本まるごと挿入する縁の ＋ とは別物。あちらは図の全体が動くので、「この札の上に
+   * 隙間が欲しい」だけのときに関係のない列まで組み替わる。
+   *
+   * できないとき（押す先が詰まっている）は**理由を出す**。黙って何も起きないと、押せるボタンが
+   * 効いていないのか、そもそも効く条件を満たしていないのかを画面から区別できない。
+   */
+  function insertGap(name: string, axis: GridAxis): void {
+    if (draft === null || saving) return;
+    const cell = currentCell(name);
+    if (cell === null) return;
+    const limit = {
+      column: cellLimit(columnPitch(model.spacing)),
+      row: cellLimit(rowPitch(model.spacing)),
+    };
+    const next = insertGapEdit(model.chart.nodes, draft.layout.placements, cell, axis, limit, model.chart.automatic);
+    if (next === null) {
+      notice = tr(axis === 'row' ? 'insertAboveBlocked' : 'insertLeftBlocked', { name });
+      paint();
+      return;
+    }
+    notice = '';
+    updateLayout((current) => ({ ...current, placements: next }));
   }
 
   /** 名札の書き換えに入る。 */
   function startRename(name: string): void {
     if (draft === null || saving || name === '') return;
     renaming = name;
-    saveError = '';
+    notice = '';
     paint();
   }
 
@@ -609,14 +637,14 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   async function save(): Promise<void> {
     if (options.onSave === undefined || draft === null) return;
     saving = true;
-    saveError = '';
+    notice = '';
     paint();
     try {
       await options.onSave(draft);
       setDraft(null);
       clearTransientSelection();
     } catch (error) {
-      saveError = error instanceof Error ? error.message : String(error);
+      notice = error instanceof Error ? error.message : String(error);
     } finally {
       saving = false;
       paint();
@@ -679,7 +707,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onCommitRename: commitRename,
     onCancelRename(): void {
       renaming = null;
-      saveError = '';
+      notice = '';
       paint();
     },
     onConnectPointerDown(event: PointerEvent, name: string): void {
@@ -723,6 +751,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       connect(drag.from, to);
     },
     onConnectToggle: toggleConnectSource,
+    onInsertGap: insertGap,
     onSizePointerDown(event: PointerEvent, name: string, axes: ResizeAxes): void {
       if (draft === null || saving || event.button !== 0) return;
       // 人物のドラッグ（箱を動かす）へ渡さない。縁で始めた操作の意味は「大きさを変える」の 1 つ。
@@ -939,7 +968,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       canSave: options.onSave !== undefined,
       changed: model.changed,
       saving,
-      saveError,
+      notice,
       spacing: model.spacing,
       removable: removable(lastChosen()),
       draft: draft?.layout ?? null,
@@ -960,7 +989,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         // 別の図の人物名・升目を次の操作へ持ち越さない。
         setDraft(null);
         clearTransientSelection();
-        saveError = '';
+        notice = '';
         // 差し替えた図も全体表示から始める。前の図に合わせた倍率を持ち越すと、大きさの違う
         // 図では画面の外や豆粒の状態で開く。
         fitted = false;

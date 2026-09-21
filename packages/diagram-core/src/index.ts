@@ -45,6 +45,7 @@ export {
   type GridLineEdits,
   gridLineEdits,
   gridLineOccupant,
+  insertGapEdit,
   type GridShift,
   GUTTER_ICON_PX,
   insertGridLine,

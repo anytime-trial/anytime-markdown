@@ -271,7 +271,6 @@ describe('見え方の操作', () => {
     expect(zoomOut.disabled).toBe(true);
     expect(byLabel('拡大')!.disabled).toBe(false);
   });
-
 });
 
 /**
@@ -526,4 +525,44 @@ describe('要素と接続線', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0]![0].nodes).toEqual(['要素 1']);
   });
+});
+
+describe('上・左への割り込み', () => {
+  const insertHandle = (person: string, axis: 'row' | 'column'): HTMLButtonElement =>
+    container.querySelector<HTMLButtonElement>(
+      `.anytime-diagram-node[data-person="${person}"] .anytime-diagram-insert.is-${axis}`,
+    )!;
+
+  const startEditing = (options: Partial<DiagramViewerOptions> = {}): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {}, ...options });
+    byText('配置を編集')!.click();
+    return view;
+  };
+
+  it('編集中だけ札に上・左の取っ手が出る', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(insertHandle('父', 'row').classList).toContain('anytime-diagram-hidden');
+    byText('配置を編集')!.click();
+    expect(insertHandle('父', 'row').classList).not.toContain('anytime-diagram-hidden');
+    expect(insertHandle('父', 'column').classList).not.toContain('anytime-diagram-hidden');
+  });
+
+  it('上へ割り込むと、その札と同じ列の次の空きまでが 1 升下がる', () => {
+    const view = startEditing();
+    const before = view.getDraft()!.layout.placements;
+    expect(before).toEqual({});
+    insertHandle('祖父', 'row').click();
+    const after = view.getDraft()!.layout.placements;
+    // 祖父の居る列だけが動く。別の列（父・子）は差分を持たない。
+    expect(Object.keys(after).length).toBeGreaterThan(0);
+    expect(Object.keys(after)).not.toContain('子');
+  });
+
+  it('左へ割り込むと、その札と同じ行の次の空きまでが右へ動く', () => {
+    const view = startEditing();
+    insertHandle('祖父', 'column').click();
+    const after = view.getDraft()!.layout.placements;
+    expect(after['祖父']!.column).toBe(1);
+  });
+
 });
