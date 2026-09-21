@@ -511,7 +511,11 @@ export const DIAGRAM_STYLES = `
 
   札より下（z-index 1）に置く。上に置くと、すき間に重なった札の操作を帯が奪う。
 */
-.anytime-diagram-gaps { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+/*
+  重ね順は DOM の順で決める（\`z-index\` を置かない）。置くと、線の層（\`z-index\` 無し）より
+  前へ出て、すき間を横切る線が押せなくなる。
+*/
+.anytime-diagram-gaps { position: absolute; inset: 0; pointer-events: none; }
 .anytime-diagram-gap {
   position: absolute; top: 0; left: 0; padding: 0; border: 0; background: transparent;
   pointer-events: auto; touch-action: none;

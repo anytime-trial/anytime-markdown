@@ -1094,3 +1094,25 @@ describe('線の複数選択', () => {
     expect(view.getDraft()!.connectors).toEqual([]);
   });
 });
+
+describe('すき間の帯は線の押下を奪わない', () => {
+  it('取っ手の層は線の層より前（下）に置く', () => {
+    mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    const surface = container.querySelector('.anytime-diagram-surface')!;
+    const order = [...surface.children].map((child) => child.getAttribute('class') ?? '');
+    const gaps = order.findIndex((name) => name.includes('anytime-diagram-gaps'));
+    const edges = order.findIndex((name) => name.includes('anytime-diagram-edges'));
+    const links = order.findIndex((name) => name.includes('anytime-diagram-links'));
+    expect(gaps).toBeGreaterThanOrEqual(0);
+    // 後ろに置くと、すき間を横切る線が帯に隠れて選べない（実機で観測）。
+    expect(gaps).toBeLessThan(edges);
+    expect(gaps).toBeLessThan(links);
+  });
+
+  it('帯に z-index を置かない（置くと DOM の順を越えて線より前へ出る）', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(container.querySelector('style')!.textContent)
+      .not.toMatch(/\.anytime-diagram-gaps\s*\{[^}]*z-index/);
+  });
+});

@@ -177,7 +177,17 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   /** 接続を引いている最中の仮の線。引いていない間は `d` を外して隠す。 */
   const previewPath = svg(doc, 'path', { class: 'link-preview' });
   linksSvg.appendChild(previewPath);
-  surface.append(gridSvg, edgesSvg, linksSvg);
+  /*
+    面の重ね順。**すき間の取っ手は線より先（下）に置く。**
+
+    後ろに置くと、すき間を横切る線が帯に隠れて選べない（実機で観測。要素から要素へ引いた線は
+    ほぼ必ずすき間を通るので、ほとんどの線が選べなくなる）。線の当たり判定は経路の上だけ
+    （`pointer-events: stroke`）なので、下に置いても帯は線の無いところで押下を受け取れる。
+
+    取っ手を小さくして避ける手は採らない。線は箱の中心どうしを結ぶので、すき間の中の
+    「線が通らない高さ」を決め打つことができない（箱の大きさも配置も変わる）。
+  */
+  surface.append(gridSvg);
 
   const viewControls = createViewControls(doc, tr, {
     onZoom: zoom,
@@ -226,7 +236,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onConnectPointerUp: onConnectUp,
     onConnectToggle: toggleConnectSource,
   });
-  surface.append(gaps.root, midpoints.root);
+  surface.append(gaps.root, edgesSvg, linksSvg, midpoints.root);
 
   /**
    * 選択と線の区画を枠の左下へ重ねる入れ物。
