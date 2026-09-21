@@ -90,9 +90,20 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
 					break;
 				case 'saveDocument': {
 					try {
-						// webview からのメッセージは信頼できない入力として扱う。画面と同じ検証を
-						// 通してから書く（升目の重なり・件数の上限・刻みの範囲・線の形）。
-						const validated = validateDiagramDocument(message.document);
+						/*
+							受けるのは**ファイルの形の本文**（文字列）。画面の形の図をそのまま受けない
+							— 端（`DiagramAnchor`）は画面では種別付きの組、ファイルでは文字列で、
+							画面の形を `validateDiagramDocument` へ渡すと線を 1 本でも持つ図が必ず
+							断られる。境界を文字列にしておけば、渡す側が直し忘れた日に黙って
+							「保存できない画面」になるのではなく、ここで理由が出る。
+
+							webview からのメッセージは信頼できない入力として扱う。画面と同じ検証を
+							通してから書く（升目の重なり・件数の上限・刻みの範囲・線の形）。
+						*/
+						if (typeof message.json !== 'string') {
+							throw new Error('[diagram] 保存の要求に図の本文（文字列）がありません');
+						}
+						const validated = validateDiagramDocument(JSON.parse(message.json));
 						if (!validated.ok) throw new Error(validated.errors.join('\n'));
 						const json = serializeDiagramDocument(validated.document);
 						const edit = new vscode.WorkspaceEdit();

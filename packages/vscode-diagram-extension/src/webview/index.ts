@@ -5,7 +5,7 @@
  * 書き込みが拒否された保存でも編集が終わったように見え、直した配置が失われる。
  */
 
-import type { DiagramDocument } from '@anytime-markdown/diagram-core';
+import { type DiagramDocument, serializeDiagramDocument } from '@anytime-markdown/diagram-core';
 import { type DiagramViewerHandle,mountDiagramViewer } from '@anytime-markdown/diagram-viewer';
 
 interface VSCodeApi {
@@ -38,7 +38,8 @@ function saveDocument(next: DiagramDocument): Promise<void> {
 	pendingSave?.reject(new Error('A previous save is still pending.'));
 	return new Promise<void>((resolve, reject) => {
 		pendingSave = { resolve, reject };
-		vscode.postMessage({ type: 'saveDocument', document: next });
+		// 画面の形のまま送らない（端が種別付きの組のままだと拡張側の検証が必ず断る）。
+		vscode.postMessage({ type: 'saveDocument', json: serializeDiagramDocument(next) });
 	});
 }
 

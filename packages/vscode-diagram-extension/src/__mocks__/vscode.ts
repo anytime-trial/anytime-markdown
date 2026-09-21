@@ -8,9 +8,31 @@ export interface MockUri {
 	toString(): string;
 }
 
+const uri = (path: string): MockUri => ({ scheme: 'file', fsPath: path, path, toString: () => path });
+
 export const Uri = {
-	file: (path: string): MockUri => ({ scheme: 'file', fsPath: path, path, toString: () => path }),
+	file: uri,
+	joinPath: (base: MockUri, ...parts: string[]): MockUri => uri([base.path, ...parts].join('/')),
 };
+
+/** 置き換える範囲。カスタムエディタは本文全体を差し替えるので、端の値を持つだけでよい。 */
+export class Range {
+	public constructor(
+		public readonly startLine: number,
+		public readonly startCharacter: number,
+		public readonly endLine: number,
+		public readonly endCharacter: number,
+	) {}
+}
+
+/** 本文の差し替え要求。テストは「何を書こうとしたか」を読む。 */
+export class WorkspaceEdit {
+	public readonly edits: { uri: MockUri; range: Range; text: string }[] = [];
+
+	public replace(target: MockUri, range: Range, text: string): void {
+		this.edits.push({ uri: target, range, text });
+	}
+}
 
 export enum TreeItemCollapsibleState {
 	None = 0,
@@ -55,6 +77,8 @@ export class EventEmitter<T> {
 
 export const workspace = {
 	workspaceFolders: undefined as unknown[] | undefined,
+	applyEdit: jest.fn(async () => true),
+	onDidChangeTextDocument: jest.fn(() => ({ dispose: () => undefined })),
 	findFiles: jest.fn(),
 	asRelativePath: jest.fn(),
 	createFileSystemWatcher: jest.fn(),
