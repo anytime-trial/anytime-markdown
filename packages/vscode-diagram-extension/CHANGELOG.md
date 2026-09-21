@@ -1,6 +1,6 @@
 # Change Log
 
-## [0.1.0]
+## [0.1.0] - 2026-09-21
 
 - First release. Custom editor for `*.diagram.json`, automatic genealogy layout, grid-snapped manual
   placement, multi-select moves, row/column insertion and removal, card resizing, a workspace-wide
