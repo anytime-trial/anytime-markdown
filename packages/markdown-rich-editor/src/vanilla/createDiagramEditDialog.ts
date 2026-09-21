@@ -42,7 +42,7 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
     iconText: "⋔",
     dirty: state.isFsDirty(),
     t: opts.t,
-    onApply: opts.readOnly ? undefined : () => state.onApply(),
+    onApply: opts.readOnly ? undefined : () => apply(),
     onClose: opts.onClose,
   });
   header.el.id = "diagram-edit-title";
@@ -70,6 +70,19 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
   }
 
   let handle: DiagramViewerHandle | undefined;
+
+  /*
+    ヘッダーの「適用」が保存を兼ねる（ユーザー指示）。図の中の保存ボタンは出さないので、
+    保存の口はここ 1 つ — 2 つ出すと、どちらが本文へ効くのかを押す前に読めない。
+
+    図を出せていないとき（本文が壊れている・空）は保存する下書きが無いので、従来どおり本文の
+    適用だけを行う。押しても何も起きないボタンにしない。
+  */
+  function apply(): void {
+    if (handle === undefined) { state.onApply(); return; }
+    void handle.save();
+  }
+
   function mount(): void {
     const code = state.getFsCode();
     // 本文が空のフェンスは「読めない JSON」ではなく「まだ何も無い図」。空の系図から始めさせる
@@ -98,6 +111,9 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
       document: document_,
       editable: !opts.readOnly,
       compact: true,
+      // 編集そのものを目的に開くダイアログ。閲覧から始めて切替を押させない（切替と保存の口は
+      // 図に出さず、保存はヘッダーの「適用」が受け持つ）。
+      alwaysEditing: true,
       ...(opts.locale === undefined ? {} : { locale: opts.locale }),
       onDraftChange(draft) {
         if (draft !== null) state.onFsTextChange(serializeDiagramDocument(draft).trimEnd());

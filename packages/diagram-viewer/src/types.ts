@@ -19,6 +19,16 @@ export interface DiagramViewerOptions {
    */
   readonly compact?: boolean;
   /**
+   * 開いた時点から編集状態で出し、**編集と閲覧の切り替え・図の中の保存ボタンを出さない**か。
+   *
+   * 編集そのものを目的に開く宿主（markdown 拡張の系図フェンスのダイアログ）が真で渡す。閲覧から
+   * 始めて切替を押させると、開いた人がまず何もできない画面を 1 枚挟むことになる。
+   *
+   * 保存の口を図から外すぶん、宿主は自分の「適用」から `save()` を呼ぶ。`editable` が偽なら
+   * 編集状態にはしない（閲覧専用がこの指定で編集に入れる形にしない）。
+   */
+  readonly alwaysEditing?: boolean;
+  /**
    * 保存。**図の全体**を渡す。
    *
    * 配置差分だけを渡していた頃の形から広げてある。要素の追加・改名・手で引いた線は配置差分では
@@ -49,5 +59,12 @@ export interface DiagramViewerHandle {
   update(next: DiagramViewerUpdate): void;
   /** 編集中の下書き。`null` は編集していない状態。 */
   getDraft(): DiagramDocument | null;
+  /**
+   * 保存する。図の中の保存ボタンと**同じ経路**（検証・失敗の知らせ・保存中の門）を通る。
+   *
+   * `alwaysEditing` の宿主が自分の「適用」から呼ぶ。別の経路を宿主側に作ると、保存中に指が
+   * 動いたときの扱いや失敗の見せ方が 2 通りに割れる。編集していないときは何もしない。
+   */
+  save(): Promise<void>;
   destroy(): void;
 }

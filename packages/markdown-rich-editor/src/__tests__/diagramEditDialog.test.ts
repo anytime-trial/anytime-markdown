@@ -114,6 +114,34 @@ it("不正な図の保存は例外にし本文へ適用しない", () => {
   expect(onApply).not.toHaveBeenCalled();
 });
 
+// 編集そのものを目的に開くダイアログなので、閲覧状態から始めて切替を押させない。保存の口も
+// 図の中には出さず、ヘッダーの「適用」1 つに寄せる（ユーザー指示）。
+it("図を編集状態で開き、切替と保存の口は図に出さない", () => {
+  open();
+  expect(viewerOptions()).toMatchObject({ alwaysEditing: true });
+});
+
+it("適用ボタンが保存経路（検証つき）を通して本文へ適用する", async () => {
+  const { onFsTextChange, onApply, dialog } = open();
+  const draft = { ...doc, title: "編集後" };
+  viewerOptions().onDraftChange?.(draft);
+  onFsTextChange.mockClear();
+  dialog.el.querySelector<HTMLButtonElement>(".am-dh-apply-btn")?.click();
+  await Promise.resolve();
+  await Promise.resolve();
+  // 検証を通った図を書き出し直した本文が入る（画面の下書きの文字列をそのまま流さない）。
+  expect(onFsTextChange).toHaveBeenCalledWith(serializeDiagramDocument(doc).trimEnd());
+  expect(onApply).toHaveBeenCalledTimes(1);
+});
+
+// 本文が壊れていて図を出せないときは保存する下書きも無い。従来どおり本文の適用だけを行う
+// （押しても何も起きないボタンにしない）。
+it("図を出せない本文では適用が従来どおり本文を適用する", () => {
+  const { onApply, dialog } = open("{broken");
+  dialog.el.querySelector<HTMLButtonElement>(".am-dh-apply-btn")?.click();
+  expect(onApply).toHaveBeenCalledTimes(1);
+});
+
 it("下書きを dirty 表示・閉じるときの破棄確認へ接続し null は無視する", () => {
   const { state, onFsTextChange, onApply, dialog } = open();
   expect(dialog.el.querySelector(".am-dh-apply-btn.clean")).not.toBeNull();

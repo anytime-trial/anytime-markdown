@@ -59,6 +59,8 @@ export interface ChromeState {
   readonly selectionCount: number;
   readonly editing: boolean;
   readonly editable: boolean;
+  /** 常に編集状態か。真なら編集と閲覧の切り替え・保存の口を出さない（宿主が受け持つ）。 */
+  readonly alwaysEditing: boolean;
   readonly compact: boolean;
   readonly canSave: boolean;
   readonly changed: boolean;
@@ -255,11 +257,13 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       }
       find.value = state.selected;
 
-      setClass(modeToggle, 'anytime-diagram-hidden', !(state.editable && state.canSave));
+      // 常時編集の宿主では切り替えも保存も図の外（宿主の「適用」）が受け持つ。押せない口を
+      // 出すのではなく出さない — 押しても何も起きない口は、壊れているのか仕様なのか読めない。
+      setClass(modeToggle, 'anytime-diagram-hidden',
+        state.alwaysEditing || !(state.editable && state.canSave));
       modeToggle.disabled = state.saving;
-      for (const control of [save, resetLayout]) {
-        setClass(control, 'anytime-diagram-hidden', !state.editing);
-      }
+      setClass(save, 'anytime-diagram-hidden', state.alwaysEditing || !state.editing);
+      setClass(resetLayout, 'anytime-diagram-hidden', !state.editing);
       save.textContent = state.saving ? t('saving') : t('save');
       save.disabled = !state.changed || state.saving;
       resetLayout.disabled = state.saving || state.draft === null || isEmptyLayout(state.draft);
