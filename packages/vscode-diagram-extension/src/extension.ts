@@ -1,17 +1,17 @@
 import * as path from 'node:path';
 
-import * as vscode from 'vscode';
 import {
 	createEmptyDiagramDocument,
 	parseDiagramFileStrict,
 	serializeDiagramDocument,
 } from '@anytime-markdown/diagram-core';
+import * as vscode from 'vscode';
 
-import { DiagramEditorProvider } from './providers/DiagramEditorProvider';
-import { DiagramListProvider } from './providers/DiagramListProvider';
-import { DIAGRAM_FILE_GLOB } from './providers/diagramListModel';
 import { McpDiagramServerProvider } from './mcp/McpDiagramServerProvider';
 import { reconcileMcpServerRegistration, registerMcpRegistrationCommand } from './mcp/mcpRegistrationCommand';
+import { DiagramEditorProvider } from './providers/DiagramEditorProvider';
+import { DIAGRAM_FILE_GLOB } from './providers/diagramListModel';
+import { DiagramListProvider } from './providers/DiagramListProvider';
 import { DiagramLogger } from './utils/DiagramLogger';
 
 export function activate(context: vscode.ExtensionContext) {

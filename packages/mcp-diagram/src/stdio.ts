@@ -1,7 +1,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { createMcpServer } from './server.js';
 import { resolveRootDir } from './resolveRootDir.js';
+import { createMcpServer } from './server.js';
 
 async function main() {
   const server = createMcpServer({

@@ -10,16 +10,16 @@
  */
 
 import {
+  type ChartView,
   columnBoundaryX,
   columnCentreX,
   columnPitch,
+  type DiagramSpacing,
+  type GridAxis,
   rowBoundaryY,
   rowCentreY,
   rowPitch,
   visibleGutterIndices,
-  type ChartView,
-  type DiagramSpacing,
-  type GridAxis,
 } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
@@ -73,26 +73,12 @@ export function createGutterView(doc: Document, t: DiagramT, callbacks: GutterCa
         buttons.clear();
         return;
       }
-      const specs = buildSpecs(state, t);
       const seen = new Set<string>();
-      for (const spec of specs) {
+      for (const spec of buildSpecs(state, t)) {
         seen.add(spec.key);
-        let button = buttons.get(spec.key);
-        if (button === undefined) {
-          button = el(doc, 'button', {
-            className: `anytime-diagram-gutter-icon is-${spec.axis} ${spec.kind === 'remove' ? 'is-remove' : 'is-insert'}`,
-            text: spec.kind === 'insert' ? '＋' : '−',
-            attrs: { type: 'button' },
-          });
-          button.addEventListener('click', () => callbacks.onEditGridLine(spec.axis, spec.index, spec.kind));
-          buttons.set(spec.key, button);
-          root.appendChild(button);
-        }
-        button.disabled = state.saving;
-        button.setAttribute('aria-label', spec.label);
-        button.title = spec.label;
-        button.style.left = spec.left === null ? '' : `${spec.left}px`;
-        button.style.top = spec.top === null ? '' : `${spec.top}px`;
+        const button = buttons.get(spec.key)
+          ?? adopt(spec.key, createButton(doc, spec, callbacks));
+        applySpec(button, spec, state.saving);
       }
       for (const [key, button] of buttons) {
         if (seen.has(key)) continue;
@@ -101,6 +87,32 @@ export function createGutterView(doc: Document, t: DiagramT, callbacks: GutterCa
       }
     },
   };
+
+  /** 作ったばかりのアイコンを控えへ入れて図の縁へ置く。 */
+  function adopt(key: string, button: HTMLButtonElement): HTMLButtonElement {
+    buttons.set(key, button);
+    root.appendChild(button);
+    return button;
+  }
+}
+
+function createButton(doc: Document, spec: Spec, callbacks: GutterCallbacks): HTMLButtonElement {
+  const button = el(doc, 'button', {
+    className: `anytime-diagram-gutter-icon is-${spec.axis} ${spec.kind === 'remove' ? 'is-remove' : 'is-insert'}`,
+    text: spec.kind === 'insert' ? '＋' : '−',
+    attrs: { type: 'button' },
+  });
+  button.addEventListener('click', () => callbacks.onEditGridLine(spec.axis, spec.index, spec.kind));
+  return button;
+}
+
+/** 位置と文言は毎回当てる。図を平行移動するたびに縁のアイコンの画面上の位置が変わる。 */
+function applySpec(button: HTMLButtonElement, spec: Spec, saving: boolean): void {
+  button.disabled = saving;
+  button.setAttribute('aria-label', spec.label);
+  button.title = spec.label;
+  button.style.left = spec.left === null ? '' : `${spec.left}px`;
+  button.style.top = spec.top === null ? '' : `${spec.top}px`;
 }
 
 function buildSpecs(state: GutterState, t: DiagramT): readonly Spec[] {

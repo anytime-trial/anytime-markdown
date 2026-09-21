@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto';
 
-import * as vscode from 'vscode';
 import {
 	parseDiagramFileStrict,
 	serializeDiagramDocument,
 	validateDiagramLayout,
 } from '@anytime-markdown/diagram-core';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
+import * as vscode from 'vscode';
 
 import { DiagramLogger } from '../utils/DiagramLogger';
 

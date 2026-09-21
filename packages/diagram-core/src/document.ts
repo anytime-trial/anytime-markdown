@@ -6,12 +6,12 @@
  */
 
 import {
-  DEFAULT_DIAGRAM_SPACING,
-  DIAGRAM_SPACING_RANGE,
   cellFromPoint,
   cellKey,
   cellLimit,
   columnPitch,
+  DEFAULT_DIAGRAM_SPACING,
+  DIAGRAM_SPACING_RANGE,
   isDefaultDiagramSpacing,
   isPlaceableCoordinate,
   readDiagramSpacing,
@@ -19,7 +19,6 @@ import {
 } from './spacing';
 import {
   DIAGRAM_RELATIONS,
-  EMPTY_DIAGRAM_LAYOUT,
   type DiagramDocument,
   type DiagramFamily,
   type DiagramGroupAxis,
@@ -27,6 +26,7 @@ import {
   type DiagramPlacement,
   type DiagramRelation,
   type DiagramSpacing,
+  EMPTY_DIAGRAM_LAYOUT,
 } from './types';
 
 type Warn = (message: string) => void;
@@ -102,16 +102,7 @@ function freeCellNear(
   if (!taken.has(cellKey(cell))) return cell;
   const limit = { column: cellLimit(columnPitch(spacing)), row: cellLimit(rowPitch(spacing)) };
   for (let radius = 1; radius <= MAX_PLACEMENTS_PER_DIAGRAM; radius += 1) {
-    const candidates: DiagramPlacement[] = [];
-    for (let column = cell.column - radius; column <= cell.column + radius; column += 1) {
-      for (let row = cell.row - radius; row <= cell.row + radius; row += 1) {
-        if (Math.max(Math.abs(column - cell.column), Math.abs(row - cell.row)) !== radius) continue;
-        // 上限も下限と対称に見る。見ないと、読み出しの寄せ先だけが保存の入口で断られる
-        // 番号（`cellLimit` の外）を作り、読んだ図をそのまま保存し直せなくなる。
-        if (column < 0 || row < 0 || column > limit.column || row > limit.row) continue;
-        if (!taken.has(cellKey({ column, row }))) candidates.push({ column, row });
-      }
-    }
+    const candidates = freeCellsOnRing(cell, radius, taken, limit);
     if (candidates.length === 0) continue;
     // 寄せ先は**下・右を先に**選ぶ。左上を優先すると、詰まっている図の中心側（原点寄り）へ
     // 人物が押し込まれ、玉突きで別の升目まで動かすことになる。
@@ -120,6 +111,26 @@ function freeCellNear(
       || (right.column - cell.column) - (left.column - cell.column))[0]!;
   }
   return cell;
+}
+
+/** `cell` から Chebyshev 距離 `radius` の周のうち、枠の中で空いている升目。 */
+function freeCellsOnRing(
+  cell: DiagramPlacement,
+  radius: number,
+  taken: ReadonlySet<string>,
+  limit: { readonly column: number; readonly row: number },
+): DiagramPlacement[] {
+  const candidates: DiagramPlacement[] = [];
+  for (let column = cell.column - radius; column <= cell.column + radius; column += 1) {
+    for (let row = cell.row - radius; row <= cell.row + radius; row += 1) {
+      const onRing = Math.max(Math.abs(column - cell.column), Math.abs(row - cell.row)) === radius;
+      // 上限も下限と対称に見る。見ないと、読み出しの寄せ先だけが保存の入口で断られる
+      // 番号（`cellLimit` の外）を作り、読んだ図をそのまま保存し直せなくなる。
+      const inside = column >= 0 && row >= 0 && column <= limit.column && row <= limit.row;
+      if (onRing && inside && !taken.has(cellKey({ column, row }))) candidates.push({ column, row });
+    }
+  }
+  return candidates;
 }
 
 /**
@@ -194,6 +205,49 @@ export function readDiagramLayout(value: unknown, onWarn: Warn = () => {}): Diag
   return spacing === null || isDefaultDiagramSpacing(spacing) ? { placements } : { placements, spacing };
 }
 
+/** 分類の軸の一覧。1 件でも読めなければ図ごと読まない（軸が欠けた札が黙って並ばないように）。 */
+function readGroupAxes(value: unknown, onWarn: Warn): DiagramGroupAxis[] | null {
+  if (!Array.isArray(value)) {
+    onWarn('[diagram] groups: 配列が必要です');
+    return null;
+  }
+  const groups: DiagramGroupAxis[] = [];
+  for (const axis of value) {
+    const values = stringRecord(isObject(axis) ? axis.values : undefined);
+    if (!isObject(axis) || typeof axis.id !== 'string' || typeof axis.label !== 'string' || values === undefined) {
+      onWarn('[diagram] groups の要素は id / label / values（文字列の対応）が必要です');
+      return null;
+    }
+    groups.push({ id: axis.id, label: axis.label, values });
+  }
+  return groups;
+}
+
+/** 家族の一覧。**人物はここから導く**ので、空の一覧は「図に描ける人物が 1 人も居ない」に等しい。 */
+function readFamilies(value: unknown, onWarn: Warn): DiagramFamily[] | null {
+  if (!Array.isArray(value)) {
+    onWarn('[diagram] families: 配列が必要です');
+    return null;
+  }
+  const families: DiagramFamily[] = [];
+  for (const family of value) {
+    const parents = stringArray(isObject(family) ? family.parents : undefined);
+    const children = stringArray(isObject(family) ? family.children : undefined);
+    const familyGroups = stringRecord(isObject(family) ? family.groups : undefined);
+    if (parents === undefined || parents.length === 0 || children === undefined || familyGroups === undefined
+      || !isObject(family) || !isRelation(family.kind)) {
+      onWarn('[diagram] families の要素は parents（1 件以上）/ children / kind / groups が必要です');
+      return null;
+    }
+    families.push({ parents, children, kind: family.kind, groups: familyGroups });
+  }
+  if (families.length === 0) {
+    onWarn('[diagram] families が空です');
+    return null;
+  }
+  return families;
+}
+
 /**
  * 図の読み取り。
  *
@@ -209,39 +263,9 @@ export function parseDiagramDocument(value: unknown, onWarn: Warn = () => {}): D
     onWarn('[diagram] title / lead / note / legend は文字列が必要です');
     return null;
   }
-  const groups: DiagramGroupAxis[] = [];
-  if (!Array.isArray(value.groups)) {
-    onWarn('[diagram] groups: 配列が必要です');
-    return null;
-  }
-  for (const axis of value.groups) {
-    const values = stringRecord(isObject(axis) ? axis.values : undefined);
-    if (!isObject(axis) || typeof axis.id !== 'string' || typeof axis.label !== 'string' || values === undefined) {
-      onWarn('[diagram] groups の要素は id / label / values（文字列の対応）が必要です');
-      return null;
-    }
-    groups.push({ id: axis.id, label: axis.label, values });
-  }
-  if (!Array.isArray(value.families)) {
-    onWarn('[diagram] families: 配列が必要です');
-    return null;
-  }
-  const families: DiagramFamily[] = [];
-  for (const family of value.families) {
-    const parents = stringArray(isObject(family) ? family.parents : undefined);
-    const children = stringArray(isObject(family) ? family.children : undefined);
-    const familyGroups = stringRecord(isObject(family) ? family.groups : undefined);
-    if (parents === undefined || parents.length === 0 || children === undefined || familyGroups === undefined
-      || !isObject(family) || !isRelation(family.kind)) {
-      onWarn('[diagram] families の要素は parents（1 件以上）/ children / kind / groups が必要です');
-      return null;
-    }
-    families.push({ parents, children, kind: family.kind, groups: familyGroups });
-  }
-  if (families.length === 0) {
-    onWarn('[diagram] families が空です');
-    return null;
-  }
+  const groups = readGroupAxes(value.groups, onWarn);
+  const families = readFamilies(value.families, onWarn);
+  if (groups === null || families === null) return null;
   const annotations = value.annotations === undefined ? {} : stringRecord(value.annotations);
   if (annotations === undefined) {
     onWarn('[diagram] annotations: 文字列の対応が必要です');

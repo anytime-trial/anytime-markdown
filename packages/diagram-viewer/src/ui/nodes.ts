@@ -6,8 +6,8 @@
  */
 
 import {
-  DIAGRAM_SPACING_RANGE,
   type ChartNode,
+  DIAGRAM_SPACING_RANGE,
   type DiagramDocument,
   type DiagramSpacing,
 } from '@anytime-markdown/diagram-core';

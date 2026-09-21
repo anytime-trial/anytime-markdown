@@ -9,13 +9,13 @@
  */
 
 import {
-  MAX_SCALE,
-  MIN_SCALE,
-  isDefaultDiagramSpacing,
-  isEmptyLayout,
   type DiagramDocument,
   type DiagramLayout,
   type DiagramSpacing,
+  isDefaultDiagramSpacing,
+  isEmptyLayout,
+  MAX_SCALE,
+  MIN_SCALE,
 } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';

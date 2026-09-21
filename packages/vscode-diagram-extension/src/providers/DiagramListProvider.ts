@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 
 import { DiagramEditorProvider } from './DiagramEditorProvider';
 import {
+	buildDiagramListEntries,
 	DIAGRAM_FILE_EXCLUDE_GLOB,
 	DIAGRAM_FILE_GLOB,
-	buildDiagramListEntries,
-	normalizeDiagramRelativePath,
 	type DiagramListEntry,
+	normalizeDiagramRelativePath,
 } from './diagramListModel';
 
 /** ワークスペース内の系図を一覧し、クリックでエディタを開くツリービュー。 */

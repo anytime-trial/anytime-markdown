@@ -6,43 +6,43 @@
  */
 
 import {
-  DEFAULT_DIAGRAM_SPACING,
-  EMPTY_DIAGRAM_LAYOUT,
   cellKey,
   cellLimit,
   chartPoint,
+  type ChartView,
   columnPitch,
+  DEFAULT_DIAGRAM_SPACING,
+  type DiagramLayout,
+  type DiagramSpacing,
+  EMPTY_DIAGRAM_LAYOUT,
   fitChart,
   fittingShift,
+  type GridAxis,
+  type GridCell,
   gridLineEdits,
+  type GridShift,
   isDefaultDiagramSpacing,
   isNoShift,
   nearestCell,
   nearestFreeCell,
   nudgeShift,
   placementFromDrag,
-  resizeFromDrag,
   resizedSpacing,
+  resizeFromDrag,
   rowPitch,
   shiftCell,
   zoomAt,
-  type ChartView,
-  type DiagramLayout,
-  type DiagramSpacing,
-  type GridAxis,
-  type GridCell,
-  type GridShift,
 } from '@anytime-markdown/diagram-core';
 
 import { createDiagramT, type DiagramT } from './i18n';
 import { createAutomaticCache, deriveModel, type DiagramModel } from './model';
 import { DIAGRAM_ROOT_CLASS, DIAGRAM_STYLES } from './theme/diagramStyles';
-import { el, setClass, svg } from './ui/dom';
+import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
 import { createChromeView, createConfirmView, RESET_LAYOUT } from './ui/chrome';
+import { el, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
 import { createGutterView } from './ui/gutter';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
-import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
 
 const INITIAL_VIEW: ChartView = { x: 20, y: 20, scale: 0.7 };
 /** キーボードで 1 回変える箱の大きさ（px）。Shift を添えると粗く変わる。 */

@@ -1,7 +1,6 @@
+import { DIAGRAM_RELATIONS, DIAGRAM_SPACING_RANGE } from '@anytime-markdown/diagram-core';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-
-import { DIAGRAM_RELATIONS, DIAGRAM_SPACING_RANGE } from '@anytime-markdown/diagram-core';
 
 import { readDiagram } from './tools/readDiagram.js';
 import { setDiagramLayout, writeDiagram } from './tools/writeDiagram.js';

@@ -8,14 +8,14 @@
  */
 
 import { MAX_PLACEMENTS_PER_DIAGRAM } from './document';
+import type { ChartNode } from './layout';
 import {
-  DIAGRAM_MARGIN as MARGIN,
   cellKey,
   cellPosition,
   columnPitch,
+  DIAGRAM_MARGIN as MARGIN,
   rowPitch,
 } from './spacing';
-import type { ChartNode } from './layout';
 import type { DiagramPlacement, DiagramSpacing } from './types';
 
 /** 升目。**保存される配置そのもの**（`DiagramPlacement`）でもある。 */

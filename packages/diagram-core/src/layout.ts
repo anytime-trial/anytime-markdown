@@ -9,10 +9,10 @@
  */
 
 import {
-  DEFAULT_DIAGRAM_SPACING,
-  DIAGRAM_MARGIN as MARGIN,
   cellPosition,
   columnPitch,
+  DEFAULT_DIAGRAM_SPACING,
+  DIAGRAM_MARGIN as MARGIN,
   isDefaultDiagramSpacing,
   rowPitch,
 } from './spacing';
@@ -125,10 +125,27 @@ export function familyConnector(
  * **配置差分はここでは扱わない**（`applyDiagramPlacements` が後から当てる）。差分を先に当てて
  * 並べ替えの入力にすると、動かした 1 人が同じ列の全員の行をずらす。
  */
-export function layoutDiagram(families: readonly DiagramFamily[]) {
+export function layoutDiagram(families: readonly DiagramFamily[]): AutomaticChart {
   const names = [...new Set(families.flatMap((f) => [...f.parents, ...f.children]))];
   const parents = new Map(names.map((name) => [name, new Set<string>()]));
   for (const f of families) for (const child of f.children) for (const parent of f.parents) parents.get(child)!.add(parent);
+  const ranks = resolveColumns(families, names, parents);
+  const find = componentFinder(families, names);
+  const nodes = placeNodes(families, names, ranks, find);
+  return { nodes, edges: buildEdges(families), automatic: new Map(nodes.map((node) => [node.name, node])) };
+}
+
+/**
+ * 親子の向きだけで決めた世代（列）。配偶の揃えと記録の無い親の引き寄せをここで収束させる。
+ *
+ * 3 つの規則を毎回まとめて回し、1 巡して何も変わらなくなったら止める（人物数で上限を切り、
+ * 収束しない入力でも必ず終わる）。
+ */
+function resolveColumns(
+  families: readonly DiagramFamily[],
+  names: readonly string[],
+  parents: ReadonlyMap<string, ReadonlySet<string>>,
+): Map<string, number> {
   const ranks = new Map<string, number>();
   const visiting = new Set<string>();
   function rank(name: string): number {
@@ -193,15 +210,25 @@ export function layoutDiagram(families: readonly DiagramFamily[]) {
     }
     return changed;
   }
-  // 3 つの規則を毎回まとめて回し、1 巡して何も変わらなくなったら止める（人物数で上限を切り、
-  // 収束しない入力でも必ず終わる）。
   for (let pass = 0; pass < names.length; pass += 1) {
     const spouseChanged = alignSpouses();
     const pullChanged = pullParentlessToChildren();
     const constraintChanged = applyGenerationConstraint();
     if (!spouseChanged && !pullChanged && !constraintChanged) break;
   }
-  // 連結成分。同じ系統をまとめて並べ、系統の切れ目で 1 行あけるのに使う。
+  return ranks;
+}
+
+/**
+ * 連結成分の代表を引く関数。同じ系統をまとめて並べ、系統の切れ目で 1 行あけるのに使う。
+ *
+ * 代表は**名前の小さいほう**に固定する。入力の順で決めると、家族を 1 件足し替えただけで
+ * 列の中の並びが変わり、保存された升目の番号が指す人物が入れ替わる。
+ */
+function componentFinder(
+  families: readonly DiagramFamily[],
+  names: readonly string[],
+): (name: string) => string {
   const component = new Map<string, string>(names.map((name) => [name, name]));
   const find = (name: string): string => {
     const parent = component.get(name)!;
@@ -221,8 +248,21 @@ export function layoutDiagram(families: readonly DiagramFamily[]) {
     const all = [...family.parents, ...family.children];
     for (const name of all.slice(1)) join(all[0]!, name);
   }
-  // 結び付きの多い人物は離して置く。一定の行間だと、子や配偶の多い家族が同じ縦横の車線を
-  // 共有して線が重なる。
+  return find;
+}
+
+/**
+ * 列ごとに人物を並べ、升目へ置く。
+ *
+ * 結び付きの多い人物は離して置く。一定の行間だと、子や配偶の多い家族が同じ縦横の車線を
+ * 共有して線が重なる。
+ */
+function placeNodes(
+  families: readonly DiagramFamily[],
+  names: readonly string[],
+  ranks: ReadonlyMap<string, number>,
+  find: (name: string) => string,
+): ChartNode[] {
   const groups = new Map<number, string[]>();
   for (const name of names) {
     const column = ranks.get(name)!;
@@ -257,6 +297,11 @@ export function layoutDiagram(families: readonly DiagramFamily[]) {
       previousComponent = currentComponent;
     }
   }
+  return automatic;
+}
+
+/** 配偶と親子の線。同じ組は 1 本に畳む（同じ 2 人が複数の家族に出ても線は 1 本）。 */
+function buildEdges(families: readonly DiagramFamily[]): ChartEdge[] {
   const edges: ChartEdge[] = [];
   const seen = new Set<string>();
   function edge(from: string, to: string, kind: ChartEdge['kind']) {
@@ -270,7 +315,7 @@ export function layoutDiagram(families: readonly DiagramFamily[]) {
     if (f.parents.length === 2) edge(f.parents[0]!, f.parents[1]!, 'spouse');
     for (const parent of f.parents) for (const child of f.children) edge(parent, child, f.kind);
   }
-  return { nodes: automatic, edges, automatic: new Map(automatic.map((node) => [node.name, node])) };
+  return edges;
 }
 
 /** 自動配置の図（差分を当てる前）。刻みの適用も差分の適用も、この形を受けてこの形を返す。 */

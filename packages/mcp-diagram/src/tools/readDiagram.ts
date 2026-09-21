@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 
-import { parseDiagramFileStrict, type DiagramDocument } from '@anytime-markdown/diagram-core';
+import { type DiagramDocument,parseDiagramFileStrict } from '@anytime-markdown/diagram-core';
 
 import { resolveSecurePath, validateDiagramExtension } from '../utils/securePath.js';
 

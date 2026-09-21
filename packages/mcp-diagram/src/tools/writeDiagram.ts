@@ -2,14 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import {
-  EMPTY_DIAGRAM_LAYOUT,
-  parseDiagramDocument,
-  serializeDiagramDocument,
-  validateDiagramLayout,
   type DiagramDocument,
   type DiagramFamily,
   type DiagramGroupAxis,
   type DiagramLayout,
+  EMPTY_DIAGRAM_LAYOUT,
+  parseDiagramDocument,
+  serializeDiagramDocument,
+  validateDiagramLayout,
 } from '@anytime-markdown/diagram-core';
 
 import { resolveSecurePath, validateDiagramExtension } from '../utils/securePath.js';

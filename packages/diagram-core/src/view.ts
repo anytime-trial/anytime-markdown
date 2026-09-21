@@ -6,8 +6,8 @@
  * 机上で捕まる）。移植元は anytime-travel の `src/map/genealogy-layout.ts` の変換部分。
  */
 
-import { resizedSpacing } from './spacing';
 import type { GridCell } from './grid';
+import { resizedSpacing } from './spacing';
 import type { DiagramSpacing } from './types';
 
 export interface ChartView {

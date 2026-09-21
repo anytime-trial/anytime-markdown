@@ -5,8 +5,8 @@
  * 書き込みが拒否された保存でも編集が終わったように見え、直した配置が失われる。
  */
 
-import { mountDiagramViewer, type DiagramViewerHandle } from '@anytime-markdown/diagram-viewer';
 import type { DiagramDocument, DiagramLayout } from '@anytime-markdown/diagram-core';
+import { type DiagramViewerHandle,mountDiagramViewer } from '@anytime-markdown/diagram-viewer';
 
 interface VSCodeApi {
 	postMessage(message: unknown): void;

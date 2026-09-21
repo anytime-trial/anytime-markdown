@@ -1,12 +1,12 @@
 import * as path from 'node:path';
 
-import * as vscode from 'vscode';
+import type { McpJsonRegistrationOptions, McpServerEntry } from '@anytime-markdown/vscode-common';
 import {
 	reconcileMcpServerRegistration as reconcileCommon,
 	registerMcpRegistrationCommand as registerCommandCommon,
 	registerMcpServerToJson as registerToJsonCommon,
 } from '@anytime-markdown/vscode-common';
-import type { McpJsonRegistrationOptions, McpServerEntry } from '@anytime-markdown/vscode-common';
+import * as vscode from 'vscode';
 
 import { DiagramLogger } from '../utils/DiagramLogger';
 
