@@ -320,7 +320,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 選択と線の区画を枠の左下へ重ねる入れ物。
    *
    * 枠の外の帯から移した。対象（選んだ札・選んだ線）と、それに効く操作を同じ場所へ置くため
-   * — 見え方の操作を枠の中へ移したのと同じ理由。左下を選ぶのは、左上が見え方の操作で、
+   * — 見え方の操作を枠の中へ移したのと同じ理由。左下を選ぶのは、右上が見え方の操作で、
    * 上端と左端には行・列を増やす ＋ の帯が走っているため。
    */
   const panels = el(doc, 'div', { className: 'anytime-diagram-panels' });
@@ -1523,7 +1523,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       view,
       frame,
     });
-    // 見え方の操作の区画（枠の左上）と重なる ＋／− は描かない。重ねると上に載っているほうが
+    // 見え方の操作の区画（枠の右上）と重なる ＋／− は描かない。重ねると上に載っているほうが
     // 押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
     const blocked = blockedBoxes();
     gutter.update({
