@@ -1535,16 +1535,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       view,
       frame,
     });
-    // 枠の中へ浮かせた区画（左上の操作列・右上の見え方の操作）と重なる ＋／− は描かない。
-    // 重ねると上に載っているほうが押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
-    const blocked = blockedBoxes();
-    gutter.update({
-      editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,
-    });
-    cellAdders.update({
-      editing, saving, spacing: model.spacing, view, frame,
-      extent: model.extent, occupied: model.occupied, blocked,
-    });
+    /*
+      **札の中身を先に当ててから測る。** 保存の口・自動配置に戻す・選択の区画は、この更新で
+      出入りし幅も変わる。測ってから当てる順にすると、ゲッターは 1 描画前の札の大きさを見て
+      逃がし先を決め、広がった側の切れ目が札の下に入ったまま押せなくなる（編集へ入った直後の
+      1 描画で実測）。
+    */
     chrome.update({
       document: model.source,
       names: model.chart.nodes.map((node) => node.name),
@@ -1565,6 +1561,20 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         ? diagramShapeOf(model.source, lastChosen())
         : DEFAULT_DIAGRAM_SHAPE,
       lineSelection: currentLineSelection(),
+    });
+    /*
+      枠の中へ浮かせた札（左上の操作列・右上の見え方の操作・左下の選択）と重なる ＋／− は、
+      札の脇へ逃がす（`ui/gutter.ts` の `avoiding`）。重ねたままにすると上に載っているほうが
+      押下を取り、押したつもりの切れ目とは違う位置へ挿入される。升目の ＋ は逃がし先が
+      その升目そのものなので、従来どおり描かない。
+    */
+    const blocked = blockedBoxes();
+    gutter.update({
+      editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,
+    });
+    cellAdders.update({
+      editing, saving, spacing: model.spacing, view, frame,
+      extent: model.extent, occupied: model.occupied, blocked,
     });
   }
 

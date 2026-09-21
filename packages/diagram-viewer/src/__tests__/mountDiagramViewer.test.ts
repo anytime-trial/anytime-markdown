@@ -10,7 +10,7 @@
 import { DEFAULT_DIAGRAM_SPACING, type DiagramDocument, type DiagramLayout } from '@anytime-markdown/diagram-core';
 
 import { mountDiagramViewer } from '../mountDiagramViewer';
-import { covered, type Spec } from '../ui/gutter';
+import { avoiding, type Spec } from '../ui/gutter';
 import type { DiagramViewerHandle, DiagramViewerOptions } from '../types';
 
 const DOC: DiagramDocument = {
@@ -322,45 +322,70 @@ describe('見え方の操作', () => {
 });
 
 /**
- * 行・列の ＋／− を、見え方の操作の区画の下へ置かない（押下を奪い合わせない）。
+ * 行・列の ＋／− を、枠へ浮かせた札の下に埋めない（押下を奪い合わせない）。
+ *
+ * **消さずに脇へ逃がす。** 操作列を枠の中へ移してからは隠れる切れ目が増え、「＋ が出ない」と
+ * 読まれた（ユーザー指摘）。逃がすのは固定されている側だけ — 列のアイコンは札の下へ、行の
+ * アイコンは札の右へ出し、切れ目そのものの位置は動かさない。
  *
  * **判定の規則そのものを測る。** jsdom は版組みをしないので `getBoundingClientRect` が
  * すべて 0 を返す。実際の矩形で重なりを測る検査はここでは必ず「重ならない」と言い、何も
  * 守らない。実寸での確認は実機（ブラウザ）で行う。
  */
-describe('縁のアイコンと操作の区画の重なり', () => {
+describe('縁のアイコンと枠へ浮かせた札の重なり', () => {
   const spec = (over: Partial<Spec>): Spec => ({
     key: 'k', axis: 'column', kind: 'insert', index: 0, left: null, top: null, label: 'l', ...over,
   });
-  /** 枠の左上に浮かぶ操作の区画（幅 150 × 高さ 32、8px の余白つき）を模す。 */
+  /** 枠の左上に浮かぶ札（幅 150 × 高さ 32、8px の余白つき）を模す。 */
   const panel = [{ left: 8, top: 8, right: 158, bottom: 40 }];
+  /** 十分に広い枠。逃がし先が枠に収まるかの判定に使う。 */
+  const frame = { width: 1000, height: 800 };
+  /** アイコンの半径（10）＋ 隙間（6）。札の縁からこの分だけ離れた位置へ逃げる。 */
+  const clearance = 16;
 
-  it('区画に掛かる列のアイコンは描かない', () => {
-    // 列のアイコンは縦位置が帯に固定されている（top は null）。区画の縦幅に入る。
-    expect(covered(spec({ axis: 'column', left: 100 }), panel)).toBe(true);
+  it('札に掛かる列のアイコンは札の下へ逃がす（横位置＝切れ目は動かさない）', () => {
+    // 列のアイコンは縦位置が帯に固定されている（top は null）。札の縦幅に入る。
+    expect(avoiding(spec({ axis: 'column', left: 100 }), panel, frame))
+      .toEqual(spec({ axis: 'column', left: 100, top: 40 + clearance }));
   });
 
-  it('区画の外の列のアイコンは描く', () => {
-    expect(covered(spec({ axis: 'column', left: 300 }), panel)).toBe(false);
+  it('札の外の列のアイコンはそのまま（帯の位置に置いたままにする）', () => {
+    const untouched = spec({ axis: 'column', left: 300 });
+    expect(avoiding(untouched, panel, frame)).toBe(untouched);
   });
 
-  it('区画に掛かる行のアイコンは描かない', () => {
+  it('札に掛かる行のアイコンは札の右へ逃がす（縦位置＝切れ目は動かさない）', () => {
     // 行のアイコンは横位置が帯に固定されている（left は null）。
-    expect(covered(spec({ axis: 'row', top: 20 }), panel)).toBe(true);
+    expect(avoiding(spec({ axis: 'row', top: 20 }), panel, frame))
+      .toEqual(spec({ axis: 'row', top: 20, left: 158 + clearance }));
   });
 
-  it('区画より下の行のアイコンは描く', () => {
-    expect(covered(spec({ axis: 'row', top: 200 }), panel)).toBe(false);
+  it('札より下の行のアイコンはそのまま', () => {
+    const untouched = spec({ axis: 'row', top: 200 });
+    expect(avoiding(untouched, panel, frame)).toBe(untouched);
   });
 
   it('固定されている側を 0 とみなさない（帯の位置で測る）', () => {
-    // 行のアイコンの横位置を 0 と見ると、区画の左端 8px より手前になり「掛かっていない」と
+    // 行のアイコンの横位置を 0 と見ると、札の左端 8px より手前になり「掛かっていない」と
     // 誤判定する。実際は帯（14px）に居るので掛かる。
-    expect(covered(spec({ axis: 'row', top: 20 }), [{ ...panel[0]!, left: 8 }])).toBe(true);
+    expect(avoiding(spec({ axis: 'row', top: 20 }), [{ ...panel[0]!, left: 8 }], frame)?.left)
+      .toBe(158 + clearance);
   });
 
-  it('区画が無ければ何も落とさない', () => {
-    expect(covered(spec({ left: 10, top: 10 }), undefined)).toBe(false);
+  it('札から札へ玉突きしても、最後の札の外まで逃がす', () => {
+    // 逃げた先にもう 1 枚載っている配置。1 回で済ませると、避けたつもりが別の札の下に入る。
+    const two = [panel[0]!, { left: 8, top: 50, right: 158, bottom: 90 }];
+    expect(avoiding(spec({ axis: 'column', left: 100 }), two, frame)?.top).toBe(90 + clearance);
+  });
+
+  it('逃げた先が枠の外になるなら描かない（見えない場所にタブ順だけ残さない）', () => {
+    const tall = [{ left: 8, top: 8, right: 158, bottom: 780 }];
+    expect(avoiding(spec({ axis: 'column', left: 100 }), tall, { width: 1000, height: 400 })).toBeNull();
+  });
+
+  it('札が無ければ何も動かさない', () => {
+    const untouched = spec({ left: 10, top: 10 });
+    expect(avoiding(untouched, undefined, frame)).toBe(untouched);
   });
 });
 

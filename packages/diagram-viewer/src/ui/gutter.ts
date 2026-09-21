@@ -41,11 +41,14 @@ export interface GutterState {
   readonly frame: { readonly width: number; readonly height: number };
   readonly lines: GridLines;
   /**
-   * 枠の中で**別のものが載っている場所**（見え方の操作を浮かせた区画）。ここへは ＋／− を置かない。
+   * 枠の中で**別のものが載っている場所**（枠へ浮かせた札）。ここへ重なる ＋／− は**脇へ逃がす**。
    *
-   * 重ねると、上に載っているほうが押下を取り、押したつもりの切れ目とは違う位置へ挿入される
-   * （挿入は最大で全員を升目へ固定するので、取り違えの取り消しが重い）。隠れた切れ目は図を
-   * 平行移動すれば操作の区画の外へ出てくる。
+   * 重ねたままにすると、上に載っているほうが押下を取り、押したつもりの切れ目とは違う位置へ
+   * 挿入される（挿入は最大で全員を升目へ固定するので、取り違えの取り消しが重い）。
+   *
+   * 逃がし先は**固定されている側**だけ（列の操作なら下、行の操作なら右）。もう一方は切れ目の
+   * 位置そのものなので動かせない。かつては描かずに消していたが、操作列を枠の中へ移してからは
+   * 隠れる切れ目が増え、「＋ が無い」と読まれるようになった（ユーザー指摘）。
    */
   readonly blocked?: readonly BlockedBox[];
 }
@@ -85,7 +88,7 @@ export function createGutterView(doc: Document, t: DiagramT, callbacks: GutterCa
         return;
       }
       const seen = new Set<string>();
-      for (const spec of buildSpecs(state, t).filter((spec) => !covered(spec, state.blocked))) {
+      for (const spec of placed(buildSpecs(state, t), state)) {
         seen.add(spec.key);
         const button = buttons.get(spec.key)
           ?? adopt(spec.key, createButton(doc, spec, callbacks));
@@ -126,15 +129,65 @@ function applySpec(button: HTMLButtonElement, spec: Spec, saving: boolean): void
   button.style.top = spec.top === null ? '' : `${spec.top}px`;
 }
 
+/** 逃がしたアイコンと札の間に空ける隙間（px）。触れ合って 1 つの部品に見えないだけの幅。 */
+const ESCAPE_GAP_PX = 6;
+
+/** 逃がし先を数え直す上限。札の数より 1 回多く回せば、札から札へ玉突きしても必ず収束する。 */
+const ESCAPE_TRIES = 8;
+
+/** 描くアイコンを、載っている札を避けた位置で返す（避けきれないものは落とす）。 */
+function placed(specs: readonly Spec[], state: GutterState): readonly Spec[] {
+  const out: Spec[] = [];
+  for (const spec of specs) {
+    const moved = avoiding(spec, state.blocked, state.frame);
+    if (moved !== null) out.push(moved);
+  }
+  return out;
+}
+
 /**
- * そのアイコンが「別のものが載っている場所」に入るか。
+ * アイコンを「別のものが載っている場所」の外へ逃がす。掛かっていなければそのまま返す。
  *
  * 列のアイコンは縦位置が、行のアイコンは横位置が、それぞれスタイルシート側で帯に固定されている
  * （`GUTTER_TRACK_PX`）。`null` の側はその固定値で測る — ここを 0 とみなすと、枠の上端に居ない
- * アイコンまで隠れた扱いになる。
+ * アイコンまで掛かった扱いになる。
+ *
+ * **動かすのは固定されている側だけ**。列のアイコンなら札の下へ、行のアイコンなら札の右へ出す。
+ * もう一方は切れ目そのものの位置で、動かすと押した先が変わってしまう。
+ *
+ * 逃げた先が枠の外になるなら `null`（描かない）。枠いっぱいの札に対してまで場所を探すと、
+ * 見えない場所にタブ順だけが残る。
  */
-export function covered(spec: Spec, blocked: GutterState['blocked']): boolean {
-  return overlapsBox(spec.left ?? GUTTER_TRACK_PX, spec.top ?? GUTTER_TRACK_PX, GUTTER_ICON_PX / 2, blocked);
+export function avoiding(
+  spec: Spec,
+  blocked: GutterState['blocked'],
+  frame: GutterState['frame'],
+): Spec | null {
+  if (blocked === undefined || blocked.length === 0) return spec;
+  const half = GUTTER_ICON_PX / 2;
+  /** 縦が固定されている（＝縦へ逃がせる）のは列のアイコン。行のアイコンはその逆。 */
+  const down = spec.top === null;
+  const start = (down ? spec.top : spec.left) ?? GUTTER_TRACK_PX;
+  const limit = down ? frame.height : frame.width;
+  /** 逃がす側の値で当たりを見る。切れ目そのものの位置（もう一方）は動かさない。 */
+  const hit = (at: number): BlockedBox | undefined => {
+    const x = down ? spec.left ?? GUTTER_TRACK_PX : at;
+    const y = down ? at : spec.top ?? GUTTER_TRACK_PX;
+    return blocked.find((box) => overlapsBox(x, y, half, [box]));
+  };
+
+  let value = start;
+  for (let tries = 0; tries < ESCAPE_TRIES; tries += 1) {
+    const box = hit(value);
+    if (box === undefined) {
+      if (value === start) return spec;
+      return down ? { ...spec, top: value } : { ...spec, left: value };
+    }
+    value = (down ? box.bottom : box.right) + half + ESCAPE_GAP_PX;
+    if (value + half > limit) return null;
+  }
+  // 札から札への玉突きが収束しないほど詰まっている。描かずに落とす（見えない場所へは置かない）。
+  return null;
 }
 
 function buildSpecs(state: GutterState, t: DiagramT): readonly Spec[] {
