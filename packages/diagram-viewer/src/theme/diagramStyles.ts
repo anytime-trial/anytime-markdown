@@ -761,13 +761,13 @@ export const DIAGRAM_STYLES = `
 }
 
 /*
-  ミニマップ。**図の枠の左上**へ浮かせ、中に見え方の操作を抱える。
+  ミニマップ。**図の枠の右上**へ浮かせ、中に見え方の操作を抱える（ユーザー指示）。
 
-  縁のアイコン（z-index 1）より上に置く。両方が左上へ集まるので、下にすると全体図が ＋ に
-  隠れる。代わりに、この区画と重なる ＋ は描かない（\`blockedBoxes\`）。
+  縁のアイコン（z-index 1）より上に置く。下にすると全体図が ＋ に隠れる。代わりに、この区画と
+  重なる ＋ は描かない（\`blockedBoxes\` が実寸で測るので、寄せる辺を変えても追従する）。
 */
 .anytime-diagram-minimap {
-  position: absolute; top: 8px; left: 8px; z-index: 2;
+  position: absolute; top: 8px; right: 8px; z-index: 2;
   display: flex; flex-direction: column; gap: 4px; padding: 4px;
   border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
   background: var(--diagram-raised);
