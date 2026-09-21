@@ -50,6 +50,8 @@ export interface NodeCallbacks {
   /** 書き換えを確定する。空や重複は呼ばれた側が断る。 */
   onCommitRename(from: string, to: string): void;
   onCancelRename(): void;
+  /** 群の札を押した。その行を生んだ家族の群を選び直す。 */
+  onStartGroups(name: string, family: number): void;
   /** 注記の書き換えを始める。 */
   onStartAnnotate(name: string): void;
   /** 注記を確定する。空にすると注記そのものが落ちる。 */
@@ -82,7 +84,7 @@ export interface NodeViewState {
    * 焼き込むと、編集中に注記を書き換えても札は前の字のまま残る（札は作り直さないので）。
    * 家族を消して群の値が変わったときも同じ。
    */
-  readonly groupLabels: readonly string[];
+  readonly groupBadges: readonly { readonly label: string; readonly family: number }[];
   readonly annotation: string;
   /** 接続の始点として待ち受けているか。 */
   readonly connectSource: boolean;
@@ -159,8 +161,31 @@ export function createNodeView(
   // 焦点を失ったときも確定する。取り消し扱いにすると、打ち終えて図の外を押した人の入力が消える。
   rename.addEventListener('blur', () => finishRename(true));
   root.appendChild(rename);
+  /**
+   * 札のダブルクリック。**押した段で行き先を振り分ける**（上＝名前・中＝群・下＝注記）。
+   *
+   * 段ごとの要素へ handler を付ける手は効かない。札を掴んだ瞬間にポインタが札へ捕捉され
+   * （`setPointerCapture`）、以後のポインタ由来のイベントは **target が札そのものへ
+   * 書き換わる**ため、子の handler は一度も走らない（実機で観測。中段・下段を押しても
+   * 名札の書き換えが開いた）。jsdom は捕捉を持たないので、この破れは検査を素通りする。
+   *
+   * そこで target を素直に信じず、**捕捉で札へ化けていたら座標から引き直す**。
+   */
   root.addEventListener('dblclick', (event) => {
     event.preventDefault();
+    const target = event.target instanceof Element && event.target !== root
+      ? event.target
+      : doc.elementFromPoint(event.clientX, event.clientY);
+    const line = target?.closest('.anytime-diagram-group');
+    if (line !== null && line !== undefined) {
+      const family = Number(line.getAttribute('data-family') ?? '-1');
+      if (family >= 0) callbacks.onStartGroups(name, family);
+      return;
+    }
+    if (target?.closest('.anytime-diagram-annotation') != null) {
+      callbacks.onStartAnnotate(name);
+      return;
+    }
     callbacks.onStartRename(name);
   });
 
@@ -172,7 +197,7 @@ export function createNodeView(
    * 余ったら隠す（節点や端の印と同じ貸し借り）。
    */
   const groups = el(doc, 'span', { className: 'anytime-diagram-groups' });
-  const groupLines: HTMLElement[] = [];
+  const groupLines: { readonly line: HTMLElement; family: number }[] = [];
   root.appendChild(groups);
 
   const parents = parentsOf(document_, name);
@@ -217,12 +242,6 @@ export function createNodeView(
   });
   annotateInput.addEventListener('blur', () => finishAnnotate(true));
   root.appendChild(annotateInput);
-  // 注記の上のダブルクリックは注記の書き換え。札の他の場所は名札の書き換え（既存）。
-  annotation.addEventListener('dblclick', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    callbacks.onStartAnnotate(name);
-  });
 
   // 取っ手は常に作り、編集していない間はクラスで隠す。作り直すと、押している最中に
   // 要素が入れ替わってキーボードの焦点が図の外へ飛ぶ。
@@ -385,18 +404,30 @@ export function createNodeView(
       }
       renaming = state.renaming;
       // 群の札は件数が変わる。足りなければ作り、余ったら隠す。
-      while (groupLines.length < state.groupLabels.length) {
-        const line = el(doc, 'span');
-        groupLines.push(line);
+      while (groupLines.length < state.groupBadges.length) {
+        const line = el(doc, 'span', { className: 'anytime-diagram-group' });
+        const held = { line, family: -1 };
+        groupLines.push(held);
         groups.appendChild(line);
       }
-      for (const [index, line] of groupLines.entries()) {
-        const text = state.groupLabels[index] ?? '';
-        line.textContent = text;
-        setClass(line, 'anytime-diagram-hidden', text === '');
+      for (const [index, held] of groupLines.entries()) {
+        const badge = state.groupBadges[index];
+        held.line.textContent = badge?.label ?? '';
+        held.family = badge?.family ?? -1;
+        setAttr(held.line, 'data-family', badge === undefined ? null : String(badge.family));
+        setClass(held.line, 'anytime-diagram-hidden', badge === undefined);
       }
-      annotation.textContent = state.annotation;
-      setClass(annotation, 'anytime-diagram-hidden', state.annotation === '' || state.annotating);
+      /*
+        注記の枠。**編集中は空でも枠を残す**（閲覧中だけ空なら隠す）。
+
+        空のときに `display: none` で消していた頃は、注記を書きたい人が押す場所そのものが
+        無かった（札の下段をダブルクリックしても名札の書き換えが開く）。編集中だけ薄い
+        誘い文を出せば、押す場所が見え、閲覧中の図は静かなままになる。
+      */
+      const empty = state.annotation === '';
+      annotation.textContent = empty ? t('annotateHint') : state.annotation;
+      setClass(annotation, 'is-placeholder', empty);
+      setClass(annotation, 'anytime-diagram-hidden', state.annotating || (empty && !state.editing));
       setClass(annotateInput, 'anytime-diagram-hidden', !state.annotating);
       if (state.annotating && !annotating) {
         // 焦点は**書き換えに入った瞬間だけ**当てる（名札の書き換えと同じ理由）。

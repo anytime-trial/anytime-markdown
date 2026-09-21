@@ -47,6 +47,7 @@ import {
   placementFromDrag,
   removeDiagramConnectors,
   setDiagramAnnotation,
+  setDiagramFamilyGroup,
   removeDiagramElement,
   renameDiagramElement,
   sameAnchor,
@@ -58,7 +59,8 @@ import {
 } from '@anytime-markdown/diagram-core';
 
 import { createDiagramT, type DiagramT } from './i18n';
-import { createAutomaticCache, deriveModel, type DiagramModel, groupLabelsOf } from './model';
+import { createAutomaticCache, deriveModel, type DiagramModel, groupBadgesOf } from './model';
+import { createGroupView } from './ui/groups';
 import { DIAGRAM_ROOT_CLASS, DIAGRAM_STYLES } from './theme/diagramStyles';
 import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
 import { createCellAdderView } from './ui/cellAdders';
@@ -122,6 +124,13 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   let renaming: string | null = null;
   /** 注記を書き換えている要素。名札とは別に持つ（同時に開かない）。 */
   let annotating: string | null = null;
+  /**
+   * 群を選び直している家族の番号。**人物ではなく家族**で持つ。
+   *
+   * 群は「その家族がどの巻・どの話に出てくるか」を指すので、書き換えの単位も家族になる
+   * （同じ家族に出る他の人物の札も一緒に変わる）。
+   */
+  let editingGroups: number | null = null;
   /**
    * 接続の始点として待ち受けている要素。
    *
@@ -218,6 +227,17 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     clearTransientSelection();
     paint();
   });
+  const groupBar = createGroupView(doc, tr, {
+    onGroupValue(axisId, value) {
+      const index = editingGroups;
+      if (index === null) return;
+      updateDraft((current) => setDiagramFamilyGroup(current, index, axisId, value));
+    },
+    onCloseGroups() {
+      editingGroups = null;
+      paint();
+    },
+  });
   const gutter = createGutterView(doc, tr, { onEditGridLine: editGridLine });
   /*
     すき間の取っ手。**図の面へ載せる**（枠ではなく）。枠に貼ると図と一緒に動かないので、
@@ -250,7 +270,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 上端と左端には行・列を増やす ＋ の帯が走っているため。
    */
   const panels = el(doc, 'div', { className: 'anytime-diagram-panels' });
-  panels.append(chrome.selectionBar, chrome.connectorBar);
+  panels.append(chrome.selectionBar, chrome.connectorBar, groupBar.root);
 
   // 縁のアイコンは**図より前に置く**。後ろに置くとタブ順が人物数ぶんの取っ手の後になり、
   // 最初の ＋ へ届くまで何百回も Tab を押すことになる。重ね順は z-index で決める。
@@ -432,6 +452,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     selectedConnectors = [];
     renaming = null;
     annotating = null;
+    editingGroups = null;
     connectSource = null;
     connectDrag = null;
   }
@@ -694,6 +715,26 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     // 見た目で分からなくなる。
     annotating = null;
     notice = '';
+    paint();
+  }
+
+  /**
+   * 群を選び直す帯を開く。**軸を 1 本も宣言していない図では開かない。**
+   *
+   * 開くと空の帯が出るだけで、何も選べない（選択肢は宣言から作る）。開かずに理由を出す。
+   */
+  function startGroups(name: string, family: number): void {
+    if (draft === null || saving) return;
+    if (model.source.groups.length === 0) {
+      notice = tr('groupsUndeclared');
+      paint();
+      return;
+    }
+    editingGroups = family;
+    renaming = null;
+    annotating = null;
+    notice = '';
+    selection = [name];
     paint();
   }
 
@@ -1086,6 +1127,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onRelease: releasePlacement,
     onStartRename: startRename,
     onCommitRename: commitRename,
+    onStartGroups: startGroups,
     onStartAnnotate: startAnnotate,
     onCommitAnnotate: commitAnnotate,
     onCancelAnnotate(): void {
@@ -1306,7 +1348,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         annotating: annotating === node.name,
         // 群の札と注記は**いま描いている図**（編集中は下書き）から引く。作るときに焼き込むと、
         // 書き換えても札が前の字のまま残る。
-        groupLabels: groupLabelsOf(model.source, node.name),
+        groupBadges: groupBadgesOf(model.source, node.name),
         annotation: model.source.annotations[node.name] ?? '',
         connectSource: connectSource !== null && sameAnchor(connectSource, elementAnchor(node.name)),
       });
@@ -1314,6 +1356,15 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
     gaps.update({
       spacing: model.spacing, extent: model.extent, surface: model.surface, editing, saving,
+    });
+    const groupFamily = editingGroups === null ? undefined : model.source.families[editingGroups];
+    groupBar.update({
+      saving,
+      selection: !editing || groupFamily === undefined ? null : {
+        label: tr('groupsFor', { parents: groupFamily.parents.join('・') }),
+        axes: model.source.groups,
+        values: groupFamily.groups,
+      },
     });
     midpoints.update({ midpoints: model.midpoints, editing, saving, connectSource });
     viewControls.update({ scale: view.scale, minScale: MIN_SCALE, maxScale: MAX_SCALE });

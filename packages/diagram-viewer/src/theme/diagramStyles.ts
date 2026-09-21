@@ -577,6 +577,19 @@ export const DIAGRAM_STYLES = `
   color: var(--diagram-fg); background: var(--diagram-raised);
   border: 1px solid var(--diagram-accent); border-radius: 3px;
 }
+/*
+  注記の枠。編集中は空でも押せる場所として残す（誘い文は薄く出す）。
+
+  高さの下限を置くのは、字が 1 つも無い枠は高さ 0 になって押せないため。
+*/
+.anytime-diagram-annotation { min-height: 12px; cursor: text; }
+.anytime-diagram-annotation.is-placeholder {
+  color: color-mix(in srgb, var(--diagram-fg) 38%, transparent);
+  border-bottom: 1px dashed color-mix(in srgb, var(--diagram-fg) 22%, transparent);
+}
+.anytime-diagram-annotation.is-placeholder:hover {
+  color: var(--diagram-accent); border-bottom-color: var(--diagram-accent);
+}
 /* 注記の書き換え口。名札と同じ作りで、字だけ小さくする（札の下段に合わせる）。 */
 .anytime-diagram-annotate {
   width: 100%; min-width: 0; padding: 1px 3px; margin-top: 1px;
@@ -586,6 +599,13 @@ export const DIAGRAM_STYLES = `
 }
 /* 群の札は 1 件 1 行で縦に積む（人物ごとに件数が変わる）。 */
 .anytime-diagram-groups { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+/* 群の札の 1 行。編集中は押せる場所として示す（閲覧中は素の字のまま）。 */
+.anytime-diagram-viewport.is-editing .anytime-diagram-group { cursor: pointer; }
+.anytime-diagram-viewport.is-editing .anytime-diagram-group:hover {
+  color: var(--diagram-accent);
+  text-decoration: underline dashed color-mix(in srgb, var(--diagram-accent) 60%, transparent);
+  text-underline-offset: 2px;
+}
 
 .anytime-diagram-error { color: var(--diagram-danger); }
 /*

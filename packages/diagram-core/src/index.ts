@@ -40,6 +40,7 @@ export {
   renameDiagramElement,
   serializeDiagramDocument,
   setDiagramAnnotation,
+  setDiagramFamilyGroup,
   validateDiagramDocument,
   validateDiagramLayout,
 } from './document';

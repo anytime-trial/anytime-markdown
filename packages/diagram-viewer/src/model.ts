@@ -355,6 +355,32 @@ export function layoutKey(layout: DiagramLayout): string {
  *
  * 同じ組み合わせは 1 つに畳む（同じ巻・章段に何度も出る人物の札が同じ語で埋まらないように）。
  */
+/**
+ * 札に出す群の札と、**その札を生んだ家族**。
+ *
+ * 札だけを返していた頃は、押した行がどの家族の値なのかを画面が知らず、選び直す先を決められ
+ * なかった。同じ札を複数の家族が生む場合は**先に書いてある家族**を指す（札は 1 行に畳まれて
+ * おり、画面上でも見分けが付かない）。
+ */
+export function groupBadgesOf(
+  document: DiagramDocument,
+  name: string,
+): readonly { readonly label: string; readonly family: number }[] {
+  const badges: { label: string; family: number }[] = [];
+  const seen = new Set<string>();
+  for (const [index, family] of document.families.entries()) {
+    if (!family.parents.includes(name) && !family.children.includes(name)) continue;
+    const label = document.groups
+      .map((axis) => axis.values[family.groups[axis.id] ?? ''] ?? '')
+      .filter((text) => text !== '')
+      .join(' · ');
+    if (label === '' || seen.has(label)) continue;
+    seen.add(label);
+    badges.push({ label, family: index });
+  }
+  return badges;
+}
+
 export function groupLabelsOf(document: DiagramDocument, name: string): readonly string[] {
   const appearances = document.families.filter((f) => f.parents.includes(name) || f.children.includes(name));
   return [...new Set(appearances

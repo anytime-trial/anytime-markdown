@@ -849,6 +849,38 @@ export function removeDiagramElement(document: DiagramDocument, name: string): D
 }
 
 /**
+ * 家族 1 件の群の値を書き換えた図。**軸 1 本だけを差し替える。**
+ *
+ * 宣言（`groups`）に無い軸・無い値は受けない。受けると、どの札にも出ない値がファイルへ入り、
+ * 次に開いた人には「札に出ないのに差分には在る」状態になる（画面の選び口は宣言から作るので、
+ * そこから選び直すこともできない）。
+ *
+ * 空の値は軸ごと落とす（読めない値を残さない。注記・形と同じ決まり）。
+ *
+ * **家族 1 件が単位**であることに注意する。同じ家族に出る他の人物の札も一緒に変わる — 群は
+ * 人物ではなく「その家族がどの巻・どの話に出てくるか」を指しているため。
+ */
+export function setDiagramFamilyGroup(
+  document: DiagramDocument,
+  familyIndex: number,
+  axisId: string,
+  value: string,
+): DiagramDocument {
+  const family = document.families[familyIndex];
+  if (family === undefined) return document;
+  const axis = document.groups.find((item) => item.id === axisId);
+  if (axis === undefined) return document;
+  if (value !== '' && axis.values[value] === undefined) return document;
+  const groups = { ...family.groups };
+  if (value === '') delete groups[axisId];
+  else groups[axisId] = value;
+  return {
+    ...document,
+    families: document.families.map((item, at) => (at === familyIndex ? { ...item, groups } : item)),
+  };
+}
+
+/**
  * 注記を書き換えた図。**空にしたら項目ごと落とす。**
  *
  * 空文字を持たない。持つと、触っていない図の差分に空の注記が湧き、次に開いた人には

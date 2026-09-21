@@ -1153,7 +1153,9 @@ describe('注記と群の札', () => {
     input('子').value = '   ';
     input('子').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect(Object.keys(view.getDraft()!.annotations)).not.toContain('子');
-    expect(noteOf('子').classList).toContain('anytime-diagram-hidden');
+    // 編集中は空でも枠を残す（押す場所が無いと、書き直したい人が開けない）。
+    expect(noteOf('子').classList).toContain('is-placeholder');
+    expect(noteOf('子').classList).not.toContain('anytime-diagram-hidden');
   });
 
   it('Escape なら書き換えを捨てる', () => {
@@ -1189,5 +1191,173 @@ describe('注記と群の札', () => {
       .filter((line) => !line.classList.contains('anytime-diagram-hidden'))
       .map((line) => line.textContent);
     expect(lines).toEqual(['上巻', '中巻']);
+  });
+});
+
+describe('注記の無い札の下段', () => {
+  const startEditing = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const noteOf = (name: string): HTMLElement =>
+    container.querySelector(`[data-person="${name}"] .anytime-diagram-annotation`)!;
+
+  it('閲覧中は隠す（図を静かに保つ）', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(noteOf('父').classList).toContain('anytime-diagram-hidden');
+  });
+
+  it('編集中は空でも押す場所として残し、誘い文を出す', () => {
+    startEditing();
+    expect(noteOf('父').classList).not.toContain('anytime-diagram-hidden');
+    expect(noteOf('父').classList).toContain('is-placeholder');
+    expect(noteOf('父').textContent).toBe('注記を書く');
+  });
+
+  it('その枠をダブルクリックすると書き換えが開く（名札の書き換えにならない）', () => {
+    startEditing();
+    noteOf('父').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    const card = container.querySelector('[data-person="父"]')!;
+    expect(card.querySelector('.anytime-diagram-annotate')!.classList)
+      .not.toContain('anytime-diagram-hidden');
+    expect(card.querySelector('.anytime-diagram-rename')!.classList)
+      .toContain('anytime-diagram-hidden');
+  });
+});
+
+describe('中段（群の札）から値を選び直す', () => {
+  const WITH_AXES: DiagramDocument = {
+    ...DOC,
+    groups: [
+      { id: 'volume', label: '巻', values: { one: '上巻', two: '中巻' } },
+      { id: 'topic', label: '話', values: { birth: '国生み' } },
+    ],
+    families: [
+      { parents: ['祖父', '祖母'], children: ['父'], kind: 'birth', groups: { volume: 'one' } },
+      { parents: ['父', '母'], children: ['子'], kind: 'birth', groups: { volume: 'two' } },
+    ],
+  };
+  const start = (document = WITH_AXES): DiagramViewerHandle => {
+    const view = mount({ document, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const groupLine = (name: string, index = 0): HTMLElement =>
+    [...container.querySelectorAll<HTMLElement>(`[data-person="${name}"] .anytime-diagram-group`)]
+      .filter((line) => !line.classList.contains('anytime-diagram-hidden'))[index]!;
+  const bar = (): HTMLElement => container.querySelector('.anytime-diagram-groupbar')!;
+
+  it('ふだんは帯を出さない', () => {
+    start();
+    expect(bar().classList).toContain('anytime-diagram-hidden');
+  });
+
+  it('中段をダブルクリックすると、その行の家族の軸が並ぶ', () => {
+    start();
+    groupLine('祖父').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(bar().classList).not.toContain('anytime-diagram-hidden');
+    expect(bar().textContent).toContain('祖父・祖母');
+    const selects = [...bar().querySelectorAll<HTMLSelectElement>('select')];
+    expect(selects).toHaveLength(2);
+    expect(selects[0]!.value).toBe('one');
+    // 値を持たない軸は「なし」。
+    expect(selects[1]!.value).toBe('');
+  });
+
+  it('選び直すとその家族だけが変わる', () => {
+    const view = start();
+    groupLine('祖父').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    const select = bar().querySelector<HTMLSelectElement>('select')!;
+    select.value = 'two';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.families[0]!.groups).toEqual({ volume: 'two' });
+    expect(view.getDraft()!.families[1]!.groups).toEqual({ volume: 'two' });
+    // 札の字もその場で入れ替わる。
+    expect(groupLine('祖父').textContent).toBe('中巻');
+  });
+
+  it('「なし」を選ぶと軸ごと落ちる', () => {
+    const view = start();
+    groupLine('祖父').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    const select = bar().querySelector<HTMLSelectElement>('select')!;
+    select.value = '';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.families[0]!.groups).toEqual({});
+  });
+
+  it('2 つの家族に出る人物は、押した行の家族を選び直す', () => {
+    const view = start();
+    // 「父」は 1 件目の子・2 件目の親なので群の札が 2 行ある。
+    groupLine('父', 1).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    const select = bar().querySelector<HTMLSelectElement>('select')!;
+    select.value = 'one';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.families[1]!.groups).toEqual({ volume: 'one' });
+    expect(view.getDraft()!.families[0]!.groups).toEqual({ volume: 'one' });
+  });
+
+  it('軸を宣言していない図では開かず、理由を出す', () => {
+    start(DOC);
+    const line = container.querySelector<HTMLElement>('[data-person="祖父"] .anytime-diagram-group');
+    // DOC は軸を 1 本持つが値が付かない家族もある。軸ゼロの図を作って確かめる。
+    mount({ document: { ...DOC, groups: [] }, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    expect(line).not.toBeNull();
+    expect(container.querySelector('.anytime-diagram-groupbar')!.classList)
+      .toContain('anytime-diagram-hidden');
+  });
+});
+
+describe('ポインタ捕捉で target が札へ化けても段を取り違えない', () => {
+  /*
+    札を掴むとポインタが札へ捕捉され（setPointerCapture）、以後のポインタ由来のイベントは
+    target が札そのものへ書き換わる。jsdom は捕捉を持たないので、素の dblclick では再現
+    しない — ここでは **target を札にしたまま** dblclick を投げ、座標からの引き直しが
+    効いているかを見る（実機で踏んだ破れ）。
+  */
+  const dblclickAsCaptured = (name: string, under: Element): void => {
+    const card = container.querySelector(`[data-person="${name}"]`)!;
+    const original = document.elementFromPoint;
+    document.elementFromPoint = () => under;
+    try {
+      card.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 10, clientY: 10 }));
+    } finally {
+      document.elementFromPoint = original;
+    }
+  };
+  const startEditing = (document_ = DOC): DiagramViewerHandle => {
+    const view = mount({ document: document_, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const shown = (name: string, selector: string): boolean => {
+    const element = container.querySelector(`[data-person="${name}"] ${selector}`);
+    return element !== null && !element.classList.contains('anytime-diagram-hidden');
+  };
+
+  it('下段の上で離したなら注記が開く（名札ではない）', () => {
+    startEditing();
+    dblclickAsCaptured('父', container.querySelector('[data-person="父"] .anytime-diagram-annotation')!);
+    expect(shown('父', '.anytime-diagram-annotate')).toBe(true);
+    expect(shown('父', '.anytime-diagram-rename')).toBe(false);
+  });
+
+  it('中段の上で離したなら群の帯が開く', () => {
+    startEditing({
+      ...DOC,
+      groups: [{ id: 'volume', label: '巻', values: { one: '上巻' } }],
+      families: [{ parents: ['祖父', '祖母'], children: ['父'], kind: 'birth', groups: { volume: 'one' } }],
+    });
+    dblclickAsCaptured('祖父', container.querySelector('[data-person="祖父"] .anytime-diagram-group')!);
+    expect(container.querySelector('.anytime-diagram-groupbar')!.classList)
+      .not.toContain('anytime-diagram-hidden');
+    expect(shown('祖父', '.anytime-diagram-rename')).toBe(false);
+  });
+
+  it('どちらでもない場所なら名札が開く', () => {
+    startEditing();
+    dblclickAsCaptured('父', container.querySelector('[data-person="父"] strong')!);
+    expect(shown('父', '.anytime-diagram-rename')).toBe(true);
   });
 });

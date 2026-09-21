@@ -16,6 +16,7 @@ import {
   renameDiagramElement,
   serializeDiagramDocument,
   setDiagramAnnotation,
+  setDiagramFamilyGroup,
   validateDiagramDocument,
 } from '../document';
 import { familyLook } from '../connectors';
@@ -567,5 +568,26 @@ describe('注記の書き換え', () => {
   it('他の要素の注記には触らない', () => {
     const before = { ...SAMPLE, annotations: { 祖父: 'A', 父: 'B' } };
     expect(setDiagramAnnotation(before, '祖父', 'C').annotations).toEqual({ 祖父: 'C', 父: 'B' });
+  });
+});
+
+describe('家族の群の値', () => {
+  it('その家族の 1 軸だけを書き換える', () => {
+    const next = setDiagramFamilyGroup(SAMPLE, 0, 'volume', 'two');
+    expect(next.families[0]!.groups).toEqual({ volume: 'two' });
+    expect(next.families[1]).toBe(SAMPLE.families[1]);
+  });
+
+  it('空にすると軸ごと落ちる（読めない値を残さない）', () => {
+    expect(setDiagramFamilyGroup(SAMPLE, 0, 'volume', '').families[0]!.groups).toEqual({});
+  });
+
+  it('宣言に無い軸・無い値は受けない（札に出ない値をファイルへ書かない）', () => {
+    expect(setDiagramFamilyGroup(SAMPLE, 0, 'unknown', 'one')).toBe(SAMPLE);
+    expect(setDiagramFamilyGroup(SAMPLE, 0, 'volume', 'three')).toBe(SAMPLE);
+  });
+
+  it('無い家族は触らない', () => {
+    expect(setDiagramFamilyGroup(SAMPLE, 99, 'volume', 'one')).toBe(SAMPLE);
   });
 });
