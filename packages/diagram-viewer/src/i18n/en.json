@@ -49,6 +49,7 @@
     "emptyState": "Open a diagram file (.diagram.json) to see the chart here.",
     "addElement": "Add an element to an empty cell",
     "addElementAt": "Add an element at column {column}, row {row}",
+    "newElement": "Element",
     "renameElement": "Rename this element",
     "annotateElement": "Edit the note",
     "annotateHint": "Add a note",

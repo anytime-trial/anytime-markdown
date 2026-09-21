@@ -1719,3 +1719,73 @@ describe('群のダイアログの焦点', () => {
     expect(document.activeElement).toBe(inputs()[2]);
   });
 });
+
+describe('家族が 1 件減っても、残った線が前の家族を指さない', () => {
+  /*
+    線は件数だけで貸し借りする（余りを末尾から捨てる）。作るときに親の名前・種別・読み上げ名を
+    焼き込んでいた頃は、家族が繰り上がると残った線が**前の家族のまま**になり、生成の線が実線で
+    描かれ、消えた人物の名前で読み上げられた。
+  */
+  const TWO_KINDS: DiagramDocument = {
+    ...DOC,
+    families: [
+      { parents: ['単親'], children: ['落とし子'], kind: 'birth', groups: {} },
+      { parents: ['父', '母'], children: ['子'], kind: 'creation', groups: {} },
+    ],
+    annotations: {},
+  };
+
+  it('繰り上がった家族の種別・名前・data-family を描くたびに当て直す', () => {
+    const view = mount({ document: TWO_KINDS, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    expect(container.querySelectorAll('.anytime-diagram-edges > g')).toHaveLength(2);
+
+    // 「単親」を取り除くと 1 件目の家族が落ち、2 件目（生成）が先頭へ繰り上がる。
+    container.querySelector<HTMLButtonElement>('[data-person="単親"] .anytime-diagram-pick')!.click();
+    byLabel('要素を取り除く')!.click();
+
+    expect(view.getDraft()!.families).toHaveLength(1);
+    const edges = [...container.querySelectorAll('.anytime-diagram-edges > g')]
+      .filter((edge) => !edge.classList.contains('anytime-diagram-hidden'));
+    expect(edges).toHaveLength(1);
+    expect(edges[0]!.getAttribute('data-family')).toBe('父・母');
+    expect(edges[0]!.querySelector('path[role="button"]')?.getAttribute('aria-label')).toContain('父・母');
+    // 種別の class は上書きの見た目を持たない家族の線種そのもの（生成は破線）。
+    expect(edges[0]!.querySelector('.edge-creation')).not.toBeNull();
+    expect(edges[0]!.querySelector('.edge-birth')).toBeNull();
+  });
+});
+
+describe('保存している間は下書きを進めない', () => {
+  /*
+    保存は宿主への往復（webview → 拡張 → ディスク）で、その間に指が動くのは普通に起こる。
+    門が無かった頃は、保存中に動かした札が完了時の `setDraft(null)` で黙って元へ戻っていた
+    （保存された図にも入らない）。
+  */
+  it('保存中の移動は下書きへ入らず、札の取っ手も押せない', async () => {
+    let release: (() => void) | null = null;
+    const saved: unknown[] = [];
+    const view = mount({
+      document: DOC,
+      editable: true,
+      onSave: async (next) => {
+        saved.push(next.layout.placements);
+        await new Promise<void>((resolve) => { release = resolve; });
+      },
+    });
+    byLabel('編集に切り替える')!.click();
+    byLabel('配置を動かす: 父')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    const before = JSON.stringify(view.getDraft()!.layout.placements);
+    byText('保存')!.click();
+    await Promise.resolve();
+
+    expect(byLabel('配置を動かす: 父')!.disabled).toBe(true);
+    byLabel('配置を動かす: 父')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(JSON.stringify(view.getDraft()!.layout.placements)).toBe(before);
+
+    release!();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(saved).toHaveLength(1);
+  });
+});

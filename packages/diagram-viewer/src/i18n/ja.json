@@ -49,6 +49,7 @@
     "emptyState": "系図のファイル（.diagram.json）を開くと、ここに図が出ます。",
     "addElement": "空いた升目へ要素を足す",
     "addElementAt": "{column} 列 {row} 行目へ要素を足す",
+    "newElement": "要素",
     "renameElement": "名札を書き換える",
     "annotateElement": "注記を書き換える",
     "annotateHint": "注記を書く",

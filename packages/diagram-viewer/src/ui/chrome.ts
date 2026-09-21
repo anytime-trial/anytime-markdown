@@ -28,7 +28,7 @@ import {
 } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
-import { el, setClass } from './dom';
+import { el, setClass, setText } from './dom';
 import { createIcon, type DiagramIcon } from './icons';
 
 export interface ChromeCallbacks {
@@ -219,7 +219,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       note.textContent = state.document.note;
       setClass(lead, 'anytime-diagram-hidden', state.compact || state.document.lead === '');
       setClass(note, 'anytime-diagram-hidden', state.compact || state.document.note === '');
-      blocked.textContent = t('gridLinesBlocked');
+      setText(blocked, t('gridLinesBlocked'));
 
       find.setAttribute('aria-label', t('findPerson'));
       choosePerson.textContent = t('choosePerson');
@@ -255,9 +255,9 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       resetLayout.disabled = state.saving || state.draft === null || isEmptyLayout(state.draft);
 
       setClass(selectionBar, 'anytime-diagram-hidden', !state.editing);
-      selectionCount.textContent = state.selectionCount === 0
+      setText(selectionCount, state.selectionCount === 0
         ? t('selectionNone')
-        : t('selectionCount', { count: state.selectionCount });
+        : t('selectionCount', { count: state.selectionCount }));
       clearSelection.disabled = state.saving || state.selectionCount === 0;
       // どちらも**ちょうど 1 つ選んでいるときだけ**押せる。2 つ以上へ同時に当てると、
       // どちらの名前を書き換えたのか・どちらが消えたのかが操作の後から分からない。
@@ -272,13 +272,13 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
         (value) => t(`shape.${value}`),
         state.saving || state.selectionCount !== 1,
       );
-      cardSize.textContent = t('cardSize', { width: state.spacing.nodeWidth, height: state.spacing.nodeHeight });
+      setText(cardSize, t('cardSize', { width: state.spacing.nodeWidth, height: state.spacing.nodeHeight }));
       spacingReset.disabled = state.saving || isDefaultDiagramSpacing(state.draft?.spacing);
 
       // 縁のアイコンを出せない図では、**消える代わりに理由を出す**。編集に入れば出るはずのものが
       // 黙って出ないと、壊れているのか仕様なのかを画面から区別できない。
       setClass(blocked, 'anytime-diagram-hidden', !(state.editing && !state.shiftable));
-      error.textContent = state.notice;
+      setText(error, state.notice);
       setClass(error, 'anytime-diagram-hidden', state.notice === '');
     },
   };
@@ -289,7 +289,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
     setClass(connectorBar, 'anytime-diagram-hidden', !(state.editing && line !== null));
     if (line === null) return;
     const { look } = line;
-    connectorName.textContent = line.label;
+    setText(connectorName, line.label);
     // 消す口は手で引いた線にだけ出す。家族の線を消すことは家族そのものを消すことなので、
     // 見た目を変える区画からは行わせない（要素の取り除きが受け持つ）。
     setClass(deleteConnector, 'anytime-diagram-hidden', !line.deletable);
@@ -375,14 +375,31 @@ export function createConfirmView(
   root.appendChild(box);
 
   let current: 'discard' | 'reset' | null = null;
+  /** 開く前に焦点を持っていた要素。閉じたら戻す（`aria-modal` を名乗る以上、外へ置き去りにしない）。 */
+  let opener: HTMLElement | null = null;
   function hide(): void {
     current = null;
     root.classList.remove('is-open');
+    // 焦点を戻してから控えを捨てる。戻さないと、閉じた後の Tab が図の先頭からやり直しになる。
+    opener?.focus();
+    opener = null;
   }
+  /*
+    Escape で閉じる。覆いの中のボタンで閉じられても、**キーボードの出口は 1 つ足りなかった**
+    （`aria-modal="true"` は「外は読まなくてよい」と宣言する属性なので、出口が無いと宣言と実際が
+    食い違う）。押下は外へ渡さない — 渡すと図の側の Delete / 矢印まで巻き込む。
+  */
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.stopPropagation();
+    hide();
+  });
 
   return {
     root,
     show(kind) {
+      const active = doc.activeElement;
+      opener = active instanceof HTMLElement ? active : null;
       current = kind;
       heading.textContent = kind === 'discard' ? t('discardTitle') : t('resetTitle');
       body.textContent = kind === 'discard' ? t('discardNote') : t('resetNote');

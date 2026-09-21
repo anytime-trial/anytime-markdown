@@ -59,7 +59,7 @@ export function createMidpointView(
     if (existing !== undefined) return existing;
     const button = el(doc, 'button', {
       className: 'anytime-diagram-midpoint',
-      attrs: { type: 'button', title: t('connectFromLine') },
+      attrs: { type: 'button' },
     });
     const held = { button, anchor: null as DiagramAnchor | null };
     button.addEventListener('pointerdown', (event) => {
@@ -98,6 +98,9 @@ export function createMidpointView(
         held.button.style.top = `${midpoint.y}px`;
         held.button.disabled = state.saving;
         held.button.setAttribute('aria-label', t('connectFromLine'));
+        // 吹き出しも**毎回当てる**。作るときに焼き込むと、locale を差し替えても取っ手だけ前の言語で残る
+        // （中点の取っ手は locale の差し替えで作り直さない部品なので、焼き込みが残り続ける）。
+        held.button.title = t('connectFromLine');
         // 端の指し先は `data-line-anchor` で DOM へ出す。指を離した位置から相手を引くとき、
         // 座標で最寄りを探さずに済む（座標で探すと、重なった線のどちらを掴んだか決められない）。
         held.button.setAttribute('data-line-anchor', midpoint.key);

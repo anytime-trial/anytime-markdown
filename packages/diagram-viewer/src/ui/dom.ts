@@ -38,6 +38,17 @@ export function additiveFrom(event: MouseEvent | KeyboardEvent): boolean {
   return event.ctrlKey || event.metaKey || event.shiftKey;
 }
 
+/**
+ * 字を当てる。**同じ字なら触らない。**
+ *
+ * 生き領域（`aria-live` / `role="alert"` / `role="status"`）は、同じ字を入れ直しても子ノードが
+ * 差し替わるので DOM の変化として観測され、支援技術が読み上げ直す。描画は指の動きごとに走る
+ * ので、知らせが 1 つ出ている状態で図を平行移動すると、その文が数十回読み上げられていた。
+ */
+export function setText(element: Element, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
+}
+
 /** クラスの付け外し。条件が偽なら外す（`classList.toggle` の第 2 引数と同じだが意図を名前で示す）。 */
 export function setClass(element: Element, name: string, on: boolean): void {
   element.classList.toggle(name, on);

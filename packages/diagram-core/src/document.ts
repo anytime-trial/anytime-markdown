@@ -19,6 +19,9 @@ import {
   rowPitch,
 } from './spacing';
 import { MAX_CONNECTORS_PER_DIAGRAM } from './connectors';
+// 輪の検出は並べ替えと同じ走査なので、実装は `layout.ts` に 1 つだけ置く（読み取りと描画で
+// 別々の判定を持つと、片方だけが輪を通す）。
+import { findDiagramCycle } from './layout';
 import {
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
@@ -524,6 +527,19 @@ export function parseDiagramDocument(value: unknown, onWarn: Warn = () => {}): D
   // 断っていた頃の判定を残すと、要素だけで成り立つ図（手で並べて線を引く図）が開けない。
   if (diagramPeople(families, nodes).size === 0) {
     onWarn('[diagram] 図に描ける要素がありません（families か nodes のどちらかが要ります）');
+    return null;
+  }
+  /*
+    親子が輪を作る図は**ここで断る**。世代を決める並べ替え（`layoutDiagram`）は輪に出会うと
+    例外を投げるが、それが起きるのは描く時点で、そこには受け止める場所が無い — 図が出ないだけ
+    でなく宿主へ例外が抜けていた。読み取りの側で断れば、他の壊れた項目と同じく理由が出る。
+
+    保存の入口（`validateDiagramDocument`）はこの読み取りを通すので、**次に開けない図を書けない**
+    ことも同時に決まる（保存の目的は「次に開けること」）。
+  */
+  const cycle = findDiagramCycle(families);
+  if (cycle !== null) {
+    onWarn(`[diagram] families が輪を作っています（${cycle.join(' → ')}）。親子の向きをたどると同じ要素へ戻ります`);
     return null;
   }
   return {

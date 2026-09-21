@@ -136,6 +136,45 @@ describe('図の書き換えと配置の引き継ぎ', () => {
     expect(document.connectors).toHaveLength(1);
   });
 
+  /*
+    注記・群の軸・読み物（導入文・注記・凡例）も要素や線と同じ扱い。空へ倒していた頃は、
+    「家族を 1 件足すだけ」の呼び出しが札の注記と群の軸を丸ごと落としていた（呼び手には
+    何も返らないので、画面を開くまで気づけない）。
+  */
+  it('家族を書き換えても、注記・群の軸・読み物は消さない', async () => {
+    await writeDiagram({
+      path: FILE,
+      title: '検査用',
+      lead: '導入文',
+      note: '末尾の注記',
+      legend: '実線は親子。',
+      groups: [{ id: 'volume', label: '巻', values: { one: '上巻' } }],
+      families: families.map((family) => ({ ...family, groups: { volume: 'one' } })),
+      annotations: { 子: '札の注記' },
+    }, rootDir);
+    await writeDiagram({
+      path: FILE,
+      title: '題名を直した',
+      families: families.map((family) => ({ ...family, groups: { volume: 'one' } })),
+    }, rootDir);
+    const document = await readDiagram({ path: FILE }, rootDir);
+    expect(document.annotations).toEqual({ 子: '札の注記' });
+    expect(document.groups).toEqual([{ id: 'volume', label: '巻', values: { one: '上巻' } }]);
+    expect([document.lead, document.note, document.legend]).toEqual(['導入文', '末尾の注記', '実線は親子。']);
+  });
+
+  it('書き戻せない図は、検証器が出した理由をそのまま返す', async () => {
+    await expect(writeDiagram({
+      path: FILE,
+      title: '検査用',
+      families,
+      connectors: [
+        { id: 'c1', from: '親', to: '子', line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'none' },
+        { id: 'c1', from: '子', to: '親', line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'none' },
+      ],
+    }, rootDir)).rejects.toThrow('id が重複しています');
+  });
+
   it('家族を書き換えても、要素の形は消さない', async () => {
     await writeDiagram({
       path: FILE,

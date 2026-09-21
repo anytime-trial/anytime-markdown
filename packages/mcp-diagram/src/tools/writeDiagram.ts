@@ -9,7 +9,7 @@ import {
   type DiagramGroupAxis,
   type DiagramShape,
   EMPTY_DIAGRAM_LAYOUT,
-  parseDiagramDocument,
+  validateDiagramDocument,
   readDiagramAnchor,
   serializeDiagramDocument,
   validateDiagramLayout,
@@ -48,7 +48,8 @@ export interface WriteDiagramInput {
  * 配置を空で上書きする。配置は `setDiagramLayout` が専任で扱い、ここでは**既存ファイルの配置を
  * そのまま引き継ぐ**。
  *
- * 要素（`nodes`）と接続線（`connectors`）は**渡せるが、省いたら引き継ぐ**。画面で足した要素と線を
+ * 要素（`nodes`）・接続線（`connectors`）・形（`shapes`）・注記（`annotations`）・群の軸（`groups`）と
+ * 読み物（`lead` / `note` / `legend`）は**渡せるが、省いたら引き継ぐ**。画面で足したものを
  * 「家族を 1 件書き換えただけ」の呼び出しが消さないようにするため。
  */
 /** 書き込み要求の中の接続線 1 本。端はファイルの形。 */
@@ -73,10 +74,13 @@ export async function writeDiagram(input: WriteDiagramInput, rootDir: string): P
   const document: DiagramDocument = {
     version: 1,
     title: input.title,
-    lead: input.lead ?? '',
-    note: input.note ?? '',
-    legend: input.legend ?? '',
-    groups: input.groups ?? [],
+    // 省いた項目は**既存ファイルから引き継ぐ**。空へ倒すと、「家族を 1 件足すだけ」の呼び出しが
+    // 導入文・注記・凡例・群の軸を丸ごと落とす（どれも画面から編集する値で、消えても呼び手には
+    // 何も返らない）。nodes / shapes / connectors と同じ扱いに揃える。
+    lead: input.lead ?? existing?.lead ?? '',
+    note: input.note ?? existing?.note ?? '',
+    legend: input.legend ?? existing?.legend ?? '',
+    groups: input.groups ?? existing?.groups ?? [],
     families: input.families,
     nodes: input.nodes ?? existing?.nodes ?? [],
     shapes: input.shapes ?? existing?.shapes ?? {},
@@ -87,13 +91,19 @@ export async function writeDiagram(input: WriteDiagramInput, rootDir: string): P
         from: toAnchor(connector.from, 'from'),
         to: toAnchor(connector.to, 'to'),
       })),
-    annotations: input.annotations ?? {},
+    annotations: input.annotations ?? existing?.annotations ?? {},
     layout: existing?.layout ?? EMPTY_DIAGRAM_LAYOUT,
   };
-  // 書く前に自分の読み取りを通す。通らない形を書くと、次に開いた画面が「読めません」になる。
-  if (parseDiagramDocument(JSON.parse(serializeDiagramDocument(document))) === null) {
-    throw new Error('[diagram] 書こうとした図を読み戻せません（families か nodes に要素が 1 つ要ります）');
-  }
+  /*
+    書く前に自分の読み取りを通す。通らない形を書くと、次に開いた画面が「読めません」になる。
+
+    **理由は検証器が出したものをそのまま返す。** 断り文句を 1 つ決め打っていた頃は、線の id が
+    重複しているだけの呼び出しにも「families か nodes に要素が 1 つ要ります」と答えており、
+    呼び手（LLM を含む）は直しようのない修正を繰り返すことになっていた。拡張・web-app と
+    同じ入口（`validateDiagramDocument`）を使うので、3 経路で同じ理由が出る。
+  */
+  const validated = validateDiagramDocument(JSON.parse(serializeDiagramDocument(document)));
+  if (!validated.ok) throw new Error(validated.errors.join('\n'));
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, serializeDiagramDocument(document), 'utf-8');
   return { path: input.path };

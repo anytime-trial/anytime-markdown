@@ -15,6 +15,7 @@ import {
   parseDiagramFileStrict,
   readDiagramLayout,
   serializeDiagramDocument,
+  validateDiagramDocument,
   validateDiagramLayout,
 } from '../document';
 import { DEFAULT_DIAGRAM_SPACING, cellPosition } from '../spacing';
@@ -146,5 +147,44 @@ describe('図の書き出し', () => {
   it('新規作成の雛形はそのまま読み戻せる', () => {
     const empty = createEmptyDiagramDocument('新しい図');
     expect(parseDiagramFile(serializeDiagramDocument(empty))).toEqual(empty);
+  });
+});
+
+describe('輪を作る家族', () => {
+  /*
+    世代を決める並べ替え（`layoutDiagram`）は輪に出会うと例外を投げる。投げるのは**描く時点**で、
+    そこには受け止める場所が無い — 図が出ないだけでなく宿主へ例外が抜けていた。読み取りの側で
+    断れば、他の壊れた項目と同じく理由が出る。保存の入口も読み取りを通すので、次に開けない図を
+    書けないことが同時に決まる。
+  */
+  const CYCLIC = {
+    version: 1,
+    title: '輪のある図',
+    lead: '',
+    note: '',
+    legend: '',
+    groups: [],
+    families: [
+      { parents: ['甲'], children: ['乙'], kind: 'birth', groups: {} },
+      { parents: ['乙'], children: ['甲'], kind: 'birth', groups: {} },
+    ],
+    annotations: {},
+  };
+
+  it('読み取りで断り、どこが輪なのかを理由に出す', () => {
+    const warnings: string[] = [];
+    expect(parseDiagramDocument(CYCLIC, (message) => warnings.push(message))).toBeNull();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('輪を作っています');
+    expect(warnings[0]).toMatch(/甲|乙/);
+  });
+
+  it('保存の入口も通さない（次に開けない図を書かせない）', () => {
+    const result = validateDiagramDocument(CYCLIC);
+    expect(result.ok).toBe(false);
+  });
+
+  it('輪でない図はそのまま通る（親を 2 世代たどる形を輪と誤らない）', () => {
+    expect(parseDiagramDocument(json())).not.toBeNull();
   });
 });

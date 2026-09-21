@@ -41,6 +41,16 @@ export default function DiagramPage() {
    */
   const disposedRef = useRef(false);
 
+  /**
+   * 読み込みの世代。**await のたびに自分が最新かを確かめる**のに使う。
+   *
+   * `loadFile` は「本文を読む → diagram-core を動的 import → diagram-viewer を動的 import」と
+   * 3 回待つ。見張りが無いと、1 回目が mount を終える前に 2 回目が始まったとき、両方が
+   * 「まだ mount されていない」を見て `mountDiagramViewer` を 2 回呼ぶ。控えには後勝ちの
+   * handle しか残らないので、先の図は誰も `destroy()` せず同じ器に 2 つ積まれる。
+   */
+  const loadSeqRef = useRef(0);
+
   useEffect(() => {
     disposedRef.current = false;
     return () => {
@@ -74,18 +84,24 @@ export default function DiagramPage() {
 
   async function loadFile(file: File): Promise<void> {
     setLoadError('');
+    const seq = ++loadSeqRef.current;
+    /** 自分が最新の読み込みか。待つたびに確かめる（離脱の見張りと同じ扱い）。 */
+    const stale = (): boolean => disposedRef.current || seq !== loadSeqRef.current;
     try {
       const text = await file.text();
+      if (stale()) return;
       const { parseDiagramFileStrict } = await import('@anytime-markdown/diagram-core');
       const diagram = parseDiagramFileStrict(text);
       documentRef.current = diagram;
       fileNameRef.current = fileNameFor(file.name);
       setHasDocument(true);
       const container = containerRef.current;
-      if (container === null || disposedRef.current) return;
+      if (container === null || stale()) return;
+      // 動的 import は**どちらの道でも先に済ませる**。mount する道の中で待つと、待っている間に
+      // 別の読み込みが mount を終えていて、こちらが 2 つ目を積む余地ができる。
+      const { mountDiagramViewer } = await import('@anytime-markdown/diagram-viewer');
+      if (stale()) return;
       if (handleRef.current === null) {
-        const { mountDiagramViewer } = await import('@anytime-markdown/diagram-viewer');
-        if (disposedRef.current) return;
         handleRef.current = mountDiagramViewer(container, {
           document: diagram,
           locale: localeRef.current,

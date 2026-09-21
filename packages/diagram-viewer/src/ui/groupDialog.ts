@@ -103,6 +103,13 @@ export function createGroupDialogView(
     callbacks.onClose();
   });
 
+  /**
+   * 開く前に焦点を持っていた要素。閉じたら戻す。
+   *
+   * 焦点をダイアログへ移すのも同じ理由で要る。移さないと Escape の handler（`root` に張ってある）
+   * が一度も発火せず、`aria-modal="true"` と名乗りながら外に焦点が残る。
+   */
+  let opener: HTMLElement | null = null;
   const axes: AxisRow[] = [];
   /** 前回描いたときの軸の数。**足した軸へ焦点を移す**のに使う（-1 は閉じていた状態）。 */
   let rendered = -1;
@@ -158,8 +165,13 @@ export function createGroupDialogView(
       close.setAttribute('aria-label', t('closeGroups'));
       close.title = t('closeGroups');
       empty.textContent = t('groupsEmpty');
+      const wasOpen = root.classList.contains('is-open');
       setClass(root, 'is-open', state.selection !== null);
       if (state.selection === null) {
+        if (wasOpen) {
+          opener?.focus();
+          opener = null;
+        }
         // 閉じている間は中身を組み立てない（描画は指の動きごとに走る）。次に開いたときへ
         // 「増えた」を持ち越さないよう、数えた軸と選択肢の数も畳む（持ち越すと、開いた
         // とたんに既にあった選択肢へ焦点が飛び、打鍵 1 つでその名前が消える）。
@@ -189,6 +201,12 @@ export function createGroupDialogView(
       const grown = rendered >= 0 && state.selection.axes.length > rendered;
       rendered = state.selection.axes.length;
       if (grown) focusInput(axes[rendered - 1]?.name);
+      if (!wasOpen) {
+        // 開いた瞬間だけ焦点を移す（毎回移すと、打っている最中に先頭へ引き戻される）。
+        const active = doc.activeElement;
+        opener = active instanceof HTMLElement ? active : null;
+        close.focus();
+      }
     },
   };
 

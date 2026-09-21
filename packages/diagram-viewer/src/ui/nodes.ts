@@ -406,6 +406,9 @@ export function createNodeView(
       pick.setAttribute('aria-pressed', String(state.picked));
       pick.textContent = state.picked ? '☑' : '☐';
       setClass(release, 'anytime-diagram-hidden', !state.moved);
+      // 保存中は札の取っ手も押せない。保存は宿主への往復なので、その間に動かした札は
+      // 完了時に下書きごと畳まれて消える（黙って効かないのを避け、押せないことを画面に出す）。
+      for (const button of [pick, move, release]) button.disabled = state.saving;
       for (const button of [connectPoint, ...insertHandles]) {
         setClass(button, 'anytime-diagram-hidden', !state.editing);
         button.disabled = state.saving;

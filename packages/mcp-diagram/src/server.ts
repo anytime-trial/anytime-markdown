@@ -144,14 +144,17 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
     'write_diagram',
     'Create or replace a genealogy diagram. People come from the families plus the standalone nodes list. '
     + 'Saved layout overrides in an existing file are kept — use set_diagram_layout to change placements. '
-    + 'Omitted nodes / connectors / shapes are kept from the existing file too, so editing families alone never drops them.',
+    + 'Every optional field is kept from the existing file when omitted (lead, note, legend, groups, nodes, connectors, shapes, annotations), '
+    + 'so editing families alone never drops the rest of the chart.',
     {
       path: pathSchema,
       title: z.string().describe('Chart title'),
-      lead: z.string().optional().describe('Introductory paragraph shown above the chart'),
-      note: z.string().optional().describe('Closing note shown below the chart'),
-      legend: z.string().optional().describe('One sentence explaining what the line styles mean in this chart'),
-      groups: z.array(groupAxisSchema).optional().describe('Classification axes, in the order badges are shown'),
+      lead: z.string().optional().describe('Introductory paragraph shown above the chart. Omit to keep the one already in the file'),
+      note: z.string().optional().describe('Closing note shown below the chart. Omit to keep the one already in the file'),
+      legend: z.string().optional()
+        .describe('One sentence explaining what the line styles mean in this chart. Omit to keep the one already in the file'),
+      groups: z.array(groupAxisSchema).optional()
+        .describe('Classification axes, in the order badges are shown. Omit to keep the ones already in the file'),
       families: z.array(familySchema).describe('Families. People are derived from them. May be empty when nodes carries the elements'),
       nodes: z.array(z.string().min(1)).optional()
         .describe('Standalone elements that appear in no family. Omit to keep the ones already in the file'),
@@ -160,7 +163,7 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
       shapes: z.record(z.string(), z.enum(DIAGRAM_SHAPES)).optional()
         .describe('Element name to its flowchart shape. Elements left out are drawn as a rectangle. '
           + 'Omit the whole field to keep the shapes already in the file'),
-      annotations: z.record(z.string(), z.string()).optional().describe('Person name to a short note on their card'),
+      annotations: z.record(z.string(), z.string()).optional().describe('Person name to a short note on their card. Omit to keep the ones already in the file'),
     },
     async (input) => {
       try {

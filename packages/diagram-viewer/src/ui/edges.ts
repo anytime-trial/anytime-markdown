@@ -5,7 +5,12 @@
  * 多くなりうるので、ドラッグのたびに作り直すと図が指に追随しない。
  */
 
-import { arrowHeadPath, type ConnectorPointAt, DIAGRAM_LINE_COLORS, type DiagramFamily } from '@anytime-markdown/diagram-core';
+import {
+  arrowHeadPath,
+  type ConnectorPointAt,
+  DIAGRAM_LINE_COLORS,
+  DIAGRAM_RELATIONS,
+} from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
 import type { FamilyConnector } from '../model';
@@ -19,6 +24,12 @@ export interface EdgeCallbacks {
 }
 
 export interface EdgeViewState {
+  /**
+   * いま描いている家族の番号。**描くたびに受け取る**（作るときに焼き込まない）。
+   *
+   * 焼き込むと、家族が 1 件減って後ろが繰り上がったときに、押した線が別の家族を指す。
+   */
+  readonly index: number;
   readonly connector: FamilyConnector;
   /** 図の倍率。端の印の画面上の大きさを保つのに要る（線の太さと同じ扱い）。 */
   readonly scale: number;
@@ -31,21 +42,25 @@ export interface EdgeView {
   update(state: EdgeViewState): void;
 }
 
+/**
+ * 家族の線 1 本。**家族そのものは作るときに受け取らない。**
+ *
+ * かつては親の名前・種別・読み上げ名を作るときに焼き込んでいた。線は件数だけで貸し借りする
+ * （余りを末尾から捨てる）ので、家族が 1 件減って後ろが繰り上がると、残った線が**前の家族の
+ * 種別と名前を持ったまま**になる。種別は上書きの見た目を持たない家族の線種そのもの
+ * （`.edge-creation` の破線）なので、生成の線が実線で描かれる。読み上げ名も、図から消えた
+ * 人物の名前で呼ばれ続ける。描くたびに当て直せば、貸し借りの鍵が添字のままでも食い違わない。
+ */
 export function createEdgeView(
   doc: Document,
-  family: DiagramFamily,
-  index: number,
   t: DiagramT,
   callbacks: EdgeCallbacks,
 ): EdgeView {
-  const label = `${t('selectLine')}: ${family.parents.join('・')}`;
-  const root = svg(doc, 'g', { 'data-family': family.parents.join('・') });
-  const marriage = svg(doc, 'path', {
-    class: 'edge-spouse', tabindex: '0', role: 'button', 'aria-label': label,
-  });
-  const descent = svg(doc, 'path', {
-    class: `edge-${family.kind}`, tabindex: '0', role: 'button', 'aria-label': label,
-  });
+  const root = svg(doc, 'g');
+  const marriage = svg(doc, 'path', { class: 'edge-spouse', tabindex: '0', role: 'button' });
+  const descent = svg(doc, 'path', { tabindex: '0', role: 'button' });
+  /** いま指している家族の番号。描くたびに差し替える（押下はこの値を読む）。 */
+  let index = -1;
   for (const path of [marriage, descent]) {
     path.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -84,7 +99,16 @@ export function createEdgeView(
 
   return {
     root,
-    update({ connector, scale, selected, dimmed }) {
+    update(state) {
+      const { connector, scale, selected, dimmed } = state;
+      index = state.index;
+      const family = connector.family;
+      // 焼き込まずに毎回当てる（家族が繰り上がっても食い違わない。文言も locale に追随する）。
+      const label = `${t('selectLine')}: ${family.parents.join('・')}`;
+      root.setAttribute('data-family', family.parents.join('・'));
+      for (const path of [marriage, descent]) path.setAttribute('aria-label', label);
+      // 種別の class は**列挙から当てる**（新しい種別を足した日にここだけ古い一覧で残らない）。
+      for (const kind of DIAGRAM_RELATIONS) setClass(descent, `edge-${kind}`, kind === family.kind);
       setClass(root, 'is-line-selected', selected);
       setClass(root, 'is-line-dimmed', dimmed);
       /*

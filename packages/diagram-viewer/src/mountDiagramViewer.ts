@@ -533,9 +533,16 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     paint();
   }
 
-  /** 下書きを 1 段進める。編集に入っていない状態からは触らない（掴めるのは編集中だけ）。 */
+  /**
+   * 下書きを 1 段進める。編集に入っていない状態からは触らない（掴めるのは編集中だけ）。
+   *
+   * **保存中も触らない。** 保存は宿主への往復（webview → 拡張 → ディスク）なので、その間に指が
+   * 動くのは普通に起こる。門が無かった頃は、保存中に動かした札が完了時の `setDraft(null)` で
+   * 黙って元へ戻っていた（保存された図にも入らない）。門をここへ 1 つ置くと、配置・要素・線・
+   * 群・注記のすべての経路が同じ門を通る。
+   */
   function updateDraft(next: (current: DiagramDocument) => DiagramDocument): void {
-    if (draft === null) return;
+    if (draft === null || saving) return;
     setDraft(next(draft));
     paint();
   }
@@ -707,7 +714,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    */
   function addElement(cell: GridCell): void {
     if (draft === null || saving) return;
-    const name = nextElementName(peopleNow());
+    const name = nextElementName(peopleNow(), tr('newElement'));
     updateDraft((current) => ({
       ...current,
       nodes: [...current.nodes, name],
@@ -1341,7 +1348,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     const families = model.source.families;
     while (edgeViews.length > families.length) edgeViews.pop()!.root.remove();
     for (let index = edgeViews.length; index < families.length; index += 1) {
-      const edgeView = createEdgeView(doc, families[index]!, index, tr, {
+      const edgeView = createEdgeView(doc, tr, {
         onSelectFamily(pressed, additive) {
           selectedFamilies = pickLine(selectedFamilies, pressed, additive);
           if (!additive) selectedConnectors = [];
@@ -1426,6 +1433,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       const connector = model.connectors[index];
       if (connector === undefined) continue;
       edgeView.update({
+        index,
         connector,
         scale: view.scale,
         selected: selectedFamilies.includes(index),

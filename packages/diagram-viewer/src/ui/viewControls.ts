@@ -9,7 +9,7 @@
  */
 
 import type { DiagramT } from '../i18n';
-import { el } from './dom';
+import { el, setText } from './dom';
 import { createIcon, type DiagramIcon } from './icons';
 
 export interface ViewControlsCallbacks {
@@ -55,7 +55,7 @@ export function createViewControls(
       label(zoomIn, t('zoomIn'));
       label(fit, t('fit'));
       label(reset, t('reset'));
-      level.textContent = `${Math.round(state.scale * 100)}%`;
+      setText(level, `${Math.round(state.scale * 100)}%`);
       zoomOut.disabled = state.scale <= state.minScale;
       zoomIn.disabled = state.scale >= state.maxScale;
     },

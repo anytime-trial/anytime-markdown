@@ -161,6 +161,48 @@ export function familyConnector(
 }
 
 /**
+ * 家族が輪を作っていれば、その輪をなぞる人物の並びを返す（無ければ `null`）。
+ *
+ * **投げずに返す。** 世代を決める `resolveColumns` は輪に出会うと例外を投げるが、それが起きるのは
+ * **描く時点**で、そこには受け止める場所が無い（画面は図ごと落ち、宿主へ例外が抜ける）。読み取り
+ * （`parseDiagramDocument`）が同じ走査を先に済ませれば、「壊れたデータで画面を落とさない。理由を
+ * 渡して断る」という約束の側で扱える。保存の入口（`validateDiagramDocument`）も読み取りを通すので、
+ * **次に開けない図を書けない**ことが同時に決まる。
+ *
+ * 走査は `resolveColumns` の `rank` と同じ（親をたどる深さ優先で、いま辿っている途中の人物へ
+ * 戻ったら輪）。戻った人物から先を切り出して返すので、理由に「どこが輪なのか」を書ける。
+ */
+export function findDiagramCycle(families: readonly DiagramFamily[]): readonly string[] | null {
+  const names = [...new Set(families.flatMap((family) => [...family.parents, ...family.children]))];
+  const parents = new Map(names.map((name) => [name, new Set<string>()]));
+  for (const family of families) {
+    for (const child of family.children) for (const parent of family.parents) parents.get(child)!.add(parent);
+  }
+  const done = new Set<string>();
+  const path: string[] = [];
+  const visiting = new Set<string>();
+  const walk = (name: string): readonly string[] | null => {
+    if (done.has(name)) return null;
+    if (visiting.has(name)) return [...path.slice(path.indexOf(name)), name];
+    visiting.add(name);
+    path.push(name);
+    for (const parent of parents.get(name) ?? []) {
+      const found = walk(parent);
+      if (found !== null) return found;
+    }
+    path.pop();
+    visiting.delete(name);
+    done.add(name);
+    return null;
+  };
+  for (const name of names) {
+    const found = walk(name);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+/**
  * 人物 1 人につき 1 つの節。世代は**親子の向きだけ**で決まり、配偶は循環を作らない。
  *
  * **配置差分はここでは扱わない**（`applyDiagramPlacements` が後から当てる）。差分を先に当てて
