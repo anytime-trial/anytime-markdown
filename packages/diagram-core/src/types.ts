@@ -112,6 +112,8 @@ export interface DiagramConnector extends DiagramLineLook {
   readonly id: string;
   readonly from: DiagramAnchor;
   readonly to: DiagramAnchor;
+  /** 線に添える短い字。**無ければ持たない**（家族の線の `label` と同じ決まり）。 */
+  readonly label?: string;
 }
 
 /**
@@ -160,6 +162,13 @@ export interface DiagramFamily {
    * 既定と同じ見た目なら**持たない**（触っていない図にファイルの項目を増やさない）。
    */
   readonly look?: DiagramLineLook;
+  /**
+   * 線に添える短い字。**無ければ持たない**（既定＝字の無い線）。
+   *
+   * 線の意味を図の言葉で書く場所は 2 つある — 図ぜんぶに 1 つの凡例（`legend`）と、この 1 本だけ
+   * に添える字。凡例だけでは「どの線がどの意味か」を線の側から読めない。
+   */
+  readonly label?: string;
 }
 
 /** 分類の軸 1 本。人物の札には宣言順で最初の軸から順に添える。 */

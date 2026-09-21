@@ -22,6 +22,14 @@ export interface MidpointCallbacks {
   onConnectPointerUp(event: PointerEvent): void;
   /** キーボードから押した（始点として待ち受ける／待ち受け中の始点と結ぶ）。 */
   onConnectToggle(anchor: DiagramAnchor): void;
+  /**
+   * 字の書き換えへ入る。**取っ手そのものも受け口にする。**
+   *
+   * 取っ手は線の中点に載っており、**線の真ん中を狙った押下は必ずここへ来る**（実機で観測。
+   * 線をダブルクリックしたつもりが、取っ手が先に受け取って線を引き始めていた）。線の上の
+   * どこを叩いても同じことが起きるように、取っ手からも同じ口を呼ぶ。
+   */
+  onEditLabel(anchor: DiagramAnchor): void;
 }
 
 export interface MidpointState {
@@ -67,6 +75,11 @@ export function createMidpointView(
     button.addEventListener('click', (event) => {
       if (event.detail !== 0 || held.anchor === null) return;
       callbacks.onConnectToggle(held.anchor);
+    });
+    button.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (held.anchor !== null) callbacks.onEditLabel(held.anchor);
     });
     root.appendChild(button);
     handles.push(held);

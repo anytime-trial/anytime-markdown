@@ -23,11 +23,15 @@ export {
 } from './connectors';
 export { assertNever } from './exhaustive';
 export {
+  addDiagramGroupAxis,
+  addDiagramGroupValue,
   createEmptyDiagramDocument,
   diagramPeople,
   isEmptyLayout,
   MAX_PLACEMENTS_PER_DIAGRAM,
   nextConnectorId,
+  nextDiagramGroupAxisId,
+  nextDiagramGroupValue,
   nextElementName,
   parseDiagramDocument,
   parseDiagramFile,
@@ -37,10 +41,15 @@ export {
   type DiagramElementRemoval,
   removeDiagramConnectors,
   removeDiagramElement,
+  removeDiagramGroupAxis,
+  removeDiagramGroupValue,
   renameDiagramElement,
+  renameDiagramGroupAxis,
+  renameDiagramGroupValue,
   serializeDiagramDocument,
   setDiagramAnnotation,
   setDiagramFamilyGroup,
+  setDiagramLineLabel,
   validateDiagramDocument,
   validateDiagramLayout,
 } from './document';
@@ -145,14 +154,18 @@ export {
 } from './types';
 export {
   chartPoint,
+  type ChartRect,
   type ChartView,
   editableSpacingKeys,
   fitChart,
   gapFromDrag,
   MAX_SCALE,
   MIN_SCALE,
+  minimapBox,
   placementFromDrag,
   resizeFromDrag,
   SPACING_EDITABLE,
+  viewForRect,
+  visibleRect,
   zoomAt,
 } from './view';

@@ -173,6 +173,22 @@ function readLineLook(value: unknown, onWarn: Warn): DiagramLineLook | null | un
   };
 }
 
+/**
+ * 線に添える字。**空白だけなら無かったことにする**（既定と同じ状態を項目として残さない）。
+ *
+ * 書いてあるのに文字列でなければ**断る**（読み捨てない）。読み捨てると、開いて保存し直すたびに
+ * 字が 1 本ずつ消え、いつ消えたのかを後から辿れない（形の読み取りと同じ扱い）。
+ */
+function readLineLabel(value: unknown, onWarn: Warn): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    onWarn('[diagram] label は文字列です');
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
 /** 升目の番号として読めるか。負・小数・桁外れは弾く。 */
 function isCellNumber(value: unknown, limit: number): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= limit;
@@ -368,12 +384,15 @@ function readFamilies(value: unknown, onWarn: Warn): DiagramFamily[] | null {
     }
     const look = readLineLook(family.look, onWarn);
     if (look === null) return null;
+    const label = readLineLabel(family.label, onWarn);
+    if (label === null) return null;
     families.push({
       parents,
       children,
       kind: family.kind,
       groups: familyGroups,
       ...(look === undefined ? {} : { look }),
+      ...(label === undefined ? {} : { label }),
     });
   }
   return families;
@@ -453,6 +472,8 @@ function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null
       onWarn(`[diagram] connectors: id が重複しています（${item.id}）`);
       return null;
     }
+    const label = readLineLabel(item.label, onWarn);
+    if (label === null) return null;
     seen.add(item.id);
     connectors.push({
       id: item.id,
@@ -463,6 +484,7 @@ function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null
       route: item.route ?? 'straight',
       start: item.start,
       end: item.end,
+      ...(label === undefined ? {} : { label }),
     });
   }
   return connectors;
@@ -878,6 +900,180 @@ export function setDiagramFamilyGroup(
     ...document,
     families: document.families.map((item, at) => (at === familyIndex ? { ...item, groups } : item)),
   };
+}
+
+/**
+ * 図の中で使われていない軸の id。`g1`・`g2`… と数字だけを繰り上げる。
+ *
+ * 表示名（「巻」など）を id にしない。id は家族の持つ値の鍵なので、名前を直した瞬間に
+ * 全家族の値が指し先を失う（接続線が端の名前ではなく id を持つのと同じ理由）。
+ */
+export function nextDiagramGroupAxisId(groups: readonly DiagramGroupAxis[]): string {
+  const taken = new Set(groups.map((axis) => axis.id));
+  for (let index = 1; index <= taken.size + 1; index += 1) {
+    if (!taken.has(`g${index}`)) return `g${index}`;
+  }
+  return `g${Date.now()}`;
+}
+
+/** その軸で使われていない選択肢の鍵。`v1`・`v2`… と数字だけを繰り上げる（軸の id と同じ理由）。 */
+export function nextDiagramGroupValue(axis: DiagramGroupAxis): string {
+  const taken = new Set(Object.keys(axis.values));
+  for (let index = 1; index <= taken.size + 1; index += 1) {
+    if (!taken.has(`v${index}`)) return `v${index}`;
+  }
+  return `v${Date.now()}`;
+}
+
+/**
+ * 軸を 1 本足した図。**表示名が空なら何もしない。**
+ *
+ * 空の名前を許すと、選び口に名前の無い行ができる。どの軸なのか画面から読めない値を、
+ * 家族に付けられる状態にしない。
+ */
+export function addDiagramGroupAxis(document: DiagramDocument, label: string): DiagramDocument {
+  const trimmed = label.trim();
+  if (trimmed === '') return document;
+  const axis: DiagramGroupAxis = { id: nextDiagramGroupAxisId(document.groups), label: trimmed, values: {} };
+  return { ...document, groups: [...document.groups, axis] };
+}
+
+/** 軸の表示名を書き換えた図。**空なら何もしない**（`addDiagramGroupAxis` と同じ理由）。 */
+export function renameDiagramGroupAxis(
+  document: DiagramDocument,
+  axisId: string,
+  label: string,
+): DiagramDocument {
+  const trimmed = label.trim();
+  if (trimmed === '') return document;
+  if (!document.groups.some((axis) => axis.id === axisId)) return document;
+  return {
+    ...document,
+    groups: document.groups.map((axis) => (axis.id === axisId ? { ...axis, label: trimmed } : axis)),
+  };
+}
+
+/**
+ * 軸を 1 本取り除いた図。**その軸を使っていた家族の値もまとめて落とす。**
+ *
+ * 宣言だけを消して家族の値を残さない。残すと、どの軸のものか読めない値がファイルに積もり、
+ * 同じ id で軸を作り直した日に覚えの無い群が復活する（注記を空にしたら項目ごと落とすのと同じ）。
+ */
+export function removeDiagramGroupAxis(document: DiagramDocument, axisId: string): DiagramDocument {
+  if (!document.groups.some((axis) => axis.id === axisId)) return document;
+  return {
+    ...document,
+    groups: document.groups.filter((axis) => axis.id !== axisId),
+    families: document.families.map((family) => dropGroupKeys(family, (id) => id === axisId)),
+  };
+}
+
+/** 選択肢を 1 つ足した図。**表示名が空なら何もしない。** */
+export function addDiagramGroupValue(
+  document: DiagramDocument,
+  axisId: string,
+  label: string,
+): DiagramDocument {
+  const trimmed = label.trim();
+  const axis = document.groups.find((item) => item.id === axisId);
+  if (trimmed === '' || axis === undefined) return document;
+  const value = nextDiagramGroupValue(axis);
+  return {
+    ...document,
+    groups: document.groups.map((item) => (item.id === axisId
+      ? { ...item, values: { ...item.values, [value]: trimmed } }
+      : item)),
+  };
+}
+
+/** 選択肢の表示名を書き換えた図。鍵は変えないので、その値を持つ家族はそのまま残る。 */
+export function renameDiagramGroupValue(
+  document: DiagramDocument,
+  axisId: string,
+  value: string,
+  label: string,
+): DiagramDocument {
+  const trimmed = label.trim();
+  const axis = document.groups.find((item) => item.id === axisId);
+  if (trimmed === '' || axis === undefined || axis.values[value] === undefined) return document;
+  return {
+    ...document,
+    groups: document.groups.map((item) => (item.id === axisId
+      ? { ...item, values: { ...item.values, [value]: trimmed } }
+      : item)),
+  };
+}
+
+/**
+ * 選択肢を 1 つ取り除いた図。**その値を選んでいた家族からも落とす**（軸の取り除きと同じ）。
+ */
+export function removeDiagramGroupValue(
+  document: DiagramDocument,
+  axisId: string,
+  value: string,
+): DiagramDocument {
+  const axis = document.groups.find((item) => item.id === axisId);
+  if (axis === undefined || axis.values[value] === undefined) return document;
+  const { [value]: _dropped, ...values } = axis.values;
+  return {
+    ...document,
+    groups: document.groups.map((item) => (item.id === axisId ? { ...item, values } : item)),
+    families: document.families.map((family) =>
+      dropGroupKeys(family, (id) => id === axisId && family.groups[id] === value)),
+  };
+}
+
+/** 条件に当たる軸の値を落とした家族。落ちるものが無ければ**同じ家族をそのまま返す**（無駄に作り直さない）。 */
+function dropGroupKeys(family: DiagramFamily, drop: (axisId: string) => boolean): DiagramFamily {
+  const keys = Object.keys(family.groups).filter((id) => drop(id));
+  if (keys.length === 0) return family;
+  const groups = { ...family.groups };
+  for (const key of keys) delete groups[key];
+  return { ...family, groups };
+}
+
+/**
+ * 線に添える字を書き換えた図。**空にしたら項目ごと落とす**（注記と同じ決まり）。
+ *
+ * 家族の線と手で引いた線を**1 つの口**で受ける。画面は両方を同じ形（`DiagramAnchor`）で
+ * 持っており、口を 2 つに分けると片方へ手を入れた日にもう片方が取り残される。
+ *
+ * 要素を指す端は何もしない。要素の字は名札（`renameDiagramElement`）と注記が受け持つ。
+ */
+export function setDiagramLineLabel(
+  document: DiagramDocument,
+  anchor: DiagramAnchor,
+  text: string,
+): DiagramDocument {
+  const trimmed = text.trim();
+  if (anchor.kind === 'line') {
+    if (!document.connectors.some((connector) => connector.id === anchor.line)) return document;
+    return {
+      ...document,
+      connectors: document.connectors.map((connector) =>
+        (connector.id === anchor.line ? withLabel(connector, trimmed) : connector)),
+    };
+  }
+  if (anchor.kind === 'family') {
+    // 同じ親の組が 2 件あるときは**先に書いてあるほう**を直す（`familyAnchor` の約束）。
+    const key = [...anchor.parents].join(SEPARATOR);
+    const index = document.families.findIndex((family) => [...family.parents].join(SEPARATOR) === key);
+    if (index < 0) return document;
+    return {
+      ...document,
+      families: document.families.map((family, at) => (at === index ? withLabel(family, trimmed) : family)),
+    };
+  }
+  return document;
+}
+
+/** 字を当てた（空なら項目ごと落とした）写し。線の 2 種類で同じ形なので 1 つで受ける。 */
+function withLabel<T extends { readonly label?: string }>(line: T, label: string): T {
+  if (label === '') {
+    const { label: _dropped, ...rest } = line;
+    return rest as T;
+  }
+  return { ...line, label };
 }
 
 /**

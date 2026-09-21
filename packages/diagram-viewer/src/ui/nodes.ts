@@ -17,7 +17,7 @@ import {
 
 import type { DiagramT } from '../i18n';
 import { parentsOf } from '../model';
-import { el, setAttr, setClass, svg } from './dom';
+import { additiveFrom, el, setAttr, setClass, svg } from './dom';
 import { createIcon } from './icons';
 
 /** どの辺を掴んだか。取っ手ごとに固定なので、毎回作り直さず 1 つを配る。 */
@@ -32,6 +32,13 @@ export interface NodeCallbacks {
   onNodePointerMove(event: PointerEvent): void;
   onNodePointerUp(event: PointerEvent): void;
   onTogglePick(name: string): void;
+  /**
+   * 札を押した（押し終わり）。**閲覧中に関連箇所だけを見るための選択**。
+   *
+   * 押下（`onNodePointerDown`）と分けてある。あちらは編集中に掴んで動かす操作の始まりで、
+   * 閲覧中は掴めない。押下で受けると、札の上から始めた平行移動が選択に化ける。
+   */
+  onSelectNode(name: string, additive: boolean): void;
   onNudge(name: string, columns: number, rows: number): void;
   onRelease(name: string): void;
   /** 接続点を掴んだ。相手の札の上で離すと線が 1 本できる。 */
@@ -161,6 +168,17 @@ export function createNodeView(
   // 焦点を失ったときも確定する。取り消し扱いにすると、打ち終えて図の外を押した人の入力が消える。
   rename.addEventListener('blur', () => finishRename(true));
   root.appendChild(rename);
+  /**
+   * 札の押し終わり。**閲覧中の選択**（関連箇所だけを見る）を受ける。
+   *
+   * 編集中の選択は押下が受け持つので、ここは重ねて選び直すだけで害が無い（呼ばれた側が
+   * 閲覧中かどうかで振り分ける）。
+   */
+  root.addEventListener('click', (event) => {
+    // 札の中の操作要素（取っ手・入力）を押したときは選び直さない。
+    if (event.target instanceof Element && event.target.closest('button, input, select') !== null) return;
+    callbacks.onSelectNode(name, additiveFrom(event));
+  });
   /**
    * 札のダブルクリック。**押した段で行き先を振り分ける**（上＝名前・中＝群・下＝注記）。
    *
@@ -412,10 +430,18 @@ export function createNodeView(
       }
       for (const [index, held] of groupLines.entries()) {
         const badge = state.groupBadges[index];
-        held.line.textContent = badge?.label ?? '';
+        /*
+          値をまだ持たない家族の行は、**編集中だけ薄い誘い文で出す**（閲覧中は隠す）。
+
+          落としていた頃は、群を付けていない家族に押す場所が無く、軸を 1 本も持たない図では
+          群の編集へ入る道が画面から消えていた（注記の枠と同じ扱いに揃えた）。
+        */
+        const empty = badge !== undefined && badge.label === '';
+        held.line.textContent = empty ? t('groupHint') : badge?.label ?? '';
         held.family = badge?.family ?? -1;
         setAttr(held.line, 'data-family', badge === undefined ? null : String(badge.family));
-        setClass(held.line, 'anytime-diagram-hidden', badge === undefined);
+        setClass(held.line, 'is-placeholder', empty);
+        setClass(held.line, 'anytime-diagram-hidden', badge === undefined || (empty && !state.editing));
       }
       /*
         注記の枠。**編集中は空でも枠を残す**（閲覧中だけ空なら隠す）。

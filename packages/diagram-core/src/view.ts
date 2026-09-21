@@ -58,6 +58,70 @@ export function fitChart(width: number, height: number, chartWidth: number, char
   return { scale, x: (width - chartWidth * scale) / 2, y: (height - chartHeight * scale) / 2 };
 }
 
+/** 図の座標での矩形。ミニマップで囲んだ範囲と、いま見えている範囲を同じ形で扱う。 */
+export interface ChartRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * いま枠に見えている図の範囲（**図の座標**）。
+ *
+ * 画面の座標で持たない。ミニマップは図の全体を図の座標のまま描いており、枠の位置だけを画面の
+ * 座標で持つと、倍率を変えるたびに 2 つの座標系を突き合わせることになる。
+ */
+export function visibleRect(
+  view: ChartView,
+  frame: { readonly width: number; readonly height: number },
+): ChartRect {
+  return {
+    x: -view.x / view.scale,
+    y: -view.y / view.scale,
+    width: frame.width / view.scale,
+    height: frame.height / view.scale,
+  };
+}
+
+/**
+ * その矩形が枠いっぱいに見える見え方。**縦横で倍率を変えない**（小さいほうを採る）。
+ *
+ * 変えると図が歪み、同じ図が囲み方で違う形に見える。倍率は範囲の端で止める（`zoomAt` と同じ）。
+ *
+ * **潰れた矩形（幅か高さが 0）では倍率を変えず、中心だけ寄せる。** 0 で割ると倍率が無限大に
+ * なるうえ、ミニマップを軽く叩いただけの操作が図を最大倍率へ飛ばす。
+ */
+export function viewForRect(
+  frame: { readonly width: number; readonly height: number },
+  rect: ChartRect,
+  current: number,
+): ChartView {
+  const fitted = rect.width > 0 && rect.height > 0
+    ? Math.min(frame.width / rect.width, frame.height / rect.height)
+    : current;
+  const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, fitted));
+  return {
+    scale,
+    x: frame.width / 2 - (rect.x + rect.width / 2) * scale,
+    y: frame.height / 2 - (rect.y + rect.height / 2) * scale,
+  };
+}
+
+/**
+ * ミニマップの寸法。**縦横同じ倍率**で収め、余白（レターボックス）を作らない。
+ *
+ * 余白を作ると、押した点から図の座標へ戻すのに余白ぶんの引き算が要る。図と同じ形に縮めておけば、
+ * 変換は 1 つの倍率で済む（SVG の `viewBox` にそのまま渡せる）。
+ */
+export function minimapBox(
+  surface: { readonly width: number; readonly height: number },
+  max: { readonly width: number; readonly height: number },
+): { readonly width: number; readonly height: number; readonly scale: number } {
+  const scale = Math.min(max.width / Math.max(surface.width, 1), max.height / Math.max(surface.height, 1));
+  return { width: surface.width * scale, height: surface.height * scale, scale };
+}
+
 /**
  * 画面から変えられる刻みの項目。`false` は**意図して口を持たない**という宣言。
  *

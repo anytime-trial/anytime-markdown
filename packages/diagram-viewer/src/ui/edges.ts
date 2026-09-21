@@ -14,6 +14,8 @@ import { additiveFrom, setAttr, setClass, svg } from './dom';
 export interface EdgeCallbacks {
   /** 線を押したとき。押したら選ぶ（外すのは図の地を押したとき）。 */
   onSelectFamily(index: number, additive: boolean): void;
+  /** 線に添える字の書き換えへ入る（ダブルクリック、または焦点を当てて F2）。 */
+  onEditLabel(index: number): void;
 }
 
 export interface EdgeViewState {
@@ -50,10 +52,23 @@ export function createEdgeView(
       callbacks.onSelectFamily(index, additiveFrom(event));
     });
     path.addEventListener('keydown', (event) => {
+      // 字の書き換えは **F2**（画面を見ない利用者にはダブルクリックが届かない）。名札の
+      // 書き換えが選択の帯のボタンから入れるのに対し、線には帯の外の入口がここしか無い。
+      if (event.key === 'F2') {
+        event.preventDefault();
+        event.stopPropagation();
+        callbacks.onEditLabel(index);
+        return;
+      }
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       event.stopPropagation();
       callbacks.onSelectFamily(index, additiveFrom(event));
+    });
+    path.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      callbacks.onEditLabel(index);
     });
   }
   /*

@@ -29,6 +29,8 @@ export interface LinkCallbacks {
    * 読み替えを各所に置くと、片方だけ Shift を拾わない状態が静かにできる。
    */
   onSelectLink(id: string, additive: boolean): void;
+  /** 線に添える字の書き換えへ入る（ダブルクリック、または焦点を当てて F2）。 */
+  onEditLabel(id: string): void;
 }
 
 export interface LinkViewState {
@@ -83,9 +85,21 @@ export function createLinkView(
   };
   hit.addEventListener('click', select);
   hit.addEventListener('keydown', (event) => {
+    // 字の書き換えは F2（家族の線と同じ入口。線には帯の外の入口がここしか無い）。
+    if (event.key === 'F2') {
+      event.preventDefault();
+      event.stopPropagation();
+      callbacks.onEditLabel(id);
+      return;
+    }
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     select(event);
+  });
+  hit.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    callbacks.onEditLabel(id);
   });
 
   return {

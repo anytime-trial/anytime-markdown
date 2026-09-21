@@ -96,6 +96,8 @@ export interface LineMidpoint {
   readonly anchor: DiagramAnchor;
   readonly x: number;
   readonly y: number;
+  /** その線に添える字。無ければ空。**中点と同じ場所に出す**ので、位置を 2 か所で導かない。 */
+  readonly label: string;
 }
 
 export interface DiagramModel {
@@ -248,12 +250,17 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
   */
   const midpoints: LineMidpoint[] = [];
   for (const [key, connector] of familyByParents) {
-    midpoints.push({ key, anchor: { kind: 'family', parents: connector.family.parents }, ...connector.junction });
+    midpoints.push({
+      key,
+      anchor: { kind: 'family', parents: connector.family.parents },
+      label: connector.family.label ?? '',
+      ...connector.junction,
+    });
   }
   for (const link of links) {
     const at = midpointOf(link.geometry);
     const anchor: DiagramAnchor = { kind: 'line', line: link.connector.id };
-    midpoints.push({ key: anchorKey(anchor), anchor, ...at });
+    midpoints.push({ key: anchorKey(anchor), anchor, label: link.connector.label ?? '', ...at });
   }
 
   return {
@@ -290,6 +297,7 @@ export function documentChanged(draft: DiagramDocument, saved: DiagramDocument):
     && draft.nodes === saved.nodes
     && draft.shapes === saved.shapes
     && draft.connectors === saved.connectors
+    && draft.groups === saved.groups
     && draft.annotations === saved.annotations;
   if (sameReferences) return false;
   return JSON.stringify(contentKey(draft)) !== JSON.stringify(contentKey(saved));
@@ -299,6 +307,9 @@ export function documentChanged(draft: DiagramDocument, saved: DiagramDocument):
 function contentKey(document: DiagramDocument) {
   return {
     families: document.families,
+    // 群の語彙も中身。落とすと、軸や選択肢だけを直した図が「変更なし」になって保存が押せず、
+    // 編集を終うときに黙って捨てられる（形を落としていた頃と同じ破れ）。
+    groups: document.groups,
     nodes: [...document.nodes].sort(),
     // 形も中身。落とすと、形だけ変えた図が「変更なし」になって保存が押せず、編集を終うときに
     // 黙って捨てられる（実機で観測）。名前を鍵にする項目は並べ替えてから比べる。
@@ -362,6 +373,71 @@ export function layoutKey(layout: DiagramLayout): string {
  * なかった。同じ札を複数の家族が生む場合は**先に書いてある家族**を指す（札は 1 行に畳まれて
  * おり、画面上でも見分けが付かない）。
  */
+/**
+ * 選んだ要素につながる部分。**1 つ隣まで**（選んだ要素・その要素に付く線・線の相手）。
+ *
+ * 何歩でも辿らない。図はたいてい 1 つの連結成分なので、辿り続けると「関連」が図の全体に戻り、
+ * 絞った意味が無くなる。
+ */
+export interface RelatedParts {
+  readonly names: ReadonlySet<string>;
+  /** 関わる家族の番号（`document.families` の添字）。 */
+  readonly families: ReadonlySet<number>;
+  /** 関わる手引きの線の id。 */
+  readonly links: ReadonlySet<string>;
+  /** 関わる線の端の鍵（`anchorKey`）。線に添える字を絞るのに使う。 */
+  readonly lineKeys: ReadonlySet<string>;
+}
+
+/**
+ * 選んだ要素の**関連箇所**。閲覧中に選んだとき、ここに入らないものを薄くする。
+ *
+ * 判定の元は**選んだ名前だけ**（辿りながら増えた名前を混ぜない）。混ぜると、家族を 1 件通る
+ * ごとに関連が広がり、2 歩 3 歩先まで明るいままになる。
+ */
+export function relatedTo(document: DiagramDocument, chosen: readonly string[]): RelatedParts {
+  const picked = new Set(chosen);
+  const names = new Set(chosen);
+  const families = new Set<number>();
+  const links = new Set<string>();
+  const lineKeys = new Set<string>();
+  if (picked.size === 0) return { names, families, links, lineKeys };
+
+  const familyIndexOf = (parents: readonly string[]): number =>
+    document.families.findIndex((family) => anchorKey({ kind: 'family', parents: family.parents })
+      === anchorKey({ kind: 'family', parents }));
+  const takeFamily = (index: number): void => {
+    const family = document.families[index];
+    if (family === undefined || families.has(index)) return;
+    families.add(index);
+    lineKeys.add(anchorKey({ kind: 'family', parents: family.parents }));
+    for (const member of [...family.parents, ...family.children]) names.add(member);
+  };
+  const takeLink = (id: string): void => {
+    if (links.has(id)) return;
+    links.add(id);
+    lineKeys.add(anchorKey({ kind: 'line', line: id }));
+  };
+  /** 線の相手側。要素なら名前を、線・家族の線ならその線そのものを関連に入れる。 */
+  const takeOther = (anchor: DiagramAnchor): void => {
+    if (anchor.kind === 'element') names.add(anchor.name);
+    else if (anchor.kind === 'line') takeLink(anchor.line);
+    else takeFamily(familyIndexOf(anchor.parents));
+  };
+
+  for (const [index, family] of document.families.entries()) {
+    if ([...family.parents, ...family.children].some((member) => picked.has(member))) takeFamily(index);
+  }
+  for (const connector of document.connectors) {
+    const touches = (anchor: DiagramAnchor): boolean => anchor.kind === 'element' && picked.has(anchor.name);
+    if (!touches(connector.from) && !touches(connector.to)) continue;
+    takeLink(connector.id);
+    takeOther(connector.from);
+    takeOther(connector.to);
+  }
+  return { names, families, links, lineKeys };
+}
+
 export function groupBadgesOf(
   document: DiagramDocument,
   name: string,
@@ -374,8 +450,15 @@ export function groupBadgesOf(
       .map((axis) => axis.values[family.groups[axis.id] ?? ''] ?? '')
       .filter((text) => text !== '')
       .join(' · ');
-    if (label === '' || seen.has(label)) continue;
-    seen.add(label);
+    /*
+      値を持たない家族も**行として返す**（字は空）。画面は編集中だけ薄い誘い文にして出す。
+
+      落としていた頃は、群をまだ付けていない家族に押す場所そのものが無く、軸を 1 本も持たない
+      図では群の編集へ入る道が画面から消えていた（注記の枠を空でも残すことにしたのと同じ破れ）。
+      同じ字の行は 1 つに畳むが、空の行は**家族ごとに 1 つ**残す — 行き先の家族が違うため。
+    */
+    if (label !== '' && seen.has(label)) continue;
+    if (label !== '') seen.add(label);
     badges.push({ label, family: index });
   }
   return badges;

@@ -44,6 +44,8 @@ const familySchema = z.object({
   groups: z.record(z.string(), z.string()).describe('Group axis id to value id, for the badges on each card'),
   look: lookSchema.optional()
     .describe('Per-family line appearance. Omit to draw with the default for its kind. All four fields are required when given'),
+  label: z.string().optional()
+    .describe('Short text drawn at the midpoint of the family line. Omit for a line with no text'),
 });
 
 /**
@@ -69,6 +71,8 @@ const connectorSchema = z.object({
     .describe('Colour role. The literal colour comes from the host theme, so the chart stays readable in dark and light'),
   start: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the from end'),
   end: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the to end'),
+  label: z.string().optional()
+    .describe('Short text drawn at the midpoint of the line. Omit for a line with no text'),
 });
 
 const placementSchema = z.object({

@@ -6,6 +6,8 @@
  */
 
 import {
+  addDiagramGroupAxis,
+  addDiagramGroupValue,
   cellKey,
   cellLimit,
   chartPoint,
@@ -27,6 +29,7 @@ import {
   elementAnchor,
   type GapAxis,
   gapFromDrag,
+  familyAnchor,
   familyLook,
   fitChart,
   fittingShift,
@@ -37,6 +40,7 @@ import {
   insertGapEdit,
   isDefaultDiagramSpacing,
   isNoShift,
+  lineAnchor,
   MAX_SCALE,
   MIN_SCALE,
   nearestCell,
@@ -46,21 +50,28 @@ import {
   nudgeShift,
   placementFromDrag,
   removeDiagramConnectors,
+  removeDiagramGroupAxis,
+  removeDiagramGroupValue,
   setDiagramAnnotation,
   setDiagramFamilyGroup,
+  setDiagramLineLabel,
   removeDiagramElement,
   renameDiagramElement,
+  renameDiagramGroupAxis,
+  renameDiagramGroupValue,
   sameAnchor,
   resizedSpacing,
   resizeFromDrag,
   rowPitch,
   shiftCell,
+  viewForRect,
   zoomAt,
 } from '@anytime-markdown/diagram-core';
 
 import { createDiagramT, type DiagramT } from './i18n';
-import { createAutomaticCache, deriveModel, type DiagramModel, groupBadgesOf } from './model';
-import { createGroupView } from './ui/groups';
+import { createAutomaticCache, deriveModel, type DiagramModel, groupBadgesOf, relatedTo } from './model';
+import { createGroupDialogView } from './ui/groupDialog';
+import { createLineLabelView } from './ui/lineLabels';
 import { DIAGRAM_ROOT_CLASS, DIAGRAM_STYLES } from './theme/diagramStyles';
 import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
 import { createCellAdderView } from './ui/cellAdders';
@@ -71,6 +82,7 @@ import { createEdgeView, type EdgeView } from './ui/edges';
 import { createGapView, nudgeStep } from './ui/gaps';
 import { createGutterView } from './ui/gutter';
 import { createMidpointView } from './ui/midpoints';
+import { createMinimapView } from './ui/minimap';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
 import { createViewControls } from './ui/viewControls';
 
@@ -131,6 +143,11 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * （同じ家族に出る他の人物の札も一緒に変わる）。
    */
   let editingGroups: number | null = null;
+  /**
+   * 字を書き換えている線。**家族の線と手で引いた線を 1 つの控えで持つ**（端の形が同じなので、
+   * 2 つに分けると片方だけ畳み忘れて 2 か所に入力が出る）。
+   */
+  let labelling: DiagramAnchor | null = null;
   /**
    * 接続の始点として待ち受けている要素。
    *
@@ -201,6 +218,17 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   */
   surface.append(gridSvg);
 
+  /*
+    ミニマップ。**見え方の操作をこの中へ入れる**（ユーザー指示）。全体の絵と倍率を変える口は
+    同じことを別の言い方で扱うので、離して置くと「いまどこを見ているか」を確かめてから拡大する
+    のに視線が枠の端どうしを往復する。
+  */
+  const minimap = createMinimapView(doc, tr, {
+    onFocusRect(rect) {
+      view = viewForRect({ width: viewport.clientWidth, height: viewport.clientHeight }, rect, view.scale);
+      paint();
+    },
+  });
   const viewControls = createViewControls(doc, tr, {
     onZoom: zoom,
     onFit: fit,
@@ -227,14 +255,39 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     clearTransientSelection();
     paint();
   });
-  const groupBar = createGroupView(doc, tr, {
+  const groupDialog = createGroupDialogView(doc, tr, {
     onGroupValue(axisId, value) {
       const index = editingGroups;
       if (index === null) return;
       updateDraft((current) => setDiagramFamilyGroup(current, index, axisId, value));
     },
-    onCloseGroups() {
+    onAddAxis: () => updateDraft((current) => addDiagramGroupAxis(current, tr('newGroupAxis'))),
+    onRenameAxis: (axisId, label) => renameGroupPart((current) =>
+      renameDiagramGroupAxis(current, axisId, label), label),
+    onRemoveAxis: (axisId) => updateDraft((current) => removeDiagramGroupAxis(current, axisId)),
+    onAddValue: (axisId) => updateDraft((current) =>
+      addDiagramGroupValue(current, axisId, tr('newGroupValue'))),
+    onRenameValue: (axisId, value, label) => renameGroupPart((current) =>
+      renameDiagramGroupValue(current, axisId, value, label), label),
+    onRemoveValue: (axisId, value) => updateDraft((current) =>
+      removeDiagramGroupValue(current, axisId, value)),
+    onClose() {
       editingGroups = null;
+      paint();
+    },
+  });
+  /**
+   * 線に添える字。**図の面へ載せる**（枠ではなく）。枠に貼ると図と一緒に動かないので、
+   * 平行移動や拡大のたびに字と線が離れる（中点の取っ手と同じ理由）。
+   */
+  const lineLabels = createLineLabelView(doc, tr, {
+    onStartLabel: startLineLabel,
+    onCommitLabel(anchor, text) {
+      labelling = null;
+      updateDraft((current) => setDiagramLineLabel(current, anchor, text));
+    },
+    onCancelLabel() {
+      labelling = null;
       paint();
     },
   });
@@ -259,8 +312,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onConnectPointerMove: onConnectMove,
     onConnectPointerUp: onConnectUp,
     onConnectToggle: toggleConnectSource,
+    onEditLabel: startLineLabel,
   });
-  surface.append(gaps.root, edgesSvg, linksSvg, midpoints.root);
+  surface.append(gaps.root, edgesSvg, linksSvg, midpoints.root, lineLabels.root);
 
   /**
    * 選択と線の区画を枠の左下へ重ねる入れ物。
@@ -270,11 +324,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 上端と左端には行・列を増やす ＋ の帯が走っているため。
    */
   const panels = el(doc, 'div', { className: 'anytime-diagram-panels' });
-  panels.append(chrome.selectionBar, chrome.connectorBar, groupBar.root);
+  panels.append(chrome.selectionBar, chrome.connectorBar);
 
   // 縁のアイコンは**図より前に置く**。後ろに置くとタブ順が人物数ぶんの取っ手の後になり、
   // 最初の ＋ へ届くまで何百回も Tab を押すことになる。重ね順は z-index で決める。
-  viewport.append(gutter.root, cellAdders.root, surface, viewControls.root, panels, confirmView.root);
+  minimap.controls.appendChild(viewControls.root);
+  viewport.append(gutter.root, cellAdders.root, surface, minimap.root, panels, groupDialog.root, confirmView.root);
   root.append(
     style, chrome.title, chrome.lead, chrome.toolbar,
     chrome.blocked, chrome.error, viewport, chrome.note,
@@ -349,6 +404,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     if (!onDiagramItem(event.target)) {
       selectedConnectors = [];
       selectedFamilies = [];
+      // 閲覧中の要素の選択も地で外す。閲覧中は選択の帯（解除の口）を出していないので、
+      // ここで外せないと、絞り込んだ図を元へ戻す手段が画面から消える。
+      if (draft === null) selection = [];
       paint();
     }
   });
@@ -453,6 +511,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     renaming = null;
     annotating = null;
     editingGroups = null;
+    labelling = null;
     connectSource = null;
     connectDrag = null;
   }
@@ -719,22 +778,54 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   }
 
   /**
-   * 群を選び直す帯を開く。**軸を 1 本も宣言していない図では開かない。**
+   * 群を編集するダイアログを開く。**軸を 1 本も持たない図でも開く。**
    *
-   * 開くと空の帯が出るだけで、何も選べない（選択肢は宣言から作る）。開かずに理由を出す。
+   * かつては軸が無ければ理由を出して開かなかった。ダイアログが語彙そのもの（軸と選択肢）を
+   * 編集できるようになった以上、軸が無い図こそ**ここから作り始める**場所になる。断ると、
+   * ファイルを手で書くほかに軸を足す道が無い状態へ戻る。
    */
   function startGroups(name: string, family: number): void {
     if (draft === null || saving) return;
-    if (model.source.groups.length === 0) {
-      notice = tr('groupsUndeclared');
-      paint();
-      return;
-    }
     editingGroups = family;
     renaming = null;
     annotating = null;
+    labelling = null;
     notice = '';
     selection = [name];
+    paint();
+  }
+
+  /**
+   * 群の名前（軸・選択肢）を書き換える。**空の名前は断って理由を出す。**
+   *
+   * 黙って元へ戻さない。入力がひとりでに戻るだけだと、断られたのか打ち間違えたのかが
+   * 画面から読めない（核の側も空では書き換えないので、二重の守りになる）。
+   */
+  function renameGroupPart(next: (current: DiagramDocument) => DiagramDocument, label: string): void {
+    if (label.trim() === '') {
+      notice = tr('groupLabelRequired');
+      paint();
+      return;
+    }
+    notice = '';
+    updateDraft(next);
+  }
+
+  /**
+   * 線に添える字の書き換えに入る。**編集中だけ**（閲覧中は図の中身を変えられない）。
+   *
+   * 家族の線と手で引いた線を同じ口で受ける。どちらも端の形（`DiagramAnchor`）が同じなので、
+   * 入口を 2 つに分けると片方だけ畳み忘れる。
+   */
+  function startLineLabel(anchor: DiagramAnchor): void {
+    if (draft === null || saving) return;
+    labelling = anchor;
+    renaming = null;
+    annotating = null;
+    // 引きかけの線は畳む。中点の取っ手を叩くと 1 度目の押下で始点が立つので、畳まないと
+    // 字を打っている間じゅう「どこかの端が待ち受けている」状態が図に残る。
+    connectSource = null;
+    notice = '';
     paint();
   }
 
@@ -1122,6 +1213,18 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       nodeDrag = null;
       if (element?.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
     },
+    onSelectNode(name: string, additive: boolean): void {
+      /*
+        **閲覧中だけ**受ける。編集中の選択は押下（ドラッグの始まり）が受け持っており、両方で
+        受けると、掴んで動かし終えた指が離れた瞬間にもう一度選び直しが走る。
+
+        閲覧中は掴んで動かせないので、押し終わり（click）で受けてよい。押下で受けると、札の上から
+        始めた平行移動が選択に化ける。
+      */
+      if (draft !== null) return;
+      if (additive) togglePick(name);
+      else { selection = [name]; paint(); }
+    },
     onTogglePick: togglePick,
     onNudge: nudgeCells,
     onRelease: releasePlacement,
@@ -1206,7 +1309,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    */
   function blockedBoxes(): readonly { left: number; top: number; right: number; bottom: number }[] {
     const frameBox = viewport.getBoundingClientRect();
-    return [viewControls.root, chrome.selectionBar, chrome.connectorBar]
+    return [minimap.root, chrome.selectionBar, chrome.connectorBar]
       .map((element) => element.getBoundingClientRect())
       .filter((box) => box.width > 0 && box.height > 0)
       .map((box) => ({
@@ -1244,6 +1347,13 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
           if (!additive) selectedConnectors = [];
           paint();
         },
+        onEditLabel(pressed) {
+          // 家族は id を持たないので**親の名前**で指す（`familyAnchor` の約束）。番号で指すと、
+          // 家族を 1 件消したときに後ろが繰り上がり、書き込む先が黙って別の家族へ移る。
+          const family = model.source.families[pressed];
+          if (family === undefined) return;
+          startLineLabel(familyAnchor(family.parents));
+        },
       });
       edgeViews.push(edgeView);
       edgesSvg.appendChild(edgeView.root);
@@ -1262,6 +1372,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
           if (!additive) selectedFamilies = [];
           paint();
         },
+        onEditLabel: (pressed) => startLineLabel(lineAnchor(pressed)),
       });
       linkViews.set(link.connector.id, linkView);
       linksSvg.appendChild(linkView.root);
@@ -1297,6 +1408,13 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     setClass(gridSvg, 'anytime-diagram-hidden', !editing);
     gridPath.setAttribute('d', model.freeCells);
 
+    /*
+      閲覧中に要素を選んだら、**関連箇所だけを残して他を薄くする**（ユーザー指示）。
+
+      要素ごと消さずに薄くするのは、消すと図の骨格（どこに何が在ったか）まで失われ、選んだ
+      要素が広い余白に 1 つ浮くため。編集中は当てない — 編集は図の全体を見ながら行う。
+    */
+    const related = !editing && picked.size > 0 ? relatedTo(model.source, chosen()) : null;
     // 選んだ家族に出る人物。複数選んだら**和**を取る（選んだどれかに出る人は薄くしない）。
     const selectedPeople = selectedFamilies.length === 0 ? null : new Set(
       selectedFamilies.flatMap((index) => {
@@ -1311,7 +1429,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         connector,
         scale: view.scale,
         selected: selectedFamilies.includes(index),
-        dimmed: anyLineSelected() && !selectedFamilies.includes(index),
+        dimmed: (anyLineSelected() && !selectedFamilies.includes(index))
+          || (related !== null && !related.families.has(index)),
       });
     }
     for (const link of model.links) {
@@ -1323,7 +1442,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         }),
         scale: view.scale,
         selected: selectedConnectors.includes(link.connector.id),
-        dimmed: anyLineSelected() && !selectedConnectors.includes(link.connector.id),
+        dimmed: (anyLineSelected() && !selectedConnectors.includes(link.connector.id))
+          || (related !== null && !related.links.has(link.connector.id)),
       });
     }
     // 引いている最中の仮の線。始点は札の縁ではなく中心から出す（相手が決まるまで縁が定まらない）。
@@ -1339,7 +1459,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         spacing: model.spacing,
         editing,
         picked: picked.has(node.name),
-        dimmed: selectedPeople !== null && !selectedPeople.has(node.name),
+        dimmed: (selectedPeople !== null && !selectedPeople.has(node.name))
+          || (related !== null && !related.names.has(node.name)),
         moved: node.name in model.placements,
         shape: diagramShapeOf(model.source, node.name),
         isAnchor: node.name === model.resizeAnchor,
@@ -1358,7 +1479,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       spacing: model.spacing, extent: model.extent, surface: model.surface, editing, saving,
     });
     const groupFamily = editingGroups === null ? undefined : model.source.families[editingGroups];
-    groupBar.update({
+    groupDialog.update({
       saving,
       selection: !editing || groupFamily === undefined ? null : {
         label: tr('groupsFor', { parents: groupFamily.parents.join('・') }),
@@ -1367,7 +1488,33 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       },
     });
     midpoints.update({ midpoints: model.midpoints, editing, saving, connectSource });
+    // 字は閲覧中も出す（図の中身なので）。書き換え口だけが編集中に開く。
+    lineLabels.update({
+      midpoints: model.midpoints,
+      editing,
+      saving,
+      labelling: editing ? labelling : null,
+      // 字も線と一緒に薄くする（線が消えかけているのに字だけが濃く残ると、どの線のものか読めない）。
+      focusKeys: related?.lineKeys ?? null,
+    });
     viewControls.update({ scale: view.scale, minScale: MIN_SCALE, maxScale: MAX_SCALE });
+    /*
+      ミニマップの線は**全部を 1 本の経路にまとめて**渡す（部分経路は互いに独立なので、1 つの
+      `d` に並べても形が変わらない）。線 1 本ごとに要素を持たせると、図を動かしている間じゅう
+      線の数ぶんの属性を書き換えることになる。
+    */
+    const minimapLines = [
+      ...model.connectors.flatMap((connector) => [connector.marriage, connector.descent]),
+      ...model.links.map((link) => link.geometry.path),
+    ].filter((path): path is string => path !== null).join(' ');
+    minimap.update({
+      nodes: model.chart.nodes,
+      spacing: model.spacing,
+      lines: minimapLines,
+      surface: model.surface,
+      view,
+      frame,
+    });
     // 見え方の操作の区画（枠の左上）と重なる ＋／− は描かない。重ねると上に載っているほうが
     // 押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
     const blocked = blockedBoxes();

@@ -1246,17 +1246,17 @@ describe('中段（群の札）から値を選び直す', () => {
   const groupLine = (name: string, index = 0): HTMLElement =>
     [...container.querySelectorAll<HTMLElement>(`[data-person="${name}"] .anytime-diagram-group`)]
       .filter((line) => !line.classList.contains('anytime-diagram-hidden'))[index]!;
-  const bar = (): HTMLElement => container.querySelector('.anytime-diagram-groupbar')!;
+  const bar = (): HTMLElement => container.querySelector('.anytime-diagram-groupdialog')!;
 
-  it('ふだんは帯を出さない', () => {
+  it('ふだんはダイアログを出さない', () => {
     start();
-    expect(bar().classList).toContain('anytime-diagram-hidden');
+    expect(bar().classList).not.toContain('is-open');
   });
 
   it('中段をダブルクリックすると、その行の家族の軸が並ぶ', () => {
     start();
     groupLine('祖父').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    expect(bar().classList).not.toContain('anytime-diagram-hidden');
+    expect(bar().classList).toContain('is-open');
     expect(bar().textContent).toContain('祖父・祖母');
     const selects = [...bar().querySelectorAll<HTMLSelectElement>('select')];
     expect(selects).toHaveLength(2);
@@ -1297,15 +1297,17 @@ describe('中段（群の札）から値を選び直す', () => {
     expect(view.getDraft()!.families[0]!.groups).toEqual({ volume: 'one' });
   });
 
-  it('軸を宣言していない図では開かず、理由を出す', () => {
-    start(DOC);
-    const line = container.querySelector<HTMLElement>('[data-person="祖父"] .anytime-diagram-group');
-    // DOC は軸を 1 本持つが値が付かない家族もある。軸ゼロの図を作って確かめる。
-    mount({ document: { ...DOC, groups: [] }, editable: true, onSave: () => {} });
-    byLabel('編集に切り替える')!.click();
-    expect(line).not.toBeNull();
-    expect(container.querySelector('.anytime-diagram-groupbar')!.classList)
-      .toContain('anytime-diagram-hidden');
+  /*
+    軸を 1 本も持たない図でも開く。かつては理由を出して開かなかったが、ダイアログが語彙そのもの
+    を編集できるようになった以上、軸の無い図こそここから作り始める場所になる。
+  */
+  it('軸を持たない図でも開き、そこから軸を作れる', () => {
+    const view = start({ ...WITH_AXES, groups: [] });
+    groupLine('祖父').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(bar().classList).toContain('is-open');
+    expect(bar().textContent).toContain('軸を足す');
+    byText('軸を足す')!.click();
+    expect(view.getDraft()!.groups).toEqual([{ id: 'g1', label: '新しい軸', values: {} }]);
   });
 });
 
@@ -1343,15 +1345,14 @@ describe('ポインタ捕捉で target が札へ化けても段を取り違え�
     expect(shown('父', '.anytime-diagram-rename')).toBe(false);
   });
 
-  it('中段の上で離したなら群の帯が開く', () => {
+  it('中段の上で離したなら群のダイアログが開く', () => {
     startEditing({
       ...DOC,
       groups: [{ id: 'volume', label: '巻', values: { one: '上巻' } }],
       families: [{ parents: ['祖父', '祖母'], children: ['父'], kind: 'birth', groups: { volume: 'one' } }],
     });
     dblclickAsCaptured('祖父', container.querySelector('[data-person="祖父"] .anytime-diagram-group')!);
-    expect(container.querySelector('.anytime-diagram-groupbar')!.classList)
-      .not.toContain('anytime-diagram-hidden');
+    expect(container.querySelector('.anytime-diagram-groupdialog')!.classList).toContain('is-open');
     expect(shown('祖父', '.anytime-diagram-rename')).toBe(false);
   });
 
@@ -1359,5 +1360,362 @@ describe('ポインタ捕捉で target が札へ化けても段を取り違え�
     startEditing();
     dblclickAsCaptured('父', container.querySelector('[data-person="父"] strong')!);
     expect(shown('父', '.anytime-diagram-rename')).toBe(true);
+  });
+});
+
+describe('群の語彙をダイアログから編集する', () => {
+  const WITH_AXES: DiagramDocument = {
+    ...DOC,
+    groups: [{ id: 'volume', label: '巻', values: { one: '上巻', two: '中巻' } }],
+    families: [
+      { parents: ['祖父', '祖母'], children: ['父'], kind: 'birth', groups: { volume: 'one' } },
+      { parents: ['父', '母'], children: ['子'], kind: 'birth', groups: { volume: 'two' } },
+    ],
+  };
+  const open = (document_ = WITH_AXES): DiagramViewerHandle => {
+    const view = mount({ document: document_, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector<HTMLElement>('[data-person="祖父"] .anytime-diagram-group')!
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    return view;
+  };
+  const dialog = (): HTMLElement => container.querySelector('.anytime-diagram-groupdialog')!;
+  const axisName = (index = 0): HTMLInputElement =>
+    [...dialog().querySelectorAll<HTMLInputElement>('.anytime-diagram-groupaxis-head > input')][index]!;
+  const valueName = (index = 0): HTMLInputElement =>
+    [...dialog().querySelectorAll<HTMLInputElement>('.anytime-diagram-groupvalue > input')][index]!;
+  const type = (input: HTMLInputElement, text: string): void => {
+    input.value = text;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  it('軸と選択肢を字のまま出す（宣言から作る）', () => {
+    open();
+    expect(axisName().value).toBe('巻');
+    expect([...dialog().querySelectorAll<HTMLInputElement>('.anytime-diagram-groupvalue > input')]
+      .map((input) => input.value)).toEqual(['上巻', '中巻']);
+  });
+
+  it('軸の名前を書き換えても、家族の持つ値は指し先を失わない', () => {
+    const view = open();
+    type(axisName(), '巻数');
+    expect(view.getDraft()!.groups[0]).toEqual({ id: 'volume', label: '巻数', values: { one: '上巻', two: '中巻' } });
+    expect(view.getDraft()!.families[0]!.groups).toEqual({ volume: 'one' });
+  });
+
+  it('空の名前は断り、理由を出す（黙って元へ戻さない）', () => {
+    const view = open();
+    type(axisName(), '   ');
+    expect(view.getDraft()!.groups[0]!.label).toBe('巻');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('名前は空にできません');
+  });
+
+  it('選択肢を足すと、その軸の選び口にも並ぶ', () => {
+    const view = open();
+    byText('選択肢を足す')!.click();
+    expect(view.getDraft()!.groups[0]!.values).toEqual({ one: '上巻', two: '中巻', v1: '新しい選択肢' });
+    expect([...dialog().querySelectorAll<HTMLSelectElement>('select')][0]!.options).toHaveLength(4);
+  });
+
+  it('選択肢の名前を書き換えても鍵は変わらない（札の字だけが変わる）', () => {
+    const view = open();
+    type(valueName(), '上つ巻');
+    expect(view.getDraft()!.groups[0]!.values.one).toBe('上つ巻');
+    expect(view.getDraft()!.families[0]!.groups).toEqual({ volume: 'one' });
+    expect(container.querySelector('[data-person="祖父"] .anytime-diagram-group')?.textContent).toBe('上つ巻');
+  });
+
+  it('選択肢を取り除くと、それを選んでいた家族からも落ちる', () => {
+    const view = open();
+    byLabel('この選択肢を取り除く')!.click();
+    expect(view.getDraft()!.groups[0]!.values).toEqual({ two: '中巻' });
+    expect(view.getDraft()!.families[0]!.groups).toEqual({});
+    expect(view.getDraft()!.families[1]!.groups).toEqual({ volume: 'two' });
+  });
+
+  it('軸を取り除くと、全部の家族から値が落ちる', () => {
+    const view = open();
+    byLabel('この軸を取り除く')!.click();
+    expect(view.getDraft()!.groups).toEqual([]);
+    expect(view.getDraft()!.families.map((family) => family.groups)).toEqual([{}, {}]);
+  });
+
+  /*
+    語彙だけを直した状態で保存が押せるか。`documentChanged` が groups を見ていなかった頃は、
+    軸や選択肢だけ直した図が「変更なし」になり、編集を終うときに黙って捨てられていた。
+  */
+  it('語彙だけを直しても「変更あり」になる（保存が押せる）', () => {
+    open();
+    expect(byText('保存')!.disabled).toBe(true);
+    type(axisName(), '巻数');
+    expect(byText('保存')!.disabled).toBe(false);
+  });
+
+  it('閉じるとダイアログが畳まれる', () => {
+    open();
+    byLabel('群の編集を閉じる')!.click();
+    expect(dialog().classList).not.toContain('is-open');
+  });
+});
+
+describe('線に添える字', () => {
+  const WITH_LINK: DiagramDocument = {
+    ...DOC,
+    nodes: ['独神', '化生'],
+    connectors: [{
+      id: 'c1', from: { kind: 'element', name: '独神' }, to: { kind: 'element', name: '化生' },
+      line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'arrow',
+    }],
+  };
+  const chips = (): readonly HTMLElement[] =>
+    [...container.querySelectorAll<HTMLElement>('.anytime-diagram-linelabel')]
+      .filter((chip) => !chip.classList.contains('anytime-diagram-hidden'));
+  const input = (): HTMLInputElement => container.querySelector('.anytime-diagram-linelabel-input')!;
+  const open = (): boolean => !input().classList.contains('anytime-diagram-hidden');
+  const familyLine = (): SVGPathElement => container.querySelector('.anytime-diagram-edges .edge-spouse')!;
+  const drawnLine = (): SVGPathElement => container.querySelector('.anytime-diagram-links .link-hit')!;
+  const startEditing = (document_ = WITH_LINK): DiagramViewerHandle => {
+    const view = mount({ document: document_, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const commit = (text: string): void => {
+    input().value = text;
+    input().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  };
+
+  it('字を持つ線には閲覧中も字が出る（図の中身なので編集の道具ではない）', () => {
+    mount({ document: { ...WITH_LINK, connectors: [{ ...WITH_LINK.connectors[0]!, label: '生成' }] } });
+    expect(chips().map((chip) => chip.textContent)).toEqual(['生成']);
+    expect(open()).toBe(false);
+  });
+
+  it('閲覧中はダブルクリックしても書き換え口が開かない', () => {
+    mount({ document: WITH_LINK });
+    familyLine().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(open()).toBe(false);
+  });
+
+  it('家族の線をダブルクリックすると中点で字を打てる', () => {
+    const view = startEditing();
+    familyLine().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(open()).toBe(true);
+    commit('婚姻');
+    expect(view.getDraft()!.families[0]!.label).toBe('婚姻');
+    expect(chips().map((chip) => chip.textContent)).toContain('婚姻');
+    expect(open()).toBe(false);
+  });
+
+  it('手で引いた線でも同じ口で打てる', () => {
+    const view = startEditing();
+    drawnLine().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    commit('生成');
+    expect(view.getDraft()!.connectors[0]!.label).toBe('生成');
+  });
+
+  it('焦点を当てて F2 でも開く（画面を見ない利用者にはダブルクリックが届かない）', () => {
+    startEditing();
+    drawnLine().dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true }));
+    expect(open()).toBe(true);
+  });
+
+  it('空にすると字そのものが落ちる', () => {
+    const view = startEditing({
+      ...WITH_LINK,
+      connectors: [{ ...WITH_LINK.connectors[0]!, label: '生成' }],
+    });
+    drawnLine().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    commit('  ');
+    expect('label' in view.getDraft()!.connectors[0]!).toBe(false);
+    expect(chips()).toHaveLength(0);
+  });
+
+  it('Escape では書き換えない', () => {
+    const view = startEditing();
+    familyLine().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    input().value = '婚姻';
+    input().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(view.getDraft()!.families[0]!.label).toBeUndefined();
+    expect(open()).toBe(false);
+  });
+});
+
+describe('値をまだ持たない家族の中段', () => {
+  /*
+    群を付けていない家族には、かつて押す場所そのものが無かった（行を落としていた）。軸を 1 本も
+    持たない図では、そこから群の編集へ入る道が画面から消える。注記の枠を空でも残すことにしたのと
+    同じ扱いに揃えてある。
+  */
+  const NO_GROUPS: DiagramDocument = { ...DOC, groups: [] };
+  const lines = (name: string): readonly HTMLElement[] =>
+    [...container.querySelectorAll<HTMLElement>(`[data-person="${name}"] .anytime-diagram-group`)]
+      .filter((line) => !line.classList.contains('anytime-diagram-hidden'));
+
+  it('閲覧中は出さない（図を静かに保つ）', () => {
+    mount({ document: NO_GROUPS });
+    expect(lines('祖父')).toHaveLength(0);
+  });
+
+  it('編集中は薄い誘い文として出し、そこから群の編集へ入れる', () => {
+    mount({ document: NO_GROUPS, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    const line = lines('祖父')[0]!;
+    expect(line.textContent).toBe('群を選ぶ');
+    expect(line.classList).toContain('is-placeholder');
+    line.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(container.querySelector('.anytime-diagram-groupdialog')!.classList).toContain('is-open');
+  });
+});
+
+describe('線の中点の取っ手からも字を打てる', () => {
+  /*
+    取っ手は線の中点に載っているので、**線の真ん中を狙った押下は必ず取っ手へ来る**（実機で観測。
+    線をダブルクリックしたつもりが、取っ手が先に受け取って線を引き始めていた）。線の上のどこを
+    叩いても同じことが起きるよう、取っ手からも同じ口を呼ぶ。
+  */
+  it('取っ手をダブルクリックすると書き換え口が開き、引きかけの線は畳まれる', () => {
+    const view = mount({ document: DOC, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    const handle = container.querySelector<HTMLElement>('.anytime-diagram-midpoint')!;
+    // キーボードからの押下（detail 0）で始点を立ててから叩く。
+    handle.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
+    expect(container.querySelectorAll('.is-connect-source').length).toBeGreaterThan(0);
+    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    const input = container.querySelector('.anytime-diagram-linelabel-input')!;
+    expect(input.classList).not.toContain('anytime-diagram-hidden');
+    expect(container.querySelectorAll('.is-connect-source')).toHaveLength(0);
+    expect(view.getDraft()).not.toBeNull();
+  });
+});
+
+describe('ミニマップ', () => {
+  const map = (): SVGSVGElement => container.querySelector('.anytime-diagram-minimap-map')!;
+
+  it('図の全体を 1 枚に描き、見え方の操作を同じ札の中へ入れる', () => {
+    mount();
+    expect(map()).not.toBeNull();
+    // 札の数だけ長方形を描く（線は 1 本の経路にまとめる）。
+    expect(map().querySelectorAll('.minimap-nodes rect')).toHaveLength(5);
+    expect(map().querySelector('.minimap-lines')?.getAttribute('d')).not.toBeNull();
+    // 拡大・縮小などの操作はミニマップの中に在る（枠の左上で 2 つの札に分かれない）。
+    expect(container.querySelector('.anytime-diagram-minimap .anytime-diagram-viewcontrols')).not.toBeNull();
+  });
+
+  it('いま見えている範囲を図の座標で描く', () => {
+    mount();
+    const seen = map().querySelector('.minimap-view')!;
+    expect(seen.getAttribute('width')).not.toBe('0');
+  });
+
+  /*
+    ミニマップ上の囲みは pointer 系で受ける。jsdom は `setPointerCapture` も座標も持たないので、
+    ここでは**呼び分け**（囲んだら倍率が変わる／叩いたら変わらない）だけを測る。囲んだ範囲から
+    見え方を出す計算そのものは `@anytime-markdown/diagram-core` の `viewForRect` で測ってある。
+  */
+  const pointer = (type: string, x: number, y: number): PointerEvent =>
+    new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }) as PointerEvent;
+
+  it('囲むと倍率が変わり、軽く叩いただけでは変わらない', () => {
+    mount();
+    const element = map();
+    element.setPointerCapture = () => {};
+    element.hasPointerCapture = () => false;
+    element.releasePointerCapture = () => {};
+    const zoom = (): string => container.querySelector('.anytime-diagram-zoomlevel')!.textContent!;
+    const before = zoom();
+    // 叩く（動かさずに離す）。
+    element.dispatchEvent(pointer('pointerdown', 20, 20));
+    element.dispatchEvent(pointer('pointerup', 20, 20));
+    expect(zoom()).toBe(before);
+    // 囲む。jsdom では枠の実寸が 0 なので倍率は下限へ張り付く — 変わったことだけを見る。
+    element.dispatchEvent(pointer('pointerdown', 0, 0));
+    element.dispatchEvent(pointer('pointermove', 60, 40));
+    element.dispatchEvent(pointer('pointerup', 60, 40));
+    expect(zoom()).not.toBe(before);
+  });
+});
+
+describe('閲覧中に要素を選ぶと関連箇所だけが濃く残る', () => {
+  const WITH_LINK: DiagramDocument = {
+    ...DOC,
+    nodes: ['独神', '化生'],
+    connectors: [{
+      id: 'c1', from: { kind: 'element', name: '独神' }, to: { kind: 'element', name: '化生' },
+      line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'arrow',
+    }],
+  };
+  const card = (name: string): HTMLElement => container.querySelector(`[data-person="${name}"]`)!;
+  const dimmed = (name: string): boolean => card(name).classList.contains('is-node-dimmed');
+
+  it('ふだんは誰も薄くしない', () => {
+    mount({ document: WITH_LINK });
+    expect(['祖父', '父', '独神'].map(dimmed)).toEqual([false, false, false]);
+  });
+
+  it('選んだ要素と、その家族・線の相手だけが残る', () => {
+    mount({ document: WITH_LINK });
+    card('祖父').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // 「祖父」の家族（祖父・祖母 → 父）は関連。「母」「子」「独神」は関連ではない。
+    expect(['祖父', '祖母', '父'].map(dimmed)).toEqual([false, false, false]);
+    expect(['母', '子', '独神'].map(dimmed)).toEqual([true, true, true]);
+    // 家族の線も、関わらない 1 本は薄くなる。
+    const edges = [...container.querySelectorAll('.anytime-diagram-edges > g')];
+    expect(edges.map((edge) => edge.classList.contains('is-line-dimmed'))).toEqual([false, true]);
+    // 手で引いた線も同じ（この選択には関わらない）。
+    expect(container.querySelector('.anytime-diagram-links > g')?.classList).toContain('is-line-dimmed');
+  });
+
+  it('手で引いた線の相手も関連に入る', () => {
+    mount({ document: WITH_LINK });
+    card('独神').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(['独神', '化生'].map(dimmed)).toEqual([false, false]);
+    expect(container.querySelector('.anytime-diagram-links > g')?.classList).not.toContain('is-line-dimmed');
+    expect(dimmed('祖父')).toBe(true);
+  });
+
+  it('図の地を押すと絞り込みが解ける', () => {
+    mount({ document: WITH_LINK });
+    card('祖父').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(dimmed('母')).toBe(true);
+    container.querySelector('.anytime-diagram-viewport')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    expect(dimmed('母')).toBe(false);
+  });
+
+  it('編集中は絞り込まない（図の全体を見ながら直すため）', () => {
+    mount({ document: WITH_LINK, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    card('祖父').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(dimmed('独神')).toBe(false);
+  });
+});
+
+describe('群のダイアログの焦点', () => {
+  /*
+    開いたとたんに既にある選択肢へ焦点が飛ぶと、字が選ばれた状態になり、打鍵 1 つでその名前が
+    消える（実機で観測）。焦点を移すのは**この操作で足りた行**だけ。
+  */
+  const WITH_VALUES: DiagramDocument = {
+    ...DOC,
+    groups: [{ id: 'volume', label: '巻', values: { one: '上巻', two: '中巻' } }],
+  };
+  const open = (): void => {
+    mount({ document: WITH_VALUES, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector<HTMLElement>('[data-person="祖父"] .anytime-diagram-group')!
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+  };
+  const inputs = (): readonly HTMLInputElement[] =>
+    [...container.querySelectorAll<HTMLInputElement>('.anytime-diagram-groupvalue > input')];
+
+  it('開いただけでは既にある選択肢へ焦点を移さない', () => {
+    open();
+    expect(inputs().some((input) => document.activeElement === input)).toBe(false);
+  });
+
+  it('足した選択肢へは焦点を移す（既定の名前をそのまま打ち替えられる）', () => {
+    open();
+    byText('選択肢を足す')!.click();
+    expect(document.activeElement).toBe(inputs()[2]);
   });
 });

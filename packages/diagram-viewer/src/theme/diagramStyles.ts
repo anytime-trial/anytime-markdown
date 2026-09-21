@@ -606,6 +606,12 @@ export const DIAGRAM_STYLES = `
   text-decoration: underline dashed color-mix(in srgb, var(--diagram-accent) 60%, transparent);
   text-underline-offset: 2px;
 }
+/* 値をまだ持たない行の誘い文。注記の誘い文と同じ薄さにする（同じ意味の場所なので）。 */
+.anytime-diagram-group.is-placeholder {
+  color: color-mix(in srgb, var(--diagram-fg) 38%, transparent);
+  border-bottom: 1px dashed color-mix(in srgb, var(--diagram-fg) 22%, transparent);
+}
+.anytime-diagram-group.is-placeholder:hover { color: var(--diagram-accent); border-bottom-color: var(--diagram-accent); }
 
 .anytime-diagram-error { color: var(--diagram-danger); }
 /*
@@ -641,11 +647,12 @@ export const DIAGRAM_STYLES = `
   縁のアイコン（z-index 1）より上に置く。両方が上端・左端へ集まるので、下にすると操作の区画が
   ＋ に隠れる。代わりに、この区画と重なる ＋ は描かない（\`ui/gutter.ts\` の \`covered\`）。
 */
+/*
+  枠と地は**ミニマップの札が持つ**（この区画はその中に入っている）。二重に枠を描かない。
+  かつてはこれ自身が枠の左上へ浮いていたが、全体の絵と同じ場所へ集めた（ユーザー指示）。
+*/
 .anytime-diagram-viewcontrols {
-  position: absolute; top: 8px; left: 8px; z-index: 2;
-  display: flex; align-items: center; gap: 2px; padding: 2px;
-  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
-  background: var(--diagram-raised);
+  display: flex; align-items: center; gap: 2px;
 }
 .anytime-diagram-viewcontrols button {
   display: flex; align-items: center; justify-content: center;
@@ -677,5 +684,118 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-confirm-box button {
   background: var(--diagram-bg); color: var(--diagram-fg); border: 1px solid var(--diagram-border);
   border-radius: var(--diagram-radius); padding: 6px 12px; font: inherit; cursor: pointer;
+}
+
+/*
+  群を編集するダイアログ。確認の覆いと同じ作り（既定は none、出すときだけ \`is-open\`）。
+
+  枠いっぱいの覆いにするのは、語彙を触っている間は図の操作を受け付けないため — 軸を消した
+  そばから札を掴めると、いま何が変わったのかを見比べる前に図が動く。
+*/
+.anytime-diagram-groupdialog {
+  position: absolute; inset: 0; z-index: 3; display: none;
+  background: color-mix(in srgb, var(--diagram-bg) 70%, transparent);
+}
+.anytime-diagram-groupdialog.is-open { display: flex; align-items: center; justify-content: center; }
+.anytime-diagram-groupdialog-box {
+  width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto;
+  padding: 12px 16px; font-size: 12px;
+  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
+  background: var(--diagram-raised);
+}
+.anytime-diagram-groupdialog-head { display: flex; align-items: center; gap: 8px; }
+.anytime-diagram-groupdialog-head h3 { flex: 1; margin: 0; font-size: 1em; }
+.anytime-diagram-groupdialog-empty { margin: 8px 0; color: var(--diagram-muted); }
+.anytime-diagram-groupaxis {
+  margin: 12px 0; padding: 8px;
+  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
+}
+.anytime-diagram-groupaxis-head { display: flex; align-items: center; gap: 8px; }
+.anytime-diagram-groupaxis-head > input { flex: 1 1 6em; min-width: 0; }
+.anytime-diagram-groupaxis-pick { display: flex; align-items: center; gap: 4px; color: var(--diagram-muted); }
+.anytime-diagram-groupvalues { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.anytime-diagram-groupvalue { display: flex; align-items: center; gap: 8px; }
+.anytime-diagram-groupvalue > input { flex: 1; min-width: 0; }
+.anytime-diagram-groupdialog input,
+.anytime-diagram-groupdialog select {
+  padding: 3px 6px; font: inherit; font-size: 12px;
+  color: var(--diagram-fg); background: var(--diagram-bg);
+  border: 1px solid var(--diagram-border); border-radius: 4px;
+}
+.anytime-diagram-groupdialog button {
+  padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer;
+  color: var(--diagram-fg); background: var(--diagram-bg);
+  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
+}
+.anytime-diagram-groupdialog button:hover:not(:disabled) {
+  color: var(--diagram-accent); border-color: var(--diagram-accent);
+}
+.anytime-diagram-groupdialog button:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: 1px; }
+.anytime-diagram-groupdialog button:disabled { opacity: 0.45; cursor: default; }
+.anytime-diagram-groupdialog-foot { display: flex; justify-content: flex-end; }
+
+/*
+  線に添える字。**図の面へ載せる**ので、平行移動や拡大では図と一緒に動く。
+
+  既定では押下を素通りさせる（\`pointer-events: none\`）。字が線の上に浮いているので、通すと
+  閲覧中に線そのものを押せない場所ができる。編集中だけ \`is-editable\` で受け取る。
+*/
+.anytime-diagram-linelabels { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.anytime-diagram-linelabel {
+  position: absolute; max-width: 180px; transform: translate(-50%, -160%);
+  overflow: hidden; padding: 1px 5px; font-size: 11px; line-height: 1.5;
+  white-space: nowrap; text-overflow: ellipsis;
+  color: var(--diagram-fg);
+  background: color-mix(in srgb, var(--diagram-raised) 88%, transparent);
+  border: 1px solid var(--diagram-border); border-radius: 4px;
+}
+.anytime-diagram-linelabel.is-line-dimmed { opacity: 0.12; }
+.anytime-diagram-linelabel.is-editable { pointer-events: auto; cursor: text; }
+.anytime-diagram-linelabel.is-editable:hover { color: var(--diagram-accent); border-color: var(--diagram-accent); }
+/* 書き換え口。名札・注記と同じ作りで、置く場所だけが線の中点になる。 */
+.anytime-diagram-linelabel-input {
+  position: absolute; width: 140px; transform: translate(-50%, -160%); pointer-events: auto;
+  padding: 1px 3px; font: inherit; font-size: 11px; text-align: center;
+  color: var(--diagram-fg); background: var(--diagram-raised);
+  border: 1px solid var(--diagram-accent); border-radius: 4px;
+}
+
+/*
+  ミニマップ。**図の枠の左上**へ浮かせ、中に見え方の操作を抱える。
+
+  縁のアイコン（z-index 1）より上に置く。両方が左上へ集まるので、下にすると全体図が ＋ に
+  隠れる。代わりに、この区画と重なる ＋ は描かない（\`blockedBoxes\`）。
+*/
+.anytime-diagram-minimap {
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  display: flex; flex-direction: column; gap: 4px; padding: 4px;
+  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
+  background: var(--diagram-raised);
+}
+/* 図の全体。掴んで囲む面なので、指の押下をブラウザのスクロールに取られないようにする。 */
+.anytime-diagram-minimap-map {
+  display: block; cursor: crosshair; touch-action: none;
+  background: var(--diagram-bg); border-radius: 3px;
+}
+.anytime-diagram-minimap-controls { display: flex; justify-content: center; }
+/* 札は塗りだけ（縁を描くと、縮んだ図では隣どうしが 1 つの塊に見える）。 */
+.anytime-diagram-minimap-map .minimap-nodes rect {
+  fill: color-mix(in srgb, var(--diagram-fg) 45%, transparent);
+}
+/*
+  線は**縮めても太さを保つ**（\`non-scaling-stroke\`）。図の座標のまま描いているので、
+  指定しないと線幅まで数十分の 1 に縮んで消える。
+*/
+.anytime-diagram-minimap-map .minimap-lines {
+  fill: none; stroke: var(--diagram-muted); stroke-width: 1; vector-effect: non-scaling-stroke;
+}
+.anytime-diagram-minimap-map .minimap-view {
+  fill: color-mix(in srgb, var(--diagram-accent) 14%, transparent);
+  stroke: var(--diagram-accent); stroke-width: 1; vector-effect: non-scaling-stroke;
+}
+.anytime-diagram-minimap-map .minimap-band {
+  fill: color-mix(in srgb, var(--diagram-accent) 22%, transparent);
+  stroke: var(--diagram-accent); stroke-width: 1; stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
 }
 `;
