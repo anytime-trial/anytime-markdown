@@ -10,3 +10,5 @@ tsconfig.webview.json
 package-lock.json
 **/*.map
 **/*.ts
+jest.config.js
+coverage/**
