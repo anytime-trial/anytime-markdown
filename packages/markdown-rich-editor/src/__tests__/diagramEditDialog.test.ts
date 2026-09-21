@@ -51,6 +51,9 @@ it("JSON テキストのペインを出さず実系図を残り領域に描く",
   expect(container?.contains(root)).toBe(true);
   expect(container?.style.flex).toBe("1 1 auto");
   expect(container?.style.minHeight).toBe("0");
+  // 入れ物が block だと、残りの高さを受け取っても中身が伸びず下半分が空く。
+  expect(container?.style.display).toBe("flex");
+  expect(container?.style.flexDirection).toBe("column");
   expect(viewerOptions()).toMatchObject({ editable: true, compact: true });
   expect(viewerOptions()).not.toHaveProperty("locale");
   expect(dialog.el.querySelector("#diagram-edit-title")?.textContent).toContain("⋔");

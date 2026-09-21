@@ -48,7 +48,13 @@ export function createDiagramEditDialog(opts: CreateDiagramEditDialogOptions): D
   dlg.paper.appendChild(header.el);
 
   const container = document.createElement("div");
-  container.style.cssText = "flex:1 1 auto;min-height:0;";
+  /*
+    **入れ物自身も縦の flex にする。** `flex:1 1 auto` で残りの高さを受け取るのは入れ物だが、
+    中身（`.anytime-diagram`）も `flex:1 1 auto` で伸びる作りなので、入れ物が block のままだと
+    伸びる相手が居ない。図は中身の高さ（枠の最小 240px）で止まり、ダイアログの下半分が
+    空いたまま残る（ユーザー指摘）。
+  */
+  container.style.cssText = "flex:1 1 auto;min-height:0;display:flex;flex-direction:column;";
   container.style.colorScheme = opts.isDark ? "dark" : "light";
   dlg.paper.appendChild(container);
 
