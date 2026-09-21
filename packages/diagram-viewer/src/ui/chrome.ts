@@ -202,8 +202,9 @@ export function createConfirmView(
   t: DiagramT,
   onConfirm: (kind: 'discard' | 'reset') => void,
 ): ConfirmView {
+  // 出す・出さないは `is-open` だけで決める（スタイルシート側の既定は none）。
   const root = el(doc, 'div', {
-    className: 'anytime-diagram-confirm anytime-diagram-hidden',
+    className: 'anytime-diagram-confirm',
     attrs: { role: 'dialog', 'aria-modal': 'true' },
   });
   const box = el(doc, 'div', { className: 'anytime-diagram-confirm-box' });
@@ -223,7 +224,7 @@ export function createConfirmView(
   let current: 'discard' | 'reset' | null = null;
   function hide(): void {
     current = null;
-    root.classList.add('anytime-diagram-hidden');
+    root.classList.remove('is-open');
   }
 
   return {
@@ -235,7 +236,7 @@ export function createConfirmView(
       confirm.textContent = kind === 'discard' ? t('discardConfirm') : t('resetConfirm');
       cancel.textContent = t('cancel');
       root.setAttribute('aria-label', heading.textContent);
-      root.classList.remove('anytime-diagram-hidden');
+      root.classList.add('is-open');
       confirm.focus();
     },
     hide,

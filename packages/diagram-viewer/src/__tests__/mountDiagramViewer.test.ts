@@ -225,6 +225,44 @@ describe('行・列を増減できない図', () => {
   });
 });
 
+/**
+ * 図の上に何も被せない。
+ *
+ * 確認の覆いが出たままだと、図はそのまま見えている（地色が 70% 混ざるだけ）のに人物も縁の
+ * アイコンも押せなくなる。背景のドラッグだけは覆いから親へ上がって効くので、「表示は正しいが
+ * 編集だけできない」という読み取りにくい壊れ方をする。
+ *
+ * **クラスの有無ではなく `display` で測る。** クラスを見るだけの検査は、隠す指定が別の規則に
+ * 競り負けても通ってしまう（実際にそれで見落とした）。
+ */
+describe('図を覆うもの', () => {
+  const confirmOverlay = () => container.querySelector('.anytime-diagram-confirm') as HTMLElement;
+
+  it('確認していない間、覆いは描かれない', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(getComputedStyle(confirmOverlay()).display).toBe('none');
+  });
+
+  it('編集に入っても覆いは描かれない（人物と縁のアイコンに手が届く）', () => {
+    mount({ editable: true, onSave: () => {} });
+    byText('配置を編集')!.click();
+    expect(getComputedStyle(confirmOverlay()).display).toBe('none');
+  });
+
+  it('確認を出したときだけ覆いが描かれ、閉じると戻る', () => {
+    mount({
+      document: { ...DOC, layout: { placements: { 子: { column: 4, row: 3 } } } },
+      editable: true,
+      onSave: () => {},
+    });
+    byText('配置を編集')!.click();
+    byText('自動配置に戻す')!.click();
+    expect(getComputedStyle(confirmOverlay()).display).toBe('flex');
+    byText('やめる')!.click();
+    expect(getComputedStyle(confirmOverlay()).display).toBe('none');
+  });
+});
+
 describe('後片付け', () => {
   it('destroy で描いたものをすべて外す', () => {
     mount();

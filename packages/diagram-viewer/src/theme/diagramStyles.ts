@@ -218,17 +218,38 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-gutter .is-remove { border-style: dashed; }
 
 .anytime-diagram-error { color: var(--diagram-danger); }
-.anytime-diagram-hidden { display: none; }
+/*
+  隠す指定は**詳細度で勝たせる**（クラス 2 つ）。
+
+  クラス 1 つ同士（\`.anytime-diagram-hidden\` と \`.anytime-diagram-confirm\`）では、後に書いたほうが
+  勝つ。確認の覆いは \`display: flex\` を後段で宣言しているので、隠したつもりの覆いが枠いっぱいに
+  出たままになり、図の上に 70% の地色を重ねて**人物も縁のアイコンも押せなくなっていた**
+  （背景のドラッグだけは覆いから親へ上がるので効き、気づきにくい）。
+
+  順序で直すと、次に何かを足した人が同じ罠へ落ちる。詳細度で勝たせれば書く場所に依らない。
+*/
+.${DIAGRAM_ROOT_CLASS} .anytime-diagram-hidden { display: none; }
 .anytime-diagram-visually-hidden {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
 /* 確認（破棄・全解除）。宿主のダイアログを借りず、図の中だけで完結させる。 */
+/*
+  確認の覆いは **既定を「出さない」側に置く**。表に出すときだけ \`is-open\` を足す。
+
+  以前は \`display: flex\` を無条件に宣言し、隠すのを \`anytime-diagram-hidden\` に任せていた。
+  どちらもクラス 1 つで詳細度が並び、後に書いたこちらが勝つ。結果、確認していないのに覆いが
+  枠いっぱいに出たままになり、図の上に 70% の地色を重ねて**人物の選択も縁のアイコンも
+  押せない**状態になっていた（背景のドラッグだけは覆いから親へ上がるので効き、気づきにくい）。
+
+  既定を none にすれば、出す条件が 1 か所（\`is-open\`）に集まり、詳細度にも記述順にも依らない。
+*/
 .anytime-diagram-confirm {
-  position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center;
+  position: absolute; inset: 0; z-index: 2; display: none;
   background: color-mix(in srgb, var(--diagram-bg) 70%, transparent);
 }
+.anytime-diagram-confirm.is-open { display: flex; align-items: center; justify-content: center; }
 .anytime-diagram-confirm-box {
   max-width: 420px; padding: 16px; border: 1px solid var(--diagram-border);
   border-radius: var(--diagram-radius); background: var(--diagram-raised);
