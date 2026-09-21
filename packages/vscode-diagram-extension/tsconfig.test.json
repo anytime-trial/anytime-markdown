@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*.ts"],
+  "comment": "webview は DOM の lib で別途 tsconfig.webview.json が見る。ここへ含めると、node の lib しか持たない検査の型プログラムへ入り、document / window が未定義として鳴り続ける。",
+  "exclude": ["src/webview/**"]
+}

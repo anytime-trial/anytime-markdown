@@ -80,7 +80,11 @@
     "packages/agent-core",
     "packages/review-agent",
     "packages/markdown-eval-core",
-    "packages/section-lock-core"
+    "packages/section-lock-core",
+    "packages/diagram-core",
+    "packages/diagram-viewer",
+    "packages/mcp-diagram",
+    "packages/vscode-diagram-extension"
   ],
   "overrides": {
     "ip-address": "10.4.0",

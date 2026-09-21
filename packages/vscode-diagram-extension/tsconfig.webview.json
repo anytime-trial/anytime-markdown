@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "isolatedModules": true,
+    "outDir": "out/webview",
+    "paths": {
+      "@anytime-markdown/diagram-core": ["../diagram-core/src/index.ts"],
+      "@anytime-markdown/diagram-core/*": ["../diagram-core/*"],
+      "@anytime-markdown/diagram-viewer": ["../diagram-viewer/src/index.ts"],
+      "@anytime-markdown/diagram-viewer/*": ["../diagram-viewer/*"],
+      "@anytime-markdown/ui-core/i18n": ["../ui-core/src/i18n.ts"]
+    }
+  },
+  "include": [
+    "src/webview/**/*",
+    "../diagram-core/src/**/*",
+    "../diagram-viewer/src/**/*",
+    "../ui-core/src/i18n.ts"
+  ],
+  "exclude": [
+    "../diagram-core/src/__tests__/**/*",
+    "../diagram-viewer/src/__tests__/**/*"
+  ]
+}
