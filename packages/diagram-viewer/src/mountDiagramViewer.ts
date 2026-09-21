@@ -46,6 +46,7 @@ import {
   nudgeShift,
   placementFromDrag,
   removeDiagramConnectors,
+  setDiagramAnnotation,
   removeDiagramElement,
   renameDiagramElement,
   sameAnchor,
@@ -57,7 +58,7 @@ import {
 } from '@anytime-markdown/diagram-core';
 
 import { createDiagramT, type DiagramT } from './i18n';
-import { createAutomaticCache, deriveModel, type DiagramModel } from './model';
+import { createAutomaticCache, deriveModel, type DiagramModel, groupLabelsOf } from './model';
 import { DIAGRAM_ROOT_CLASS, DIAGRAM_STYLES } from './theme/diagramStyles';
 import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
 import { createCellAdderView } from './ui/cellAdders';
@@ -119,6 +120,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   let selectedConnectors: readonly string[] = [];
   /** 名札を書き換えている要素。`null` は書き換えていない状態。 */
   let renaming: string | null = null;
+  /** 注記を書き換えている要素。名札とは別に持つ（同時に開かない）。 */
+  let annotating: string | null = null;
   /**
    * 接続の始点として待ち受けている要素。
    *
@@ -203,6 +206,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onClearSelection: () => { selection = []; paint(); },
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
     onRenameSelected: () => { startRename(lastChosen()); },
+    onAnnotateSelected: () => { startAnnotate(lastChosen()); },
     onRemoveSelected: () => { removeElement(lastChosen()); },
     onElementShape: changeShape,
     onLineLook: styleLine,
@@ -427,6 +431,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     selectedFamilies = [];
     selectedConnectors = [];
     renaming = null;
+    annotating = null;
     connectSource = null;
     connectDrag = null;
   }
@@ -685,8 +690,30 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   function startRename(name: string): void {
     if (draft === null || saving || name === '') return;
     renaming = name;
+    // 名札と注記を同時に開かない。開くと札の中に入力が 2 つ並び、どちらを打っているのか
+    // 見た目で分からなくなる。
+    annotating = null;
     notice = '';
     paint();
+  }
+
+  function startAnnotate(name: string): void {
+    if (draft === null || saving || name === '') return;
+    annotating = name;
+    renaming = null;
+    notice = '';
+    paint();
+  }
+
+  /**
+   * 注記を確定する。**空にしたら注記そのものが落ちる**（`setDiagramAnnotation`）。
+   *
+   * 名札の書き換えと違って断る条件が無い。注記は図の同一性に関わらないので、重なっても
+   * 空でも困らない。
+   */
+  function commitAnnotate(name: string, text: string): void {
+    annotating = null;
+    updateDraft((current) => setDiagramAnnotation(current, name, text));
   }
 
   /**
@@ -1059,6 +1086,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onRelease: releasePlacement,
     onStartRename: startRename,
     onCommitRename: commitRename,
+    onStartAnnotate: startAnnotate,
+    onCommitAnnotate: commitAnnotate,
+    onCancelAnnotate(): void {
+      annotating = null;
+      paint();
+    },
     onCancelRename(): void {
       renaming = null;
       notice = '';
@@ -1270,6 +1303,11 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         isAnchor: node.name === model.resizeAnchor,
         saving,
         renaming: renaming === node.name,
+        annotating: annotating === node.name,
+        // 群の札と注記は**いま描いている図**（編集中は下書き）から引く。作るときに焼き込むと、
+        // 書き換えても札が前の字のまま残る。
+        groupLabels: groupLabelsOf(model.source, node.name),
+        annotation: model.source.annotations[node.name] ?? '',
         connectSource: connectSource !== null && sameAnchor(connectSource, elementAnchor(node.name)),
       });
     }

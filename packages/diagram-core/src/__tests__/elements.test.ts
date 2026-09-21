@@ -15,6 +15,7 @@ import {
   removeDiagramElement,
   renameDiagramElement,
   serializeDiagramDocument,
+  setDiagramAnnotation,
   validateDiagramDocument,
 } from '../document';
 import { familyLook } from '../connectors';
@@ -541,5 +542,30 @@ describe('家族の結び目に取り付いた線', () => {
   it('親の改名に付いてくる', () => {
     const renamed = renameDiagramElement(WITH_HANGING, FAMILY.parents[0]!, '始祖');
     expect(renamed.connectors[0]!.from).toEqual(familyAnchor(['始祖', ...FAMILY.parents.slice(1)]));
+  });
+});
+
+describe('注記の書き換え', () => {
+  it('書いた注記が載る', () => {
+    expect(setDiagramAnnotation(SAMPLE, '祖父', '初代').annotations).toEqual({ ...SAMPLE.annotations, 祖父: '初代' });
+  });
+
+  it('空にすると項目ごと落ちる（触っていない図に空の入れ物を残さない）', () => {
+    const withNote = setDiagramAnnotation(SAMPLE, '祖父', '初代');
+    expect(Object.keys(setDiagramAnnotation(withNote, '祖父', '').annotations)).not.toContain('祖父');
+  });
+
+  it('前後の空白は落とす（見えない字だけの注記を残さない）', () => {
+    expect(setDiagramAnnotation(SAMPLE, '祖父', '  初代  ').annotations.祖父).toBe('初代');
+    expect(Object.keys(setDiagramAnnotation(SAMPLE, '祖父', '   ').annotations)).not.toContain('祖父');
+  });
+
+  it('図に居ない名前には付けない（図に出ない注記を増やさない）', () => {
+    expect(setDiagramAnnotation(SAMPLE, '居ない人', 'x')).toBe(SAMPLE);
+  });
+
+  it('他の要素の注記には触らない', () => {
+    const before = { ...SAMPLE, annotations: { 祖父: 'A', 父: 'B' } };
+    expect(setDiagramAnnotation(before, '祖父', 'C').annotations).toEqual({ 祖父: 'C', 父: 'B' });
   });
 });

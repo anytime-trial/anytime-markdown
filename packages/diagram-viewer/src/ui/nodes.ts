@@ -16,7 +16,7 @@ import {
 } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
-import { groupLabelsOf, parentsOf } from '../model';
+import { parentsOf } from '../model';
 import { el, setAttr, setClass, svg } from './dom';
 import { createIcon } from './icons';
 
@@ -50,6 +50,11 @@ export interface NodeCallbacks {
   /** 書き換えを確定する。空や重複は呼ばれた側が断る。 */
   onCommitRename(from: string, to: string): void;
   onCancelRename(): void;
+  /** 注記の書き換えを始める。 */
+  onStartAnnotate(name: string): void;
+  /** 注記を確定する。空にすると注記そのものが落ちる。 */
+  onCommitAnnotate(name: string, text: string): void;
+  onCancelAnnotate(): void;
   onSizePointerDown(event: PointerEvent, name: string, axes: ResizeAxes): void;
   onSizePointerMove(event: PointerEvent): void;
   onSizePointerUp(event: PointerEvent): void;
@@ -69,6 +74,16 @@ export interface NodeViewState {
   readonly saving: boolean;
   /** 名札を書き換えている最中か。 */
   readonly renaming: boolean;
+  /** 注記を書き換えている最中か。 */
+  readonly annotating: boolean;
+  /**
+   * 札に出す群の札と注記。**作るときに焼き込まず、描くたびに当てる。**
+   *
+   * 焼き込むと、編集中に注記を書き換えても札は前の字のまま残る（札は作り直さないので）。
+   * 家族を消して群の値が変わったときも同じ。
+   */
+  readonly groupLabels: readonly string[];
+  readonly annotation: string;
   /** 接続の始点として待ち受けているか。 */
   readonly connectSource: boolean;
 }
@@ -149,10 +164,16 @@ export function createNodeView(
     callbacks.onStartRename(name);
   });
 
-  const labels = groupLabelsOf(document_, name);
-  const group = el(doc, 'span', { text: labels[0] ?? '' });
-  if (labels.length > 0) group.title = labels.join(' / ');
-  root.appendChild(group);
+  /**
+   * 群の札。**その人物に付く値を全部出す**（1 件目だけにしない）。
+   *
+   * 1 件目だけを出していた頃は、複数の家族に別々の値で出てくる人物の 2 件目以降が札から
+   * 消え、吹き出しに触れるまで気づけなかった。件数は人物ごとに変わるので、足りなければ作り、
+   * 余ったら隠す（節点や端の印と同じ貸し借り）。
+   */
+  const groups = el(doc, 'span', { className: 'anytime-diagram-groups' });
+  const groupLines: HTMLElement[] = [];
+  root.appendChild(groups);
 
   const parents = parentsOf(document_, name);
   if (parents.length > 0) {
@@ -162,8 +183,46 @@ export function createNodeView(
     }));
   }
 
-  const annotation = document_.annotations[name];
-  if (annotation !== undefined) root.appendChild(el(doc, 'small', { text: annotation }));
+  /**
+   * 注記。**常に作り、空のときはクラスで隠す**（無ければ作らない、にしない）。
+   *
+   * 無いときに要素ごと作らないと、注記を書いた瞬間に札の中身が増えて版組みが跳ぶ。
+   */
+  const annotation = el(doc, 'small', { className: 'anytime-diagram-annotation' });
+  root.appendChild(annotation);
+
+  /**
+   * 注記の書き換え口。名札の書き換え口と同じ作り（常に作り、畳んだ後の確定は捨てる）。
+   *
+   * 名札と 1 つの入力を使い回さない。どちらを書いているかを入力の側が持つことになり、
+   * 片方の確定がもう片方へ流れる事故（名前を注記で上書きする）を型で止められない。
+   */
+  const annotateInput = el(doc, 'input', {
+    className: 'anytime-diagram-annotate anytime-diagram-hidden',
+    attrs: { type: 'text', 'aria-label': `${t('annotateElement')}: ${name}` },
+  });
+  let annotating = false;
+  const finishAnnotate = (commit: boolean): void => {
+    if (!annotating) return;
+    annotating = false;
+    if (commit) callbacks.onCommitAnnotate(name, annotateInput.value);
+    else callbacks.onCancelAnnotate();
+  };
+  annotateInput.addEventListener('pointerdown', (event) => event.stopPropagation());
+  annotateInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    finishAnnotate(event.key === 'Enter');
+  });
+  annotateInput.addEventListener('blur', () => finishAnnotate(true));
+  root.appendChild(annotateInput);
+  // 注記の上のダブルクリックは注記の書き換え。札の他の場所は名札の書き換え（既存）。
+  annotation.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    callbacks.onStartAnnotate(name);
+  });
 
   // 取っ手は常に作り、編集していない間はクラスで隠す。作り直すと、押している最中に
   // 要素が入れ替わってキーボードの焦点が図の外へ飛ぶ。
@@ -325,6 +384,27 @@ export function createNodeView(
         rename.select();
       }
       renaming = state.renaming;
+      // 群の札は件数が変わる。足りなければ作り、余ったら隠す。
+      while (groupLines.length < state.groupLabels.length) {
+        const line = el(doc, 'span');
+        groupLines.push(line);
+        groups.appendChild(line);
+      }
+      for (const [index, line] of groupLines.entries()) {
+        const text = state.groupLabels[index] ?? '';
+        line.textContent = text;
+        setClass(line, 'anytime-diagram-hidden', text === '');
+      }
+      annotation.textContent = state.annotation;
+      setClass(annotation, 'anytime-diagram-hidden', state.annotation === '' || state.annotating);
+      setClass(annotateInput, 'anytime-diagram-hidden', !state.annotating);
+      if (state.annotating && !annotating) {
+        // 焦点は**書き換えに入った瞬間だけ**当てる（名札の書き換えと同じ理由）。
+        annotateInput.value = state.annotation;
+        annotateInput.focus();
+        annotateInput.select();
+      }
+      annotating = state.annotating;
       for (const { button, sliderKey } of sizeHandles) {
         setClass(button, 'anytime-diagram-hidden', !(state.editing && state.isAnchor));
         button.disabled = state.saving;

@@ -577,6 +577,15 @@ export const DIAGRAM_STYLES = `
   color: var(--diagram-fg); background: var(--diagram-raised);
   border: 1px solid var(--diagram-accent); border-radius: 3px;
 }
+/* 注記の書き換え口。名札と同じ作りで、字だけ小さくする（札の下段に合わせる）。 */
+.anytime-diagram-annotate {
+  width: 100%; min-width: 0; padding: 1px 3px; margin-top: 1px;
+  font: inherit; font-size: 10px; text-align: center;
+  color: var(--diagram-fg); background: var(--diagram-raised);
+  border: 1px solid var(--diagram-accent); border-radius: 3px;
+}
+/* 群の札は 1 件 1 行で縦に積む（人物ごとに件数が変わる）。 */
+.anytime-diagram-groups { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 
 .anytime-diagram-error { color: var(--diagram-danger); }
 /*

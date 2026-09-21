@@ -41,6 +41,8 @@ export interface ChromeCallbacks {
   onToggleEditing(): void;
   /** 選んでいる 1 つの要素の名札を書き換える。 */
   onRenameSelected(): void;
+  /** 選んでいる 1 つの要素の注記を書き換える。 */
+  onAnnotateSelected(): void;
   /** 選んでいる 1 つの要素を図から取り除く。 */
   onRemoveSelected(): void;
   /** 選んでいる 1 つの要素の形を変える。 */
@@ -154,6 +156,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
     解決しない。対象は選択で示し、操作は 1 か所に集める — 線の見た目を変える口と同じ置き方。
   */
   const renameSelected = iconButton(doc, 'rename', callbacks.onRenameSelected);
+  const annotateSelected = iconButton(doc, 'annotate', callbacks.onAnnotateSelected);
   const removeSelected = iconButton(doc, 'remove', callbacks.onRemoveSelected);
   /*
     形の選び口。線の見た目と同じ `picker()` を使い、**選択肢は列挙そのものから作る**。手で並べると、
@@ -161,7 +164,8 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   */
   const elementShape = picker<DiagramShape>(doc, DIAGRAM_SHAPES, callbacks.onElementShape);
   selectionBar.append(
-    selectionCount, clearSelection, renameSelected, removeSelected, elementShape.label, cardSize, spacingReset,
+    selectionCount, clearSelection, renameSelected, annotateSelected, removeSelected,
+    elementShape.label, cardSize, spacingReset,
   );
 
   /**
@@ -226,6 +230,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       label(clearSelection, t('clearSelection'));
       label(spacingReset, t('spacingReset'));
       label(renameSelected, t('renameElement'));
+      label(annotateSelected, t('annotateElement'));
       label(removeSelected, t('removeElement'));
       label(deleteConnector, t('deleteConnector'));
 
@@ -258,6 +263,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       // どちらの名前を書き換えたのか・どちらが消えたのかが操作の後から分からない。
       renameSelected.disabled = state.saving || state.selectionCount !== 1;
       removeSelected.disabled = state.saving || state.selectionCount !== 1;
+      annotateSelected.disabled = state.saving || state.selectionCount !== 1;
       // 形も**ちょうど 1 つ選んでいるときだけ**。2 つ以上へ同時に当てると、どちらを変えたのかが
       // 操作の後から分からない（名札の書き換え・取り除きと同じ理由）。
       elementShape.apply(

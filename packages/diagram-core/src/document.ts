@@ -849,6 +849,28 @@ export function removeDiagramElement(document: DiagramDocument, name: string): D
 }
 
 /**
+ * 注記を書き換えた図。**空にしたら項目ごと落とす。**
+ *
+ * 空文字を持たない。持つと、触っていない図の差分に空の注記が湧き、次に開いた人には
+ * 「注記を付けたのか、消し忘れたのか」が読めない（既定と同じ形・見た目を持たないのと同じ決まり）。
+ *
+ * 図に居ない名前には付けない。付けると、どの札にも出ない注記がファイルに積もり、次に同じ
+ * 名前で要素を足したときに覚えの無い注記が復活する。
+ */
+export function setDiagramAnnotation(
+  document: DiagramDocument,
+  name: string,
+  text: string,
+): DiagramDocument {
+  if (!diagramPeople(document.families, document.nodes).has(name)) return document;
+  const trimmed = text.trim();
+  const annotations = { ...document.annotations };
+  if (trimmed === '') delete annotations[name];
+  else annotations[name] = trimmed;
+  return { ...document, annotations };
+}
+
+/**
  * 要素の名前を付け替えた図。**名前を鍵にしている場所をまとめて直す。**
  *
  * 1 か所ずつ呼び出し側で直させない。名前は家族・要素・注記・配置差分・接続線・形の 6 か所に現れ、

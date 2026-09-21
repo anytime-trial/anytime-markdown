@@ -39,6 +39,7 @@ export {
   removeDiagramElement,
   renameDiagramElement,
   serializeDiagramDocument,
+  setDiagramAnnotation,
   validateDiagramDocument,
   validateDiagramLayout,
 } from './document';
