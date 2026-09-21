@@ -127,6 +127,48 @@ function spacingValue(value: unknown, range: { readonly min: number; readonly ma
   return rounded < range.min || rounded > range.max ? null : rounded;
 }
 
+/** すき間の軸。列と行で同じ組み立てを使うための名前。 */
+export type GapAxis = 'column' | 'row';
+
+/**
+ * 最初のすき間の帯（掴める場所）。**箱の縁からすき間ぶん**を返す。
+ *
+ * どのすき間も同じ幅なので、どれを掴ませてもよい。**最初の 1 つ**に決めるのは、指の動きが
+ * すき間の差と 1 対 1 になるため（2 つ目のすき間を掴むと、手前のすき間も一緒に広がるので
+ * 取っ手が指の 2 倍動く。箱の大きさの取っ手が列 + 1 倍で動くのと同じ理屈）。
+ */
+export function gapBand(
+  spacing: DiagramSpacing,
+  axis: GapAxis,
+): { readonly start: number; readonly size: number } {
+  return axis === 'column'
+    ? { start: DIAGRAM_MARGIN + spacing.nodeWidth, size: spacing.columnGap }
+    : { start: DIAGRAM_MARGIN + spacing.nodeHeight, size: spacing.rowGap };
+}
+
+/**
+ * すき間を増減した刻み。**触れていない軸と箱の大きさには手を付けない。**
+ *
+ * 丸めと範囲の当て方は箱の大きさ（`resizedSpacing`）と同じにする。片方だけ端数を許すと、
+ * 同じ図の中で升目の座標が整数の軸と端数の軸に分かれる。
+ */
+export function spacedGaps(
+  start: DiagramSpacing,
+  delta: { readonly column?: number; readonly row?: number },
+): DiagramSpacing {
+  const clamp = (value: number, range: { readonly min: number; readonly max: number }): number =>
+    Math.max(range.min, Math.min(range.max, Math.round(value)));
+  return {
+    ...start,
+    columnGap: delta.column === undefined
+      ? start.columnGap
+      : clamp(start.columnGap + delta.column, DIAGRAM_SPACING_RANGE.columnGap),
+    rowGap: delta.row === undefined
+      ? start.rowGap
+      : clamp(start.rowGap + delta.row, DIAGRAM_SPACING_RANGE.rowGap),
+  };
+}
+
 /**
  * 引いた量だけ変えた箱の大きさ。範囲の外は端で止め、整数へ丸める。
  *

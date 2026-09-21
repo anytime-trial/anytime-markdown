@@ -160,6 +160,28 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-edges .edge-spouse { stroke: var(--diagram-accent); stroke-dasharray: 8 5; }
 .anytime-diagram-edges .edge-oath,
 .anytime-diagram-edges .edge-creation { stroke-dasharray: 2 5; }
+/* 家族の線の二重線。手で引いた線と同じ手で描く（芯は絵だけで当たり判定を持たない）。 */
+.anytime-diagram-edges .edge-core {
+  fill: none; stroke: var(--diagram-bg); stroke-width: 0;
+  stroke-linecap: butt; stroke-linejoin: round; pointer-events: none;
+}
+.anytime-diagram-edges g.is-double path:not(.edge-core):not(.edge-cap) {
+  stroke-width: clamp(5px, calc(5px / var(--diagram-scale, 1)), 30px);
+}
+.anytime-diagram-edges g.is-double .edge-core {
+  stroke-width: clamp(1.7px, calc(1.7px / var(--diagram-scale, 1)), 10px);
+}
+/*
+  選んだ二重線は外側だけ太らせる（芯まで太らせると 1 本の太線に戻る）。
+
+  詳細度で勝たせる。\`g.is-double path:not(.edge-core):not(.edge-cap)\` は \`:not()\` の中身も
+  クラスとして数えるので (0,4,2) あり、選択の規則 \`g.is-line-selected path\` (0,2,2) に**常に**
+  勝つ。専用の規則を置かないと、二重線にした家族の線だけ選んでも太さが変わらない
+  （記述順を入れ替えても直らない）。
+*/
+.anytime-diagram-edges g.is-double.is-line-selected path:not(.edge-core):not(.edge-cap) {
+  stroke-width: clamp(7px, calc(7px / var(--diagram-scale, 1)), 34px);
+}
 .anytime-diagram-edges .point { stroke: var(--diagram-raised); stroke-width: 1.5; fill: var(--diagram-muted); }
 .anytime-diagram-edges .point-junction { fill: var(--diagram-accent); }
 /*
@@ -355,6 +377,29 @@ export const DIAGRAM_STYLES = `
   /* 破線の刻みも倍率で割る。割らないと、縮めた図で刻みが詰まって実線と見分けが付かない。 */
   stroke-dasharray: calc(9px / var(--diagram-scale, 1)) calc(6px / var(--diagram-scale, 1));
 }
+/*
+  二重線。**太い線の上へ図の地の色で細い線を重ねて**描く。
+
+  平行な 2 本を引かない。経路は直線・折れ線・カーブの 3 通りあり、平行線を出すには経路ごとに
+  法線方向の押し出しが要る（カーブでは厳密には引けない）。重ねる手なら経路に依らず同じ式で描ける。
+
+  芯は**線と同じ倍率の式**で太さを決める。定数にすると、縮めた図で芯だけが太いまま残り
+  二重線が 2 本の細線に割れて見える。
+*/
+.anytime-diagram-links g.is-double .link-line {
+  stroke-width: clamp(5px, calc(5px / var(--diagram-scale, 1)), 30px);
+}
+.anytime-diagram-links .link-core {
+  fill: none; stroke: var(--diagram-bg); stroke-width: 0;
+  stroke-linecap: butt; stroke-linejoin: round; pointer-events: none;
+}
+.anytime-diagram-links g.is-double .link-core {
+  stroke-width: clamp(1.7px, calc(1.7px / var(--diagram-scale, 1)), 10px);
+}
+/* 選んだ二重線は外側だけ太らせる（芯まで太らせると 1 本の太線に戻る）。 */
+.anytime-diagram-links g.is-double.is-line-selected .link-line {
+  stroke-width: clamp(7px, calc(7px / var(--diagram-scale, 1)), 34px);
+}
 .anytime-diagram-links .link-cap { fill: var(--link-color); stroke: none; }
 /*
   当たり判定だけの太い線。見た目は透明で、**押せる幅**（WCAG 2.2 の対象の大きさ）を作る。
@@ -457,6 +502,51 @@ export const DIAGRAM_STYLES = `
   下に置くと札が押下を奪って取っ手が押せない。層そのものは当たり判定を持たないので、
   上に置いても札の操作は塞がない（実機で観測して直した）。
 */
+/*
+  すき間の取っ手。**最初のすき間の帯そのもの**を掴ませる（細い線ではなく面）。
+
+  面にするのは、すき間が「箱と箱の間の空き」という広がりを持つ量だからで、押せる幅も自然に
+  確保できる。ふだんは見えず、指を乗せたときと掴んでいる間だけ薄く色を敷く — 常に色を敷くと、
+  図の地の上に意味の無い帯が 2 本走って図そのものが読みにくくなる。
+
+  札より下（z-index 1）に置く。上に置くと、すき間に重なった札の操作を帯が奪う。
+*/
+.anytime-diagram-gaps { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.anytime-diagram-gap {
+  position: absolute; top: 0; left: 0; padding: 0; border: 0; background: transparent;
+  pointer-events: auto; touch-action: none;
+}
+.anytime-diagram-gap.is-column { cursor: ew-resize; }
+.anytime-diagram-gap.is-row { cursor: ns-resize; }
+.anytime-diagram-gap:hover:not(:disabled),
+.anytime-diagram-gap:focus-visible {
+  background: color-mix(in srgb, var(--diagram-accent) 12%, transparent);
+}
+/*
+  掴める場所の印。**帯の全長ではなく短い握り**を 1 つ置く。
+
+  帯そのものに色を敷くと、図の地を端から端まで走る 2 本の帯ができて図が読みにくい。印が無いと
+  今度は「そこが掴める」と気づけない（カーソルの形は乗せてみるまで分からない）。短い握りなら
+  両方を満たす。
+
+  置き場所は最初の升目の中ほど（56px）。箱の大きさは可変だが、下限（幅 120・高さ 72）でも
+  最初の升目の中に収まる値である。
+*/
+.anytime-diagram-gap::after {
+  content: ''; position: absolute; border-radius: 999px;
+  background: color-mix(in srgb, var(--diagram-accent) 38%, transparent);
+}
+.anytime-diagram-gap.is-column::after {
+  left: 50%; top: 56px; width: 3px; height: 34px; transform: translateX(-50%);
+}
+.anytime-diagram-gap.is-row::after {
+  top: 50%; left: 56px; height: 3px; width: 34px; transform: translateY(-50%);
+}
+.anytime-diagram-gap:hover:not(:disabled)::after,
+.anytime-diagram-gap:focus-visible::after { background: var(--diagram-accent); }
+.anytime-diagram-gap:disabled::after { opacity: 0.4; }
+.anytime-diagram-gap:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: -2px; }
+.anytime-diagram-gap:disabled { cursor: default; }
 .anytime-diagram-midpoints { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 .anytime-diagram-midpoint {
   position: absolute; width: 11px; height: 11px; padding: 0;

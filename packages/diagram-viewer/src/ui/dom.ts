@@ -28,6 +28,16 @@ export function svg<K extends keyof SVGElementTagNameMap>(
   return element;
 }
 
+/**
+ * その押下が「選択へ足す」意味か。**Ctrl・⌘・Shift のどれでも足す**。
+ *
+ * 宿主（VS Code の webview と web-app）と利用者の環境が混ざるので、1 つに決め打たない。
+ * 決め打つと、その修飾キーが宿主に取られている環境で複数選択の手段がまるごと消える。
+ */
+export function additiveFrom(event: MouseEvent | KeyboardEvent): boolean {
+  return event.ctrlKey || event.metaKey || event.shiftKey;
+}
+
 /** クラスの付け外し。条件が偽なら外す（`classList.toggle` の第 2 引数と同じだが意図を名前で示す）。 */
 export function setClass(element: Element, name: string, on: boolean): void {
   element.classList.toggle(name, on);

@@ -875,3 +875,222 @@ describe('線の経路', () => {
     expect(descent).not.toContain('V ');
   });
 });
+
+describe('Delete キーで消す', () => {
+  const startEditing = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const pick = (name: string): void => {
+    container.querySelector<HTMLButtonElement>(`[data-person="${name}"] .anytime-diagram-pick`)!.click();
+  };
+  const connectPoint = (name: string): HTMLButtonElement =>
+    container.querySelector(`[data-person="${name}"] .anytime-diagram-connect`)!;
+  const pressDelete = (target: Element = container.querySelector('.anytime-diagram-viewport')!): void => {
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+  };
+
+  it('1 つ選んだ要素を消す', () => {
+    const view = startEditing();
+    pick('祖母');
+    pressDelete();
+    expect([...view.getDraft()!.families.flatMap((f) => [...f.parents, ...f.children])]).not.toContain('祖母');
+  });
+
+  it('2 つ以上選んでいるときは消さない（どれが消えたか分からなくなる）', () => {
+    const view = startEditing();
+    pick('祖母');
+    pick('父');
+    pressDelete();
+    expect(view.getDraft()!.families[0]!.parents).toContain('祖母');
+  });
+
+  it('選んだ手引きの線を消す（札より線を優先する）', () => {
+    const view = startEditing();
+    connectPoint('祖父').click();
+    connectPoint('父').click();
+    expect(view.getDraft()!.connectors).toHaveLength(1);
+    pressDelete();
+    expect(view.getDraft()!.connectors).toEqual([]);
+  });
+
+  it('家族の線は消さず、理由を出す', () => {
+    const view = startEditing();
+    container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    pressDelete();
+    expect(view.getDraft()!.families).toHaveLength(DOC.families.length);
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain('家族の線');
+  });
+
+  it('名札を書き換えている最中は横取りしない（1 文字ずつ消せる）', () => {
+    const view = startEditing();
+    pick('祖母');
+    byLabel('名札を書き換える')!.click();
+    const input = container.querySelector<HTMLInputElement>('[data-person="祖母"] .anytime-diagram-rename')!;
+    pressDelete(input);
+    expect(view.getDraft()!.families[0]!.parents).toContain('祖母');
+  });
+
+  it('編集していない間は効かない', () => {
+    const view = mount({ editable: true, onSave: () => {} });
+    pressDelete();
+    expect(view.getDraft()).toBeNull();
+  });
+});
+
+describe('二重線', () => {
+  it('手で引いた線を二重線にすると芯の path が引かれる', () => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="祖父"] .anytime-diagram-connect')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="父"] .anytime-diagram-connect')!.click();
+    const style = container.querySelector<HTMLSelectElement>('.anytime-diagram-connectorbar select')!;
+    style.value = 'double';
+    style.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.connectors[0]!.line).toBe('double');
+    const group = container.querySelector('.anytime-diagram-links g[data-connector]')!;
+    expect(group.classList).toContain('is-double');
+    // 芯は線と**同じ経路**をなぞる（別に持つと経路を変えた日に片方だけ古い形で残る）。
+    expect(group.querySelector('.link-core')!.getAttribute('d'))
+      .toBe(group.querySelector('.link-line')!.getAttribute('d'));
+  });
+
+  it('家族の線も二重線にできる', () => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const style = container.querySelector<HTMLSelectElement>('.anytime-diagram-connectorbar select')!;
+    style.value = 'double';
+    style.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.families[0]!.look?.line).toBe('double');
+    const group = container.querySelector('.anytime-diagram-edges g')!;
+    expect(group.classList).toContain('is-double');
+    // 芯は 2 本（親どうしの横棒と、子へ降りる線）。2 本目が子へ降りる線に対応する。
+    expect([...group.querySelectorAll('.edge-core')][1]!.getAttribute('d'))
+      .toBe(group.querySelector('.edge-birth')!.getAttribute('d'));
+  });
+});
+
+describe('要素間のすき間を図の上で変える', () => {
+  const startEditing = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const gap = (axis: 'column' | 'row'): HTMLButtonElement =>
+    container.querySelector(`.anytime-diagram-gap.is-${axis}`)!;
+
+  it('編集していない間は取っ手を出さない', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(container.querySelector('.anytime-diagram-gaps')!.classList).toContain('anytime-diagram-hidden');
+  });
+
+  it('すき間そのものの帯を掴ませる（箱の右辺から、すき間ぶんの幅）', () => {
+    startEditing();
+    expect(gap('column').style.left).toBe(`${30 + DEFAULT_DIAGRAM_SPACING.nodeWidth}px`);
+    expect(gap('column').style.width).toBe(`${DEFAULT_DIAGRAM_SPACING.columnGap}px`);
+  });
+
+  it('矢印キーで列のすき間が広がる', () => {
+    const view = startEditing();
+    gap('column').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(view.getDraft()!.layout.spacing!.columnGap).toBeGreaterThan(DEFAULT_DIAGRAM_SPACING.columnGap);
+    // 箱の大きさと行のすき間は触らない。
+    expect(view.getDraft()!.layout.spacing!.nodeWidth).toBe(DEFAULT_DIAGRAM_SPACING.nodeWidth);
+    expect(view.getDraft()!.layout.spacing!.rowGap).toBe(DEFAULT_DIAGRAM_SPACING.rowGap);
+  });
+
+  it('縦の取っ手は行のすき間だけを変える', () => {
+    const view = startEditing();
+    gap('row').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(view.getDraft()!.layout.spacing!.rowGap).toBeLessThan(DEFAULT_DIAGRAM_SPACING.rowGap);
+    expect(view.getDraft()!.layout.spacing!.columnGap).toBe(DEFAULT_DIAGRAM_SPACING.columnGap);
+  });
+
+  it('いまの値を読み上げへ出す（目で追えなくても効いたか分かる）', () => {
+    startEditing();
+    expect(gap('column').getAttribute('role')).toBe('slider');
+    expect(gap('column').getAttribute('aria-valuenow')).toBe(String(DEFAULT_DIAGRAM_SPACING.columnGap));
+  });
+});
+
+describe('線の複数選択', () => {
+  const startEditing = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    return view;
+  };
+  const connectPoint = (name: string): HTMLButtonElement =>
+    container.querySelector(`[data-person="${name}"] .anytime-diagram-connect`)!;
+  const draw = (from: string, to: string): void => {
+    connectPoint(from).click();
+    connectPoint(to).click();
+  };
+  const hit = (id: string): SVGPathElement =>
+    container.querySelector(`.anytime-diagram-links g[data-connector="${id}"] .link-hit`)!;
+  const click = (target: Element, additive = false): void => {
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: additive }));
+  };
+  const bar = (): HTMLElement => container.querySelector('.anytime-diagram-connectorbar')!;
+
+  it('素の押下は選び直し、修飾キーを添えると足される', () => {
+    startEditing();
+    draw('祖父', '父');
+    draw('祖母', '子');
+    click(hit('c1'));
+    expect(bar().textContent).toContain('祖父');
+    click(hit('c2'), true);
+    expect(bar().textContent).toContain('2 本');
+    // 素の押下で選び直す。
+    click(hit('c1'));
+    expect(bar().textContent).not.toContain('2 本');
+  });
+
+  it('もう一度修飾キー付きで押すと選択から外れる', () => {
+    startEditing();
+    draw('祖父', '父');
+    draw('祖母', '子');
+    click(hit('c1'));
+    click(hit('c2'), true);
+    click(hit('c2'), true);
+    expect(bar().textContent).toContain('祖父');
+  });
+
+  it('見た目の変更は選んだ線すべてに当たる', () => {
+    const view = startEditing();
+    draw('祖父', '父');
+    draw('祖母', '子');
+    click(hit('c1'));
+    click(hit('c2'), true);
+    const colour = [...bar().querySelectorAll<HTMLSelectElement>('select')][1]!;
+    colour.value = 'danger';
+    colour.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.connectors.map((item) => item.color)).toEqual(['danger', 'danger']);
+  });
+
+  it('家族の線も一緒に選べる（見た目はまとめて変わる）', () => {
+    const view = startEditing();
+    draw('祖父', '父');
+    click(hit('c1'));
+    click(container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!, true);
+    expect(bar().textContent).toContain('2 本');
+    const style = bar().querySelector<HTMLSelectElement>('select')!;
+    style.value = 'dashed';
+    style.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(view.getDraft()!.connectors[0]!.line).toBe('dashed');
+    expect(view.getDraft()!.families[0]!.look?.line).toBe('dashed');
+  });
+
+  it('選んだ線をまとめて消せる', () => {
+    const view = startEditing();
+    draw('祖父', '父');
+    draw('祖母', '子');
+    click(hit('c1'));
+    click(hit('c2'), true);
+    byLabel('この線を消す')!.click();
+    expect(view.getDraft()!.connectors).toEqual([]);
+  });
+});

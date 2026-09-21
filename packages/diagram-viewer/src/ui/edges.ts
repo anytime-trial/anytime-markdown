@@ -9,11 +9,11 @@ import { arrowHeadPath, type ConnectorPointAt, DIAGRAM_LINE_COLORS, type Diagram
 
 import type { DiagramT } from '../i18n';
 import type { FamilyConnector } from '../model';
-import { setAttr, setClass, svg } from './dom';
+import { additiveFrom, setAttr, setClass, svg } from './dom';
 
 export interface EdgeCallbacks {
   /** 線を押したとき。押したら選ぶ（外すのは図の地を押したとき）。 */
-  onSelectFamily(index: number): void;
+  onSelectFamily(index: number, additive: boolean): void;
 }
 
 export interface EdgeViewState {
@@ -47,16 +47,22 @@ export function createEdgeView(
   for (const path of [marriage, descent]) {
     path.addEventListener('click', (event) => {
       event.stopPropagation();
-      callbacks.onSelectFamily(index);
+      callbacks.onSelectFamily(index, additiveFrom(event));
     });
     path.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       event.stopPropagation();
-      callbacks.onSelectFamily(index);
+      callbacks.onSelectFamily(index, additiveFrom(event));
     });
   }
-  root.append(marriage, descent);
+  /*
+    二重線の芯。手で引いた線と同じ手（太い線の上へ地の色で細い線を重ねる）で描く。
+    当たり判定と焦点は元の 2 本が持つので、芯は絵だけ（`pointer-events` も `tabindex` も持たない）。
+  */
+  const marriageCore = svg(doc, 'path', { class: 'edge-core' });
+  const descentCore = svg(doc, 'path', { class: 'edge-core' });
+  root.append(marriage, descent, marriageCore, descentCore);
   const points: SVGCircleElement[] = [];
   /** 端の印。子の数で増減するので、節点と同じく足りなければ作り、余ったら消す。 */
   const caps: SVGElement[] = [];
@@ -74,12 +80,16 @@ export function createEdgeView(
       const look = connector.look;
       setClass(root, 'is-look-set', connector.family.look !== undefined);
       setClass(root, 'is-dashed', look.line === 'dashed');
+      setClass(root, 'is-double', look.line === 'double');
       for (const name of DIAGRAM_LINE_COLORS) setClass(root, `is-color-${name}`, look.color === name);
       syncCaps(doc, root, caps, connector, scale);
       // `d` が無い path はタブ順に残る一方で何も描かない（押せない操作要素になる）ので、
       // 線を持たない家族では要素ごと隠す。
       applyPath(marriage, connector.marriage);
       applyPath(descent, connector.descent);
+      // 芯は同じ経路をなぞる。焦点の巡回には入れない（`tabindex` を付けない）。
+      setAttr(marriageCore, 'd', connector.marriage);
+      setAttr(descentCore, 'd', connector.descent);
       syncPoints(doc, root, points, connector.points);
     },
   };

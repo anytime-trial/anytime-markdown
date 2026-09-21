@@ -101,6 +101,8 @@ export {
   cellPosition,
   columnPitch,
   COORDINATE_LIMIT,
+  gapBand,
+  type GapAxis,
   DEFAULT_DIAGRAM_SPACING,
   DIAGRAM_MARGIN,
   DIAGRAM_SPACING_RANGE,
@@ -109,6 +111,7 @@ export {
   readDiagramSpacing,
   resizedSpacing,
   rowPitch,
+  spacedGaps,
 } from './spacing';
 export {
   DIAGRAM_ENDPOINTS,
@@ -143,6 +146,7 @@ export {
   type ChartView,
   editableSpacingKeys,
   fitChart,
+  gapFromDrag,
   MAX_SCALE,
   MIN_SCALE,
   placementFromDrag,

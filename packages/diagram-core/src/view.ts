@@ -7,7 +7,7 @@
  */
 
 import type { GridCell } from './grid';
-import { resizedSpacing } from './spacing';
+import { type GapAxis, resizedSpacing, spacedGaps } from './spacing';
 import type { DiagramSpacing } from './types';
 
 export interface ChartView {
@@ -89,6 +89,26 @@ export const editableSpacingKeys = (): readonly (keyof DiagramSpacing)[] =>
  * 倍率も**掴んだ瞬間のもの**を受ける。移動のたびに今の倍率で割ると、ドラッグ中にホイールを回した
  * 瞬間、それまでに引いた量まで新しい倍率で換算し直されて箱が飛ぶ。
  */
+/**
+ * 指の動きから引いた先のすき間。**倍率で割るだけ**（箱の大きさのような升目の重みが要らない）。
+ *
+ * 取っ手が最初のすき間に居るので、動きとすき間の差は 1 対 1 になる（`gapBand`）。掴む
+ * すき間を変えるなら、ここにも重みが要る。
+ */
+export function gapFromDrag(options: {
+  readonly start: DiagramSpacing;
+  /** 掴んだ瞬間からの指の動き（画面 px）。 */
+  readonly pointer: { readonly x: number; readonly y: number };
+  /** 掴んだ瞬間の倍率。 */
+  readonly scale: number;
+  readonly axis: GapAxis;
+}): DiagramSpacing {
+  const { start, pointer, scale, axis } = options;
+  return axis === 'column'
+    ? spacedGaps(start, { column: pointer.x / scale })
+    : spacedGaps(start, { row: pointer.y / scale });
+}
+
 export function resizeFromDrag(options: {
   readonly start: DiagramSpacing;
   /** 掴んだ瞬間からの指の動き（画面 px）。 */

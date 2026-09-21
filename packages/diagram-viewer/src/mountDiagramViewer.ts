@@ -25,6 +25,8 @@ import {
   diagramPeople,
   diagramShapeOf,
   elementAnchor,
+  type GapAxis,
+  gapFromDrag,
   familyLook,
   fitChart,
   fittingShift,
@@ -63,6 +65,7 @@ import { createChromeView, createConfirmView, type LineSelection, RESET_LAYOUT }
 import { createLinkView, type LinkView } from './ui/connectors';
 import { el, setAttr, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
+import { createGapView, nudgeStep } from './ui/gaps';
 import { createGutterView } from './ui/gutter';
 import { createMidpointView } from './ui/midpoints';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
@@ -111,9 +114,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
   let view: ChartView = INITIAL_VIEW;
   let selection: readonly string[] = [];
-  let selectedFamily: number | null = null;
+  let selectedFamilies: readonly number[] = [];
   /** 選んでいる接続線の id。家族の線とは同時に選ばない（見た目を変えられるのは手引きの線だけ）。 */
-  let selectedConnector: string | null = null;
+  let selectedConnectors: readonly string[] = [];
   /** 名札を書き換えている要素。`null` は書き換えていない状態。 */
   let renaming: string | null = null;
   /**
@@ -127,6 +130,14 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   let connectSource: DiagramAnchor | null = null;
   let connectDrag:
     { readonly pointerId: number; readonly from: DiagramAnchor; x: number; y: number } | null = null;
+  /** すき間を掴んでいる最中の状態。掴んだ瞬間の刻みと倍率を覚える。 */
+  let gapDrag: {
+    readonly pointerId: number;
+    readonly axis: GapAxis;
+    readonly origin: { readonly x: number; readonly y: number };
+    readonly start: DiagramSpacing;
+    readonly scale: number;
+  } | null = null;
   let draft: DiagramDocument | null = null;
   let saving = false;
   let notice = '';
@@ -194,6 +205,16 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     paint();
   });
   const gutter = createGutterView(doc, tr, { onEditGridLine: editGridLine });
+  /*
+    すき間の取っ手。**図の面へ載せる**（枠ではなく）。枠に貼ると図と一緒に動かないので、
+    平行移動や拡大のたびに掴む場所と実際のすき間が離れる。
+  */
+  const gaps = createGapView(doc, tr, {
+    onGapPointerDown: startGapDrag,
+    onGapPointerMove: onGapMove,
+    onGapPointerUp: onGapUp,
+    onGapKey: onGapKeyDown,
+  });
   const cellAdders = createCellAdderView(doc, tr, { onAddElement: addElement });
   /*
     線の中点の取っ手。**図の面（surface）へ載せる**（枠ではなく）。枠に貼ると図と一緒に
@@ -205,7 +226,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onConnectPointerUp: onConnectUp,
     onConnectToggle: toggleConnectSource,
   });
-  surface.appendChild(midpoints.root);
+  surface.append(gaps.root, midpoints.root);
 
   /**
    * 選択と線の区画を枠の左下へ重ねる入れ物。
@@ -264,6 +285,25 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     }
   });
 
+  /*
+    Delete で消す。**上の keydown とは別に張る。**
+
+    あちらは `event.target !== viewport` で弾いており、図の見え方（拡大・平行移動）だけを扱う。
+    消す操作の対象は選んだ札・選んだ線で、そのとき焦点は札の取っ手や線そのものに在って viewport
+    には無い。同じ handler へ足すと、選んだ直後の Delete が一度も効かない。
+
+    字を打っている最中は横取りしない。横取りすると、名前を打ち直している途中の Delete が
+    1 文字ではなく要素そのものを消す。
+  */
+  viewport.addEventListener('keydown', (event) => {
+    if (event.key !== 'Delete') return;
+    if (typing(event.target)) return;
+    if (draft === null || saving) return;
+    if (!deleteSelection()) return;
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
   viewport.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || interactive(event.target)) return;
     viewport.focus({ preventScroll: true });
@@ -273,8 +313,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     // 図の地の上を押したら、線の選択は外す。線は自分を押しても外せる場所を持たないので、
     // 地を押して外せないと、選んだ線の設定が出たまま片付かない。
     if (!onDiagramItem(event.target)) {
-      selectedConnector = null;
-      selectedFamily = null;
+      selectedConnectors = [];
+      selectedFamilies = [];
       paint();
     }
   });
@@ -374,8 +414,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   /** 編集を抜けるとき・図を差し替えるときに畳む、その場かぎりの選択。 */
   function clearTransientSelection(): void {
     selection = [];
-    selectedFamily = null;
-    selectedConnector = null;
+    selectedFamilies = [];
+    selectedConnectors = [];
     renaming = null;
     connectSource = null;
     connectDrag = null;
@@ -466,6 +506,44 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   /** 実際に選ばれている人物。**図に居る名前だけ**に絞る（別の図の名前を持ち越さない）。 */
   function chosen(): readonly string[] {
     return selection.filter((name) => model.byName.has(name));
+  }
+
+  /**
+   * 字を打っている最中か。Delete を横取りしてよいかの判定。
+   *
+   * 種別を並べるだけにしない。`contenteditable` の中も字を打つ場所である（いまは無いが、注記を
+   * その場で書けるようにした日に、この判定だけが取り残されると打ち間違いが要素の消去になる）。
+   */
+  function typing(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    return ['input', 'textarea', 'select'].includes(target.tagName.toLowerCase());
+  }
+
+  /**
+   * 選んでいるものを消す。**消せた（または断った）ら真**で、呼んだ側が既定の動作を止める。
+   *
+   * 線が選ばれていれば線を優先する。線を選ぶと札は薄くなる（`is-node-dimmed`）ので、画面が
+   * 「いまの対象は線だ」と示している。そこで札を消すと、示していたものと消えたものが食い違う。
+   *
+   * 札は**ちょうど 1 つのときだけ**消す（取り除きのアイコンと同じ条件）。2 つ以上へ同時に効かせる
+   * と、どれが消えたのか操作の後から分からない。
+   */
+  function deleteSelection(): boolean {
+    if (selectedConnectors.length > 0) {
+      deleteConnector();
+      return true;
+    }
+    if (selectedFamilies.length > 0) {
+      // 家族の線を消すことは家族そのものを消すこと。取り除きのアイコンを出していないのと同じ
+      // 理由で断るが、**黙って何も起きない**のは避ける（キーには隠す口が無く、理由が画面に出ない）。
+      notice = tr('familyLineNotDeletable');
+      paint();
+      return true;
+    }
+    if (chosen().length !== 1) return false;
+    removeElement(lastChosen());
+    return true;
   }
 
   /** 最後に選んだ 1 人。帯の操作（改名・取り除き）はこれを対象にする。 */
@@ -641,8 +719,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       to,
       end: 'arrow',
     };
-    selectedConnector = connector.id;
-    selectedFamily = null;
+    selectedConnectors = [connector.id];
+    selectedFamilies = [];
     updateDraft((current) => ({ ...current, connectors: [...current.connectors, connector] }));
   }
 
@@ -653,21 +731,21 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 部分的な上書きにすると、「既定に戻した」と「その項目を書き忘れた」がファイル上で区別
    * できなくなる。
    */
+  /**
+   * 選んでいる線の見た目を変える。**選んだぶん全部に同じ差し替えを当てる。**
+   *
+   * 手で引いた線と家族の線が混ざっていても両方に当てる。区画に出ている値は最後に選んだ 1 本の
+   * ものだが、変えた項目だけを差し替えるので、触っていない項目は各線のものが残る。
+   */
   function styleLine(patch: Partial<DiagramLineLook>): void {
-    const id = selectedConnector;
-    if (id !== null) {
-      updateDraft((current) => ({
-        ...current,
-        connectors: current.connectors.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-      }));
-      return;
-    }
-    const index = selectedFamily;
-    if (index === null) return;
+    const ids = new Set(selectedConnectors);
+    const families = new Set(selectedFamilies);
+    if (ids.size === 0 && families.size === 0) return;
     updateDraft((current) => ({
       ...current,
+      connectors: current.connectors.map((item) => (ids.has(item.id) ? { ...item, ...patch } : item)),
       families: current.families.map((family, at) =>
-        (at === index ? { ...family, look: { ...familyLook(family), ...patch } } : family)),
+        (families.has(at) ? { ...family, look: { ...familyLook(family), ...patch } } : family)),
     }));
   }
 
@@ -695,13 +773,26 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 永久に見えない線」になる（`removeDiagramConnectors` が推移的に落とす）。
    */
   function deleteConnector(): void {
-    const id = selectedConnector;
-    if (id === null) return;
-    selectedConnector = null;
+    const ids = selectedConnectors;
+    if (ids.length === 0) return;
+    selectedConnectors = [];
     updateDraft((current) => ({
       ...current,
-      connectors: removeDiagramConnectors(current.connectors, [id]),
+      connectors: removeDiagramConnectors(current.connectors, ids),
     }));
+  }
+
+/**
+ * 押した線を選択へ反映する。**修飾キーを添えた押下だけが足す・外す**で、素の押下は選び直し。
+ *
+ * 素の押下で切り替え（同じものをもう一度押すと外れる）にしない。選んだつもりで押した 2 回目に
+ * 設定の区画が消える。外すのは図の地を押すか、修飾キーを添えてもう一度押したとき。
+ */
+  function pickLine<T>(current: readonly T[], pressed: T, additive: boolean): readonly T[] {
+    if (!additive) return [pressed];
+    return current.includes(pressed)
+      ? current.filter((item) => item !== pressed)
+      : [...current, pressed];
   }
 
   /**
@@ -773,6 +864,61 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     connectSource = anchor;
     connectDrag = { pointerId: event.pointerId, from: anchor, x: point.x, y: point.y };
     paint();
+  }
+
+  /**
+   * すき間を掴んだ。**掴んだ瞬間の刻みと倍率を覚える。**
+   *
+   * いまの値へ 1 フレームぶんの差を足し続けない。範囲の端で止まった後に指を戻したとき、
+   * 止まっていた間の差が消えて取っ手が指から離れる（箱の大きさの取っ手と同じ理由）。
+   */
+  function startGapDrag(event: PointerEvent, axis: GapAxis): void {
+    if (draft === null || saving || event.button !== 0) return;
+    const target = event.currentTarget;
+    if (target instanceof Element) target.setPointerCapture(event.pointerId);
+    gapDrag = {
+      pointerId: event.pointerId,
+      axis,
+      origin: { x: event.clientX, y: event.clientY },
+      start: model.spacing,
+      scale: view.scale,
+    };
+  }
+
+  function onGapMove(event: PointerEvent): void {
+    if (gapDrag === null || gapDrag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    changeSpacing(gapFromDrag({
+      start: gapDrag.start,
+      pointer: { x: event.clientX - gapDrag.origin.x, y: event.clientY - gapDrag.origin.y },
+      scale: gapDrag.scale,
+      axis: gapDrag.axis,
+    }));
+  }
+
+  function onGapUp(event: PointerEvent): void {
+    if (gapDrag === null || gapDrag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    const target = event.currentTarget;
+    if (target instanceof Element && target.hasPointerCapture(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+    gapDrag = null;
+  }
+
+  /** 矢印キーでのすき間の増減。指の操作と同じ関数へ落として、刻みと範囲の扱いを 1 か所にする。 */
+  function onGapKeyDown(event: KeyboardEvent, axis: GapAxis): void {
+    if (draft === null || saving) return;
+    const step = nudgeStep(event, axis);
+    if (step === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    changeSpacing(gapFromDrag({
+      start: model.spacing,
+      pointer: axis === 'column' ? { x: step, y: 0 } : { x: 0, y: step },
+      scale: 1,
+      axis,
+    }));
   }
 
   function onConnectMove(event: PointerEvent): void {
@@ -1008,11 +1154,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     while (edgeViews.length > families.length) edgeViews.pop()!.root.remove();
     for (let index = edgeViews.length; index < families.length; index += 1) {
       const edgeView = createEdgeView(doc, families[index]!, index, tr, {
-        onSelectFamily(pressed) {
-          // 押したら**選ぶ**（同じものをもう一度押しても外れない）。外すのは図の地を押したとき。
-          // 切り替えにすると、選んだつもりで押した 2 回目に設定の区画が消える。
-          selectedFamily = pressed;
-          selectedConnector = null;
+        onSelectFamily(pressed, additive) {
+          selectedFamilies = pickLine(selectedFamilies, pressed, additive);
+          if (!additive) selectedConnectors = [];
           paint();
         },
       });
@@ -1028,9 +1172,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     for (const link of model.links) {
       if (linkViews.has(link.connector.id)) continue;
       const linkView = createLinkView(doc, link.connector.id, tr, {
-        onSelectLink(pressed) {
-          selectedConnector = pressed;
-          selectedFamily = null;
+        onSelectLink(pressed, additive) {
+          selectedConnectors = pickLine(selectedConnectors, pressed, additive);
+          if (!additive) selectedFamilies = [];
           paint();
         },
       });
@@ -1068,18 +1212,21 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     setClass(gridSvg, 'anytime-diagram-hidden', !editing);
     gridPath.setAttribute('d', model.freeCells);
 
-    const selectedFamilyConnector = selectedFamily === null ? undefined : model.connectors[selectedFamily];
-    const selectedPeople = selectedFamilyConnector === undefined ? null : new Set([
-      ...selectedFamilyConnector.family.parents, ...selectedFamilyConnector.family.children,
-    ]);
+    // 選んだ家族に出る人物。複数選んだら**和**を取る（選んだどれかに出る人は薄くしない）。
+    const selectedPeople = selectedFamilies.length === 0 ? null : new Set(
+      selectedFamilies.flatMap((index) => {
+        const connector = model.connectors[index];
+        return connector === undefined ? [] : [...connector.family.parents, ...connector.family.children];
+      }),
+    );
     for (const [index, edgeView] of edgeViews.entries()) {
       const connector = model.connectors[index];
       if (connector === undefined) continue;
       edgeView.update({
         connector,
         scale: view.scale,
-        selected: selectedFamily === index,
-        dimmed: selectedFamily !== null && selectedFamily !== index,
+        selected: selectedFamilies.includes(index),
+        dimmed: anyLineSelected() && !selectedFamilies.includes(index),
       });
     }
     for (const link of model.links) {
@@ -1090,8 +1237,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
           to: anchorLabel(link.connector.to),
         }),
         scale: view.scale,
-        selected: selectedConnector === link.connector.id,
-        dimmed: selectedConnector !== null && selectedConnector !== link.connector.id,
+        selected: selectedConnectors.includes(link.connector.id),
+        dimmed: anyLineSelected() && !selectedConnectors.includes(link.connector.id),
       });
     }
     // 引いている最中の仮の線。始点は札の縁ではなく中心から出す（相手が決まるまで縁が定まらない）。
@@ -1117,6 +1264,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       });
     }
 
+    gaps.update({
+      spacing: model.spacing, extent: model.extent, surface: model.surface, editing, saving,
+    });
     midpoints.update({ midpoints: model.midpoints, editing, saving, connectSource });
     viewControls.update({ scale: view.scale, minScale: MIN_SCALE, maxScale: MAX_SCALE });
     // 見え方の操作の区画（枠の左上）と重なる ＋／− は描かない。重ねると上に載っているほうが
@@ -1178,21 +1328,34 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     });
   }
 
+  /** 線を 1 本でも選んでいるか。薄表示の判定を 1 か所に置く。 */
+  function anyLineSelected(): boolean {
+    return selectedConnectors.length > 0 || selectedFamilies.length > 0;
+  }
+
   function currentLineSelection(): LineSelection | null {
-    const connector = model.source.connectors.find((item) => item.id === selectedConnector);
-    if (connector !== undefined) {
-      return {
-        label: tr('selectConnector', { from: anchorLabel(connector.from), to: anchorLabel(connector.to) }),
-        look: connector,
-        deletable: true,
-      };
-    }
-    const family = selectedFamily === null ? undefined : model.connectors[selectedFamily];
-    if (family === undefined) return null;
+    const count = selectedConnectors.length + selectedFamilies.length;
+    if (count === 0) return null;
+    // 区画に出す値は**最後に選んだ 1 本**のもの。平均や「まちまち」を出しても、そこから次の値を
+    // 選ぶ操作にはならない（選び口は 1 つの値しか指せない）。変更は選んだぶん全部に当たる。
+    const lastConnector = selectedConnectors[selectedConnectors.length - 1];
+    const connector = lastConnector === undefined
+      ? undefined
+      : model.source.connectors.find((item) => item.id === lastConnector);
+    const lastFamily = selectedFamilies[selectedFamilies.length - 1];
+    const family = lastFamily === undefined ? undefined : model.connectors[lastFamily];
+    const look = connector ?? family?.look;
+    if (look === undefined) return null;
+    const label = count > 1
+      ? tr('selectedLines', { count })
+      : (connector !== undefined
+        ? tr('selectConnector', { from: anchorLabel(connector.from), to: anchorLabel(connector.to) })
+        : `${tr('selectLine')}: ${family!.family.parents.join('・')}`);
     return {
-      label: `${tr('selectLine')}: ${family.family.parents.join('・')}`,
-      look: family.look,
-      deletable: false,
+      label,
+      look,
+      // 消す口は手で引いた線が 1 本でも選ばれていれば出す（家族の線は要素の取り除きが受け持つ）。
+      deletable: selectedConnectors.length > 0,
     };
   }
 

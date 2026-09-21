@@ -15,14 +15,20 @@ import { arrowHeadPath, type ConnectorPointAt, DIAGRAM_LINE_COLORS } from '@anyt
 
 import type { DiagramT } from '../i18n';
 import type { DiagramLink } from '../model';
-import { setAttr, setClass, svg } from './dom';
+import { additiveFrom, setAttr, setClass, svg } from './dom';
 
 /** 端の印の画面上の大きさ（px）。線の太さと同じく倍率から切り離す。 */
 const CAP_PX = 9;
 
 export interface LinkCallbacks {
   /** 線を押したとき。押したら選ぶ（外すのは図の地を押したとき）。 */
-  onSelectLink(id: string): void;
+  /**
+   * 線を押したとき。`additive` は**選択へ足す**意味（Ctrl / ⌘ / Shift を添えた押下）。
+   *
+   * 修飾キーの読み替えを呼ばれた側へ持たせない。押下は線・家族の線・札の 3 か所から来るので、
+   * 読み替えを各所に置くと、片方だけ Shift を拾わない状態が静かにできる。
+   */
+  onSelectLink(id: string, additive: boolean): void;
 }
 
 export interface LinkViewState {
@@ -56,15 +62,24 @@ export function createLinkView(
   // （WCAG 2.2 の対象の大きさ）。透明なので見た目は変わらない。
   const hit = svg(doc, 'path', { class: 'link-hit', tabindex: '0', role: 'button' });
   const line = svg(doc, 'path', { class: 'link-line' });
+  /**
+   * 二重線の芯。**太い線の上へ図の地の色で細い線を重ねる**ことで二重に見せる。
+   *
+   * 平行な 2 本を引かない。経路は直線・折れ線・カーブの 3 通りあり、平行線を出すには経路ごとに
+   * 法線方向の押し出しを書くことになる（カーブでは厳密には引けない）。重ねる手なら経路に依らない。
+   *
+   * 二重線でないときは CSS が太さを 0 にして消す（要素そのものは作り直さない）。
+   */
+  const core = svg(doc, 'path', { class: 'link-core' });
   const caps = {
     start: { arrow: svg(doc, 'path', { class: 'link-cap' }), circle: svg(doc, 'circle', { class: 'link-cap' }) },
     end: { arrow: svg(doc, 'path', { class: 'link-cap' }), circle: svg(doc, 'circle', { class: 'link-cap' }) },
   };
-  root.append(hit, line, caps.start.arrow, caps.start.circle, caps.end.arrow, caps.end.circle);
+  root.append(hit, line, core, caps.start.arrow, caps.start.circle, caps.end.arrow, caps.end.circle);
 
-  const select = (event: Event): void => {
+  const select = (event: MouseEvent | KeyboardEvent): void => {
     event.stopPropagation();
-    callbacks.onSelectLink(id);
+    callbacks.onSelectLink(id, additiveFrom(event));
   };
   hit.addEventListener('click', select);
   hit.addEventListener('keydown', (event) => {
@@ -84,7 +99,10 @@ export function createLinkView(
       setClass(root, 'is-line-dimmed', dimmed);
       setAttr(hit, 'd', geometry.path);
       setAttr(line, 'd', geometry.path);
+      setClass(root, 'is-double', connector.line === 'double');
       setClass(line, 'is-dashed', connector.line === 'dashed');
+      // 二重線の芯は**同じ経路**を引き直す。別に持たせると、経路を変えた日に片方だけ古い形で残る。
+      setAttr(core, 'd', geometry.path);
       hit.setAttribute('aria-label', label);
       // 端の印は画面上の大きさを保つ。図の座標では倍率で割った長さになる。
       const size = CAP_PX / Math.max(scale, 0.01);

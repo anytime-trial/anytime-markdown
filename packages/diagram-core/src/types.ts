@@ -16,8 +16,13 @@
 export const DIAGRAM_RELATIONS = ['birth', 'creation', 'oath'] as const;
 export type DiagramRelation = (typeof DIAGRAM_RELATIONS)[number];
 
-/** 手で引いた線の引き方。 */
-export const DIAGRAM_LINE_STYLES = ['solid', 'dashed'] as const;
+/**
+ * 線の引き方。
+ *
+ * 二重線は SVG の `stroke` そのものでは描けない。**太い線の上へ図の地の色で細い線を重ねて**
+ * 描く（画面側の約束）。引き回し（`route`）と直交するので、折れ線でもカーブでも同じ手で描ける。
+ */
+export const DIAGRAM_LINE_STYLES = ['solid', 'dashed', 'double'] as const;
 export type DiagramLineStyle = (typeof DIAGRAM_LINE_STYLES)[number];
 
 /**
