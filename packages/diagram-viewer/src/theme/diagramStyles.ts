@@ -162,6 +162,30 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-edges .edge-creation { stroke-dasharray: 2 5; }
 .anytime-diagram-edges .point { stroke: var(--diagram-raised); stroke-width: 1.5; fill: var(--diagram-muted); }
 .anytime-diagram-edges .point-junction { fill: var(--diagram-accent); }
+/*
+  見た目を上書きした家族。種別で決まる装い（親子は実線・婚姻は破線＋アクセント…）を**丸ごと**
+  置き換える。色だけ変えたのに種別の破線が残ると、設定の区画に出ている値と図が食い違う。
+
+  詳細度で勝たせる（\`g.is-look-set path\` はクラス 2 つ＋要素 1 つ）。記述順に頼ると、次に
+  種別の規則を足した人が知らずに順序を崩す。
+*/
+.anytime-diagram-edges g.is-look-set { --link-color: color-mix(in srgb, var(--diagram-fg) 62%, transparent); }
+.anytime-diagram-edges g.is-look-set.is-color-accent { --link-color: var(--diagram-accent); }
+.anytime-diagram-edges g.is-look-set.is-color-danger { --link-color: var(--diagram-danger); }
+.anytime-diagram-edges g.is-look-set.is-color-muted { --link-color: color-mix(in srgb, var(--diagram-fg) 32%, transparent); }
+.anytime-diagram-edges g.is-look-set path { stroke: var(--link-color); stroke-dasharray: none; }
+.anytime-diagram-edges g.is-look-set.is-dashed path {
+  stroke-dasharray: calc(9px / var(--diagram-scale, 1)) calc(6px / var(--diagram-scale, 1));
+}
+/*
+  端の印は塗り。**線の規則（\`fill: none\` / \`stroke\`）に負けない詳細度で書く** — 負けると
+  矢尻が塗り無しになって消える。上書きのある家族は線と同じ色、無い家族は本文の色に落ちる。
+*/
+.anytime-diagram-edges .edge-cap {
+  fill: color-mix(in srgb, var(--diagram-fg) 62%, transparent);
+  stroke: none;
+}
+.anytime-diagram-edges g.is-look-set .edge-cap { fill: var(--link-color); stroke: none; }
 
 /*
   置ける場所（空いた升目）の塗り。埋まった升目は塗らない — 塗ってある所へ運べば必ず収まる。

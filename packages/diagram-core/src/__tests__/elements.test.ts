@@ -16,6 +16,7 @@ import {
   serializeDiagramDocument,
   validateDiagramDocument,
 } from '../document';
+import { familyLook } from '../connectors';
 import { insertGapEdit, visibleCells } from '../grid';
 import { diagramChart, layoutDiagram } from '../layout';
 import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
@@ -332,5 +333,40 @@ describe('線の色', () => {
       connectors: [{ ...CONNECTOR, color: '#ff0000' }],
     });
     expect(document).toBeNull();
+  });
+});
+
+describe('家族の線の見た目', () => {
+  const FAMILY = SAMPLE.families[0]!;
+
+  it('上書きが無ければ種別から決まる（親子は実線、生成は破線）', () => {
+    expect(familyLook(FAMILY)).toEqual({ line: 'solid', color: 'default', start: 'none', end: 'none' });
+    expect(familyLook({ ...FAMILY, kind: 'creation' }).line).toBe('dashed');
+  });
+
+  it('上書きがあればそれを返す', () => {
+    const look = { line: 'dashed', color: 'danger', start: 'circle', end: 'arrow' } as const;
+    expect(familyLook({ ...FAMILY, look })).toEqual(look);
+  });
+
+  it('書いて読み戻すと同じ図になる', () => {
+    const styled: DiagramDocument = {
+      ...SAMPLE,
+      families: [{ ...FAMILY, look: { line: 'dashed', color: 'accent', start: 'none', end: 'arrow' } },
+        ...SAMPLE.families.slice(1)],
+    };
+    expect(parseDiagramFile(serializeDiagramDocument(styled))).toEqual(styled);
+  });
+
+  it('項目の足りない上書きは断る（書き忘れを既定で埋めない）', () => {
+    const broken = {
+      ...SAMPLE,
+      families: [{ ...FAMILY, look: { line: 'dashed' } }, ...SAMPLE.families.slice(1)],
+    };
+    expect(parseDiagramDocument(JSON.parse(JSON.stringify(broken)))).toBeNull();
+  });
+
+  it('上書きの無い家族はファイルに look を書かない', () => {
+    expect(serializeDiagramDocument(SAMPLE)).not.toContain('"look"');
   });
 });

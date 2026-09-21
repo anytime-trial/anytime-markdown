@@ -12,11 +12,11 @@ import {
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
-  type DiagramConnector,
   type DiagramDocument,
   type DiagramEndpoint,
   type DiagramLayout,
   type DiagramLineColor,
+  type DiagramLineLook,
   type DiagramLineStyle,
   type DiagramSpacing,
   isDefaultDiagramSpacing,
@@ -39,8 +39,8 @@ export interface ChromeCallbacks {
   onRenameSelected(): void;
   /** 選んでいる 1 つの要素を図から取り除く。 */
   onRemoveSelected(): void;
-  /** 選んでいる線の見た目を変える。渡した項目だけを差し替える。 */
-  onConnectorStyle(patch: Partial<Pick<DiagramConnector, 'line' | 'color' | 'start' | 'end'>>): void;
+  /** 選んでいる線の見た目を変える。渡した項目だけを差し替える（手で引いた線・家族の線の両方）。 */
+  onLineLook(patch: Partial<DiagramLineLook>): void;
   onDeleteConnector(): void;
 }
 
@@ -60,8 +60,21 @@ export interface ChromeState {
   readonly spacing: DiagramSpacing;
   readonly draft: DiagramLayout | null;
   readonly shiftable: boolean;
-  /** 選んでいる接続線。`null` は線を選んでいない状態。 */
-  readonly connector: DiagramConnector | null;
+  /** 選んでいる線。`null` は線を選んでいない状態。手で引いた線と家族の線の両方が来る。 */
+  readonly lineSelection: LineSelection | null;
+}
+
+/**
+ * 設定の区画へ出す「選んでいる線」。
+ *
+ * 手で引いた線と家族の線を**同じ形**にして渡す。区画の側で出どころを場合分けすると、片方へ
+ * 項目を足した日にもう片方が取り残される。違うのは消せるかどうかだけ — 家族の線を消すことは
+ * 家族そのものを消すことなので、ここからは行わせない。
+ */
+export interface LineSelection {
+  readonly label: string;
+  readonly look: DiagramLineLook;
+  readonly deletable: boolean;
 }
 
 export interface ChromeView {
@@ -135,13 +148,13 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   });
   const connectorName = el(doc, 'output', { attrs: { 'aria-live': 'polite' } });
   const lineStyle = picker<DiagramLineStyle>(doc, DIAGRAM_LINE_STYLES, (value) =>
-    callbacks.onConnectorStyle({ line: value }));
+    callbacks.onLineLook({ line: value }));
   const lineColor = picker<DiagramLineColor>(doc, DIAGRAM_LINE_COLORS, (value) =>
-    callbacks.onConnectorStyle({ color: value }));
+    callbacks.onLineLook({ color: value }));
   const startCap = picker<DiagramEndpoint>(doc, DIAGRAM_ENDPOINTS, (value) =>
-    callbacks.onConnectorStyle({ start: value }));
+    callbacks.onLineLook({ start: value }));
   const endCap = picker<DiagramEndpoint>(doc, DIAGRAM_ENDPOINTS, (value) =>
-    callbacks.onConnectorStyle({ end: value }));
+    callbacks.onLineLook({ end: value }));
   const deleteConnector = iconButton(doc, 'remove', callbacks.onDeleteConnector);
   connectorBar.append(
     connectorName, lineStyle.label, lineColor.label, startCap.label, endCap.label, deleteConnector,
@@ -225,16 +238,20 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   };
 
   function updateConnectorBar(state: ChromeState): void {
-    const connector = state.connector;
+    const line = state.lineSelection;
     connectorBar.setAttribute('aria-label', t('connectorStyle'));
-    setClass(connectorBar, 'anytime-diagram-hidden', !(state.editing && connector !== null));
-    if (connector === null) return;
-    connectorName.textContent = t('selectConnector', { from: connector.from, to: connector.to });
+    setClass(connectorBar, 'anytime-diagram-hidden', !(state.editing && line !== null));
+    if (line === null) return;
+    const { look } = line;
+    connectorName.textContent = line.label;
+    // 消す口は手で引いた線にだけ出す。家族の線を消すことは家族そのものを消すことなので、
+    // 見た目を変える区画からは行わせない（要素の取り除きが受け持つ）。
+    setClass(deleteConnector, 'anytime-diagram-hidden', !line.deletable);
     deleteConnector.disabled = state.saving;
-    lineStyle.apply(t('lineStyle'), connector.line, (value) => t(`lineStyle.${value}`), state.saving);
-    lineColor.apply(t('lineColor'), connector.color, (value) => t(`lineColor.${value}`), state.saving);
-    startCap.apply(t('startCap'), connector.start, (value) => t(`endpoint.${value}`), state.saving);
-    endCap.apply(t('endCap'), connector.end, (value) => t(`endpoint.${value}`), state.saving);
+    lineStyle.apply(t('lineStyle'), look.line, (value) => t(`lineStyle.${value}`), state.saving);
+    lineColor.apply(t('lineColor'), look.color, (value) => t(`lineColor.${value}`), state.saving);
+    startCap.apply(t('startCap'), look.start, (value) => t(`endpoint.${value}`), state.saving);
+    endCap.apply(t('endCap'), look.end, (value) => t(`endpoint.${value}`), state.saving);
   }
 }
 

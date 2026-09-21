@@ -116,7 +116,22 @@ export function familyConnector(
     points.push({ x: junction.x, y: junction.y, kind: 'junction' });
     for (const child of children) points.push({ x: child.x, y: child.y + nodeHeight / 2, kind: 'child' });
   }
-  return { junction, marriage, descent, points };
+  /*
+    端の印を置く場所と、そこから線が伸びていく向き（`arrowHeadPath` が受ける約束）。
+
+    親側は結び目 1 つ、子側は**子ごとに 1 つ**。子の向きを 1 つに決め打たない — 手で動かした
+    子は縦の車線（`busX`）より左へ来ることがあり、そのとき線は右からではなく左から入る。
+    決め打つと、その子の矢印だけが線の外を向く。
+  */
+  const caps = {
+    start: children.length === 0 ? null : { x: junction.x, y: junction.y, angle: 0 },
+    ends: children.map((child) => ({
+      x: child.x,
+      y: child.y + nodeHeight / 2,
+      angle: busX <= child.x ? Math.PI : 0,
+    })),
+  };
+  return { junction, marriage, descent, points, caps };
 }
 
 /**

@@ -43,13 +43,28 @@ export const DIAGRAM_LINE_COLORS = ['default', 'accent', 'danger', 'muted'] as c
 export type DiagramLineColor = (typeof DIAGRAM_LINE_COLORS)[number];
 
 /**
+ * 線 1 本の見た目。**手で引いた線と家族の線が同じ語彙を使う。**
+ *
+ * 2 つに分けない。分けると、片方へ形を足した日にもう片方が取り残され、同じ画面の同じ区画で
+ * 選べる値が線の出どころによって変わる。
+ */
+export interface DiagramLineLook {
+  readonly line: DiagramLineStyle;
+  readonly color: DiagramLineColor;
+  /** 起点側の端の印。家族の線では親側（子へ降りる線の結び目）。 */
+  readonly start: DiagramEndpoint;
+  /** 終点側の端の印。家族の線では**子ごとに 1 つ**付く。 */
+  readonly end: DiagramEndpoint;
+}
+
+/**
  * 手で引いた接続線 1 本。家族から導く関係線とは別に持つ。
  *
  * 家族（`DiagramFamily`）へ寄せない。家族は「親から子へ」という向きと世代の意味を持ち、自動配置の
  * 列を決める入力でもある。手で引いた線に同じ意味を負わせると、装飾のつもりで引いた 1 本が図の
  * 並びを組み替える。
  */
-export interface DiagramConnector {
+export interface DiagramConnector extends DiagramLineLook {
   /**
    * 図の中で一意の id。
    *
@@ -59,13 +74,6 @@ export interface DiagramConnector {
   readonly id: string;
   readonly from: string;
   readonly to: string;
-  readonly line: DiagramLineStyle;
-  /** 線の色の役割名。古いファイルには無いので、読み取りは `'default'` で埋める。 */
-  readonly color: DiagramLineColor;
-  /** `from` 側の端の印。 */
-  readonly start: DiagramEndpoint;
-  /** `to` 側の端の印。 */
-  readonly end: DiagramEndpoint;
 }
 
 export interface DiagramFamily {
@@ -74,6 +82,16 @@ export interface DiagramFamily {
   readonly kind: DiagramRelation;
   /** 群の値。`groups` が宣言した軸の id を鍵にする。 */
   readonly groups: Readonly<Record<string, string>>;
+  /**
+   * この家族の線の見た目。**無ければ種別（`kind`）から決まる既定**で描く。
+   *
+   * 種別ごとではなく家族 1 件ごとに持つ。押した 1 本だけが変わる — 種別へ持たせると
+   * 「この 1 本だけ目立たせる」ができない。代わりに凡例の文とは食い違いうるので、
+   * 凡例は作者が自分で直す。
+   *
+   * 既定と同じ見た目なら**持たない**（触っていない図にファイルの項目を増やさない）。
+   */
+  readonly look?: DiagramLineLook;
 }
 
 /** 分類の軸 1 本。人物の札には宣言順で最初の軸から順に添える。 */

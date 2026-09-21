@@ -25,11 +25,21 @@ const groupAxisSchema = z.object({
   values: z.record(z.string(), z.string()).describe('Value id to display label'),
 });
 
+const lookSchema = z.object({
+  line: z.enum(DIAGRAM_LINE_STYLES).describe('Line style'),
+  color: z.enum(DIAGRAM_LINE_COLORS)
+    .describe('Colour role. The literal colour comes from the host theme, so the chart stays readable in dark and light'),
+  start: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the start'),
+  end: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the end'),
+});
+
 const familySchema = z.object({
   parents: z.array(z.string()).min(1).describe('One or two parent names. People are derived from families'),
   children: z.array(z.string()).describe('Child names. May be empty for a couple with no recorded children'),
   kind: z.enum(DIAGRAM_RELATIONS).describe('Relation kind: birth (solid), creation (dotted), oath (dashed)'),
   groups: z.record(z.string(), z.string()).describe('Group axis id to value id, for the badges on each card'),
+  look: lookSchema.optional()
+    .describe('Per-family line appearance. Omit to draw with the default for its kind. All four fields are required when given'),
 });
 
 const connectorSchema = z.object({

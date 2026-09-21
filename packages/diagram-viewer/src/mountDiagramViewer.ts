@@ -15,8 +15,10 @@ import {
   type DiagramConnector,
   type DiagramDocument,
   type DiagramLayout,
-  diagramPeople,
+  type DiagramLineLook,
   type DiagramSpacing,
+  diagramPeople,
+  familyLook,
   fitChart,
   fittingShift,
   type GridAxis,
@@ -48,7 +50,7 @@ import { createAutomaticCache, deriveModel, type DiagramModel } from './model';
 import { DIAGRAM_ROOT_CLASS, DIAGRAM_STYLES } from './theme/diagramStyles';
 import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
 import { createCellAdderView } from './ui/cellAdders';
-import { createChromeView, createConfirmView, RESET_LAYOUT } from './ui/chrome';
+import { createChromeView, createConfirmView, type LineSelection, RESET_LAYOUT } from './ui/chrome';
 import { createLinkView, type LinkView } from './ui/connectors';
 import { el, setAttr, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
@@ -169,7 +171,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
     onRenameSelected: () => { startRename(lastChosen()); },
     onRemoveSelected: () => { removeElement(lastChosen()); },
-    onConnectorStyle: styleConnector,
+    onLineLook: styleLine,
     onDeleteConnector: deleteConnector,
   });
   const confirmView = createConfirmView(doc, tr, (kind) => {
@@ -623,13 +625,28 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     updateDraft((current) => ({ ...current, connectors: [...current.connectors, connector] }));
   }
 
-  /** 選んでいる線の見た目を変える。渡した項目だけを差し替える。 */
-  function styleConnector(patch: Partial<Pick<DiagramConnector, 'line' | 'start' | 'end'>>): void {
+  /**
+   * 選んでいる線の見た目を変える。**手で引いた線と家族の線の両方**を受ける。
+   *
+   * 家族の線は、上書きが無ければ種別から決まる既定（`familyLook`）を土台にして書き込む。
+   * 部分的な上書きにすると、「既定に戻した」と「その項目を書き忘れた」がファイル上で区別
+   * できなくなる。
+   */
+  function styleLine(patch: Partial<DiagramLineLook>): void {
     const id = selectedConnector;
-    if (id === null) return;
+    if (id !== null) {
+      updateDraft((current) => ({
+        ...current,
+        connectors: current.connectors.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      }));
+      return;
+    }
+    const index = selectedFamily;
+    if (index === null) return;
     updateDraft((current) => ({
       ...current,
-      connectors: current.connectors.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      families: current.families.map((family, at) =>
+        (at === index ? { ...family, look: { ...familyLook(family), ...patch } } : family)),
     }));
   }
 
@@ -963,6 +980,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       if (connector === undefined) continue;
       edgeView.update({
         connector,
+        scale: view.scale,
         selected: selectedFamily === index,
         dimmed: selectedFamily !== null && selectedFamily !== index,
       });
@@ -1023,8 +1041,32 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       spacing: model.spacing,
       draft: draft?.layout ?? null,
       shiftable: model.lines.shiftable,
-      connector: model.source.connectors.find((item) => item.id === selectedConnector) ?? null,
+      lineSelection: currentLineSelection(),
     });
+  }
+
+  /**
+   * 設定の区画へ渡す「選んでいる線」。手で引いた線と家族の線を同じ形へ揃える。
+   *
+   * 家族の線には**上書きが無ければ種別の既定**を載せる。載せないと、まだ触っていない線を
+   * 選んだときに区画の値が空になり、実際に描かれている線と食い違う。
+   */
+  function currentLineSelection(): LineSelection | null {
+    const connector = model.source.connectors.find((item) => item.id === selectedConnector);
+    if (connector !== undefined) {
+      return {
+        label: tr('selectConnector', { from: connector.from, to: connector.to }),
+        look: connector,
+        deletable: true,
+      };
+    }
+    const family = selectedFamily === null ? undefined : model.connectors[selectedFamily];
+    if (family === undefined) return null;
+    return {
+      label: `${tr('selectLine')}: ${family.family.parents.join('・')}`,
+      look: family.look,
+      deletable: false,
+    };
   }
 
   paint();

@@ -11,6 +11,7 @@ export {
   borderPoint,
   type ConnectorGeometry,
   connectorGeometry,
+  familyLook,
   type ConnectorPointAt,
   MAX_CONNECTORS_PER_DIAGRAM,
 } from './connectors';
@@ -105,6 +106,7 @@ export {
   type DiagramGroupAxis,
   type DiagramLayout,
   type DiagramLineColor,
+  type DiagramLineLook,
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,

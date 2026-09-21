@@ -651,3 +651,50 @@ describe('線の選択', () => {
     expect(barShown()).toBe(true);
   });
 });
+
+describe('最初からある線（家族の線）の見た目', () => {
+  const selectFamilyLine = (): DiagramViewerHandle => {
+    const view = mount({ editable: true, onSave: () => {} });
+    byText('配置を編集')!.click();
+    container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return view;
+  };
+  const bar = (): HTMLElement => container.querySelector('.anytime-diagram-connectorbar')!;
+
+  it('押すと設定の区画が出て、種別から決まる今の値が入っている', () => {
+    selectFamilyLine();
+    expect(bar().classList).not.toContain('anytime-diagram-hidden');
+    const [line, colour, start, end] = [...bar().querySelectorAll<HTMLSelectElement>('select')];
+    // 親子の家族なので実線・既定・印なし。
+    expect([line!.value, colour!.value, start!.value, end!.value]).toEqual(['solid', 'default', 'none', 'none']);
+  });
+
+  it('消す口は出さない（家族の線を消すことは家族を消すこと）', () => {
+    selectFamilyLine();
+    expect(byLabel('この線を消す')!.classList).toContain('anytime-diagram-hidden');
+  });
+
+  it('変えるとその家族 1 件にだけ上書きが載る', () => {
+    const view = selectFamilyLine();
+    const [line, colour] = [...bar().querySelectorAll<HTMLSelectElement>('select')];
+    line!.value = 'dashed';
+    line!.dispatchEvent(new Event('change', { bubbles: true }));
+    colour!.value = 'danger';
+    colour!.dispatchEvent(new Event('change', { bubbles: true }));
+    const families = view.getDraft()!.families;
+    expect(families[0]!.look).toEqual({ line: 'dashed', color: 'danger', start: 'none', end: 'none' });
+    // 別の家族は触らない（種別ごとではなく 1 件ごと）。
+    expect(families[1]!.look).toBeUndefined();
+  });
+
+  it('端の印は子ごとに 1 つ描く', () => {
+    selectFamilyLine();
+    const [, , , end] = [...bar().querySelectorAll<HTMLSelectElement>('select')];
+    end!.value = 'arrow';
+    end!.dispatchEvent(new Event('change', { bubbles: true }));
+    // 1 件目の家族（祖父・祖母 → 父）は子が 1 人。
+    const group = container.querySelector('.anytime-diagram-edges > g')!;
+    expect(group.querySelectorAll('.edge-cap')).toHaveLength(1);
+  });
+});

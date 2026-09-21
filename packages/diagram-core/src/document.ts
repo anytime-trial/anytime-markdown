@@ -30,6 +30,7 @@ import {
   type DiagramGroupAxis,
   type DiagramLayout,
   type DiagramLineColor,
+  type DiagramLineLook,
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
@@ -79,6 +80,24 @@ function isEndpoint(value: unknown): value is DiagramEndpoint {
 
 function isLineColor(value: unknown): value is DiagramLineColor {
   return typeof value === 'string' && (DIAGRAM_LINE_COLORS as readonly string[]).includes(value);
+}
+
+/**
+ * 線の見た目 1 件。**書いてあるなら 4 項目すべてが要る。**
+ *
+ * 足りない項目を既定で埋めない。埋めると、綴り違いの項目名が「指定したのに効かない設定」として
+ * 静かに残る（上書きの有無そのものが見た目の意味を持つので、部分的な上書きを許すと
+ * 「既定に戻した」と「書き忘れた」が区別できなくなる）。
+ */
+function readLineLook(value: unknown, onWarn: Warn): DiagramLineLook | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isObject(value) || !isLineStyle(value.line) || !isLineColor(value.color)
+    || !isEndpoint(value.start) || !isEndpoint(value.end)) {
+    onWarn(`[diagram] look は line（${DIAGRAM_LINE_STYLES.join(' | ')}）/ color（${DIAGRAM_LINE_COLORS.join(' | ')}）`
+      + ` / start・end（${DIAGRAM_ENDPOINTS.join(' | ')}）の 4 項目が必要です`);
+    return null;
+  }
+  return { line: value.line, color: value.color, start: value.start, end: value.end };
 }
 
 /** 升目の番号として読めるか。負・小数・桁外れは弾く。 */
@@ -274,7 +293,15 @@ function readFamilies(value: unknown, onWarn: Warn): DiagramFamily[] | null {
       onWarn('[diagram] families の要素は parents（1 件以上）/ children / kind / groups が必要です');
       return null;
     }
-    families.push({ parents, children, kind: family.kind, groups: familyGroups });
+    const look = readLineLook(family.look, onWarn);
+    if (look === null) return null;
+    families.push({
+      parents,
+      children,
+      kind: family.kind,
+      groups: familyGroups,
+      ...(look === undefined ? {} : { look }),
+    });
   }
   return families;
 }

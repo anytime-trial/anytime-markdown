@@ -5,7 +5,7 @@
  * 多くなりうるので、ドラッグのたびに作り直すと図が指に追随しない。
  */
 
-import type { DiagramFamily } from '@anytime-markdown/diagram-core';
+import { arrowHeadPath, type ConnectorPointAt, DIAGRAM_LINE_COLORS, type DiagramFamily } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
 import type { FamilyConnector } from '../model';
@@ -18,6 +18,8 @@ export interface EdgeCallbacks {
 
 export interface EdgeViewState {
   readonly connector: FamilyConnector;
+  /** 図の倍率。端の印の画面上の大きさを保つのに要る（線の太さと同じ扱い）。 */
+  readonly scale: number;
   readonly selected: boolean;
   readonly dimmed: boolean;
 }
@@ -56,12 +58,24 @@ export function createEdgeView(
   }
   root.append(marriage, descent);
   const points: SVGCircleElement[] = [];
+  /** 端の印。子の数で増減するので、節点と同じく足りなければ作り、余ったら消す。 */
+  const caps: SVGElement[] = [];
 
   return {
     root,
-    update({ connector, selected, dimmed }) {
+    update({ connector, scale, selected, dimmed }) {
       setClass(root, 'is-line-selected', selected);
       setClass(root, 'is-line-dimmed', dimmed);
+      /*
+        見た目の上書きがある家族は、種別で決まる装い（親子は実線・生成は点線…）を**丸ごと**
+        置き換える。片方だけ残すと、色を変えただけの線が種別の破線を保ったままになり、
+        設定の区画に出ている値と図が食い違う。
+      */
+      const look = connector.look;
+      setClass(root, 'is-look-set', connector.family.look !== undefined);
+      setClass(root, 'is-dashed', look.line === 'dashed');
+      for (const name of DIAGRAM_LINE_COLORS) setClass(root, `is-color-${name}`, look.color === name);
+      syncCaps(doc, root, caps, connector, scale);
       // `d` が無い path はタブ順に残る一方で何も描かない（押せない操作要素になる）ので、
       // 線を持たない家族では要素ごと隠す。
       applyPath(marriage, connector.marriage);
@@ -99,4 +113,60 @@ function syncPoints(
     circle.setAttribute('r', point.kind === 'junction' ? '3.5' : '3');
     circle.setAttribute('class', `point point-${point.kind}`);
   }
+}
+
+/** 端の印の画面上の大きさ（px）。手で引いた線と同じ値にする（`ui/connectors.ts`）。 */
+const CAP_PX = 9;
+
+/**
+ * 端の印を当てる。親側は結び目に 1 つ、子側は**子ごとに 1 つ**。
+ *
+ * 形（矢印は `path`、丸は `circle`）が混ざるので、要素は毎回作り直さず**必要な数だけ確保して
+ * 置き換える**。数が変わるのは子を足し引きしたときだけで、指の動きでは変わらない。
+ */
+function syncCaps(
+  doc: Document,
+  root: SVGGElement,
+  caps: SVGElement[],
+  connector: FamilyConnector,
+  scale: number,
+): void {
+  const { look } = connector;
+  const wanted: { readonly kind: 'circle' | 'arrow'; readonly at: ConnectorPointAt }[] = [];
+  if (look.start !== 'none' && connector.caps.start !== null) {
+    wanted.push({ kind: look.start, at: connector.caps.start });
+  }
+  if (look.end !== 'none') {
+    for (const at of connector.caps.ends) wanted.push({ kind: look.end, at });
+  }
+  while (caps.length > wanted.length) caps.pop()!.remove();
+  const size = CAP_PX / Math.max(scale, 0.01);
+  for (const [index, { kind, at }] of wanted.entries()) {
+    const existing = caps[index];
+    const tag = kind === 'arrow' ? 'path' : 'circle';
+    // 形が変わったら作り直す（`path` を `circle` へは書き換えられない）。
+    const element = existing !== undefined && existing.tagName === tag
+      ? existing
+      : replaceCap(doc, root, caps, index, tag);
+    if (kind === 'arrow') setAttr(element, 'd', arrowHeadPath(at, at.angle, size));
+    else {
+      element.setAttribute('cx', String(at.x));
+      element.setAttribute('cy', String(at.y));
+      element.setAttribute('r', String(size / 2.4));
+    }
+  }
+}
+
+function replaceCap(
+  doc: Document,
+  root: SVGGElement,
+  caps: SVGElement[],
+  index: number,
+  tag: 'path' | 'circle',
+): SVGElement {
+  caps[index]?.remove();
+  const element = svg(doc, tag, { class: 'edge-cap' });
+  caps[index] = element;
+  root.appendChild(element);
+  return element;
 }

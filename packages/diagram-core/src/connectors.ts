@@ -8,7 +8,25 @@
  */
 
 import type { ChartNode } from './layout';
-import type { DiagramSpacing } from './types';
+import type { DiagramFamily, DiagramLineLook, DiagramSpacing } from './types';
+
+/**
+ * その家族の線の見た目。**上書きが無ければ種別から決まる既定**を返す。
+ *
+ * 既定をここに 1 つだけ置く。画面（設定の区画に出す今の値）と描画（実際に引く線）が別々に
+ * 既定を持つと、上書きしていない線で「区画の表示と図が食い違う」状態ができる。
+ *
+ * 親子は実線、生成・誓約は破線。端の印は付けない — 家族の線は関係の向きを配置（左から右へ
+ * 世代が進む）で示しており、既定で矢印を足すと図が一斉に賑やかになる。
+ */
+export function familyLook(family: DiagramFamily): DiagramLineLook {
+  return family.look ?? {
+    line: family.kind === 'birth' ? 'solid' : 'dashed',
+    color: 'default',
+    start: 'none',
+    end: 'none',
+  };
+}
 
 /**
  * 1 つの図に持てる接続線の上限。

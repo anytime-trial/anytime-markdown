@@ -17,14 +17,17 @@ import {
   columnPitch,
   type ConnectorGeometry,
   connectorGeometry,
+  type ConnectorPointAt,
   DEFAULT_DIAGRAM_SPACING,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramFamily,
   type DiagramLayout,
+  type DiagramLineLook,
   type DiagramSpacing,
   EMPTY_DIAGRAM_LAYOUT,
   familyConnector,
+  familyLook,
   freeCellsPath,
   gridBounds,
   type GridCell,
@@ -42,6 +45,13 @@ export interface FamilyConnector {
   readonly marriage: string | null;
   readonly descent: string | null;
   readonly points: readonly { readonly x: number; readonly y: number; readonly kind: string }[];
+  /** 端の印を置く場所と向き。親側は結び目 1 つ、子側は子ごとに 1 つ。 */
+  readonly caps: {
+    readonly start: ConnectorPointAt | null;
+    readonly ends: readonly ConnectorPointAt[];
+  };
+  /** この家族の線の見た目（上書きが無ければ種別から決まる既定）。 */
+  readonly look: DiagramLineLook;
 }
 
 /**
@@ -144,7 +154,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     const parentColumn = Math.min(...family.parents.map((parent) => byName.get(parent)!.x));
     const lane = laneByColumn.get(parentColumn) ?? 0;
     laneByColumn.set(parentColumn, lane + 1);
-    return { ...familyConnector(family, byName, { lane, spacing }), family };
+    return { ...familyConnector(family, byName, { lane, spacing }), family, look: familyLook(family) };
   });
 
   const extent = paintableExtent(chart.nodes, [...chart.automatic.values()]);
