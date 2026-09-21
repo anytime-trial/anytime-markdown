@@ -538,17 +538,28 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     paint();
   }
 
-  /** 図の上で足した要素を取り除く。家族に出る人物は取り除けない（`removeDiagramElement` が断る）。 */
+  /**
+   * 要素を 1 つ取り除く。**家族に出る人物も取り除ける。**
+   *
+   * ついでに何が変わったかを知らせる。家族に出る人物を消すと、その人が居た家族と線も消え、
+   * その家族にしか出てこなかった相手は名前だけの要素として残る — 押した人が図を見比べて
+   * 気づくのでは遅い（取り消しは編集の破棄しかない）。
+   */
   function removeElement(name: string): void {
     if (draft === null || saving) return;
+    const result = removeDiagramElement(draft, name);
+    if (!result.removed) return;
     selection = selection.filter((item) => item !== name);
     if (connectSource === name) connectSource = null;
-    updateDraft((current) => removeDiagramElement(current, name));
+    notice = result.droppedFamilies === 0
+      ? ''
+      : tr('removedWithFamilies', {
+        name,
+        families: result.droppedFamilies,
+        rescued: result.rescued.length === 0 ? '—' : result.rescued.join('・'),
+      });
+    updateDraft(() => result.document);
   }
-
-  /** 図の上から取り除ける要素か。家族に出る人物は、家族の側を組み替えないと消せない。 */
-  const removable = (name: string): boolean =>
-    model.source.nodes.includes(name) && !diagramPeople(model.source.families).has(name);
 
   /**
    * 線を 1 本引く。**同じ向きの同じ組は 2 本引かない。**
@@ -566,6 +577,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       from,
       to,
       line: 'solid',
+      color: 'default',
       start: 'none',
       end: 'arrow',
     };
@@ -970,7 +982,6 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       saving,
       notice,
       spacing: model.spacing,
-      removable: removable(lastChosen()),
       draft: draft?.layout ?? null,
       shiftable: model.lines.shiftable,
       connector: model.source.connectors.find((item) => item.id === selectedConnector) ?? null,

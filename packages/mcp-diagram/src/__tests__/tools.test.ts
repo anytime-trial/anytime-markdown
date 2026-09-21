@@ -123,7 +123,7 @@ describe('図の書き換えと配置の引き継ぎ', () => {
       title: '検査用',
       families,
       nodes: ['単独の要素'],
-      connectors: [{ id: 'c1', from: '子', to: '単独の要素', line: 'dashed', start: 'none', end: 'arrow' }],
+      connectors: [{ id: 'c1', from: '子', to: '単独の要素', line: 'dashed', color: 'accent', start: 'none', end: 'arrow' }],
     }, rootDir);
     // 要素と線を渡さない呼び出しは、既存のものを引き継ぐ（配置差分と同じ扱い）。
     await writeDiagram({ path: FILE, title: '題名を直した', families }, rootDir);

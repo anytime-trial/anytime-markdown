@@ -31,6 +31,18 @@ export const DIAGRAM_ENDPOINTS = ['none', 'circle', 'arrow'] as const;
 export type DiagramEndpoint = (typeof DIAGRAM_ENDPOINTS)[number];
 
 /**
+ * 線の色。**色そのものではなく役割の名前**を持つ。
+ *
+ * `#c0392b` のような値を保存しない。図は宿主（VS Code / web-app）の配色をそのまま引いており、
+ * 値を焼き込むと**ダークとライトの片方でだけ背景に溶ける線**が作れてしまう。名前で持てば、
+ * 実際の色は描くときに宿主のトークンから引き直せる。
+ *
+ * 増やすときは、その名前に当たるトークンが**両方のモードで読める**ことを確かめてから足す。
+ */
+export const DIAGRAM_LINE_COLORS = ['default', 'accent', 'danger', 'muted'] as const;
+export type DiagramLineColor = (typeof DIAGRAM_LINE_COLORS)[number];
+
+/**
  * 手で引いた接続線 1 本。家族から導く関係線とは別に持つ。
  *
  * 家族（`DiagramFamily`）へ寄せない。家族は「親から子へ」という向きと世代の意味を持ち、自動配置の
@@ -48,6 +60,8 @@ export interface DiagramConnector {
   readonly from: string;
   readonly to: string;
   readonly line: DiagramLineStyle;
+  /** 線の色の役割名。古いファイルには無いので、読み取りは `'default'` で埋める。 */
+  readonly color: DiagramLineColor;
   /** `from` 側の端の印。 */
   readonly start: DiagramEndpoint;
   /** `to` 側の端の印。 */

@@ -63,6 +63,12 @@
     "insertAbove": "上へ空きを割り込ませる（同じ列を下へ）",
     "insertLeft": "左へ空きを割り込ませる（同じ行を右へ）",
     "insertAboveBlocked": "「{name}」の上に空きを入れられません。同じ列が下まで詰まっています。",
-    "insertLeftBlocked": "「{name}」の左に空きを入れられません。同じ行が右まで詰まっています。"
+    "insertLeftBlocked": "「{name}」の左に空きを入れられません。同じ行が右まで詰まっています。",
+    "lineColor": "色",
+    "lineColor.default": "既定",
+    "lineColor.accent": "強調",
+    "lineColor.danger": "注意",
+    "lineColor.muted": "控えめ",
+    "removedWithFamilies": "「{name}」を取り除きました。家族 {families} 件とその線が外れ、{rescued} は名前だけの要素として残しています。"
   }
 }

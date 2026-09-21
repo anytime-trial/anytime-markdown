@@ -20,6 +20,7 @@ import {
 import { MAX_CONNECTORS_PER_DIAGRAM } from './connectors';
 import {
   DIAGRAM_ENDPOINTS,
+  DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
   type DiagramConnector,
@@ -28,6 +29,7 @@ import {
   type DiagramFamily,
   type DiagramGroupAxis,
   type DiagramLayout,
+  type DiagramLineColor,
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
@@ -73,6 +75,10 @@ function isLineStyle(value: unknown): value is DiagramLineStyle {
 
 function isEndpoint(value: unknown): value is DiagramEndpoint {
   return typeof value === 'string' && (DIAGRAM_ENDPOINTS as readonly string[]).includes(value);
+}
+
+function isLineColor(value: unknown): value is DiagramLineColor {
+  return typeof value === 'string' && (DIAGRAM_LINE_COLORS as readonly string[]).includes(value);
 }
 
 /** 升目の番号として読めるか。負・小数・桁外れは弾く。 */
@@ -301,12 +307,26 @@ function readConnectors(value: unknown, onWarn: Warn): DiagramConnector[] | null
         + ` / line（${DIAGRAM_LINE_STYLES.join(' | ')}）/ start・end（${DIAGRAM_ENDPOINTS.join(' | ')}）が必要です`);
       return null;
     }
+    // 色だけは**無くてもよい**。色を持たなかった頃に保存した線を、項目を足した日に読めなく
+    // しない（他の項目と違い、既定が一意に決まる）。書いてある値が読めないときは断る。
+    if (item.color !== undefined && !isLineColor(item.color)) {
+      onWarn(`[diagram] connectors.color は ${DIAGRAM_LINE_COLORS.join(' | ')} のどれかです`);
+      return null;
+    }
     if (seen.has(item.id)) {
       onWarn(`[diagram] connectors: id が重複しています（${item.id}）`);
       return null;
     }
     seen.add(item.id);
-    connectors.push({ id: item.id, from: item.from, to: item.to, line: item.line, start: item.start, end: item.end });
+    connectors.push({
+      id: item.id,
+      from: item.from,
+      to: item.to,
+      line: item.line,
+      color: item.color ?? 'default',
+      start: item.start,
+      end: item.end,
+    });
   }
   return connectors;
 }
@@ -523,28 +543,69 @@ export function nextConnectorId(connectors: readonly DiagramConnector[]): string
 }
 
 /**
- * 要素を 1 つ取り除いた図。**取り除けるのは家族に属さない要素だけ。**
+ * 要素を 1 つ取り除いた結果。何がついでに変わったかを**数えて返す**。
  *
- * 家族に出る人物は消さない（`document` をそのまま返す）。消すには家族の側を組み替える必要が
- * あり、親を 1 人消すと家族の形（`parents` は 1 件以上）まで壊れる。図の上から消せる範囲を
- * 「図の上で足した要素」に限ると、消せるものと消せないものの境目が操作の履歴と一致する。
+ * 家族に出る人物を消すと、その人が居た家族と、そこから引かれていた線も消える。押した人が
+ * 「1 つ消したつもりが図の一部が変わった」と後から気づくのを避けるため、呼ぶ側が伝えられる
+ * 材料をここで揃える。
+ */
+export interface DiagramElementRemoval {
+  readonly document: DiagramDocument;
+  /** 取り除けたか。図に居ない名前なら偽で、`document` は元のまま。 */
+  readonly removed: boolean;
+  /** 消えた家族の件数（その人が親のすべて、または形を保てなくなったもの）。 */
+  readonly droppedFamilies: number;
+  /** 家族が消えたことで、名前だけの要素として図に残した人物。 */
+  readonly rescued: readonly string[];
+}
+
+/** 描くものを何も持たない家族か。親が 1 人だけで子が居なければ、線も札の関係も生まない。 */
+const drawsNothing = (family: DiagramFamily): boolean =>
+  family.children.length === 0 && family.parents.length < 2;
+
+/**
+ * 要素を 1 つ取り除いた図。**家族に出る人物も消せる。**
+ *
+ * その人を家族の親・子から外し、外した結果**何も描かなくなった家族は落とす**。落とした家族に
+ * しか出てこなかった人物は、`nodes`（単独の要素）へ**拾い直す** — 拾わないと、1 人消したつもりで
+ * その家族の相手まで図から消える。位置（配置差分）は触らないので、残った札はその場に留まる。
  *
  * 併せて**その要素に取り付いた接続線・注記・配置差分も落とす**。残すと、図に出ない名前を指す
  * 線と差分が積もり、次に同じ名前で要素を足したときに覚えの無い線が復活する。
  */
-export function removeDiagramElement(document: DiagramDocument, name: string): DiagramDocument {
-  if (!document.nodes.includes(name)) return document;
-  if (diagramPeople(document.families).has(name)) return document;
+export function removeDiagramElement(document: DiagramDocument, name: string): DiagramElementRemoval {
+  const before = diagramPeople(document.families, document.nodes);
+  if (!before.has(name)) {
+    return { document, removed: false, droppedFamilies: 0, rescued: [] };
+  }
+  const families = document.families
+    .map((family) => ({
+      ...family,
+      parents: family.parents.filter((item) => item !== name),
+      children: family.children.filter((item) => item !== name),
+    }))
+    // 親が 1 人も居ない家族は形として成り立たない（読み取りが断る）。何も描かない家族も落とす。
+    .filter((family) => family.parents.length > 0 && !drawsNothing(family));
+  const nodes = document.nodes.filter((item) => item !== name);
+  // 家族が消えたせいで図から居なくなる人物を拾い直す。**消した本人は拾わない**。
+  const after = diagramPeople(families, nodes);
+  const rescued = [...before].filter((person) => person !== name && !after.has(person)).sort();
   const annotations = { ...document.annotations };
   delete annotations[name];
   const placements = { ...document.layout.placements };
   delete placements[name];
   return {
-    ...document,
-    nodes: document.nodes.filter((item) => item !== name),
-    connectors: document.connectors.filter((connector) => connector.from !== name && connector.to !== name),
-    annotations,
-    layout: { ...document.layout, placements },
+    document: {
+      ...document,
+      families,
+      nodes: [...nodes, ...rescued],
+      connectors: document.connectors.filter((connector) => connector.from !== name && connector.to !== name),
+      annotations,
+      layout: { ...document.layout, placements },
+    },
+    removed: true,
+    droppedFamilies: document.families.length - families.length,
+    rescued,
   };
 }
 

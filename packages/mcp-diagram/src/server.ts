@@ -1,5 +1,6 @@
 import {
   DIAGRAM_ENDPOINTS,
+  DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
   DIAGRAM_SPACING_RANGE,
@@ -36,6 +37,8 @@ const connectorSchema = z.object({
   from: z.string().min(1).describe('Element the line starts at'),
   to: z.string().min(1).describe('Element the line ends at'),
   line: z.enum(DIAGRAM_LINE_STYLES).describe('Line style'),
+  color: z.enum(DIAGRAM_LINE_COLORS).default('default')
+    .describe('Colour role. The literal colour comes from the host theme, so the chart stays readable in dark and light'),
   start: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the from end'),
   end: z.enum(DIAGRAM_ENDPOINTS).describe('Marker at the to end'),
 });

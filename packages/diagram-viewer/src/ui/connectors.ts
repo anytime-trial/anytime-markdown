@@ -11,7 +11,7 @@
  * ならず、暗い背景で黒い矢尻になりうるため。
  */
 
-import { arrowHeadPath, type ConnectorPointAt } from '@anytime-markdown/diagram-core';
+import { arrowHeadPath, type ConnectorPointAt, DIAGRAM_LINE_COLORS } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
 import type { DiagramLink } from '../model';
@@ -72,6 +72,8 @@ export function createLinkView(
     update({ link, scale, selected, dimmed }) {
       const { connector, geometry } = link;
       setClass(root, 'is-line-selected', selected);
+      // 色は役割の名前をクラスへ写す（実際の色はスタイルシートが宿主のトークンから引く）。
+      for (const name of DIAGRAM_LINE_COLORS) setClass(root, `is-color-${name}`, connector.color === name);
       setClass(root, 'is-line-dimmed', dimmed);
       setAttr(hit, 'd', geometry.path);
       setAttr(line, 'd', geometry.path);

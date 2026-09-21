@@ -10,11 +10,13 @@
 
 import {
   DIAGRAM_ENDPOINTS,
+  DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
   type DiagramConnector,
   type DiagramDocument,
   type DiagramEndpoint,
   type DiagramLayout,
+  type DiagramLineColor,
   type DiagramLineStyle,
   type DiagramSpacing,
   isDefaultDiagramSpacing,
@@ -38,7 +40,7 @@ export interface ChromeCallbacks {
   /** 選んでいる 1 つの要素を図から取り除く。 */
   onRemoveSelected(): void;
   /** 選んでいる線の見た目を変える。渡した項目だけを差し替える。 */
-  onConnectorStyle(patch: Partial<Pick<DiagramConnector, 'line' | 'start' | 'end'>>): void;
+  onConnectorStyle(patch: Partial<Pick<DiagramConnector, 'line' | 'color' | 'start' | 'end'>>): void;
   onDeleteConnector(): void;
 }
 
@@ -60,8 +62,6 @@ export interface ChromeState {
   readonly shiftable: boolean;
   /** 選んでいる接続線。`null` は線を選んでいない状態。 */
   readonly connector: DiagramConnector | null;
-  /** 選んでいる 1 つの要素を図から取り除けるか（家族に出る人物は取り除けない）。 */
-  readonly removable: boolean;
 }
 
 export interface ChromeView {
@@ -136,13 +136,15 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   const connectorName = el(doc, 'output', { attrs: { 'aria-live': 'polite' } });
   const lineStyle = picker<DiagramLineStyle>(doc, DIAGRAM_LINE_STYLES, (value) =>
     callbacks.onConnectorStyle({ line: value }));
+  const lineColor = picker<DiagramLineColor>(doc, DIAGRAM_LINE_COLORS, (value) =>
+    callbacks.onConnectorStyle({ color: value }));
   const startCap = picker<DiagramEndpoint>(doc, DIAGRAM_ENDPOINTS, (value) =>
     callbacks.onConnectorStyle({ start: value }));
   const endCap = picker<DiagramEndpoint>(doc, DIAGRAM_ENDPOINTS, (value) =>
     callbacks.onConnectorStyle({ end: value }));
   const deleteConnector = iconButton(doc, 'remove', callbacks.onDeleteConnector);
   connectorBar.append(
-    connectorName, lineStyle.label, startCap.label, endCap.label, deleteConnector,
+    connectorName, lineStyle.label, lineColor.label, startCap.label, endCap.label, deleteConnector,
   );
 
   const blocked = el(doc, 'p', {
@@ -210,7 +212,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       // どちらも**ちょうど 1 つ選んでいるときだけ**押せる。2 つ以上へ同時に当てると、
       // どちらの名前を書き換えたのか・どちらが消えたのかが操作の後から分からない。
       renameSelected.disabled = state.saving || state.selectionCount !== 1;
-      removeSelected.disabled = state.saving || state.selectionCount !== 1 || !state.removable;
+      removeSelected.disabled = state.saving || state.selectionCount !== 1;
       cardSize.textContent = t('cardSize', { width: state.spacing.nodeWidth, height: state.spacing.nodeHeight });
       spacingReset.disabled = state.saving || isDefaultDiagramSpacing(state.draft?.spacing);
 
@@ -230,6 +232,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
     connectorName.textContent = t('selectConnector', { from: connector.from, to: connector.to });
     deleteConnector.disabled = state.saving;
     lineStyle.apply(t('lineStyle'), connector.line, (value) => t(`lineStyle.${value}`), state.saving);
+    lineColor.apply(t('lineColor'), connector.color, (value) => t(`lineColor.${value}`), state.saving);
     startCap.apply(t('startCap'), connector.start, (value) => t(`endpoint.${value}`), state.saving);
     endCap.apply(t('endCap'), connector.end, (value) => t(`endpoint.${value}`), state.saving);
   }

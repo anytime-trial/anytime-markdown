@@ -11,6 +11,7 @@ import {
   nextElementName,
   parseDiagramDocument,
   parseDiagramFile,
+  removeDiagramElement,
   renameDiagramElement,
   serializeDiagramDocument,
   validateDiagramDocument,
@@ -22,7 +23,7 @@ import type { DiagramConnector, DiagramDocument } from '../types';
 import { applied, homes, node, SAMPLE } from './fixture';
 
 const CONNECTOR: DiagramConnector = {
-  id: 'c1', from: '祖父', to: '化生', line: 'dashed', start: 'circle', end: 'arrow',
+  id: 'c1', from: '祖父', to: '化生', line: 'dashed', color: 'accent', start: 'circle', end: 'arrow',
 };
 
 const WITH_ELEMENTS: DiagramDocument = {
@@ -258,5 +259,78 @@ describe('上・左への割り込み', () => {
     const placed = applied(NODES, moved);
     const next = insertGapEdit(placed, moved, { column: 1, row: 0 }, 'row', LIMIT, HOMES)!;
     expect(next).not.toHaveProperty('乙');
+  });
+});
+
+describe('家族に出る人物の取り除き', () => {
+  const BASE: DiagramDocument = {
+    ...SAMPLE,
+    annotations: { 独神: '独りで成った神', 祖父: '注記' },
+    layout: { placements: { 化生: { column: 3, row: 3 } } },
+  };
+
+  it('その人が親のすべてだった家族は消え、線も消える', () => {
+    const result = removeDiagramElement(BASE, '独神');
+    expect(result.removed).toBe(true);
+    expect(result.droppedFamilies).toBe(1);
+    expect(result.document.families).toHaveLength(2);
+    expect(diagramPeople(result.document.families, result.document.nodes).has('独神')).toBe(false);
+  });
+
+  it('その家族にしか出てこなかった相手は、単独の要素として図に残る', () => {
+    const result = removeDiagramElement(BASE, '独神');
+    // 化生 は「独神 → 化生」の家族にしか出てこない。拾わないと 1 人消して 2 人消える。
+    expect(result.rescued).toEqual(['化生']);
+    expect(result.document.nodes).toContain('化生');
+    expect(result.document.layout.placements['化生']).toEqual({ column: 3, row: 3 });
+  });
+
+  it('別の家族にも出てくる人物は拾い直さない（札は 1 枚のまま）', () => {
+    const result = removeDiagramElement(BASE, '祖母');
+    // 父 は「祖父・祖母 → 父」と「父・母 → 子」の両方に出るので、家族から消えない。
+    expect(result.rescued).toEqual([]);
+    expect(result.document.families[0]!.parents).toEqual(['祖父']);
+  });
+
+  it('注記・配置差分・接続線を道連れにする', () => {
+    const withLine: DiagramDocument = { ...BASE, connectors: [CONNECTOR] };
+    const result = removeDiagramElement(withLine, '祖父');
+    expect(result.document.annotations).not.toHaveProperty('祖父');
+    expect(result.document.connectors).toEqual([]);
+  });
+
+  it('図に居ない名前は何も変えない', () => {
+    const result = removeDiagramElement(BASE, '居ない人');
+    expect(result.removed).toBe(false);
+    expect(result.document).toBe(BASE);
+  });
+
+  it('取り除いた図はそのまま読み戻せる（家族 0 件でも要素が残る）', () => {
+    const only: DiagramDocument = {
+      ...SAMPLE,
+      families: [{ parents: ['甲'], children: ['乙'], kind: 'birth', groups: {} }],
+      annotations: {},
+      layout: { placements: {} },
+    };
+    const result = removeDiagramElement(only, '甲');
+    expect(result.document.families).toEqual([]);
+    expect(result.document.nodes).toEqual(['乙']);
+    expect(parseDiagramFile(serializeDiagramDocument(result.document))).toEqual(result.document);
+  });
+});
+
+describe('線の色', () => {
+  it('色を持たない古いファイルも読める（既定で埋める）', () => {
+    const { color: _dropped, ...withoutColor } = CONNECTOR;
+    const document = parseDiagramDocument({ ...WITH_ELEMENTS, connectors: [withoutColor] });
+    expect(document?.connectors[0]!.color).toBe('default');
+  });
+
+  it('知らない色名は断る（読めない値を既定へ倒さない）', () => {
+    const document = parseDiagramDocument({
+      ...WITH_ELEMENTS,
+      connectors: [{ ...CONNECTOR, color: '#ff0000' }],
+    });
+    expect(document).toBeNull();
   });
 });

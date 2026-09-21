@@ -263,8 +263,19 @@ export const DIAGRAM_STYLES = `
   線の太さは家族の線と同じく倍率から切り離し、全体表示でも消えないようにする。
 */
 .anytime-diagram-links { position: absolute; inset: 0; pointer-events: none; }
+/*
+  線の色は**役割の名前**（\`DiagramLineColor\`）で選び、実際の色は宿主のトークンから引く。
+  値（\`#c0392b\` のような）を保存に持たせると、ダークとライトの片方で背景に溶ける線が作れる。
+
+  既定は本文の色を薄めたもの — 家族の線と同じ引き方にして、手で引いた線が「別の図から来た線」に
+  見えないようにする。
+*/
+.anytime-diagram-links g { --link-color: color-mix(in srgb, var(--diagram-fg) 62%, transparent); }
+.anytime-diagram-links g.is-color-accent { --link-color: var(--diagram-accent); }
+.anytime-diagram-links g.is-color-danger { --link-color: var(--diagram-danger); }
+.anytime-diagram-links g.is-color-muted { --link-color: color-mix(in srgb, var(--diagram-fg) 32%, transparent); }
 .anytime-diagram-links .link-line {
-  fill: none; stroke: var(--diagram-accent);
+  fill: none; stroke: var(--link-color);
   stroke-width: clamp(1.8px, calc(1.8px / var(--diagram-scale, 1)), 14px);
   stroke-linecap: round; stroke-linejoin: round;
 }
@@ -272,7 +283,7 @@ export const DIAGRAM_STYLES = `
   /* 破線の刻みも倍率で割る。割らないと、縮めた図で刻みが詰まって実線と見分けが付かない。 */
   stroke-dasharray: calc(9px / var(--diagram-scale, 1)) calc(6px / var(--diagram-scale, 1));
 }
-.anytime-diagram-links .link-cap { fill: var(--diagram-accent); stroke: none; }
+.anytime-diagram-links .link-cap { fill: var(--link-color); stroke: none; }
 /*
   当たり判定だけの太い線。見た目は透明で、**押せる幅**（WCAG 2.2 の対象の大きさ）を作る。
   見える線は画面上 1.8px しかなく、狙って押すには細すぎる。

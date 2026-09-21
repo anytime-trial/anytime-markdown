@@ -458,7 +458,7 @@ describe('要素と接続線', () => {
       .toContain('is-connect-source');
     connectPoint('父').click();
     expect(view.getDraft()!.connectors).toEqual([
-      { id: 'c1', from: '祖父', to: '父', line: 'solid', start: 'none', end: 'arrow' },
+      { id: 'c1', from: '祖父', to: '父', line: 'solid', color: 'default', start: 'none', end: 'arrow' },
     ]);
     expect(links()).toHaveLength(1);
   });
@@ -477,16 +477,20 @@ describe('要素と接続線', () => {
     connectPoint('祖父').click();
     connectPoint('父').click();
     const selects = [...container.querySelectorAll<HTMLSelectElement>('.anytime-diagram-connectorbar select')];
-    expect(selects).toHaveLength(3);
-    const [line, start, end] = selects as [HTMLSelectElement, HTMLSelectElement, HTMLSelectElement];
+    expect(selects).toHaveLength(4);
+    const [line, colour, start, end] = selects as [HTMLSelectElement, HTMLSelectElement, HTMLSelectElement, HTMLSelectElement];
     line.value = 'dashed';
     line.dispatchEvent(new Event('change', { bubbles: true }));
+    colour.value = 'danger';
+    colour.dispatchEvent(new Event('change', { bubbles: true }));
     start.value = 'circle';
     start.dispatchEvent(new Event('change', { bubbles: true }));
     end.value = 'none';
     end.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(view.getDraft()!.connectors[0]).toMatchObject({ line: 'dashed', start: 'circle', end: 'none' });
+    expect(view.getDraft()!.connectors[0])
+      .toMatchObject({ line: 'dashed', color: 'danger', start: 'circle', end: 'none' });
     expect(container.querySelector('.anytime-diagram-links .link-line')!.classList).toContain('is-dashed');
+    expect(container.querySelector('.anytime-diagram-links g[data-connector]')!.classList).toContain('is-color-danger');
   });
 
   it('線を消すと図からも消える', () => {
@@ -509,10 +513,16 @@ describe('要素と接続線', () => {
     expect(view.getDraft()!.connectors).toEqual([]);
   });
 
-  it('家族に出る人物は取り除けない（口は在るが押せない）', () => {
-    startEditing();
-    container.querySelector<HTMLButtonElement>('[data-person="祖父"] .anytime-diagram-pick')!.click();
-    expect(byLabel('要素を取り除く')!.disabled).toBe(true);
+  it('家族に出る人物も取り除ける。相手は名前だけの要素として残る', () => {
+    const view = startEditing();
+    container.querySelector<HTMLButtonElement>('[data-person="祖母"] .anytime-diagram-pick')!.click();
+    expect(byLabel('要素を取り除く')!.disabled).toBe(false);
+    byLabel('要素を取り除く')!.click();
+    const draft = view.getDraft()!;
+    expect(container.querySelector('[data-person="祖母"]')).toBeNull();
+    // 祖父・父 は残る（家族は「祖父 → 父」の形で生き続ける）。
+    expect(container.querySelector('[data-person="父"]')).not.toBeNull();
+    expect(draft.families[0]!.parents).toEqual(['祖父']);
   });
 
   it('保存は図の全体を渡す', async () => {
@@ -565,4 +575,24 @@ describe('上・左への割り込み', () => {
     expect(after['祖父']!.column).toBe(1);
   });
 
+});
+
+describe('家族ごと消えるときの知らせ', () => {
+  /** 単親の家族を 1 件足した図。親を消すと家族ごと落ち、子が行き場を失う。 */
+  const WITH_SINGLE_PARENT: DiagramDocument = {
+    ...DOC,
+    families: [...DOC.families, { parents: ['独神'], children: ['化生'], kind: 'creation', groups: {} }],
+  };
+
+  it('家族が落ちたら、何が起きたかを図の中で知らせる', () => {
+    const view = mount({ document: WITH_SINGLE_PARENT, editable: true, onSave: () => {} });
+    byText('配置を編集')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="独神"] .anytime-diagram-pick')!.click();
+    byLabel('要素を取り除く')!.click();
+    // 化生 は「独神 → 化生」にしか出てこない。拾わないと 1 人消して 2 人消える。
+    expect(view.getDraft()!.nodes).toContain('化生');
+    expect(container.querySelector('[data-person="化生"]')).not.toBeNull();
+    const notice = container.querySelector('.anytime-diagram-error:not(.anytime-diagram-hidden)');
+    expect(notice?.textContent).toContain('化生');
+  });
 });

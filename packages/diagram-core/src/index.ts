@@ -25,6 +25,7 @@ export {
   parseDiagramFile,
   parseDiagramFileStrict,
   readDiagramLayout,
+  type DiagramElementRemoval,
   removeDiagramElement,
   renameDiagramElement,
   serializeDiagramDocument,
@@ -94,6 +95,7 @@ export {
 } from './spacing';
 export {
   DIAGRAM_ENDPOINTS,
+  DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
   type DiagramConnector,
@@ -102,6 +104,7 @@ export {
   type DiagramFamily,
   type DiagramGroupAxis,
   type DiagramLayout,
+  type DiagramLineColor,
   type DiagramLineStyle,
   type DiagramPlacement,
   type DiagramRelation,
