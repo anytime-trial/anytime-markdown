@@ -17,6 +17,7 @@ import {
   type ChartRect,
   type ChartView,
   type DiagramSpacing,
+  type MinimapBox,
   minimapBox,
   visibleRect,
 } from '@anytime-markdown/diagram-core';
@@ -28,18 +29,21 @@ import { el, setAttr, svg } from './dom';
  * 見え方の操作（アイコン）1 行の高さ（px）。
  *
  * `theme/diagramStyles.ts` の `.anytime-diagram-viewcontrols button` と**同じ値**。ここに写しを
- * 置くのは、地図の高さをこの行のぶんだけ伸ばすため（下の `MAP_MAX`）— CSS 側だけが知っている
+ * 置くのは、地図の高さをこの行のぶんだけ伸ばすため（下の `MAP_SIZE`）— CSS 側だけが知っている
  * と、行の高さを変えた日に地図の高さが古い前提のまま残る。
  */
 const CONTROLS_PX = 28;
 
 /**
- * ミニマップに許す最大の大きさ（px）。図の形に合わせてこの中へ収める。
+ * ミニマップの大きさ（px）。**決め打ちで、図をこの中へ収める**（図の形では変えない）。
  *
  * 高さは**アイコン 1 行ぶん足してある**（ユーザー指示）。札の中でアイコンの行が占めるぶん、
  * 地図だけが低く見えていた。
+ *
+ * かつては図と同じ形に縮めて札の大きさを図から決めていたため、**横長の図では高さが幅から
+ * 決まり**、この値を上げても札は低いままだった（`minimapBox` の注記）。
  */
-const MAP_MAX = { width: 180, height: 120 + CONTROLS_PX };
+const MAP_SIZE = { width: 180, height: 120 + CONTROLS_PX };
 
 /**
  * 囲んだと見なす最小の差（ミニマップ上の px）。
@@ -74,27 +78,37 @@ export interface MinimapView {
 export function createMinimapView(doc: Document, t: DiagramT, callbacks: MinimapCallbacks): MinimapView {
   const root = el(doc, 'div', { className: 'anytime-diagram-minimap', attrs: { role: 'group' } });
   const map = svg(doc, 'svg', { class: 'anytime-diagram-minimap-map', role: 'img' });
+  /** 図そのものの広がり。余白（レターボックス）と地続きに見えないよう、薄く敷いて境を示す。 */
+  const surfaceRect = svg(doc, 'rect', { class: 'minimap-surface' });
   const linesPath = svg(doc, 'path', { class: 'minimap-lines' });
   const boxes = svg(doc, 'g', { class: 'minimap-nodes' });
   /** いま見えている範囲。**図の座標で描く**（ミニマップ全体が図の座標なので変換が要らない）。 */
   const frameRect = svg(doc, 'rect', { class: 'minimap-view' });
   /** 囲んでいる最中の矩形。掴んでいない間は消す。 */
   const band = svg(doc, 'rect', { class: 'minimap-band anytime-diagram-hidden' });
-  map.append(linesPath, boxes, frameRect, band);
+  map.append(surfaceRect, linesPath, boxes, frameRect, band);
   const controls = el(doc, 'div', { className: 'anytime-diagram-minimap-controls' });
   root.append(map, controls);
 
   /** 貸し出し中の札。図の人物の数に合わせて増減する。 */
   const rects: SVGRectElement[] = [];
-  /** 図の座標と画面の座標を結ぶ倍率。押した点を図へ戻すのに要るので、描いた値を覚えておく。 */
-  let mapScale = 1;
+  /** 描いたときの寸法。押した点を図へ戻すのに倍率と余白が要るので、そのまま覚えておく。 */
+  let box: MinimapBox = minimapBox({ width: 1, height: 1 }, MAP_SIZE);
   /** 囲んでいる最中の始点（図の座標）と、ミニマップ上で動いた量。 */
   let drag: { readonly pointerId: number; readonly x: number; readonly y: number } | null = null;
 
-  /** 押した点を図の座標へ。ミニマップは図と同じ形に縮めてあるので、倍率 1 つで戻せる。 */
+  /**
+   * 押した点を図の座標へ。**札の左上が指す図の座標（`box.x` / `box.y`）から測る。**
+   *
+   * 余白のぶんを別に引き算しない。描くときの `viewBox` と同じ値を使うので、片方だけ直した日に
+   * 「囲んだ場所と違うところへ飛ぶ」ずれが起きない。
+   */
   const pointOf = (event: PointerEvent): { readonly x: number; readonly y: number } => {
-    const box = map.getBoundingClientRect();
-    return { x: (event.clientX - box.left) / mapScale, y: (event.clientY - box.top) / mapScale };
+    const rect = map.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) / box.scale + box.x,
+      y: (event.clientY - rect.top) / box.scale + box.y,
+    };
   };
 
   const applyBand = (rect: ChartRect): void => {
@@ -138,7 +152,7 @@ export function createMinimapView(doc: Document, t: DiagramT, callbacks: Minimap
       中心だけ移る）。閾値はミニマップ上の px で測る — 図の座標で測ると、大きな図ほど
       同じ指の動きが大きな矩形になり、閾値が図の大きさで変わる。
     */
-    const tiny = rect.width * mapScale < DRAG_MIN_PX && rect.height * mapScale < DRAG_MIN_PX;
+    const tiny = rect.width * box.scale < DRAG_MIN_PX && rect.height * box.scale < DRAG_MIN_PX;
     callbacks.onFocusRect(tiny ? { x: point.x, y: point.y, width: 0, height: 0 } : rect);
   });
   map.addEventListener('pointercancel', endDrag);
@@ -149,11 +163,15 @@ export function createMinimapView(doc: Document, t: DiagramT, callbacks: Minimap
     update(state) {
       root.setAttribute('aria-label', t('minimap'));
       map.setAttribute('aria-label', t('minimapHint'));
-      const box = minimapBox(state.surface, MAP_MAX);
-      mapScale = box.scale;
-      map.setAttribute('width', String(Math.round(box.width)));
-      map.setAttribute('height', String(Math.round(box.height)));
-      map.setAttribute('viewBox', `0 0 ${Math.max(state.surface.width, 1)} ${Math.max(state.surface.height, 1)}`);
+      box = minimapBox(state.surface, MAP_SIZE);
+      map.setAttribute('width', String(box.width));
+      map.setAttribute('height', String(box.height));
+      // 札いっぱいを図の座標で見せる。図は中央に置かれ、余った側が余白として残る。
+      map.setAttribute('viewBox', `${box.x} ${box.y} ${box.width / box.scale} ${box.height / box.scale}`);
+      surfaceRect.setAttribute('x', '0');
+      surfaceRect.setAttribute('y', '0');
+      surfaceRect.setAttribute('width', String(Math.max(state.surface.width, 1)));
+      surfaceRect.setAttribute('height', String(Math.max(state.surface.height, 1)));
       setAttr(linesPath, 'd', state.lines === '' ? null : state.lines);
 
       while (rects.length < state.nodes.length) {

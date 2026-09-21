@@ -52,18 +52,33 @@ describe('囲んだ範囲へ寄せる', () => {
 });
 
 describe('ミニマップの寸法', () => {
-  it('縦横同じ倍率で収める（余白を作らない）', () => {
-    expect(minimapBox({ width: 2000, height: 1000 }, { width: 180, height: 120 }))
-      .toEqual({ width: 180, height: 90, scale: 0.09 });
+  /*
+    札の大きさは**決め打ち**。図と同じ形に縮めて札まで決めていた頃は、横長の図で高さが幅から
+    決まり、高さの上限を上げても札が低いままだった（2026-09-22 実測）。
+  */
+  it('図の形に関わらず同じ大きさで出る', () => {
+    const wide = minimapBox({ width: 2000, height: 1000 }, { width: 180, height: 148 });
+    const tall = minimapBox({ width: 1000, height: 4000 }, { width: 180, height: 148 });
+    expect([wide.width, wide.height]).toEqual([180, 148]);
+    expect([tall.width, tall.height]).toEqual([180, 148]);
   });
 
-  it('縦長の図では高さで決まる', () => {
-    const box = minimapBox({ width: 1000, height: 4000 }, { width: 180, height: 120 });
-    expect(box.height).toBe(120);
-    expect(box.width).toBe(30);
+  it('縦横同じ倍率で収め、余った側は札の左上が図の外を指す', () => {
+    const box = minimapBox({ width: 2000, height: 1000 }, { width: 180, height: 148 });
+    expect(box.scale).toBe(0.09);
+    // 幅で決まるので左右に余白は無く、上下へ均等に余る。
+    expect(box.x).toBe(0);
+    expect(box.y).toBeCloseTo((1000 - 148 / 0.09) / 2);
+  });
+
+  it('縦長の図では高さで決まり、左右へ余る', () => {
+    const box = minimapBox({ width: 1000, height: 4000 }, { width: 180, height: 148 });
+    expect(box.scale).toBe(0.037);
+    expect(box.y).toBe(0);
+    expect(box.x).toBeCloseTo((1000 - 180 / 0.037) / 2);
   });
 
   it('大きさを持たない図でも 0 で割らない', () => {
-    expect(minimapBox({ width: 0, height: 0 }, { width: 180, height: 120 }).scale).toBe(120);
+    expect(minimapBox({ width: 0, height: 0 }, { width: 180, height: 148 }).scale).toBe(148);
   });
 });

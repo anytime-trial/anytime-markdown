@@ -109,17 +109,41 @@ export function viewForRect(
 }
 
 /**
- * ミニマップの寸法。**縦横同じ倍率**で収め、余白（レターボックス）を作らない。
+ * ミニマップの寸法。**札の大きさは決め打ちで、図をその中へ収める**（縦横同じ倍率）。
  *
- * 余白を作ると、押した点から図の座標へ戻すのに余白ぶんの引き算が要る。図と同じ形に縮めておけば、
- * 変換は 1 つの倍率で済む（SVG の `viewBox` にそのまま渡せる）。
+ * かつては図と同じ形に縮めて札の大きさそのものを図から決めていた。すると**横長の図では高さが
+ * 幅から決まり**、高さの上限をいくら上げても札は低いままになる（2026-09-22 実測。高さの上限を
+ * 120 → 148 に上げても、横長の図では 1px も変わらなかった）。札を決め打てば、図の形に関わらず
+ * 同じ高さで出る。
+ *
+ * 余った側（レターボックス）は捨てずに使う。図の外まで見えている状態では、いま見えている範囲の
+ * 枠が図からはみ出す — 図の形ぴったりに切ると、その枠が切り取られて「どこを見ているか」が
+ * 読めなくなる。
+ *
+ * `x` / `y` は**札の左上が指す図の座標**（負になる）。SVG の `viewBox` と、押した点を図へ戻す
+ * 計算の両方がこれを使う（2 か所で別々に余白を足し引きしない）。
  */
+export interface MinimapBox {
+  readonly width: number;
+  readonly height: number;
+  /** 図 → ミニマップの倍率。 */
+  readonly scale: number;
+  readonly x: number;
+  readonly y: number;
+}
+
 export function minimapBox(
   surface: { readonly width: number; readonly height: number },
   max: { readonly width: number; readonly height: number },
-): { readonly width: number; readonly height: number; readonly scale: number } {
+): MinimapBox {
   const scale = Math.min(max.width / Math.max(surface.width, 1), max.height / Math.max(surface.height, 1));
-  return { width: surface.width * scale, height: surface.height * scale, scale };
+  return {
+    width: max.width,
+    height: max.height,
+    scale,
+    x: (surface.width - max.width / scale) / 2,
+    y: (surface.height - max.height / scale) / 2,
+  };
 }
 
 /**

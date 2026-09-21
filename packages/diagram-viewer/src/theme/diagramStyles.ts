@@ -778,6 +778,14 @@ export const DIAGRAM_STYLES = `
   background: var(--diagram-bg); border-radius: 3px;
 }
 .anytime-diagram-minimap-controls { display: flex; justify-content: center; }
+/*
+  図そのものの広がり。**札は決め打ちの大きさ**なので、図の形によっては上下（または左右）に余白が
+  残る。地を敷いて境を示さないと、図の外まで見えている状態で「いま見ている枠」がどこまで図なのか
+  読めない。
+*/
+.anytime-diagram-minimap-map .minimap-surface {
+  fill: color-mix(in srgb, var(--diagram-fg) 6%, transparent);
+}
 /* 札は塗りだけ（縁を描くと、縮んだ図では隣どうしが 1 つの塊に見える）。 */
 .anytime-diagram-minimap-map .minimap-nodes rect {
   fill: color-mix(in srgb, var(--diagram-fg) 45%, transparent);

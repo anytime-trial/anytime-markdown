@@ -162,6 +162,7 @@ export {
   MAX_SCALE,
   MIN_SCALE,
   minimapBox,
+  type MinimapBox,
   placementFromDrag,
   resizeFromDrag,
   SPACING_EDITABLE,
