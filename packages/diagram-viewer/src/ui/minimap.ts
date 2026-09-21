@@ -44,6 +44,11 @@ const CONTROLS_PX = 28;
  * 決まり**、この値を上げても札は低いままだった（`minimapBox` の注記）。
  */
 const MAP_SIZE = { width: 180, height: 120 + CONTROLS_PX };
+/*
+  幅を変えたら `theme/diagramStyles.ts` の `--diagram-minimap-width`（180 ＋ 余白 4×2 ＋ 縁 1×2）
+  も一緒に直す。左上の操作列はその値のぶんだけ場所を空けており、片方だけ広げると操作列の右端が
+  この札の下へ潜る。
+*/
 
 /**
  * 囲んだと見なす最小の差（ミニマップ上の px）。

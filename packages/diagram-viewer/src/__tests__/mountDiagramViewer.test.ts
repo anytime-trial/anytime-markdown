@@ -236,6 +236,33 @@ describe('行・列を増減できない図', () => {
 });
 
 /**
+ * 操作列（要素を選ぶ・編集と閲覧の切り替え・保存・自動配置に戻す）も**図の枠の中**へ浮かせる。
+ *
+ * 枠の外の帯に残すと、対象（図）と操作が別の場所に分かれ、図を見ながら指と視線が上の帯へ往復する。
+ * 枠の外に戻っても jsdom の見た目は変わらない（位置は CSS が決める）ので、**どちらの親に属するか**を
+ * 見張る。ここが緩むと、次に枠まわりを触った誰かが何も壊さずに枠の外へ戻せてしまう。
+ *
+ * ＋ との重なり（`blockedBoxes` に操作列を入れたこと）はここでは測れない — jsdom の矩形はすべて
+ * 0 で、実寸の重なりは必ず「重ならない」と出る。規則そのものは「縁のアイコンと操作の区画の重なり」
+ * が測っており、実寸での確認は実機で行う。
+ */
+describe('操作列の置き場', () => {
+  const toolbar = () => container.querySelector('.anytime-diagram-toolbar')!;
+
+  it('図の枠の中に置く（枠の外＝根の直下には出さない）', () => {
+    mount();
+    const viewport = container.querySelector('.anytime-diagram-viewport')!;
+    expect(viewport.contains(toolbar())).toBe(true);
+    expect(toolbar().parentElement).toBe(viewport);
+  });
+
+  it('枠の中の浮きものと同じ札の見た目にする', () => {
+    mount();
+    expect(toolbar().classList.contains('anytime-diagram-panel')).toBe(true);
+  });
+});
+
+/**
  * 見え方の操作（拡大・縮小・全体表示・初期表示）は**図の枠の中**に、**絵で**置く。
  *
  * 枠の外の操作列に字で並べると、幅 1 万 px の図を見ながら視線と指が上の帯へ往復する。

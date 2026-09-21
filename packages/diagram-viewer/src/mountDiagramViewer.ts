@@ -320,8 +320,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 選択と線の区画を枠の左下へ重ねる入れ物。
    *
    * 枠の外の帯から移した。対象（選んだ札・選んだ線）と、それに効く操作を同じ場所へ置くため
-   * — 見え方の操作を枠の中へ移したのと同じ理由。左下を選ぶのは、右上が見え方の操作で、
-   * 上端と左端には行・列を増やす ＋ の帯が走っているため。
+   * — 見え方の操作を枠の中へ移したのと同じ理由。左下を選ぶのは、左上が操作列・右上が見え方の
+   * 操作で埋まっており、上端と左端には行・列を増やす ＋ の帯が走っているため。
    */
   const panels = el(doc, 'div', { className: 'anytime-diagram-panels' });
   panels.append(chrome.selectionBar, chrome.connectorBar);
@@ -329,9 +329,14 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   // 縁のアイコンは**図より前に置く**。後ろに置くとタブ順が人物数ぶんの取っ手の後になり、
   // 最初の ＋ へ届くまで何百回も Tab を押すことになる。重ね順は z-index で決める。
   minimap.controls.appendChild(viewControls.root);
-  viewport.append(gutter.root, cellAdders.root, surface, minimap.root, panels, groupDialog.root, confirmView.root);
+  // 操作列は**縁のアイコンより前**に置く。枠に入った浮きものの中でいちばん使うので、Tab の
+  // 1 回目で届く場所に要る（後ろに置くと行・列の ＋ を全部越えてからになる）。
+  viewport.append(
+    chrome.toolbar, gutter.root, cellAdders.root, surface,
+    minimap.root, panels, groupDialog.root, confirmView.root,
+  );
   root.append(
-    style, chrome.title, chrome.lead, chrome.toolbar,
+    style, chrome.title, chrome.lead,
     chrome.blocked, chrome.error, viewport, chrome.note,
   );
   container.appendChild(root);
@@ -1316,7 +1321,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    */
   function blockedBoxes(): readonly { left: number; top: number; right: number; bottom: number }[] {
     const frameBox = viewport.getBoundingClientRect();
-    return [minimap.root, chrome.selectionBar, chrome.connectorBar]
+    return [chrome.toolbar, minimap.root, chrome.selectionBar, chrome.connectorBar]
       .map((element) => element.getBoundingClientRect())
       .filter((box) => box.width > 0 && box.height > 0)
       .map((box) => ({
@@ -1523,8 +1528,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       view,
       frame,
     });
-    // 見え方の操作の区画（枠の右上）と重なる ＋／− は描かない。重ねると上に載っているほうが
-    // 押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
+    // 枠の中へ浮かせた区画（左上の操作列・右上の見え方の操作）と重なる ＋／− は描かない。
+    // 重ねると上に載っているほうが押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
     const blocked = blockedBoxes();
     gutter.update({
       editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,

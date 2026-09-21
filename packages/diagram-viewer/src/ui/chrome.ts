@@ -109,9 +109,19 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   const lead = el(doc, 'p', { className: 'anytime-diagram-lead' });
   const note = el(doc, 'p', { className: 'anytime-diagram-note' });
 
-  // 拡大・縮小・全体表示・初期表示はここに置かない。図の枠の中へ浮かせてある
-  // （`viewControls.ts`）。対象と操作を同じ場所へ置くため。
-  const toolbar = el(doc, 'div', { className: 'anytime-diagram-toolbar', attrs: { role: 'group' } });
+  /*
+    操作列そのものも**図の枠の中**へ浮かせる（`mountDiagramViewer` が枠の中へ入れる。ユーザー指示）。
+    対象（図）と操作を同じ場所へ置くため — 見え方の操作・選択の区画を中へ移したのと同じ理由。
+
+    見た目は選択の区画と同じ札にする（`anytime-diagram-panel` を併せて付ける）。枠の中の浮きものが
+    札と操作列で別の寸法・別の縁を持つと、同じ層に載っている 2 つが別の階層に見える。
+
+    拡大・縮小・全体表示・初期表示はここに置かない。ミニマップの中にある（`viewControls.ts`）。
+  */
+  const toolbar = el(doc, 'div', {
+    className: 'anytime-diagram-toolbar anytime-diagram-panel',
+    attrs: { role: 'group' },
+  });
   /*
     要素へ移動する選び口。**見出しの字は置かない**（操作列を短くするためのユーザー指示）。
 
