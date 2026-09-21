@@ -24,8 +24,22 @@ import {
 import type { DiagramT } from '../i18n';
 import { el, setAttr, svg } from './dom';
 
-/** ミニマップに許す最大の大きさ（px）。図の形に合わせてこの中へ収める。 */
-const MAP_MAX = { width: 180, height: 120 };
+/**
+ * 見え方の操作（アイコン）1 行の高さ（px）。
+ *
+ * `theme/diagramStyles.ts` の `.anytime-diagram-viewcontrols button` と**同じ値**。ここに写しを
+ * 置くのは、地図の高さをこの行のぶんだけ伸ばすため（下の `MAP_MAX`）— CSS 側だけが知っている
+ * と、行の高さを変えた日に地図の高さが古い前提のまま残る。
+ */
+const CONTROLS_PX = 28;
+
+/**
+ * ミニマップに許す最大の大きさ（px）。図の形に合わせてこの中へ収める。
+ *
+ * 高さは**アイコン 1 行ぶん足してある**（ユーザー指示）。札の中でアイコンの行が占めるぶん、
+ * 地図だけが低く見えていた。
+ */
+const MAP_MAX = { width: 180, height: 120 + CONTROLS_PX };
 
 /**
  * 囲んだと見なす最小の差（ミニマップ上の px）。
