@@ -5,7 +5,7 @@ description: 本番リリース手順ガイド。「リリース」「本番リ�
 
 # VS Code 拡張機能リリース
 
-更新日: 2026-09-13
+更新日: 2026-09-21
 
 anytime-markdown / anytime-graph / anytime-trail / anytime-database / anytime-sheet / anytime-agent / anytime-history / anytime-extension-pack VS Code 拡張機能および web-app のリリース手順。
 
@@ -46,6 +46,7 @@ git pull origin develop     # 最新化
 | **database 系** | `publish-database` / `database-v<x>` | `packages/database-core`, `packages/database-viewer`, `packages/vscode-database-extension` | VSIX は **per-platform 4 種**（`build-database` matrix: linux/win32 × x64/arm64。**darwin なし**） |
 | **sheet 系** | `publish-sheet` / `sheet-v<x>` | `packages/spreadsheet-core`, `packages/spreadsheet-viewer`, `packages/vscode-sheet-extension` | — |
 | **agent 系** | `publish-agent` / `agent-v<x>` | `packages/vscode-agent-extension` | `agent-core` は独立バージョン |
+| **diagram 系** | `publish-diagram` / `diagram-v<x>` | `packages/diagram-core`, `packages/diagram-viewer`, `packages/mcp-diagram`, `packages/vscode-diagram-extension` | 2026-09-21 追加。VSIX は `ci` ジョブが `vsix-diagram-ci` として artifact 化する |
 | **history 系** | `publish-history` / `history-v<x>` | `packages/vscode-history-extension` | `trace-core` / `trace-viewer` / `trace-agent-node` は独立バージョン |
 | **extension pack 系** | `publish-extension-pack` / `pack-v<x>` | `packages/vscode-extension-pack` | メタパッケージ |
 | **web-app 系** | （Marketplace 公開なし。master push で Netlify 自動デプロイ） | `packages/web-app` | タグなし。`markdown-*` / `graph-core` の変更を取り込む |
@@ -165,6 +166,7 @@ git diff --name-only origin/master...HEAD -- packages/ | cut -d/ -f2 | sort | un
 
 **単独系統の更新（各 package.json の version を手動で更新）:**
 - **agent 系**: `packages/vscode-agent-extension/package.json`
+- **diagram 系**: `packages/diagram-core` / `packages/diagram-viewer` / `packages/mcp-diagram` / `packages/vscode-diagram-extension` の 4 つを同一バージョンに統一
 - **history 系**: `packages/vscode-history-extension/package.json`
 - **cms-remote 系**: `packages/mcp-cms-remote/package.json`
 - **web-app 系**: `packages/web-app/package.json`
@@ -371,6 +373,13 @@ npx @vscode/vsce@3.9.2 package --no-dependencies
 ```
 `anytime-sheet-<version>.vsix` が生成されることを確認する。
 
+**diagram 系:**
+```bash
+cd packages/vscode-diagram-extension
+npx @vscode/vsce@3.9.2 package --no-dependencies
+```
+`anytime-diagram-<version>.vsix` が生成されることを確認する。
+
 **agent 系:**
 ```bash
 cd packages/vscode-agent-extension
@@ -464,11 +473,11 @@ master PR の CI は品質ゲートとして全項目を実行する:
 
 master PR の CI が全通過したらマージする。
 
-master へのマージ後、GitHub Actions が自動で以下を実行する（markdown 系・graph 系・trail 系・database 系・sheet 系・agent 系・history 系・extension pack 系それぞれ独立した publish ジョブ）:
+master へのマージ後、GitHub Actions が自動で以下を実行する（markdown 系・graph 系・trail 系・database 系・sheet 系・agent 系・diagram 系・history 系・extension pack 系それぞれ独立した publish ジョブ）:
 - `ci.yml` の CI ジョブで拡張機能ビルド・VSIX を作成（テスト等は master push ではスキップ）
 - trail 系・database 系は `ci.yml` の `build-trail` / `build-database` matrix が per-platform で各 4 VSIX を生成し、続けて publish-trail / publish-database ジョブを実行
 - Marketplace に公開（バージョンが変わっていない系統はタグが既存のためスキップ）
-- git タグを自動作成・push（markdown 系: `v<version>`、graph 系: `graph-v<version>`、trail 系: `trail-v<version>`、database 系: `database-v<version>`、sheet 系: `sheet-v<version>`、agent 系: `agent-v<version>`、history 系: `history-v<version>`、extension pack 系: `pack-v<version>`）
+- git タグを自動作成・push（markdown 系: `v<version>`、graph 系: `graph-v<version>`、trail 系: `trail-v<version>`、database 系: `database-v<version>`、sheet 系: `sheet-v<version>`、agent 系: `agent-v<version>`、diagram 系: `diagram-v<version>`、history 系: `history-v<version>`、extension pack 系: `pack-v<version>`）
 - GitHub Release を自動作成（VSIX 添付 + リリースノート自動生成）
 
 ### Step 10: 公開確認
@@ -593,7 +602,7 @@ Marketplace に公開済みで問題が発覚した場合:
 - **処理**:
   - `ci.yml`: CI ジョブ（テスト + ビルド + 拡張機能の VSIX 作成）→ publish-markdown / publish-graph / publish-history / publish-trail / publish-sheet / publish-agent / publish-database / publish-extension-pack ジョブ（並行実行、各 CI の VSIX を取得 → vsce publish → タグ作成 → GitHub Release 作成）
   - per-platform 系（trail / database）: `build-trail` / `build-database` matrix（4 プラットフォーム = linux/win32 × x64/arm64、darwin なし）が各 4 VSIX を生成 → publish-trail / publish-database ジョブが一括 publish → タグ作成 → GitHub Release 作成
-- **スキップ条件**: 同一バージョンのタグが既に存在する場合はスキップ（markdown 系: `v<version>`、graph 系: `graph-v<version>`、history 系: `history-v<version>`、trail 系: `trail-v<version>`、sheet 系: `sheet-v<version>`、agent 系: `agent-v<version>`、database 系: `database-v<version>`、extension pack 系: `pack-v<version>`）
+- **スキップ条件**: 同一バージョンのタグが既に存在する場合はスキップ（markdown 系: `v<version>`、graph 系: `graph-v<version>`、history 系: `history-v<version>`、trail 系: `trail-v<version>`、sheet 系: `sheet-v<version>`、agent 系: `agent-v<version>`、diagram 系: `diagram-v<version>`、database 系: `database-v<version>`、extension pack 系: `pack-v<version>`）
 - **必要な Secret**: `VSCE_PAT`（Azure DevOps Personal Access Token、全拡張機能で共有）
 
 ### VSCE_PAT の設定手順

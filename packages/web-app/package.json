@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.51.1",
+  "version": "0.52.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -24,6 +24,8 @@
     "@anytime-markdown/cooccurrence-viewer": "*",
     "@anytime-markdown/database-core": "*",
     "@anytime-markdown/database-viewer": "*",
+    "@anytime-markdown/diagram-core": "*",
+    "@anytime-markdown/diagram-viewer": "*",
     "@anytime-markdown/graph-viewer": "*",
     "@anytime-markdown/markdown-editor": "*",
     "@anytime-markdown/markdown-react-islands": "*",

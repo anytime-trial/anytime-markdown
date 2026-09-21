@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+
+## [1.23.3] - 2026-09-21
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- Added the `diagramPage` navigation label to the `en` / `ja` i18n resources.
+
 ## [1.23.2] - 2026-09-13
 
 ### Changed

@@ -1,0 +1,11 @@
+{
+  "displayName": "Anytime Diagram",
+  "description": "Genealogy diagram editor for VS Code",
+  "viewsContainers.anytimeDiagram.title": "Anytime Diagram",
+  "view.diagrams": "Diagrams",
+  "viewsWelcome.diagrams": "No diagrams (.diagram.json) in this workspace.\n[New Diagram](command:anytime-diagram.newDiagram)",
+  "customEditor.diagram.displayName": "Genealogy Diagram",
+  "command.newDiagram": "Anytime Diagram: New Diagram",
+  "command.refreshDiagrams": "Anytime Diagram: Refresh Diagrams",
+  "command.registerMcpServer": "Anytime Diagram: Register MCP Server in .mcp.json"
+}

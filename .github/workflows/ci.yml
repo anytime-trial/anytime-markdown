@@ -144,6 +144,21 @@ jobs:
         run: npx jest --maxWorkers=1
         working-directory: packages/mcp-graph
 
+      - name: Run diagram-core tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
+        working-directory: packages/diagram-core
+
+      - name: Run diagram-viewer tests with coverage
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
+        working-directory: packages/diagram-viewer
+
+      - name: Run mcp-diagram tests
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1
+        working-directory: packages/mcp-diagram
+
       - name: Run database-core tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --maxWorkers=1 --coverage --coverageReporters=lcov
@@ -304,6 +319,29 @@ jobs:
         with:
           name: vsix-sheet-ci
           path: packages/vscode-sheet-extension/*.vsix
+          retention-days: 3
+
+      - name: Run diagram extension tests
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        run: npx jest --maxWorkers=1
+        working-directory: packages/vscode-diagram-extension
+
+      - name: Build diagram extension
+        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+        run: npm run package
+        working-directory: packages/vscode-diagram-extension
+
+      - name: Package diagram VSIX
+        if: (github.event_name == 'pull_request' && github.base_ref == 'master') || github.ref == 'refs/heads/master'
+        run: npx "${{ env.VSCE_SPEC }}" package --no-dependencies
+        working-directory: packages/vscode-diagram-extension
+
+      - name: Upload diagram VSIX artifact
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-diagram-ci
+          path: packages/vscode-diagram-extension/*.vsix
           retention-days: 3
 
       - name: Run agent extension tests
@@ -838,6 +876,69 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: Anytime Agent ${{ steps.version.outputs.version }}
           files: packages/vscode-agent-extension/*.vsix
+          generate_release_notes: true
+
+  publish-diagram:
+    if: github.ref == 'refs/heads/master'
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get version from package.json
+        id: version
+        run: echo "version=diagram-v$(node -p "require('./packages/vscode-diagram-extension/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip if already released
+        if: steps.tag_check.outputs.exists == 'true'
+        run: echo "Tag ${{ steps.version.outputs.version }} already exists. Skipping diagram release."
+
+      - name: Download VSIX from CI
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-diagram-ci
+          path: packages/vscode-diagram-extension
+
+      - uses: actions/setup-node@v6
+        if: steps.tag_check.outputs.exists == 'false'
+        with:
+          node-version-file: '.node-version'
+
+      - name: Publish to Marketplace
+        if: steps.tag_check.outputs.exists == 'false'
+        run: npx "${{ env.VSCE_SPEC }}" publish --packagePath *.vsix --pat "$VSCE_PAT"
+        working-directory: packages/vscode-diagram-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Create git tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Anytime Diagram ${{ steps.version.outputs.version }}
+          files: packages/vscode-diagram-extension/*.vsix
           generate_release_notes: true
 
   publish-extension-pack:

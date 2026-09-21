@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { getBaseDir, transformMarkdownImageUrls } from '../../../../lib/docsImageUrl';
 import { buildSingleSourceAlternates, singleSourceHref } from '../../../../lib/localeAlternates';
 import { getReportBySlug, listReports } from '../../../../lib/reportClient';
 import { buildNavigation } from '../../../../lib/reportUtils';
+import { renderMarkdownToSafeHtml } from '../../../../lib/renderMarkdownHtml';
+import { CLOUDFRONT_URL } from '../../../../lib/s3Client';
 import { SITE_NAME } from '../../../../lib/siteMetadata';
 import type { ReportMeta } from '../../../../types/report';
 import ReportDetailBody from './ReportDetailBody';
@@ -88,6 +91,19 @@ function buildBreadcrumbJsonLd(meta: ReportMeta) {
   };
 }
 
+/**
+ * 記事本文を SSR 用の HTML へ変換する。
+ *
+ * 画像の相対パス解決は、クライアント取得経路（`/api/reports/content`）が返す前に
+ * 行っているのと同じ変換を通す。ここを抜くと、サーバ HTML の中の `<img src>` だけが
+ * 記事 URL 基準で解決されて 404 になり、しかも hydration 後は正しい URL へ差し替わるため
+ * ブラウザで見ている限り気づけない。
+ */
+function buildReportBodyHtml(content: string, key: string): string {
+  const withAbsoluteImages = transformMarkdownImageUrls(content, getBaseDir(key), CLOUDFRONT_URL);
+  return renderMarkdownToSafeHtml(withAbsoluteImages);
+}
+
 export default async function ReportDetailPage({ params }: Readonly<Props>) {
   const { slug } = await params;
 
@@ -144,7 +160,16 @@ export default async function ReportDetailPage({ params }: Readonly<Props>) {
           />
         </>
       )}
-      <ReportDetailBody report={report} prev={nav.prev} next={nav.next} />
+      {/*
+        本文はここで HTML 化してサーバの返す HTML へ載せる。対話ビューア（`ssr: false`）
+        任せにすると、クローラの受け取る本文が 0 要素になる。
+      */}
+      <ReportDetailBody
+        meta={report?.meta ?? null}
+        bodyHtml={report ? buildReportBodyHtml(report.content, report.meta.key) : ''}
+        prev={nav.prev}
+        next={nav.next}
+      />
     </>
   );
 }

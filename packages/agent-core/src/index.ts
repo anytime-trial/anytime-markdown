@@ -172,6 +172,7 @@ export type {
   GitActivityInput,
   GitActivityRow,
   GitActivityListEnvelope,
+  HandoffRequestInput,
 } from './status/types';
 
 // handoff（セッション引き継ぎ）: transcript の決定論抽出 → 圧縮ステート → レンダリング
@@ -188,6 +189,12 @@ export type {
   TranscriptEvent,
 } from './handoff/types';
 export type { BuildHandoffOptions } from './handoff/buildHandoff';
+
+// handoff（Codex 版）: rollout の決定論抽出 → 圧縮ステート → レンダリング（DB 書き込みなし）
+export { parseCodexLines, parseCodexTranscript } from './handoff/parseCodexTranscript';
+export type { CodexTranscriptResult } from './handoff/parseCodexTranscript';
+export { generateCodexHandoff, findCodexRolloutPath } from './handoff/generate';
+export type { GeneratedCodexHandoff, GenerateCodexHandoffOptions } from './handoff/generate';
 
 // サブエージェント回転 / 毎タスク compact-seed（RFC 用途 (b)/(c)）の純粋ヘルパ（runtime 非依存）。
 export {

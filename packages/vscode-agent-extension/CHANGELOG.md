@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-09-21
+
+### Added
+
+- Added **Hand Off to New Session** for Codex sessions too. It deterministically reads only the selected Codex session's rollout (`~/.codex/sessions`), compresses the goal, last state, changed files, and executed commands, and starts a new Codex session with a new session ID via `codex [PROMPT]` (not `codex fork`/`codex resume`) in the source session's recorded working directory. The handoff body is never concatenated into a shell string; it is passed by launching the `codex` process directly via VS Code's `shellPath`/`shellArgs` (so shell-control characters in rollout content are never re-interpreted). A missing rollout, unreadable rollout, missing working directory, or a Codex CLI that fails to launch is reported and no new terminal is created.
+
 ## [1.19.0] - 2026-09-13
 
 ### Added

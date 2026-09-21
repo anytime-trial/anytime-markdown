@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+
+## [1.23.3] - 2026-09-21
+
+### Added
+
+- Added the `diagramPage` navigation label ("Genealogy Diagram") to the `en` / `ja` i18n resources, so hosts that list the viewer pages can name the genealogy diagram screen.
+
 ## [1.23.2] - 2026-09-13
 
 ### Fixed

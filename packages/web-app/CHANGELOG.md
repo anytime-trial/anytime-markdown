@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+
+## [0.52.0] - 2026-09-21
+
+### Added
+
+- Added the genealogy diagram screens (`/[locale]/diagram`): a viewer and editor for `*.diagram.json` built on `diagram-core` / `diagram-viewer`, linked from the Colophon footer behind `NEXT_PUBLIC_SHOW_DIAGRAM=1`. The page declares `robots: index=false` because it is an internal tool, and the flag keeps "not indexed, yet reachable from the production footer" from becoming a contradiction with no way to hide it.
+
+### Changed
+
+- Report article bodies are now rendered on the server. The body came from a `next/dynamic` viewer with `ssr: false`, so the served HTML held only a spinner: measured in production, `/report/<slug>` returned 183 visible characters and 0 `h2`, and 199 of the 235 sitemap URLs (85%) were effectively empty pages. The Markdown is now converted to HTML server-side with `marked` (already a dependency — no package was added) and shown until the interactive viewer takes over. A local production build measured 183 → 10,571 characters, 0 → 12 `h2` and 0 → 17 links. Raw HTML is escaped rather than elementized and `href` / `src` are restricted to http, https, mailto and relative URLs, because DOMPurify cannot run without a server DOM.
+- The body Markdown, which nothing rendered any more, was dropped from the RSC payload (tens of KB per article).
+
+### Fixed
+
+- The SSR path now resolves relative image URLs through the same `transformMarkdownImageUrls` the client fetch path uses. Only the server HTML's `<img src>` had been resolved against the article URL and 404'd, and hydration replaced it, so the fault was invisible from the browser.
+- URL sanitizing no longer strips every whitespace character. Only the tab / LF / CR that browsers ignore anywhere are dropped and the rest is percent-encoded, so `/report/a b` no longer silently becomes `/report/ab`.
+- The body-fetch `catch` no longer discards the error. With a static body on screen the failure degrades to a warning, so swallowing it made "body visible but the interactive viewer never started" permanent and traceless; the key, path and stack are now logged.
+
 ## [0.51.1] - 2026-09-13
 
 ### Fixed

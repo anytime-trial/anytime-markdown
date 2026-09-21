@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+
+## [1.23.3] - 2026-09-21
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- i18n リソース（`en` / `ja`）にナビゲーション用の `diagramPage` ラベルを追加した。
+
 ## [1.23.2] - 2026-09-13
 
 ### 変更

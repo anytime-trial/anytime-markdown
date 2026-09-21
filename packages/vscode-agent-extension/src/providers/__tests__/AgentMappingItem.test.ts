@@ -46,7 +46,7 @@ describe('SessionTreeItem', () => {
     expect(String(item.description)).not.toContain('editing');
   });
 
-  it('Codex contextValue is codexSession (so handoff/delete are gated out, copy allowed)', () => {
+  it('Codex contextValue is codexSession (delete is gated out; handoff/copy are allowed via package.json when-clauses)', () => {
     const item = new SessionTreeItem(makeSession({ source: 'codex', state: 'recent' }));
     expect(item.contextValue).toBe('codexSession');
   });

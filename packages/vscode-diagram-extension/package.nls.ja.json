@@ -1,0 +1,11 @@
+{
+  "displayName": "Anytime Diagram",
+  "description": "VS Code 用の系図エディタ",
+  "viewsContainers.anytimeDiagram.title": "Anytime Diagram",
+  "view.diagrams": "系図",
+  "viewsWelcome.diagrams": "このワークスペースに系図（.diagram.json）がありません。\n[新規作成](command:anytime-diagram.newDiagram)",
+  "customEditor.diagram.displayName": "系図",
+  "command.newDiagram": "Anytime Diagram: 新規作成",
+  "command.refreshDiagrams": "Anytime Diagram: 一覧を更新",
+  "command.registerMcpServer": "Anytime Diagram: MCP サーバーを .mcp.json に登録"
+}

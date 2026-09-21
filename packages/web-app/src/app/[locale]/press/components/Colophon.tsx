@@ -13,6 +13,10 @@ export function Colophon() {
   const showDocsEdit = process.env.NEXT_PUBLIC_ENABLE_DOCS_EDIT === 'true';
   const showGraph = process.env.NEXT_PUBLIC_SHOW_GRAPH === '1';
   const showSheet = process.env.NEXT_PUBLIC_SHOW_SHEET === '1';
+  // 系図は内部ツール（画面側で robots に index: false を宣言している）。兄弟の画面と同じく
+  // 旗で出し分ける — 旗が無いと「検索には出さないが本番のフッターからは誰でも辿れる」という
+  // 食い違った状態になり、隠す手段も無い。
+  const showDiagram = process.env.NEXT_PUBLIC_SHOW_DIAGRAM === '1';
   const showPlaylist = process.env.NEXT_PUBLIC_SHOW_PLAYLIST === '1';
   return (
     <footer>
@@ -74,6 +78,11 @@ export function Colophon() {
             {showGraph ? (
               <li>
                 <Link href="/cooccurrence">{tLanding('cooccurrencePage')}</Link>
+              </li>
+            ) : null}
+            {showDiagram ? (
+              <li>
+                <Link href="/diagram">{tLanding('diagramPage')}</Link>
               </li>
             ) : null}
             {showSheet ? (

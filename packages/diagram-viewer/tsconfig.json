@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "paths": {
+      "@anytime-markdown/diagram-core": ["../diagram-core/src/index.ts"],
+      "@anytime-markdown/ui-core/i18n": ["../ui-core/src/i18n.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

@@ -11,17 +11,30 @@ import LandingHeader from '../../components/LandingHeader';
 import MarkdownViewer from '../../components/MarkdownViewer';
 
 interface ReportDetailBodyProps {
-  report: { meta: ReportMeta; content: string } | null;
+  /**
+   * 記事のメタ情報。本文の Markdown 原文はここへ渡さない — 表示に使われないまま
+   * RSC ペイロードへ載っており、`bodyHtml` と二重に搬送されることになるため。
+   */
+  meta: ReportMeta | null;
+  /**
+   * サーバで HTML 化した本文。クローラと初回表示が読むのはこれ。
+   *
+   * このコンポーネントは client component なので、本文は SSR の DOM と flight ペイロードの
+   * 両方に載る（＝転送量は原文 1 本分より増える）。それでも載せているのは、サーバの返す HTML に
+   * 本文が無いこと自体がこの画面の欠陥だったため。削るなら HTML 文字列を client 境界の
+   * 内側へ渡さない構成（server component の children として差し込む）が次の一手になる。
+   */
+  bodyHtml: string;
   prev: ReportMeta | null;
   next: ReportMeta | null;
 }
 
-export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyProps>) {
+export default function ReportDetailBody({ meta, bodyHtml }: Readonly<ReportDetailBodyProps>) {
   const t = useTranslations('Landing');
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  if (!report) {
+  if (!meta) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <LandingHeader />
@@ -31,8 +44,6 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
       </Box>
     );
   }
-
-  const { meta } = report;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -122,6 +133,7 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
       {/* Article Body */}
       <Container maxWidth="lg" sx={{ flex: 1, px: { xs: 0, md: 3 }, '& #main-content': { px: { xs: 0, md: 3 } } }}>
         <MarkdownViewer
+          staticHtml={bodyHtml}
           docKey={meta.key}
           contentApiPath="/api/reports/content"
           noScroll
