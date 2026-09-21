@@ -23,6 +23,8 @@ import {
   type GridShift,
   isDefaultDiagramSpacing,
   isNoShift,
+  MAX_SCALE,
+  MIN_SCALE,
   nearestCell,
   nearestFreeCell,
   nudgeShift,
@@ -43,6 +45,7 @@ import { el, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
 import { createGutterView } from './ui/gutter';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
+import { createViewControls } from './ui/viewControls';
 
 const INITIAL_VIEW: ChartView = { x: 20, y: 20, scale: 0.7 };
 /** キーボードで 1 回変える箱の大きさ（px）。Shift を添えると粗く変わる。 */
@@ -109,10 +112,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   const edgesSvg = svg(doc, 'svg', { class: 'anytime-diagram-edges' });
   surface.append(gridSvg, edgesSvg);
 
-  const chrome = createChromeView(doc, tr, {
+  const viewControls = createViewControls(doc, tr, {
     onZoom: zoom,
     onFit: fit,
     onResetView: () => { view = INITIAL_VIEW; paint(); },
+  });
+  const chrome = createChromeView(doc, tr, {
     onLocate: locate,
     onStartEditing: startEditing,
     onStopEditing: stopEditing,
@@ -130,7 +135,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
   // 縁のアイコンは**図より前に置く**。後ろに置くとタブ順が人物数ぶんの取っ手の後になり、
   // 最初の ＋ へ届くまで何百回も Tab を押すことになる。重ね順は z-index で決める。
-  viewport.append(gutter.root, surface, confirmView.root);
+  viewport.append(gutter.root, surface, viewControls.root, confirmView.root);
   root.append(
     style, chrome.title, chrome.lead, chrome.toolbar, chrome.selectionBar,
     chrome.help, chrome.editHelp, chrome.blocked, chrome.error, viewport, chrome.note,
@@ -513,6 +518,23 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   };
 
   // ---- 描画 ---------------------------------------------------------------
+  /**
+   * 見え方の操作の区画が枠の中で占める位置（枠の左上を原点とする px）。
+   *
+   * 実寸で測るのは、字の大きさや locale で幅が変わるため（`47%` と `100%` で 1 文字違う）。
+   * 決め打ちの数値を置くと、広がった日にその下の ＋ が押せないまま残る。
+   */
+  function blockedByViewControls(): { left: number; top: number; right: number; bottom: number } {
+    const box = viewControls.root.getBoundingClientRect();
+    const frameBox = viewport.getBoundingClientRect();
+    return {
+      left: box.left - frameBox.left,
+      top: box.top - frameBox.top,
+      right: box.right - frameBox.left,
+      bottom: box.bottom - frameBox.top,
+    };
+  }
+
   function syncViews(): void {
     const wanted = new Set(model.chart.nodes.map((node) => node.name));
     for (const [name, nodeView] of nodeViews) {
@@ -591,13 +613,18 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       });
     }
 
-    gutter.update({ editing, saving, spacing: model.spacing, view, frame, lines: model.lines });
+    viewControls.update({ scale: view.scale, minScale: MIN_SCALE, maxScale: MAX_SCALE });
+    // 見え方の操作の区画（枠の左上）と重なる ＋／− は描かない。重ねると上に載っているほうが
+    // 押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
+    gutter.update({
+      editing, saving, spacing: model.spacing, view, frame, lines: model.lines,
+      blocked: blockedByViewControls(),
+    });
     chrome.update({
       document: document_,
       names: model.chart.nodes.map((node) => node.name),
       selected: chosen()[chosen().length - 1] ?? '',
       selectionCount: picked.size,
-      scale: view.scale,
       editing,
       editable,
       compact,

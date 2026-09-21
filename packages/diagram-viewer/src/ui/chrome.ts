@@ -14,17 +14,12 @@ import {
   type DiagramSpacing,
   isDefaultDiagramSpacing,
   isEmptyLayout,
-  MAX_SCALE,
-  MIN_SCALE,
 } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
 import { el, setClass } from './dom';
 
 export interface ChromeCallbacks {
-  onZoom(factor: number): void;
-  onFit(): void;
-  onResetView(): void;
   onLocate(name: string): void;
   onStartEditing(): void;
   onStopEditing(): void;
@@ -39,7 +34,6 @@ export interface ChromeState {
   readonly names: readonly string[];
   readonly selected: string;
   readonly selectionCount: number;
-  readonly scale: number;
   readonly editing: boolean;
   readonly editable: boolean;
   readonly compact: boolean;
@@ -70,15 +64,9 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   const lead = el(doc, 'p', { className: 'anytime-diagram-lead' });
   const note = el(doc, 'p', { className: 'anytime-diagram-note' });
 
+  // 拡大・縮小・全体表示・初期表示はここに置かない。図の枠の中へ浮かせてある
+  // （`viewControls.ts`）。対象と操作を同じ場所へ置くため。
   const toolbar = el(doc, 'div', { className: 'anytime-diagram-toolbar', attrs: { role: 'group' } });
-  const zoomOut = button(doc, () => callbacks.onZoom(1 / 1.25));
-  zoomOut.textContent = '−';
-  const zoomLevel = el(doc, 'output', { attrs: { 'aria-live': 'polite' } });
-  const zoomIn = button(doc, () => callbacks.onZoom(1.25));
-  zoomIn.textContent = '＋';
-  const fit = button(doc, callbacks.onFit);
-  const resetView = button(doc, callbacks.onResetView);
-
   const findLabel = el(doc, 'label');
   const findText = doc.createTextNode('');
   const find = el(doc, 'select');
@@ -90,7 +78,7 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   const save = button(doc, callbacks.onSave);
   const stopEditing = button(doc, callbacks.onStopEditing);
   const resetLayout = button(doc, () => callbacks.onConfirm('reset'));
-  toolbar.append(zoomOut, zoomLevel, zoomIn, fit, resetView, findLabel, startEditing, save, stopEditing, resetLayout);
+  toolbar.append(findLabel, startEditing, save, stopEditing, resetLayout);
 
   const selectionBar = el(doc, 'div', {
     className: 'anytime-diagram-selection anytime-diagram-hidden',
@@ -131,10 +119,6 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       editHelp.textContent = t('editHelp');
       blocked.textContent = t('gridLinesBlocked');
 
-      zoomOut.setAttribute('aria-label', t('zoomOut'));
-      zoomIn.setAttribute('aria-label', t('zoomIn'));
-      fit.textContent = t('fit');
-      resetView.textContent = t('reset');
       findText.nodeValue = `${t('findPerson')} `;
       choosePerson.textContent = t('choosePerson');
       startEditing.textContent = t('editLayout');
@@ -142,10 +126,6 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       resetLayout.textContent = t('resetLayout');
       clearSelection.textContent = t('clearSelection');
       spacingReset.textContent = t('spacingReset');
-
-      zoomLevel.textContent = `${Math.round(state.scale * 100)}%`;
-      zoomOut.disabled = state.scale <= MIN_SCALE;
-      zoomIn.disabled = state.scale >= MAX_SCALE;
 
       const key = state.names.join('\u0000');
       if (renderedNames !== key) {

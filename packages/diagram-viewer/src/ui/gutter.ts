@@ -16,6 +16,7 @@ import {
   columnPitch,
   type DiagramSpacing,
   type GridAxis,
+  GUTTER_ICON_PX,
   rowBoundaryY,
   rowCentreY,
   rowPitch,
@@ -24,6 +25,7 @@ import {
 
 import type { DiagramT } from '../i18n';
 import type { GridLines } from '../model';
+import { GUTTER_TRACK_PX } from '../theme/diagramStyles';
 import { el } from './dom';
 
 export interface GutterCallbacks {
@@ -37,6 +39,14 @@ export interface GutterState {
   readonly view: ChartView;
   readonly frame: { readonly width: number; readonly height: number };
   readonly lines: GridLines;
+  /**
+   * 枠の中で**別のものが載っている場所**（見え方の操作を浮かせた区画）。ここへは ＋／− を置かない。
+   *
+   * 重ねると、上に載っているほうが押下を取り、押したつもりの切れ目とは違う位置へ挿入される
+   * （挿入は最大で全員を升目へ固定するので、取り違えの取り消しが重い）。隠れた切れ目は図を
+   * 平行移動すれば操作の区画の外へ出てくる。
+   */
+  readonly blocked?: { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number };
 }
 
 export interface GutterView {
@@ -44,7 +54,7 @@ export interface GutterView {
   update(state: GutterState): void;
 }
 
-interface Spec {
+export interface Spec {
   readonly key: string;
   readonly axis: GridAxis;
   readonly kind: 'insert' | 'remove';
@@ -74,7 +84,7 @@ export function createGutterView(doc: Document, t: DiagramT, callbacks: GutterCa
         return;
       }
       const seen = new Set<string>();
-      for (const spec of buildSpecs(state, t)) {
+      for (const spec of buildSpecs(state, t).filter((spec) => !covered(spec, state.blocked))) {
         seen.add(spec.key);
         const button = buttons.get(spec.key)
           ?? adopt(spec.key, createButton(doc, spec, callbacks));
@@ -113,6 +123,22 @@ function applySpec(button: HTMLButtonElement, spec: Spec, saving: boolean): void
   button.title = spec.label;
   button.style.left = spec.left === null ? '' : `${spec.left}px`;
   button.style.top = spec.top === null ? '' : `${spec.top}px`;
+}
+
+/**
+ * そのアイコンが「別のものが載っている場所」に入るか。
+ *
+ * 列のアイコンは縦位置が、行のアイコンは横位置が、それぞれスタイルシート側で帯に固定されている
+ * （`GUTTER_TRACK_PX`）。`null` の側はその固定値で測る — ここを 0 とみなすと、枠の上端に居ない
+ * アイコンまで隠れた扱いになる。
+ */
+export function covered(spec: Spec, blocked: GutterState['blocked']): boolean {
+  if (blocked === undefined) return false;
+  const x = spec.left ?? GUTTER_TRACK_PX;
+  const y = spec.top ?? GUTTER_TRACK_PX;
+  const half = GUTTER_ICON_PX / 2;
+  return x + half >= blocked.left && x - half <= blocked.right
+    && y + half >= blocked.top && y - half <= blocked.bottom;
 }
 
 function buildSpecs(state: GutterState, t: DiagramT): readonly Spec[] {

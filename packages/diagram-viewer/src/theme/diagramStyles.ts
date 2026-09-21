@@ -15,6 +15,15 @@ export const DIAGRAM_ROOT_CLASS = 'anytime-diagram';
 /** 縁のアイコンの大きさ（px）。`@anytime-markdown/diagram-core` の `GUTTER_ICON_PX` と同じ値。 */
 const GUTTER_ICON_PX = 20;
 
+/**
+ * 縁のアイコンを並べる帯の位置（枠の上端・左端からの px）。
+ *
+ * ここに置くのは、**見え方の操作の区画と重なるかを画面の距離で測る**のにこの値が要るため
+ * （`ui/gutter.ts` の `covered`）。CSS 側にだけ持たせると、帯を動かした日に重なりの判定だけが
+ * 古い位置のまま残り、隠れたアイコンが押せないまま出続ける。
+ */
+export const GUTTER_TRACK_PX = 14;
+
 export const DIAGRAM_STYLES = `
 .${DIAGRAM_ROOT_CLASS} {
   /*
@@ -212,8 +221,8 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-gutter button:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: 1px; }
 .anytime-diagram-gutter button:disabled { opacity: 0.45; cursor: default; }
 /* 縦の位置は枠に固定し、横だけが図に従う（列の操作）。行の操作はその逆。 */
-.anytime-diagram-gutter .is-column { top: 14px; }
-.anytime-diagram-gutter .is-row { left: 14px; }
+.anytime-diagram-gutter .is-column { top: ${GUTTER_TRACK_PX}px; }
+.anytime-diagram-gutter .is-row { left: ${GUTTER_TRACK_PX}px; }
 /* 詰める側は取り消しの操作なので、入れる側と字だけでなく線種でも分ける。 */
 .anytime-diagram-gutter .is-remove { border-style: dashed; }
 
@@ -245,8 +254,35 @@ export const DIAGRAM_STYLES = `
 
   既定を none にすれば、出す条件が 1 か所（\`is-open\`）に集まり、詳細度にも記述順にも依らない。
 */
+/*
+  見え方の操作（拡大・縮小・全体表示・初期表示）。**図の枠の中**へ浮かせる。
+
+  縁のアイコン（z-index 1）より上に置く。両方が上端・左端へ集まるので、下にすると操作の区画が
+  ＋ に隠れる。代わりに、この区画と重なる ＋ は描かない（\`ui/gutter.ts\` の \`covered\`）。
+*/
+.anytime-diagram-viewcontrols {
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  display: flex; align-items: center; gap: 2px; padding: 2px;
+  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
+  background: var(--diagram-raised);
+}
+.anytime-diagram-viewcontrols button {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 4px; background: transparent; color: var(--diagram-fg); cursor: pointer;
+}
+.anytime-diagram-viewcontrols button:hover:not(:disabled) { background: var(--diagram-bg); color: var(--diagram-accent); }
+.anytime-diagram-viewcontrols button:focus-visible { outline: 2px solid var(--diagram-accent); outline-offset: -2px; }
+.anytime-diagram-viewcontrols button:disabled { opacity: 0.4; cursor: default; }
+/* 倍率だけは**値**なので字のまま残す（いまどれだけ縮んでいるかは絵で表せない）。 */
+.anytime-diagram-zoomlevel {
+  min-width: 3.5em; padding: 0 2px; text-align: center;
+  color: var(--diagram-muted); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+
+/* 確認の覆いは見え方の操作より上（覆っている間はどの操作も受け付けない）。 */
 .anytime-diagram-confirm {
-  position: absolute; inset: 0; z-index: 2; display: none;
+  position: absolute; inset: 0; z-index: 3; display: none;
   background: color-mix(in srgb, var(--diagram-bg) 70%, transparent);
 }
 .anytime-diagram-confirm.is-open { display: flex; align-items: center; justify-content: center; }

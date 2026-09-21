@@ -10,6 +10,7 @@
 import { DEFAULT_DIAGRAM_SPACING, type DiagramDocument, type DiagramLayout } from '@anytime-markdown/diagram-core';
 
 import { mountDiagramViewer } from '../mountDiagramViewer';
+import { covered, type Spec } from '../ui/gutter';
 import type { DiagramViewerHandle, DiagramViewerOptions } from '../types';
 
 const DOC: DiagramDocument = {
@@ -37,6 +38,9 @@ function mount(options: Partial<DiagramViewerOptions> = {}): DiagramViewerHandle
 
 const byText = (text: string): HTMLButtonElement | undefined =>
   [...container.querySelectorAll('button')].find((button) => button.textContent === text);
+
+const byLabel = (label: string): HTMLButtonElement | null =>
+  container.querySelector(`button[aria-label="${label}"]`);
 
 beforeEach(() => {
   container = document.createElement('div');
@@ -206,10 +210,15 @@ describe('図の差し替え', () => {
 
   it('locale を差し替えると操作列の文言も入れ替わる', () => {
     mount({ editable: true, onSave: () => {} });
-    expect(byText('全体表示')).toBeDefined();
+    expect(byText('配置を編集')).toBeDefined();
+    expect(byLabel('全体表示')).not.toBeNull();
     handle!.update({ locale: 'en' });
-    expect(byText('全体表示')).toBeUndefined();
-    expect(byText('Fit to view')).toBeDefined();
+    expect(byText('配置を編集')).toBeUndefined();
+    expect(byText('Edit layout')).toBeDefined();
+    // 絵だけのボタンも名前を入れ替える（読み上げと吹き出しの両方を見る）。
+    expect(byLabel('全体表示')).toBeNull();
+    expect(byLabel('Fit to view')).not.toBeNull();
+    expect(byLabel('Fit to view')!.title).toBe('Fit to view');
   });
 });
 
@@ -222,6 +231,89 @@ describe('行・列を増減できない図', () => {
     expect(container.querySelectorAll('.anytime-diagram-gutter button')).toHaveLength(0);
     const blocked = container.querySelector('[role="status"]')!;
     expect(blocked.classList.contains('anytime-diagram-hidden')).toBe(false);
+  });
+});
+
+/**
+ * 見え方の操作（拡大・縮小・全体表示・初期表示）は**図の枠の中**に、**絵で**置く。
+ *
+ * 枠の外の操作列に字で並べると、幅 1 万 px の図を見ながら視線と指が上の帯へ往復する。
+ * 記号の文字を使わないのは、字形を持たない環境で豆腐になり操作が読めなくなるため。
+ */
+describe('見え方の操作', () => {
+  const controls = () => container.querySelector('.anytime-diagram-viewcontrols');
+
+  it('図の枠の中に置く（枠の外の操作列には出さない）', () => {
+    mount();
+    const viewport = container.querySelector('.anytime-diagram-viewport')!;
+    expect(viewport.contains(controls())).toBe(true);
+    const toolbar = container.querySelector('.anytime-diagram-toolbar')!;
+    for (const label of ['全体表示', '初期表示', '拡大', '縮小']) {
+      expect(toolbar.querySelector(`[aria-label="${label}"]`)).toBeNull();
+    }
+  });
+
+  it('札は字でなく線画で描く（倍率だけは値なので字で出す）', () => {
+    mount();
+    for (const label of ['拡大', '縮小', '全体表示', '初期表示']) {
+      const button = byLabel(label)!;
+      expect(button).not.toBeNull();
+      expect(button.textContent).toBe('');
+      expect(button.querySelector('svg path')).not.toBeNull();
+    }
+    expect(container.querySelector('.anytime-diagram-zoomlevel')!.textContent).toMatch(/^\d+%$/);
+  });
+
+  it('倍率の端では、その向きの操作を押せなくする', () => {
+    mount();
+    const zoomOut = byLabel('縮小')!;
+    for (let i = 0; i < 40 && !zoomOut.disabled; i += 1) zoomOut.click();
+    expect(zoomOut.disabled).toBe(true);
+    expect(byLabel('拡大')!.disabled).toBe(false);
+  });
+
+});
+
+/**
+ * 行・列の ＋／− を、見え方の操作の区画の下へ置かない（押下を奪い合わせない）。
+ *
+ * **判定の規則そのものを測る。** jsdom は版組みをしないので `getBoundingClientRect` が
+ * すべて 0 を返す。実際の矩形で重なりを測る検査はここでは必ず「重ならない」と言い、何も
+ * 守らない。実寸での確認は実機（ブラウザ）で行う。
+ */
+describe('縁のアイコンと操作の区画の重なり', () => {
+  const spec = (over: Partial<Spec>): Spec => ({
+    key: 'k', axis: 'column', kind: 'insert', index: 0, left: null, top: null, label: 'l', ...over,
+  });
+  /** 枠の左上に浮かぶ操作の区画（幅 150 × 高さ 32、8px の余白つき）を模す。 */
+  const panel = { left: 8, top: 8, right: 158, bottom: 40 };
+
+  it('区画に掛かる列のアイコンは描かない', () => {
+    // 列のアイコンは縦位置が帯に固定されている（top は null）。区画の縦幅に入る。
+    expect(covered(spec({ axis: 'column', left: 100 }), panel)).toBe(true);
+  });
+
+  it('区画の外の列のアイコンは描く', () => {
+    expect(covered(spec({ axis: 'column', left: 300 }), panel)).toBe(false);
+  });
+
+  it('区画に掛かる行のアイコンは描かない', () => {
+    // 行のアイコンは横位置が帯に固定されている（left は null）。
+    expect(covered(spec({ axis: 'row', top: 20 }), panel)).toBe(true);
+  });
+
+  it('区画より下の行のアイコンは描く', () => {
+    expect(covered(spec({ axis: 'row', top: 200 }), panel)).toBe(false);
+  });
+
+  it('固定されている側を 0 とみなさない（帯の位置で測る）', () => {
+    // 行のアイコンの横位置を 0 と見ると、区画の左端 8px より手前になり「掛かっていない」と
+    // 誤判定する。実際は帯（14px）に居るので掛かる。
+    expect(covered(spec({ axis: 'row', top: 20 }), { ...panel, left: 8 })).toBe(true);
+  });
+
+  it('区画が無ければ何も落とさない', () => {
+    expect(covered(spec({ left: 10, top: 10 }), undefined)).toBe(false);
   });
 });
 
