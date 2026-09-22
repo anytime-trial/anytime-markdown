@@ -19,7 +19,10 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { InsightSchemaError, normalizeInsights } from '../src/lib/insightTimeline/normalize';
+import {
+  InsightSchemaError,
+  normalizeInsightsWithDiagnostics,
+} from '../src/lib/insightTimeline/normalize';
 import type { InsightCategory, InsightTheme, RawInsight } from '../src/lib/insightTimeline/types';
 import type { DateConfidence } from '../src/lib/releaseTimeline/types';
 
@@ -131,11 +134,19 @@ function main(): void {
   if (files.length === 0) {
     throw new InsightSchemaError(`${RAW_DIR}: 生データが 1 件も無い`);
   }
-  const entries = normalizeInsights(raws, themes);
+  const { entries, merges } = normalizeInsightsWithDiagnostics(raws, themes);
   // 投入直後に件数を突き合わせる。正規化は同日同題を畳むので減ること自体は正常だが、
   // 桁が変わる欠落は抽出側の事故（ファイルの書き損ない）であって統合ではない
   if (entries.length === 0) {
     throw new InsightSchemaError('正規化の結果が 0 件（生データはあるのに全滅している）');
+  }
+  // 減った分の内訳を出す。差の数字だけでは、再掲を畳んだのか抽出が消えたのかを
+  // 読み手が区別できない（この検査が無かったため、ID 衝突で 15 件が消えていた）
+  const absorbed = raws.length - entries.length;
+  if (absorbed !== merges.reduce((sum, m) => sum + m.reports.length - 1, 0)) {
+    throw new InsightSchemaError(
+      `統合の内訳が件数差と合わない（差 ${absorbed} 件 / 統合 ${merges.length} 件）`,
+    );
   }
   const sourceReports = new Set(entries.flatMap((e) => e.sources.map((s) => s.report)));
   const usedThemes = new Set(entries.flatMap((e) => e.themes));
@@ -155,6 +166,9 @@ function main(): void {
   );
   if (unused.length > 0) {
     console.log(`未使用テーマ: ${unused.join(', ')}`);
+  }
+  for (const merge of merges) {
+    process.stderr.write(`WARN 同日同題を統合: ${merge.id} (${merge.reports.join(', ')})\n`);
   }
 }
 

@@ -45,14 +45,35 @@ const MIN_SLUG_LENGTH = 3;
 function titleHash(title: string): string {
   let hash = 0;
   for (const char of title) {
-    hash = (Math.imul(hash, 31) + char.codePointAt(0)!) | 0;
+    hash = (Math.imul(hash, 31) + (char.codePointAt(0) ?? 0)) | 0;
   }
   return (hash >>> 0).toString(36);
 }
 
+/**
+ * 表示用の安定 ID（React key と DOM アンカー）。
+ *
+ * Why not: スラッグだけにしない。`title.replace(/[^a-z0-9]+/g, '-')` は非 ASCII を全部
+ * 落とすので、日本語タイトルの ID は先頭の英字語だけになる。「CLAUDE.md+スラッシュ
+ * コマンドで業務委任を構造化」と「CLAUDE.md には繰り返すミスだけを書け」が同じ日に
+ * 出ると、どちらも `2026-04-26-claude-md` になった（実測で 12 ID が 15 件を巻き込んだ）。
+ * ハッシュを常に付けて、スラッグは読みやすさのためだけに残す。
+ */
 export function insightId(date: string, title: string): string {
   const slug = trimChar(title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), '-');
-  return slug.length >= MIN_SLUG_LENGTH ? `${date}-${slug}` : `${date}-h${titleHash(title)}`;
+  const hash = titleHash(title);
+  return slug.length >= MIN_SLUG_LENGTH ? `${date}-${slug}-${hash}` : `${date}-h${hash}`;
+}
+
+/**
+ * 統合の判定キー。
+ *
+ * README と `mergeEntries` が宣言している統合条件は「同じ日・**同じタイトル**」なので、
+ * 判定は表示 ID ではなくタイトル全文で行う。NUL 区切りは日付とタイトルの境界が
+ * タイトル側の文字と混ざらないようにするため。
+ */
+function mergeKey(date: string, title: string): string {
+  return `${date}\u0000${title}`;
 }
 
 function assertValid(source: RawInsight, themeIds: ReadonlySet<string>, index: number): void {
@@ -78,6 +99,11 @@ function assertValid(source: RawInsight, themeIds: ReadonlySet<string>, index: n
     if (!themeIds.has(theme)) {
       throw new InsightSchemaError(`${where}: 辞書に無いテーマ id (${theme})`);
     }
+  }
+  // 「影響度が書かれていない」(null) と「表記が読めなかった」を分ける。読めない表記を
+  // null へ倒すと、画面には「影響度の記載が無い知見」として出て抽出側へ戻らない
+  if (source.impact != null && normalizeImpact(source.impact) === null) {
+    throw new InsightSchemaError(`${where}: impact が辞書に無い表記 (${source.impact})`);
   }
 }
 
@@ -138,25 +164,74 @@ function compareEntries(a: InsightEntry, b: InsightEntry): number {
   return compareOrdinal(a.id, b.id);
 }
 
+/** 同じ日・同じタイトルとして 1 件へ畳まれた観測。件数の差を後から説明するために返す */
+export interface MergeDiagnostic {
+  readonly id: string;
+  readonly title: string;
+  readonly reports: readonly string[];
+}
+
+export interface NormalizeInsightsResult {
+  readonly entries: InsightEntry[];
+  readonly merges: readonly MergeDiagnostic[];
+}
+
 /**
- * 生データを正規化して日付昇順のエントリ列にする。
+ * 生データを正規化し、統合の内訳も一緒に返す。
  *
  * 経緯は古い順でないと変遷として読めないので、成果物そのものを昇順で確定させる
  * （表示の向きは画面の都合だが、こちらは「変遷」という意味の向きである）。
+ *
+ * 統合を診断として持ち上げるのは、`raw N 件 → entry M 件` の差だけでは「再掲を畳んだ」
+ * のか「抽出が壊れて消えた」のかを呼び出し側が区別できないため（リリース年表の
+ * `normalizeReleasesWithDiagnostics` が日付の矛盾を持ち上げるのと同じ理由）。
  */
+export function normalizeInsightsWithDiagnostics(
+  sources: readonly RawInsight[],
+  themes: readonly InsightTheme[],
+): NormalizeInsightsResult {
+  const themeIds = new Set(themes.map((t) => t.id));
+  const byKey = new Map<string, InsightEntry>();
+  const mergedKeys = new Set<string>();
+  sources.forEach((source, index) => {
+    assertValid(source, themeIds, index);
+    const entry = toEntry(source);
+    const key = mergeKey(entry.date, entry.title);
+    const existing = byKey.get(key);
+    if (existing) mergedKeys.add(key);
+    byKey.set(key, existing ? mergeEntries(existing, entry) : entry);
+  });
+
+  const entries = [...byKey.values()].sort(compareEntries);
+
+  // 別タイトルが同じ表示 ID を持つと、React key が重複し DOM アンカーも競合する。
+  // insightId はハッシュ込みなので通常は起きないが、起きたときに黙って壊れるより落とす
+  const seenIds = new Map<string, string>();
+  for (const entry of entries) {
+    const other = seenIds.get(entry.id);
+    if (other !== undefined) {
+      throw new InsightSchemaError(
+        `表示 ID が衝突した (${entry.id}): 「${other}」と「${entry.title}」`,
+      );
+    }
+    seenIds.set(entry.id, entry.title);
+  }
+
+  const merges = entries
+    .filter((entry) => mergedKeys.has(mergeKey(entry.date, entry.title)))
+    .map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      reports: entry.sources.map((s) => s.report),
+    }));
+  return { entries, merges };
+}
+
 export function normalizeInsights(
   sources: readonly RawInsight[],
   themes: readonly InsightTheme[],
 ): InsightEntry[] {
-  const themeIds = new Set(themes.map((t) => t.id));
-  const byId = new Map<string, InsightEntry>();
-  sources.forEach((source, index) => {
-    assertValid(source, themeIds, index);
-    const entry = toEntry(source);
-    const existing = byId.get(entry.id);
-    byId.set(entry.id, existing ? mergeEntries(existing, entry) : entry);
-  });
-  return [...byId.values()].sort(compareEntries);
+  return normalizeInsightsWithDiagnostics(sources, themes).entries;
 }
 
 /**

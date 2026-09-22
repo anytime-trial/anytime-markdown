@@ -13,15 +13,17 @@ import {
 } from '@mui/material';
 import { useMemo, useState } from 'react';
 
-import { buildThemeTracks } from '../../../../lib/insightTimeline/normalize';
+import { buildThemeTracks, countByCategory } from '../../../../lib/insightTimeline/normalize';
 import type {
   InsightEntry,
   InsightTheme,
   InsightThemeTrack,
 } from '../../../../lib/insightTimeline/types';
 import {
+  formatFullDate,
   formatSpan,
   INSIGHT_CATEGORY_FILTERS,
+  INSIGHT_CATEGORY_META,
   INSIGHT_DEFAULT_OPEN_TRACKS,
   INSIGHT_TRACK_PREVIEW_COUNT,
   type InsightCategoryFilter,
@@ -32,6 +34,8 @@ interface Props {
   readonly entries: readonly InsightEntry[];
   readonly themes: readonly InsightTheme[];
   readonly sourceReportCount: number;
+  /** 収録期間（データが空なら null）。年表本体と同じ形で内訳の末尾に出す */
+  readonly period: { readonly from: string; readonly to: string } | null;
 }
 
 /**
@@ -41,7 +45,7 @@ interface Props {
  * 別の観測なので、絞り込みも並びも独立して動く。テーマ内だけは日付昇順にする——
  * 経緯は古い順に読まないと変遷にならない（年表本体は新しい順で、向きが逆になる）。
  */
-export default function InsightTrack({ entries, themes, sourceReportCount }: Props) {
+export default function InsightTrack({ entries, themes, sourceReportCount, period }: Props) {
   const [category, setCategory] = useState<InsightCategoryFilter>('all');
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
@@ -59,6 +63,10 @@ export default function InsightTrack({ entries, themes, sourceReportCount }: Pro
     () => new Map(themes.map((theme) => [theme.id, theme.label])),
     [themes],
   );
+
+  // 内訳は絞り込みに追従させない。何を絞り込めるかを先に示す一覧なので、
+  // 絞った結果で数字が動くと「エコシステムは 0 件」のように読めてしまう
+  const categoryCounts = useMemo(() => countByCategory(entries), [entries]);
 
   /**
    * 既定は件数上位 3 テーマを開く。
@@ -110,6 +118,30 @@ export default function InsightTrack({ entries, themes, sourceReportCount }: Pro
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '60ch', lineHeight: 1.8 }}>
         {`同じ ${sourceReportCount} 本のレポートから、リリースに紐づかない知見——運用手法・技術動向・新語彙・エコシステムの変化——をテーマごとに束ねたものです。テーマの中は古い順に並んでおり、上から読むとその主題が何からどう変わってきたかを追えます。`}
       </Typography>
+
+      <Stack
+        direction="row"
+        spacing={{ xs: 2, sm: 4 }}
+        sx={{ mt: 3, flexWrap: 'wrap' }}
+        useFlexGap
+        component="dl"
+        data-testid="insight-stats"
+      >
+        <Stat label="収録知見" value={`${entries.length} 件`} />
+        {INSIGHT_CATEGORY_FILTERS.filter((f) => f.value !== 'all').map((filter) => (
+          <Stat
+            key={filter.value}
+            label={INSIGHT_CATEGORY_META[filter.value as keyof typeof INSIGHT_CATEGORY_META].label}
+            value={`${categoryCounts[filter.value as keyof typeof categoryCounts]} 件`}
+          />
+        ))}
+        {period && (
+          <Stat
+            label="収録期間"
+            value={`${formatFullDate(period.from)} 〜 ${formatFullDate(period.to)}`}
+          />
+        )}
+      </Stack>
 
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
@@ -212,20 +244,43 @@ export default function InsightTrack({ entries, themes, sourceReportCount }: Pro
                   />
                 ))}
               </Box>
-              {hiddenCount(track) > 0 && (
+              {/*
+               * 押したらボタンを消す、をしない。押下と同時に unmount すると、キーボードで
+               * 操作した人のフォーカスが body へ飛び、160 件超のリストの読み位置を失う。
+               * ラベルを変えて disabled にし、フォーカスの置き場所を残す
+               */}
+              {track.entries.length > INSIGHT_TRACK_PREVIEW_COUNT && (
                 <Button
                   size="small"
+                  disabled={hiddenCount(track) === 0}
                   onClick={() => showAll(track.themeId)}
                   sx={{ mt: 1.5 }}
                   aria-controls={`${track.themeId}-entries`}
                 >
-                  {`残り ${hiddenCount(track)} 件を表示`}
+                  {hiddenCount(track) > 0 ? `残り ${hiddenCount(track)} 件を表示` : '全件を表示中'}
                 </Button>
               )}
             </AccordionDetails>
           </Accordion>
         ))}
       </Box>
+    </Box>
+  );
+}
+
+function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <Box>
+      <Typography component="dt" variant="caption" sx={{ color: 'text.secondary' }}>
+        {label}
+      </Typography>
+      <Typography
+        component="dd"
+        variant="subtitle1"
+        sx={{ m: 0, fontVariantNumeric: 'tabular-nums' }}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }

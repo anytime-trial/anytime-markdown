@@ -55,7 +55,12 @@ const RAW: RawInsight[] = [
 
 function renderTrack() {
   return render(
-    <InsightTrack entries={normalizeInsights(RAW, THEMES)} themes={THEMES} sourceReportCount={7} />,
+    <InsightTrack
+      entries={normalizeInsights(RAW, THEMES)}
+      themes={THEMES}
+      sourceReportCount={7}
+      period={{ from: '2026-04-02', to: '2026-08-07' }}
+    />,
   );
 }
 
@@ -117,11 +122,28 @@ describe('InsightTrack', () => {
         entries={normalizeInsights(many, THEMES)}
         themes={THEMES}
         sourceReportCount={1}
+        period={{ from: '2026-04-01', to: '2026-04-25' }}
       />,
     );
     expect(screen.getAllByTestId('insight-card')).toHaveLength(20);
     fireEvent.click(screen.getByRole('button', { name: '残り 5 件を表示' }));
     expect(screen.getAllByTestId('insight-card')).toHaveLength(25);
+    // 押下と同時に消すとキーボード操作のフォーカスが body へ飛ぶ。置き場所を残す
+    expect(screen.getByRole('button', { name: '全件を表示中' })).toBeTruthy();
+  });
+
+  it('カテゴリ内訳と収録期間を出す（絞り込んでも内訳は動かさない）', () => {
+    renderTrack();
+    const stats = within(screen.getByTestId('insight-stats'));
+    expect(stats.getByText('収録知見').nextElementSibling?.textContent).toBe('7 件');
+    expect(stats.getByText('活用知見').nextElementSibling?.textContent).toBe('4 件');
+    expect(stats.getByText('新語彙').nextElementSibling?.textContent).toBe('2 件');
+    expect(stats.getByText('収録期間').nextElementSibling?.textContent).toBe(
+      '2026年4月2日 〜 2026年8月7日',
+    );
+    // 絞り込んでも内訳は動かさない（何を絞り込めるかを示す一覧なので）
+    fireEvent.click(screen.getByRole('button', { name: '新語彙' }));
+    expect(stats.getByText('活用知見').nextElementSibling?.textContent).toBe('4 件');
   });
 
   it('開いたテーマは絞り込みを変えても勝手に閉じない', () => {

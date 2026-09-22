@@ -3,6 +3,7 @@ import {
   insightId,
   InsightSchemaError,
   normalizeInsights,
+  normalizeInsightsWithDiagnostics,
 } from '../lib/insightTimeline/normalize';
 import type { InsightTheme, RawInsight } from '../lib/insightTimeline/types';
 
@@ -33,9 +34,16 @@ function raw(overrides: Partial<RawInsight> = {}): RawInsight {
 
 describe('insightId', () => {
   it('日付とタイトルから安定 ID を作る', () => {
-    expect(insightId('2026-05-12', 'Subagent limit lifted')).toBe(
-      '2026-05-12-subagent-limit-lifted',
+    expect(insightId('2026-05-12', 'Subagent limit lifted')).toMatch(
+      /^2026-05-12-subagent-limit-lifted-[0-9a-z]+$/,
     );
+  });
+
+  it('先頭の英字語だけが同じ日本語タイトルに別々の ID を与える', () => {
+    // 非 ASCII を落とすスラッグだけで ID を作ると、どちらも 2026-04-26-claude-md になる
+    const a = insightId('2026-04-26', 'CLAUDE.md+スラッシュコマンドで業務委任を構造化');
+    const b = insightId('2026-04-26', 'CLAUDE.mdには繰り返すミスだけを書け');
+    expect(a).not.toBe(b);
   });
 
   it('日本語だけのタイトルでも日付が衝突しない ID を作る', () => {
@@ -93,6 +101,33 @@ describe('normalizeInsights', () => {
       THEMES,
     );
     expect(entries[0].impact).toBe('high');
+  });
+
+  it('先頭の英字語だけが同じ別の知見を統合しない', () => {
+    const entries = normalizeInsights(
+      [
+        raw({ date: '2026-04-26', title: 'CLAUDE.md+スラッシュコマンドで業務委任を構造化' }),
+        raw({ date: '2026-04-26', title: 'CLAUDE.mdには繰り返すミスだけを書け' }),
+      ],
+      THEMES,
+    );
+    expect(entries).toHaveLength(2);
+  });
+
+  it('統合したものを診断として持ち上げる（件数差の説明がつくようにする）', () => {
+    const { entries, merges } = normalizeInsightsWithDiagnostics(
+      [raw({ sourceReport: 'a.md' }), raw({ sourceReport: 'b.md' }), raw({ title: '別の知見' })],
+      THEMES,
+    );
+    expect(entries).toHaveLength(2);
+    expect(merges).toHaveLength(1);
+    expect(merges[0].reports).toEqual(['a.md', 'b.md']);
+  });
+
+  it('影響度が辞書に無い表記なら例外で落とす（null へ倒して「記載なし」に化けさせない）', () => {
+    expect(() => normalizeInsights([raw({ impact: 'critical' })], THEMES)).toThrow(
+      InsightSchemaError,
+    );
   });
 
   it('辞書に無いテーマ id は例外で落とす（黙って捨てない）', () => {

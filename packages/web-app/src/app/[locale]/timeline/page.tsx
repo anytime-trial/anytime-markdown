@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 
 import {
   INSIGHT_ENTRIES,
+  INSIGHT_PERIOD,
   INSIGHT_SOURCE_REPORT_COUNT,
   INSIGHT_THEMES,
 } from '../../../lib/insightTimeline/data';
@@ -50,6 +51,7 @@ export default function TimelinePage() {
           entries={INSIGHT_ENTRIES}
           themes={INSIGHT_THEMES}
           sourceReportCount={INSIGHT_SOURCE_REPORT_COUNT}
+          period={INSIGHT_PERIOD}
         />
       </Container>
     </>
