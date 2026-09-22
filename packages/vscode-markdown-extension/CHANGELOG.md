@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-09-22
+
+### Changed
+
+- The webview bundle now pins `@anytime-markdown/diagram-core` and `@anytime-markdown/diagram-viewer` to this worktree's `src`, as it already does for the other workspace packages, so a build never resolves them to another checkout's sources.
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- Added the `anytime-diagram` code block language (genealogy fence). The fence body is the same `DiagramDocument` JSON as a `*.diagram.json` file; the "Genealogy Diagram" slash command inserts an empty document and opens the dedicated edit dialog.
+- Inline previews of `anytime-diagram` no longer collapse to the width of the title: full-width preview is now decided by language rather than by code block kind, and the preview container is a column flex box so the viewer can grow into it.
+
+### Diagram Core (diagram-core / diagram-viewer)
+
+- Saving a fence that contains a hand-drawn connector no longer fails validation. The screen-shaped anchors are normalised through `validateDiagramDraft` in `diagram-core`, one place shared by the fence, `mcp-diagram` and web-app.
+- The edit dialog opens already in editing mode with a single "Apply" action, and connectors between two aligned elements bow clockwise instead of flattening into a straight line.
+
 
 ## [1.23.3] - 2026-09-21
 

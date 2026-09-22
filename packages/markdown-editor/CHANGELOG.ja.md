@@ -7,6 +7,22 @@
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-09-22
+
+### 追加
+
+- コードブロック言語 `anytime-diagram`（系図フェンス）を追加した。本文は `*.diagram.json` と同じ `DiagramDocument` の JSON 全文。スラッシュコマンド「系図」で `createEmptyDiagramDocument` の空の系図を挿入し `autoEditOpen` で編集画面を開く。挿入時の雛形も保存時の書き出しも `serializeDiagramDocument` を通すため、開いて保存しただけで本文が丸ごと書き換わることはない。`diagram-core` を依存に追加し、`lowlight` へ言語を登録した。
+- `markdown-rich-editor` はフェンスを `mountDiagramViewer` の `editable: false` で閲覧専用に描き、編集は専用ダイアログ（`createDiagramEditDialog`）で行う。汎用のコードブロック編集ダイアログを使わないのは、その `render()` が状態が変わるたびにプレビューペインを作り直し、打鍵のたびに選択・改名中の入力が消えるため。読めない本文（壊れた JSON・検証エラー）は黙って空にせず、`anytime-diagram-fence-error` クラスで理由を出す。
+
+### 修正
+
+- `markdown-rich-editor`: `anytime-diagram` のインラインプレビューが題名の文字幅（実測 70px 程度）まで潰れていたのを直した。プレビュー枠の既定幅を種別（`CodeBlockKind`）ではなく `language` で決める。系図のビューアは百分率と flex で枠を埋める作りで `fit-content` の器では百分率が効かない一方、`mermaid` / `plantuml` / `anytime-thinking-model` / `anytime-chart` は実寸を持つ SVG・画像・canvas を返すため従来の挙動を保つ必要がある。枠いっぱいに広げる言語は集合（`markdown` / `screenmock` / `anytime-diagram`）で持つ。
+- `markdown-rich-editor`: プレビューの器を縦の flex にした。ビューアは `flex: 1 1 auto` で残りの高さを受け取るため、器が block のままでは伸びる相手が無く、図が最小高さ 240px で止まって器の下が空いていた。
+
+### 変更
+
+- `markdown-rich-editor`: 全幅プレビューの契約をテストで固定した。`FULL_WIDTH_PREVIEW_LANGUAGES` の全要素が `classifyCodeBlock` で `regular` にならないことと、器の `display: flex` / `flexDirection: column` を検査する。言語名を 2 か所に分けて並べているため、改名・誤字で片方だけ取り残されると型検査もテストも通ったまま同じ潰れが再発する。
+
 
 ## [1.23.3] - 2026-09-21
 
