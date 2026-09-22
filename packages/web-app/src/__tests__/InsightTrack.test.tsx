@@ -125,7 +125,12 @@ describe('InsightTrack', () => {
         period={{ from: '2026-04-01', to: '2026-04-25' }}
       />,
     );
-    expect(screen.getAllByTestId('insight-card')).toHaveLength(20);
+    const cards = screen.getAllByTestId('insight-card');
+    expect(cards).toHaveLength(20);
+    // 隠れるのは古い側。頭から 20 件が「最近の 20 件」であることを固定する
+    expect(within(cards[0]).getByText(/^2026\//).textContent).toBe('2026/4/25');
+    expect(within(cards[19]).getByText(/^2026\//).textContent).toBe('2026/4/6');
+
     fireEvent.click(screen.getByRole('button', { name: '残り 5 件を表示' }));
     expect(screen.getAllByTestId('insight-card')).toHaveLength(25);
     // 押下と同時に消すとキーボード操作のフォーカスが body へ飛ぶ。置き場所を残す
