@@ -27,6 +27,41 @@ const CELL_ADD_ICON_PX = 28;
  */
 export const GUTTER_TRACK_PX = 14;
 
+/**
+ * 宿主がトークンを撒いていないときに当てる一式（`theme` 属性を持つ Custom Element 用）。
+ *
+ * 下の `DIAGRAM_STYLES` は色を自前で持たず宿主のトークンを引くが、**最後の既定値はライトの
+ * 一式しか無い**。`--am-color-*` も `--vscode-*` も撒かれていない宿主（素の HTML へ置いた
+ * Custom Element）では、どれだけ暗い指定をしてもライトの図が出る。そこでトークンの側を
+ * 与える — スタイルの参照順（`--am-color-*` が先）はそのままなので、宿主が撒いている場合は
+ * 宿主の値が勝つ。
+ *
+ * 値の出所は `packages/markdown-editor/src/constants/colors.ts`（web-app の MUI テーマが
+ * そのまま読む一式）。**import はしない** — あちらは barrel が重く、図の配布バンドルへ
+ * markdown-editor のモジュールグラフを丸ごと引き込む。下のライト側の値が既存の既定値と
+ * 一致していることが、写しがずれていないことの目印になる。
+ */
+export const DIAGRAM_THEME_TOKENS: Readonly<Record<'light' | 'dark', Readonly<Record<string, string>>>> = {
+  light: {
+    '--am-color-bg-default': '#F2EFE8',
+    '--am-color-bg-paper': '#FBF9F3',
+    '--am-color-text-primary': '#1F1E1C',
+    '--am-color-text-secondary': '#5C5A55',
+    '--am-color-divider': 'rgba(31, 30, 28, 0.12)',
+    '--am-color-primary-main': '#3D4A52',
+    '--am-color-error-main': '#6B2A20',
+  },
+  dark: {
+    '--am-color-bg-default': '#0D1117',
+    '--am-color-bg-paper': '#121212',
+    '--am-color-text-primary': '#ffffffde',
+    '--am-color-text-secondary': '#ffffff99',
+    '--am-color-divider': 'rgba(255, 255, 255, 0.12)',
+    '--am-color-primary-main': '#90caf9',
+    '--am-color-error-main': '#f44336',
+  },
+};
+
 export const DIAGRAM_STYLES = `
 .${DIAGRAM_ROOT_CLASS} {
   /*
