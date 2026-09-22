@@ -17,7 +17,8 @@
     "e2e:ui": "playwright test --ui",
     "gen:architecture-icons": "node scripts/gen-architecture-icons.mjs",
     "analyze": "next build --experimental-analyze",
-    "analyze:webpack": "ANALYZE=true next build --webpack"
+    "analyze:webpack": "ANALYZE=true next build --webpack",
+    "data:insights": "tsx scripts/build-insight-timeline.ts"
   },
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
