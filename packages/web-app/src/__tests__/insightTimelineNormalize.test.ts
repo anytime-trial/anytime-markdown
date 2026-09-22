@@ -65,7 +65,7 @@ describe('normalizeInsights', () => {
     expect(entry.impact).toBeNull();
   });
 
-  it('日付昇順に並べる（経緯は古い順でないと変遷にならない）', () => {
+  it('成果物は日付昇順で確定する（再生成のたびに同じ並びになる）', () => {
     const entries = normalizeInsights(
       [
         raw({ date: '2026-08-07', title: '上限撤廃' }),
@@ -178,11 +178,20 @@ describe('buildThemeTracks', () => {
     expect(tracks.map((t) => t.themeId)).toEqual(['subagent', 'cost', 'sandbox']);
   });
 
-  it('テーマ内は日付昇順で、収録範囲を両端から取る', () => {
+  it('テーマ内は日付降順（新しい順）で、収録範囲は両端から取る', () => {
     const [subagent] = buildThemeTracks(entries, THEMES);
-    expect(subagent.entries.map((e) => e.date)).toEqual(['2026-05-12', '2026-07-03', '2026-08-07']);
+    expect(subagent.entries.map((e) => e.date)).toEqual(['2026-08-07', '2026-07-03', '2026-05-12']);
+    // 並びが降順でも、収録範囲は「古い〜新しい」の向きで出す
     expect(subagent.from).toBe('2026-05-12');
     expect(subagent.to).toBe('2026-08-07');
+  });
+
+  it('昇順で渡されても降順で渡されても同じ並びになる', () => {
+    const ascending = buildThemeTracks(entries, THEMES)[0].entries.map((e) => e.date);
+    const descending = buildThemeTracks([...entries].reverse(), THEMES)[0].entries.map(
+      (e) => e.date,
+    );
+    expect(descending).toEqual(ascending);
   });
 
   it('1 件も無いテーマはトラックを作らない（空の見出しを出さない）', () => {

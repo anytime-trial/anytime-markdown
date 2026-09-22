@@ -20,7 +20,7 @@
 npm run data:insights -w @anytime-markdown/web-app
 ```
 
-`scripts/build-insight-timeline.ts` が `themes.json` と `raw/*.json` を読み、表記ゆれの吸収（影響度の 高/中/低 → high/medium/low）・同日同題の統合・日付昇順の並べ替えを行って `insights.json` を書き出す。正規化のロジックは純粋関数として `src/lib/insightTimeline/normalize.ts` にあり、`src/__tests__/insightTimelineNormalize.test.ts` が検証している。
+`scripts/build-insight-timeline.ts` が `themes.json` と `raw/*.json` を読み、表記ゆれの吸収（影響度の 高/中/低 → high/medium/low）・同日同題の統合・日付昇順の並べ替えを行って `insights.json` を書き出す。成果物が昇順なのは再生成のたびに同じ並びになるためで、**画面は新しい順に出す**（向きを決めるのは `buildThemeTracks`）。正規化のロジックは純粋関数として `src/lib/insightTimeline/normalize.ts` にあり、`src/__tests__/insightTimelineNormalize.test.ts` が検証している。
 
 スキーマ違反（`date` が `YYYY-MM-DD` でない、辞書に無いテーマ id、`themes` が空など）はスクリプトが例外で落とす。黙って落とさないのは、1 件の欠落が経緯では「その知見が無かった」ようにしか見えないため。
 

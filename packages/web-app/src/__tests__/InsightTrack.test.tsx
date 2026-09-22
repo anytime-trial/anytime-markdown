@@ -83,11 +83,11 @@ describe('InsightTrack', () => {
     expect(screen.getAllByRole('button', { expanded: false })).toHaveLength(1);
   });
 
-  it('テーマ内は古い順に並べ、経緯として読めるようにする', () => {
+  it('テーマ内は新しい順に並べる（年表本体と向きを揃える）', () => {
     renderTrack();
     const cards = screen.getAllByTestId('insight-card');
     const subagentDates = cards.slice(0, 3).map((c) => within(c).getByText(/^2026\//).textContent);
-    expect(subagentDates).toEqual(['2026/4/2', '2026/7/3', '2026/8/7']);
+    expect(subagentDates).toEqual(['2026/8/7', '2026/7/3', '2026/4/2']);
   });
 
   it('カテゴリで絞り込むとトラックと件数が追従する', () => {
@@ -125,7 +125,12 @@ describe('InsightTrack', () => {
         period={{ from: '2026-04-01', to: '2026-04-25' }}
       />,
     );
-    expect(screen.getAllByTestId('insight-card')).toHaveLength(20);
+    const cards = screen.getAllByTestId('insight-card');
+    expect(cards).toHaveLength(20);
+    // 隠れるのは古い側。頭から 20 件が「最近の 20 件」であることを固定する
+    expect(within(cards[0]).getByText(/^2026\//).textContent).toBe('2026/4/25');
+    expect(within(cards[19]).getByText(/^2026\//).textContent).toBe('2026/4/6');
+
     fireEvent.click(screen.getByRole('button', { name: '残り 5 件を表示' }));
     expect(screen.getAllByTestId('insight-card')).toHaveLength(25);
     // 押下と同時に消すとキーボード操作のフォーカスが body へ飛ぶ。置き場所を残す
