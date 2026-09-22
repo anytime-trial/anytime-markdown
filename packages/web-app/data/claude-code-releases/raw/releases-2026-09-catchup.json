@@ -1,0 +1,756 @@
+[
+  {
+    "version": "2.1.225",
+    "kind": "cli",
+    "date": "2026-08-08",
+    "dateConfidence": "explicit",
+    "headline": "ゲートウェイの支出上限を使用量警告へ反映・SendMessage が他マシンの Remote Control セッションへ発信可能に",
+    "highlights": [
+      "使用量警告がゲートウェイの支出上限（上限額・リセット時刻・運用者メッセージ）を表示",
+      "claude agents に未信頼ディレクトリのワークスペース信頼プロンプトを追加",
+      "SendMessage が他マシンの Remote Control セッションへ名前指定で会話を開始できるようになった（従来は相手からの着信への返信のみ）",
+      "一時的な 401 で CLAUDE_CODE_OAUTH_TOKEN が短命トークンへ差し替わり headless セッションが壊れる不具合を修正",
+      "auto mode が安全フィルタによる自身の許可判定の拒否を連続ブロック上限へ数える不具合を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.226",
+    "kind": "cli",
+    "date": "2026-08-08",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正・安定性改善（詳細非公開）",
+    "highlights": [
+      "公式 changelog は「Bug fixes and reliability improvements」とのみ記載"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.227",
+    "kind": "cli",
+    "date": "2026-08-10",
+    "dateConfidence": "explicit",
+    "headline": "期限切れトークン起動時のプラン誤判定と claude-code-action の Bash 全失敗を修正",
+    "highlights": [
+      "期限切れログイントークンで起動するとサブスク種別なしでフィーチャーフラグが評価され、Max プランに Fable の利用クレジットを促す誤表示が出る不具合を修正",
+      "claude-code-action の allowed_non_write_users 環境で全 Bash コマンドが失敗する不具合を修正",
+      "スラッシュコマンドメニューの視認性改善（選択行のみ着色・一致文字は太字）"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.228",
+    "kind": "cli",
+    "date": "2026-08-11",
+    "dateConfidence": "explicit",
+    "headline": "claude.ai 同期スキルの隔離強化・Write ツールの未読上書きを新しいモデルへ解禁",
+    "highlights": [
+      "claude.ai から同期したスキルを隔離強化（ローカルコマンド・MCP プロンプトを覆い隠さない、説明文をサニタイズ、`!` コマンド実行と `@` 展開を無効化）",
+      "Write ツールが新しいモデルでは未読ファイルの上書きを許可（Edit と同じ規則。旧モデルは従来どおり先読み必須）",
+      "セッション後片付けがプロジェクトのメモリフォルダ内を削除する不具合を修正",
+      "クロスセッションメッセージの表示を折りたたみ 1 行から送信者＋本文のインライン表示へ改善",
+      "Vertex AI の資格情報期限切れが数分間リトライされる問題を数秒で失敗するよう改善"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.229",
+    "kind": "cli",
+    "date": "2026-08-12",
+    "dateConfidence": "explicit",
+    "headline": "/commit-push-pr の危険フラグ自動承認を廃止・プラグイン marketplace に command ソース追加",
+    "highlights": [
+      "/commit-push-pr で `--force` `--amend` `--no-verify` 等を含む git / gh コマンドを自動承認しないよう変更",
+      "プラグイン marketplace の `command` ソース追加（ローカルコマンドがプラグインディレクトリを出力し、再起動なしで反映）",
+      "ListAgents が切断済み Remote Control を `offline`、クラウドセッションを `cloud` と表示",
+      "Workflow のファンアウトで同一プレフィックスの兄弟エージェントをずらして起動し、prompt cache のプレフィックスを再利用（CLAUDE_CODE_WORKFLOW_PREFIX_STAGGER_MS=0 で無効化）",
+      "narrow な端末でのプログレスバー・表描画の RangeError クラッシュを修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.231",
+    "kind": "cli",
+    "date": "2026-08-13",
+    "dateConfidence": "explicit",
+    "headline": "事前登録 OAuth クライアントを使う MCP サーバのサインイン失敗を修正",
+    "highlights": [
+      "Slack など事前登録 OAuth クライアントを使う MCP サーバで redirect URI 不一致によりサインインが失敗する不具合を修正"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.232",
+    "kind": "cli",
+    "date": "2026-08-13",
+    "dateConfidence": "explicit",
+    "headline": "サブエージェントの fork が既定で有効化・対話セッションのエージェント起動が既定バックグラウンドへ",
+    "highlights": [
+      "`subagent_type: \"fork\"` が既定で有効になり、会話全体と prompt cache を継承。対話セッションの非 teammate エージェント起動は既定でバックグラウンド実行へ",
+      "プロンプトで `@` を打つと他セッションを名前で指名でき、Claude が SendMessage で直接到達",
+      "同一マシンの対話セッション名を一意化（重複時は `name-word-word` 形式の別名を付与）",
+      "PowerShell の権限バイパス（$PSDefaultParameterValues の暗黙上書き）と Windows Git Bash の Cygwin シンボリックリンク経由の書き込みバイパスを修正",
+      "ネストした git リポジトリが親ディレクトリの信頼を継承する不具合を修正（各リポジトリで個別に信頼確認）",
+      "/code-review が high・xhigh・max でもバックグラウンドエージェントとして実行されるよう統一"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.233",
+    "kind": "cli",
+    "date": "2026-08-14",
+    "dateConfidence": "explicit",
+    "headline": "Todo/Task ツールを新世代モデルから撤去・NT パス経由の NTLM 資格情報漏洩を封鎖",
+    "highlights": [
+      "Todo/Task 系ツール（TaskCreate/Get/Update/List・TodoWrite）を Opus 4.8・Sonnet 5・Fable 5・Mythos 5 以降で提供停止（CLAUDE_CODE_ENABLE_TODO_TOOLS=1 で復帰）",
+      "Windows の NT デバイスプレフィックス `\\??\\` が UNC パス検証を迂回する経路を塞ぎ NTLM 資格情報漏洩を封鎖",
+      "Bash ツールコマンドの Linux memory cgroup 対応を opt-in 追加（CLAUDE_CODE_TOOL_MEMORY_LIMIT）",
+      "CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS で WebFetch の URL キャッシュ TTL を設定可能に",
+      "2.1.232 の Bash 権限変更のうち Windows Cygwin シンボリックリンクと入力リダイレクト（`< file`）分を差し戻し",
+      "sandbox 有効時に idle セッションが Linux で CPU コアを 100% 占有する不具合を修正"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.234",
+    "kind": "cli",
+    "date": "2026-08-17",
+    "dateConfidence": "explicit",
+    "headline": "claude-api スキルの文脈コストを 200k→25k へ削減・使用量上限リセット時の自動継続",
+    "highlights": [
+      "同梱 claude-api スキルの読み込みコストを約 200k+ トークンから約 25k へ削減（リファレンスを on-demand ロード化）",
+      "claude.ai の使用量上限がリセットされたらセッションを自動継続（/config の「Continue automatically at usage limit」で無効化）",
+      "リモートファイル読み取り・セッション復元・CLAUDE.md include・Workflow スクリプト・アップロードが Windows NT 名前空間パス（`\\??\\`）を拒否",
+      "アカウントのメールアドレスを本人識別以外に使わず、無関係なサービスへ送らないようモデルへ指示",
+      "GitLab マージリクエストのバッジをフッタ・ステータスラインへ追加",
+      "/permissions と /add-dir を作業中に開けるように変更（ルール変更は現ターンの残りから適用）"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.235",
+    "kind": "cli",
+    "date": "2026-08-18",
+    "dateConfidence": "explicit",
+    "headline": "spellcheck 設定の追加と許可ダイアログの表示整合の改善",
+    "highlights": [
+      "`spellcheck` 設定を追加（aspell / hunspell / ispell を使ってプロンプト入力のスペルミスを下線表示）",
+      "許可ダイアログの表示文言と「don't ask again」の対象範囲が常に一致するよう改善（全容を表示できない場合は don't ask again を出さない）",
+      "言語サーバの切断・再接続でプロンプトキャッシュ全体が無効化される不具合を修正",
+      "Agent ツールが利用不可のセッションで general-purpose を既定として広告する不具合を修正（利用可能エージェントを列挙するエラーへ）",
+      "クラウドセッション（/ultrareview・/autofix-pr）実行中のメモリと CPU 使用を改善"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.236",
+    "kind": "cli",
+    "date": "2026-08-19",
+    "dateConfidence": "explicit",
+    "headline": "ANTHROPIC_DEFAULT_MODEL 追加・SendMessage に notify_when_idle・macOS sandbox の読み取り拒否規則を強化",
+    "highlights": [
+      "ANTHROPIC_DEFAULT_MODEL 環境変数を追加（新規セッションの開始モデルを指定。/model の選択は従来どおり優先・永続）",
+      "SendMessage に `notify_when_idle` を追加（同一マシンの他セッションが次に idle になったとき 1 回だけ通知。macOS / Linux）",
+      "macOS sandbox のワイルドカード読み取り拒否（`**/.env` 等）が許可領域内でも優先され、リネームで回避できないよう修正",
+      "auto mode の git status 判定が `status.showUntrackedFiles=no` に騙されてクリーン扱いになる不具合を修正",
+      "セッションリキャップの暴走を防ぐため recap を 400 文字で語境界カットするよう修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.237",
+    "kind": "cli",
+    "date": "2026-08-20",
+    "dateConfidence": "explicit",
+    "headline": "組み込み出力スタイル「Concise」を追加・ゲートウェイ利用時の prompt cache を修正",
+    "highlights": [
+      "組み込み出力スタイル「Concise」を追加（前置き・実況を省き結論から述べる。/config の Output style で選択）",
+      "LLM ゲートウェイ・カスタム base URL を使うセッションで prompt caching が効かない不具合を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.238",
+    "kind": "cli",
+    "date": "2026-08-20",
+    "dateConfidence": "explicit",
+    "headline": "長時間セッションのメモリ増加を修正・marketplace に headersHelper を追加",
+    "highlights": [
+      "長い対話セッションの青天井なメモリ増加を修正（表示窓から外れたサブエージェントのツール結果を解放）",
+      "プラグイン marketplace に `headersHelper` を追加（短命トークン等の HTTP ヘッダをコマンドで発行。実行前に内容を提示し `[y/N]` 確認）",
+      "`keybindingFlavor` 設定を追加（`\"readline\"` で Ctrl+W が直前の空白まで削除する Bash 互換挙動に）",
+      "self-hosted runner に `--defer-shutdown-max-min` と `--proxy-authorization-command` / `--proxy-authorization-file` を追加",
+      "stdio MCP サーバが initialize より前に `server/discover` を受け取り、遅延起動サーバが毎回バックエンドを起動する不具合を修正",
+      "プロジェクト `.mcp.json` の `headersHelper` とエージェントファイル内 MCP に、そのフォルダの信頼承認を要求（`claude -p` 含む）"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.239",
+    "kind": "cli",
+    "date": "2026-08-21",
+    "dateConfidence": "explicit",
+    "headline": "Windows でクロスセッションメッセージング解禁・ListAgents が teammate を列挙・Bedrock の二重課金を修正",
+    "highlights": [
+      "Windows でもクロスセッションメッセージングが利用可能に（SendMessage / ListAgents が macOS・Linux と同等に）",
+      "Content-Type を落とすプロキシ配下の Bedrock ストリーミングが毎ターン非ストリーミングで再実行され、API 呼び出しが黙って倍額になる不具合を修正",
+      "ListAgents が生存中の teammate も列挙するよう修正（従来はサブエージェントと他セッションのみで、到達可能な teammate が「不在」に見えていた）",
+      "/goal の長時間バックグラウンド作業に対する再確認を 30 分 → 1 時間 → 2 時間とバックオフするよう変更",
+      "`.worktreeinclude` の `**/` 始まりパターンが gitignore 済みディレクトリ内で黙って何にも一致しない不具合を修正",
+      "BOM 付き `.md` のエージェント・スキル・コマンドが黙って無視される不具合を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.240",
+    "kind": "cli",
+    "date": "2026-08-22",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正・安定性改善（詳細非公開）",
+    "highlights": [
+      "公式 changelog は「Bug fixes and reliability improvements」とのみ記載"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.241",
+    "kind": "cli",
+    "date": "2026-08-23",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正・安定性改善（詳細非公開）",
+    "highlights": [
+      "公式 changelog は「Bug fixes and reliability improvements」とのみ記載"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.243",
+    "kind": "cli",
+    "date": "2026-08-25",
+    "dateConfidence": "explicit",
+    "headline": "promptCacheTtl / modelPicker / modelPricing を設定化・/usage に Loops 内訳・ネイティブバイナリを大幅軽量化",
+    "highlights": [
+      "`promptCacheTtl` と `subagentPromptCacheTtl` を追加（本体は 1 時間、サブエージェントは 5 分といった使い分けが可能に）",
+      "`modelPicker` 設定で /model の一覧を組織側が curate 可能に、`modelPricing` で契約単価を /cost・ステータスライン・テレメトリへ反映",
+      "/usage に Loops 内訳（ループ別の実行回数・総トークン・1 回あたりトークン・最終実行）を追加し、暴走 /loop を特定しやすく",
+      "ネイティブインストールと自動更新のダウンロードを zstd 圧縮化（Linux x64 で約 340MB → 約 75MB）、常駐メモリも約 40〜70MB 削減",
+      "`/resume` が直近 50 セッションしか出さない制限を撤廃（スクロールで追加読み込み）",
+      "2.1.232 のソケットディレクトリ強化以降、user namespace・rootless コンテナでクロスセッションメッセージングが黙って無効化される不具合を修正",
+      "/loop の「やることなし」の連続ウェイクアップを 1 行へ折りたたんで表示"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.245",
+    "kind": "cli",
+    "date": "2026-08-25",
+    "dateConfidence": "explicit",
+    "headline": "glibc 2.44 環境の起動クラッシュを修正",
+    "highlights": [
+      "glibc 2.44 を採用するディストリビューション（Arch Linux・CachyOS・Fedora Rawhide 等）で起動時にクラッシュする不具合を修正"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.246",
+    "kind": "cli",
+    "date": "2026-08-25",
+    "dateConfidence": "explicit",
+    "headline": "/cd が移動先の設定・フック・スキルを即時反映・maxTurns 到達サブエージェントを「部分結果」として返却",
+    "highlights": [
+      "/cd の移動先プロジェクト設定・フック・.mcp.json・スキル・エージェントが --resume を待たず即時反映されるよう改善",
+      "maxTurns 上限で止まったサブエージェントの出力を「部分結果」と明示し、SendMessage で継続する案内を付与（完了に見せない）",
+      "非対話セッション（-p・SDK・クラウド）でサーバエラーや接続断により応答が途中で切れた場合に自動継続するよう改善",
+      "auto mode のツール呼び出しが巨大セッションで「一時的に利用できません」と拒否される不具合を修正（安全判定の締切をプロンプトサイズに比例させる）",
+      "`keybindings.json` の未知アクション名がそのキーを黙って無効化する不具合を修正（スキップして既定バインドを維持）",
+      "/stats のアクティビティヒートマップが UTC より東のタイムゾーンで 1 セルずれる不具合を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.247",
+    "kind": "cli",
+    "date": "2026-08-26",
+    "dateConfidence": "explicit",
+    "headline": "SendFeedback ツール追加・Sonnet 5 の auto-compact 窓を 1M へ・クロスセッション受信を 1 行へ折りたたみ",
+    "highlights": [
+      "SendFeedback ツールを追加（不具合に遭遇した際に Claude がフィードバック草稿を作成し、/feedback で人が確認して送る。`feedbackDrafts` 設定で無効化）",
+      "Sonnet 5 の既定 auto-compact 窓を 1M コンテキスト全体へ変更（約 934K → 約 967K トークンで発火）",
+      "クロスセッションの受信メッセージを既定で `Message from @<sender>: <先頭行>` の 1 行に折りたたみ（Ctrl+O で全文）",
+      "フック・バックグラウンドエージェントが大量のエラー出力を吐いて会話を溢れさせ「Prompt is too long」で固まる不具合を修正",
+      "サブエージェントが初回呼び出しのモデル 404 で死ぬ不具合を修正（フォールバックモデル連鎖を使い、親へ返すエラーに種別・status・request id・モデルを含める）",
+      "Bash sandbox の後始末が dotfile 管理（nix/home-manager・stow）の `~/.claude/settings.json` シンボリックリンクを削除する不具合を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.248",
+    "kind": "cli",
+    "date": "2026-08-27",
+    "dateConfidence": "explicit",
+    "headline": "--restricted モード追加・Workflow ツールの説明を 5.7k→1k トークンへ・/ultrareview の秘匿ファイル送信を停止",
+    "highlights": [
+      "`--restricted`（CLAUDE_CODE_RESTRICTED=1）を追加（コマンド実行系ツールと WebFetch を外し、ファイルツールを作業ディレクトリ内に限定、bypassPermissions を拒否、ユーザー／プロジェクト／ローカル設定を無視）",
+      "Workflow ツールの説明文を約 5.7k → 約 1k トークンへ削減（スクリプト作成リファレンスは `workflow-authoring` スキルへ分離）",
+      "/ultrareview とクラウドセッションが `prod.env` 系・`*.tfvars`・資格情報ファイルの一時／バックアップ（`key.pem.tmp`・`id_rsa.swo` 等）をアップロードする不具合を修正",
+      "エージェント frontmatter に `experimental.cacheTtl`（`\"5m\"` / `\"1h\"`）を追加",
+      "長時間セッションで約 1 時間ごとに発生していた prompt cache ミス（OAuth トークン更新後のツール定義再描画が原因）を修正",
+      "フックが stdout に不正な JSON の `{…}` を出すと平文扱いで黙って通る不具合を修正（パースエラーとして報告）"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.250",
+    "kind": "cli",
+    "date": "2026-08-28",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正・安定性改善（詳細非公開）",
+    "highlights": [
+      "公式 changelog は「Bug fixes and reliability improvements」とのみ記載"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.251",
+    "kind": "cli",
+    "date": "2026-08-28",
+    "dateConfidence": "explicit",
+    "headline": "PreModelSwitch / PostModelSwitch フック追加・許可判定後のシンボリックリンク差し替えを封鎖",
+    "highlights": [
+      "PreModelSwitch / PostModelSwitch フックイベントを追加（モデル切替のブロック・確認・注記が可能。SessionStart の resume フックはセッションの陳腐度と再キャッシュ見積を受け取る）",
+      "Read / Write / Edit が許可判定の後に作業ディレクトリ内で差し替えられたシンボリックリンクを辿り、承認範囲外を読み書きできた不具合を修正",
+      "Grep / Glob がシンボリックリンク経由の検索パスに `Read(...)` の deny ルールを適用しない不具合を修正",
+      "/cost にセッション単位の prompt cache 行（ヒット率・ミス・再キャッシュしたトークン・warm/cold）と、ステータスライン用の `prompt_cache` オブジェクトを追加",
+      "Opus 5 で effort が xhigh/max かつ thinking 無効のときリクエストが失敗する不具合を修正（`high` として送信）",
+      "座席契約の Enterprise の既定モデルを Opus 5 へ変更、`/effort` の既定 effort をモデル別に保存するよう変更",
+      "CLAUDE_CODE_SUBAGENT_MODEL を「既定値」へ格下げ（エージェント定義の `model:` と起動時指定が優先）"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.252",
+    "kind": "cli",
+    "date": "2026-08-31",
+    "dateConfidence": "explicit",
+    "headline": "Mac の task output swap エラーと always allow の保存失敗を修正",
+    "highlights": [
+      "一部の Mac で Bash コマンドが「task output swap refused」で失敗する不具合を修正",
+      "`.claude/settings.local.json` が未作成のプロジェクトで「always allow」が保存されない不具合を修正",
+      "巨大な失敗出力を伴うバックグラウンドタスク通知が API のリクエストサイズ上限を超える不具合を修正"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.257",
+    "kind": "cli",
+    "date": "2026-09-01",
+    "dateConfidence": "explicit",
+    "headline": "Claude Fable 5.1 を既定 Fable モデルとして追加・auto mode に Containment Escape 規則",
+    "highlights": [
+      "Claude Fable 5.1（`claude-fable-5-1`）を追加し既定の Fable モデルへ（1M コンテキスト・$10/$50 per Mtok・キャッシュ読み取り $0.25/Mtok）",
+      "auto mode に Containment Escape 規則を追加（クラウドメタデータの資格情報取得・egress 回避・テナント跨ぎは自動承認しない）",
+      "`timeFormat` / `timeZone` 設定を追加（12/24 時間・UTC・strftime パターン）",
+      "auto mode で作業ディレクトリ外の初回ファイル読み取り前に 1 度だけ確認し、`permissions.blockReadsOutsideWorkingDirectories` でブロックする選択肢を追加",
+      "CLAUDE_CODE_SUBAGENT_MODEL_FORCE を追加（全サブエージェントへ強制適用し、定義・起動時指定を無視）",
+      "worktree 隔離セッションが git に触れない Bash ループ・`$VAR`・`\"$(…)\"`・ヒアドキュメントを「検証できない」と拒否する不具合を修正",
+      "`.claude/settings.json` / `settings.local.json` の `defaultMode: \"bypassPermissions\"` を無視するよう変更（ユーザー／管理設定か --permission-mode で指定する）"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.258",
+    "kind": "cli",
+    "date": "2026-09-01",
+    "dateConfidence": "explicit",
+    "headline": "macOS 12 の起動失敗（2.1.255 リグレッション）を修正",
+    "highlights": [
+      "macOS 12 (Monterey) で起動できない 2.1.255 由来のリグレッションを修正",
+      "再送された権限承認を適用できず「user messages must have non-empty content」で失敗する不具合を修正"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.259",
+    "kind": "cli",
+    "date": "2026-09-02",
+    "dateConfidence": "explicit",
+    "headline": "並行セッションが互いの ~/.claude.json を巻き戻す不具合を修正・managedMcpServers を追加",
+    "highlights": [
+      "並行セッションが互いの `~/.claude.json` の変更を黙って巻き戻す不具合を修正（多数同時起動でワークスペース信頼がリセットされ MCP／プロジェクト状態が失われていた）",
+      "`managedMcpServers` 管理設定を追加（組織が HTTP/SSE の MCP サーバを全ユーザーへ配布。command 型は skip）",
+      "`--permission-prompts none` を追加（無人 headless 向け。プロンプトになるものを自動拒否しつつ、auto mode を含む権限モードの判定は生かす）",
+      "管理設定・MDM plist・HKLM 値のいずれかがパースできないとき、黙って未適用になるのをやめ、起動を拒否して出所を明示するよう修正",
+      "カスタムコマンド・スキルの frontmatter `model:` が対話セッションで無視される不具合を修正",
+      "Stop フックのブロックがそのターンの推論を失わせ prompt cache を外す不具合を修正"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.260",
+    "kind": "cli",
+    "date": "2026-09-03",
+    "dateConfidence": "explicit",
+    "headline": "/diff パネルを追加・括弧を含む許可ルールが無視され「読み取り専用」領域が書き込み可能だった不具合を修正",
+    "highlights": [
+      "フルスクリーンモードに会話と並ぶ `/diff` パネルを追加（Claude の編集に追従して未コミット差分を表示）",
+      "パスに括弧を含む Edit/Write/Read の許可ルールが不正として捨てられ、sandbox からも無視されて「読み取り専用」フォルダが書き込み可能になっていた不具合を修正",
+      "prompt cache ミスの推定原因（ツール定義・システムプロンプトの変化、TTL 超過の idle 等）を /cost とステータスラインの `prompt_cache` へ追加",
+      "1M コンテキストモデルの auto-compact を改善（Opus・Fable は 1M 直前で圧縮し、巨大文脈の復旧圧縮が 10 分でタイムアウトしない）",
+      "`/rewind` がバックアップ欠損時に成功と報告して何も復元しない不具合を修正",
+      "2.1.259 の「Bash 引数へ `Read()` deny ルールを適用する」変更を差し戻し（`Read(./**/build/**)` 配下で `npm run build` まで拒否されたため）"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.261",
+    "kind": "cli",
+    "date": "2026-09-04",
+    "dateConfidence": "explicit",
+    "headline": "/skill-doctor を追加・Bash 出力の inline 上限を設定可能に・単語編集キーを Bash 準拠へ統一",
+    "highlights": [
+      "`/skill-doctor` を追加（読み込まれたスキルのうち使われていないものと、その文脈コストを表示して整理を促す）",
+      "`bashOutputMaxChars` / `taskOutputMaxChars` を追加（inline で受け取るコマンド出力量を最大 128K 文字まで拡張）",
+      "`--append-subagent-system-prompt-file` を追加（コマンドラインに載らない長さのサブエージェント用システムプロンプト向け）",
+      "プロンプトの単語編集キーを Bash 準拠へ統一（Ctrl+W は空白まで削除、Alt+F / Alt+D は語尾で停止。`keybindingFlavor` は無効化）",
+      "高速入力・キーリピート時に文字が入れ替わる・落ちる不具合を修正",
+      "/context のトークン計上をカウント API 不通時にローカル推定へ切り替え（小型モデルへの追加リクエストを廃止）"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.263",
+    "kind": "cli",
+    "date": "2026-09-06",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正・安定性改善（詳細非公開）",
+    "highlights": [
+      "公式 changelog は「Bug fixes and reliability improvements」とのみ記載"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.265",
+    "kind": "cli",
+    "date": "2026-09-08",
+    "dateConfidence": "explicit",
+    "headline": "--plugin-dir がプラグイン群のフォルダに対応・ツール結果の保存に 1GB 上限・非対話セッションで cd が持続",
+    "highlights": [
+      "`--plugin-dir` をプラグイン群を収めたフォルダへ向けられるよう拡張（実行中の追加・削除も反映）",
+      "ディスクへ保存するツール結果に 1GB の上限を追加（会話内プレビューに切り詰めを明示）",
+      "非対話セッション（`-p` の stream-json 入力・Agent SDK・クラウド）がユーザーメッセージごとにシェルの作業ディレクトリをリセットする不具合を修正（`cd` がターンを跨いで持続）",
+      "`http` 指定だが legacy HTTP+SSE しか話せない MCP サーバが接続できない不具合を修正（仕様どおり SSE へフォールバック）",
+      "フォアグラウンド起動サブエージェントの resume でツール一覧とシステムプロンプトが変わり prompt cache 再利用が壊れる不具合を修正",
+      "`--worktree` の起動を並列チェックアウトで高速化（git 2.32+）"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.266",
+    "kind": "cli",
+    "date": "2026-09-08",
+    "dateConfidence": "explicit",
+    "headline": "CLAUDE_CODE_USE_GATEWAY がゲートウェイサインインを強制する 2.1.265 リグレッションを修正",
+    "highlights": [
+      "未文書の CLAUDE_CODE_USE_GATEWAY が単独でクラウドゲートウェイのサインインを強制し、API キー等と併用した構成が全リクエスト失敗する 2.1.265 リグレッションを修正（再び単独では無視される）"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.267",
+    "kind": "cli",
+    "date": "2026-09-09",
+    "dateConfidence": "explicit",
+    "headline": "maxEffortLevel を追加・ツール定義の再描画による prompt cache 崩れを一括修正",
+    "highlights": [
+      "`maxEffortLevel` 設定を追加（全プロバイダで effort の上限を設定。ユーザーはそれ以下を選べる）",
+      "セッション途中で MCP／プラグインのツールが増減するとツール一覧が書き換わり、以前の thinking が捨てられ prompt cache が外れる一連の不具合を修正（対応モデルでは deferred 定義として受け取る）",
+      "`/model` でのモデル切替が全ツール定義を再送していた不具合を修正（コミット・PR の attribution テキストは会話内のノートとして届く）",
+      "`--system-prompt-snapshot off` を追加（記録済みプロンプトを再利用せず毎リクエスト再描画。プロンプト調整用）",
+      "`effort:` frontmatter が既定 effort を固定したモデル（Opus 4.7・4.8・Fable 5）で無視される不具合を修正",
+      "Artifact の公開が接続断で途切れた場合、未完了と判定できるときは 1 度だけ再送するよう修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.268",
+    "kind": "cli",
+    "date": "2026-09-10",
+    "dateConfidence": "explicit",
+    "headline": "シンボリックリンクディレクトリへの deny ルール適用を修正・WebFetch に 300 秒の締切・Artifact にタブアイコン",
+    "highlights": [
+      "`/etc` `/tmp` `/var`（macOS）・`/bin`（Linux）のようなシンボリックリンクディレクトリに対する deny / ask ルールが実体パス指定で効かない不具合を修正",
+      "WebFetch が応答を閉じないサーバで無限に待つ不具合を修正（300 秒で失敗。CLAUDE_CODE_WEBFETCH_DEADLINE_MS で変更、0 で無効）",
+      "公開した Artifact にブラウザタブ用アイコンを追加（Claude がページ内容に合わせて選択）",
+      "`/compact` と auto-compact の要約が `$` を含むテキストを壊す不具合を修正",
+      "MEMORY.md の切り詰め警告に「何行切られ、どこから切れたか」を表示するよう改善",
+      "`/mcp` `/plugin` の詳細表示や `claude mcp list/get` が `${VAR}` から解決した秘密情報を表示する不具合を修正",
+      "Task 系ツールの提供範囲を Claude 3.x・Opus 4.0〜4.7・Sonnet 4.0〜4.6・Haiku 4.5 に限定（それ以外は CLAUDE_CODE_ENABLE_TODO_TOOLS=1）"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.269",
+    "kind": "cli",
+    "date": "2026-09-11",
+    "dateConfidence": "explicit",
+    "headline": "claude plugin eval を追加・CLAUDE.md の attribution 方針をリマインダより優先へ",
+    "highlights": [
+      "`claude plugin eval` を追加（プラグインの eval スイートを実走し、採点済みで再現可能な JSON / HTML レポートを出力）",
+      "attribution のリマインダが CLAUDE.md やメモリの「コミット・PR に付与しない」規約を上書きする不具合を修正（管理設定由来の指定は引き続き有効）",
+      "`/output-style [name]` を追加（Remote Control・クラウド・headless でも出力スタイルの一覧と切替が可能に）",
+      "Bash ツールがファイル編集を担ったとき、変更されたファイルの差分を結果へ添える `bashEditDiffEnabled` を追加",
+      "CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS（1〜256）で Workflow の同時エージェント上限を引き上げ可能に",
+      "日本語・中国語・タイ語など分かち書きしない言語でプロンプト候補が落ちる不具合を修正",
+      "`!` 始まりの deny / ask ルールが定義元の設定ソースを越えて適用される不具合を修正"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.270",
+    "kind": "cli",
+    "date": "2026-09-12",
+    "dateConfidence": "explicit",
+    "headline": "読み取り専用 git コマンドが途中から許可を求める 2.1.269 リグレッションを修正",
+    "highlights": [
+      "セッションがしばらく走った後、読み取り専用の git コマンドが突然許可を求めるようになる 2.1.269 リグレッションを修正"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.271",
+    "kind": "cli",
+    "date": "2026-09-14",
+    "dateConfidence": "explicit",
+    "headline": "auto mode にコマンド単位の allowed_domains・agent frontmatter に omitClaudeMd・Monitor に必須の締切",
+    "highlights": [
+      "sandbox 有効な auto mode で Bash / PowerShell / Monitor にコマンド単位の `allowed_domains` を追加（そのコマンドのためだけにホストを開放し、他は拒否）",
+      "エージェント frontmatter と `--agents` JSON に `omitClaudeMd` を追加（ユーザー／プロジェクト／ローカルの CLAUDE.md を読まずにサブエージェントを走らせる。管理ポリシーは引き続き読み込む）",
+      "Monitor の監視に必ず締切を設定（最大 30 分、`-p` の単発実行は 10 分）し、無期限の `persistent` オプションを廃止",
+      "`claude plugin install` / `update` に `--accept-command <sha256>` を追加（`--json` で提示されたコマンドだけを承認）",
+      "Artifact として公開した Markdown をスタイル付きドキュメントページとして描画するよう改善",
+      "会話の圧縮後に Claude が実行中のバックグラウンドコマンド（watch・dev サーバ等）を二重起動する不具合を修正",
+      "動的 Workflow の既定サイズを Pro プランで small へ、medium の目安を 15 → 10 エージェントへ変更"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.272",
+    "kind": "cli",
+    "date": "2026-09-15",
+    "dateConfidence": "explicit",
+    "headline": "バグ修正・安定性改善（詳細非公開）",
+    "highlights": [
+      "公式 changelog は「Bug fixes and reliability improvements」とのみ記載"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.273",
+    "kind": "cli",
+    "date": "2026-09-15",
+    "dateConfidence": "explicit",
+    "headline": "MCP 切断時の通知を追加・解析不能な Bash 行での deny ルール判定を再び差し戻し",
+    "highlights": [
+      "MCP サーバがセッション途中で切断し自動再接続を諦めたときに通知するよう追加（/mcp へ誘導）",
+      "2.1.268 で入れた「解析できない Bash 行（`eval`・`env -C`）にも Read/Edit の deny ルールを当てる」変更を差し戻し（`time -p make build` まで拒否されたため）",
+      "`permissions.blockReadsOutsideWorkingDirectories` 下で解析不能な Bash コマンドが確認を飛ばす不具合と、サブシェルに隠れた危険な `rm` を bypass モードで見逃す不具合を修正",
+      "リポジトリの `.git` を削除・移動した後も長時間セッションが `.git/info/exclude` のスタブを作り直す不具合を修正",
+      "advisor ツールのターンを文脈量の約 2 倍で数え、auto-compact が実サイズの半分で発火する不具合を修正",
+      "LLM ゲートウェイ向けのヒントヘッダ群を追加（CLAUDE_CODE_GATEWAY_HINT_HEADERS=1 で opt-in）"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.274",
+    "kind": "cli",
+    "date": "2026-09-17",
+    "dateConfidence": "explicit",
+    "headline": "メモリ逼迫の警告表示・/code-review をインライン軽量プロンプトへ・MCP v2 を全配備で既定化",
+    "highlights": [
+      "メモリ使用が危機的なときに警告と対処手順（解放またはセッション再起動）を表示",
+      "/code-review が専用設定を持たないモデルでは多数のレビューサブエージェントを起動せず、軽量なインラインレビュープロンプトを使うよう変更",
+      "Bedrock・Vertex・Foundry・テレメトリ無効環境でも MCP v2 クライアントと 2026-07-28 ネゴシエーションを既定化（`MCP_SDK_GENERATION=v1` 等で opt-out）",
+      "「unexpected tool_use_id」400 エラーの無限リトライで固まる不具合を修正（自己修復するか、/rewind を案内して明示的に終了）",
+      "`.mcp.json` ・設定・プラグイン・エージェントファイルの `\"type\": \"sdk\"` エントリを警告付きでスキップするよう変更（SDK ホストのみ登録可）",
+      "Artifact の公開で古い版に基づく更新は送信前に中断し、マージ対象の新しいページを提示するよう改善",
+      "CLAUDE_CODE_MCP_STARTUP_WAIT_MS を追加（非対話の初回ターンが MCP 接続を待つ時間の上限。0 で待たない）"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.275",
+    "kind": "cli",
+    "date": "2026-09-17",
+    "dateConfidence": "explicit",
+    "headline": "claude.ai のスキル・プラグインをターミナルへ同期・送信即時キー（ctrl+enter）を追加",
+    "highlights": [
+      "claude.ai アカウントで有効なスキルとプラグインをターミナルセッションへ同期（`syncClaudeAiSkills: false` / `syncClaudeAiPlugins: false` で opt-out）",
+      "送信即時キー（ctrl+enter、または ctrl+x ctrl+s）を追加（現ターンを中断してキュー済みメッセージを一括送信）",
+      "`otelHeadersHelper` が失敗したときに起動警告を出すよう追加（テレメトリが黙って出力されない状態を検知）",
+      "`/plugin install <plugin> --marketplace <source>` を追加（marketplace の追加を提案してからインストール）",
+      "コンパクション・resume 後にメモリファイルの経過時間表記がリクエスト毎に変わり prompt cache が外れる不具合を修正",
+      "`--forward-subagent-text` の stream-json / SDK 出力が `context: fork` スキル由来のサブエージェントのメッセージを落とす不具合を修正"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.276",
+    "kind": "cli",
+    "date": "2026-09-18",
+    "dateConfidence": "explicit",
+    "headline": "プロキシ・ゲートウェイ配下で全リクエストが 400 になる 2.1.275 リグレッションを修正",
+    "highlights": [
+      "ANTHROPIC_BASE_URL がプロキシ／ゲートウェイを指す構成で全リクエストが `400 … Input tag 'advisor_20260301'` で失敗する 2.1.275 リグレッションを修正"
+    ],
+    "impact": "low",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.277",
+    "kind": "cli",
+    "date": "2026-09-18",
+    "dateConfidence": "explicit",
+    "headline": "AGENTS.md 対応を追加・TaskOutput ツールを撤去・サブエージェント結果を出力として明示枠へ",
+    "highlights": [
+      "AGENTS.md 対応を追加（CLAUDE.md が無いプロジェクトでは AGENTS.md を読む。/config の「Project instructions」で切替。Bedrock・Vertex・Foundry は未対応）",
+      "非推奨の TaskOutput ツールを撤去（バックグラウンドタスクの出力は Read で読む。`taskOutputMaxChars` と TASK_MAX_OUTPUT_LENGTH は無効化）",
+      "サブエージェントの結果を「サブエージェント出力」と明示するヘッダ付き・インデント付きで親へ渡すよう変更（結果内のテキストがセッション自身の指示として通らないように）",
+      "プロンプト内の不可視 Unicode（書式・タグ文字）を除去し、清書したプロンプトを送信前に提示するよう改善",
+      "`--worktree` セッションで `.claude/skills` が未追跡のときメインリポジトリのプロジェクトスキルが読み込まれない不具合を修正",
+      "`sandbox.excludedCommands` の glob が複合 Bash コマンドの一部一致だけで全体を sandbox から外す不具合を修正（全部分が一致必須へ）",
+      "SessionStart フックが出力すると `/clear` 後の継続セッションで最初のメッセージの一部が欠落し prompt cache が全ミスする不具合を修正"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "2.1.278",
+    "kind": "cli",
+    "date": "2026-09-19",
+    "dateConfidence": "explicit",
+    "headline": "auto mode の分類器を既定でサーバ側へ（分類オーバーヘッドの課金なし）",
+    "highlights": [
+      "Claude API・Enterprise ユーザーおよび Bedrock・Vertex・Foundry・ゲートウェイで、auto mode の分類器を既定でサーバ側実行へ変更（分類オーバーヘッドは課金されない。`CLAUDE_CODE_AUTO_MODE_SERVER=0` で opt-out、課金されるフォールバック時は警告）",
+      "/status に `Auto mode server` 行を追加（このセッションの分類器がサーバ側で走っているかを表示）"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://code.claude.com/docs/en/changelog"
+  },
+  {
+    "version": "Fable 5.1",
+    "kind": "model",
+    "date": "2026-09-01",
+    "dateConfidence": "explicit",
+    "headline": "Claude Fable 5.1 リリース——単価据え置きでキャッシュ読み取りを 75% 引き下げ",
+    "highlights": [
+      "モデル ID `claude-fable-5-1`。1M トークンコンテキスト・最大 128K 出力・adaptive thinking 常時有効",
+      "入出力単価は Fable 5 と同じ $10/M 入力・$50/M 出力。キャッシュ読み取りのみ $0.25/M（Fable 5 比 75% 減）",
+      "キャッシュ書き込みは 5 分 $12.5/M・1 時間 $20/M",
+      "Anthropic の見積では典型的な作業で約 25%、エージェント性の高い作業では最大約 45% のコスト減",
+      "Claude Code では 2.1.257 で追加され、既定の Fable モデルへ昇格"
+    ],
+    "impact": "high",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://www.anthropic.com/news"
+  },
+  {
+    "version": "Mythos 5.1",
+    "kind": "model",
+    "date": "2026-09-01",
+    "dateConfidence": "explicit",
+    "headline": "Claude Mythos 5.1 リリース——Fable 5.1 と同時公開の制限付きアクセス版",
+    "highlights": [
+      "Fable 5.1 と同日公開。コーディングとナレッジワーク向けの最上位系列で、研究能力の early glimpse として位置づけ",
+      "Mythos 系列は制限付きアクセス（Fable 系列に施された一部の safeguard を外した同一基盤モデル）",
+      "Claude Code の /model 一覧には組織の権限に応じて現れる"
+    ],
+    "impact": "medium",
+    "sourceReport": "20260922-claude-code-release-catchup.ja.md",
+    "sourceUrl": "https://www.anthropic.com/news"
+  }
+]
