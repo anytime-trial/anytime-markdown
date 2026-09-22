@@ -61,7 +61,11 @@ describe("renderCodeBlockPreview / anytime-diagram", () => {
     expect(el.querySelector(".anytime-diagram")).not.toBeNull();
     expect(el.getAttribute("role")).toBe("img");
     expect(el.getAttribute("aria-label")).toContain("テスト系図");
-    expect((el.firstElementChild as HTMLElement).style.height).toBe("360px");
+    const box = el.firstElementChild as HTMLElement;
+    expect(box.style.height).toBe("360px");
+    // 器が block に戻ると、ビューアの `flex: 1 1 auto` が伸びる相手を失い枠の最小高さで止まる。
+    expect(box.style.display).toBe("flex");
+    expect(box.style.flexDirection).toBe("column");
     cleanup();
     expect(el.childNodes).toHaveLength(0);
   });

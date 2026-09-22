@@ -66,7 +66,7 @@ const MIN_RESIZE_WIDTH = 50;
  * （実測 2026-09-22: anytime-diagram のインラインプレビューが題名の文字幅まで潰れ、図が見えず
  * ミニマップの端だけが出ていた。編集ダイアログは器を flex にしているため再現しない。）
  */
-const FULL_WIDTH_PREVIEW_LANGUAGES: ReadonlySet<string> = new Set([
+export const FULL_WIDTH_PREVIEW_LANGUAGES: ReadonlySet<string> = new Set([
   // 本文と同じ文章なので、エディタ設定の本文幅（`--am-editor-measure`）いっぱいまで伸ばす。
   "markdown",
   // 幅 100% 前提の iframe を持つ。
@@ -294,7 +294,9 @@ export function createCodeBlockNodeView(
       ? getEmbedStoredWidth(String(currentNode.attrs.language ?? "")) ?? ""
       : (currentNode.attrs.width as string | null) || "";
     const w = draftWidth != null ? `${draftWidth}px` : stored;
-    previewEl.style.width = w || defaultPreviewWidth(currentNode.attrs.language);
+    // language の取り出し方はこの関数の他の箇所（:293 の embed）と揃える。同じ関数内で生のまま
+    // 渡す経路と正規化する経路が並ぶと、次に触る人がどちらが正しいか読めない。
+    previewEl.style.width = w || defaultPreviewWidth(String(currentNode.attrs.language ?? ""));
   };
 
   const applyChrome = (): void => {
