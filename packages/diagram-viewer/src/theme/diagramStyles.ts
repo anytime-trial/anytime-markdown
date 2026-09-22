@@ -32,33 +32,37 @@ export const GUTTER_TRACK_PX = 14;
  *
  * 下の `DIAGRAM_STYLES` は色を自前で持たず宿主のトークンを引くが、**最後の既定値はライトの
  * 一式しか無い**。`--am-color-*` も `--vscode-*` も撒かれていない宿主（素の HTML へ置いた
- * Custom Element）では、どれだけ暗い指定をしてもライトの図が出る。そこでトークンの側を
- * 与える — スタイルの参照順（`--am-color-*` が先）はそのままなので、宿主が撒いている場合は
- * 宿主の値が勝つ。
+ * Custom Element）では、どれだけ暗い指定をしてもライトの図が出る。そこでトークンの側を与える。
+ *
+ * **鍵は `--am-color-*` ではなく図が持つ名前にしてある。** `--am-color-*` を要素へ直に置くと、
+ * 宿主が `:root` へ撒いた同名のトークンは継承で負けて必ず踏み潰される（要素そのものに在る
+ * 宣言は、詳細度を 0 に落としても継承より強い）。参照の連鎖を 1 段深くして
+ * `--am-color-*` → `--vscode-*` → **ここ** → 水墨のライト既定 の順にすることで、
+ * 「自給するのは宿主が撒いていないときだけ」が実際に成り立つ。
  *
  * 値の出所は `packages/markdown-editor/src/constants/colors.ts`（web-app の MUI テーマが
  * そのまま読む一式）。**import はしない** — あちらは barrel が重く、図の配布バンドルへ
- * markdown-editor のモジュールグラフを丸ごと引き込む。下のライト側の値が既存の既定値と
- * 一致していることが、写しがずれていないことの目印になる。
+ * markdown-editor のモジュールグラフを丸ごと引き込む。ライト側が下の水墨既定と一致することは
+ * `__tests__/themeTokens.test.ts` が機械で照合する（目視の「目印」にしない）。
  */
 export const DIAGRAM_THEME_TOKENS: Readonly<Record<'light' | 'dark', Readonly<Record<string, string>>>> = {
   light: {
-    '--am-color-bg-default': '#F2EFE8',
-    '--am-color-bg-paper': '#FBF9F3',
-    '--am-color-text-primary': '#1F1E1C',
-    '--am-color-text-secondary': '#5C5A55',
-    '--am-color-divider': 'rgba(31, 30, 28, 0.12)',
-    '--am-color-primary-main': '#3D4A52',
-    '--am-color-error-main': '#6B2A20',
+    '--diagram-host-bg': '#F2EFE8',
+    '--diagram-host-raised': '#FBF9F3',
+    '--diagram-host-fg': '#1F1E1C',
+    '--diagram-host-muted': '#5C5A55',
+    '--diagram-host-border': 'rgba(31, 30, 28, 0.12)',
+    '--diagram-host-accent': '#3D4A52',
+    '--diagram-host-danger': '#6B2A20',
   },
   dark: {
-    '--am-color-bg-default': '#0D1117',
-    '--am-color-bg-paper': '#121212',
-    '--am-color-text-primary': '#ffffffde',
-    '--am-color-text-secondary': '#ffffff99',
-    '--am-color-divider': 'rgba(255, 255, 255, 0.12)',
-    '--am-color-primary-main': '#90caf9',
-    '--am-color-error-main': '#f44336',
+    '--diagram-host-bg': '#0D1117',
+    '--diagram-host-raised': '#121212',
+    '--diagram-host-fg': '#ffffffde',
+    '--diagram-host-muted': '#ffffff99',
+    '--diagram-host-border': 'rgba(255, 255, 255, 0.12)',
+    '--diagram-host-accent': '#90caf9',
+    '--diagram-host-danger': '#f44336',
   },
 };
 
@@ -73,18 +77,22 @@ export const DIAGRAM_STYLES = `
     白いまま取り残される（題名は濃い字が濃い地に乗って読めなくなる）。
 
     VS Code の webview では \`--am-color-*\` が無いので 2 番目の \`--vscode-*\` に落ちる。
-    どちらも無い宿主だけが最後の水墨のライト既定を使う。
+    どちらも無い宿主は 3 番目の \`--diagram-host-*\`（Custom Element が \`theme\` 属性に応じて
+    自分へ当てる一式。上の \`DIAGRAM_THEME_TOKENS\`）を使い、それも無いときだけ最後の
+    水墨のライト既定に落ちる。**この順序が「自給は宿主が撒いていないときだけ」の実体**で、
+    \`--am-color-*\` を要素へ直に置く形にすると、宿主が \`:root\` へ撒いた値が継承で負けて
+    必ず踏み潰される。
 
     \`--mui-palette-*\` は挟まない。web-app に存在せず（実測で 0 件）、在るように見えるだけの
     中継は、本当に効いている層がどれなのかを隠す。
   */
-  --diagram-bg: var(--am-color-bg-default, var(--vscode-editor-background, #F2EFE8));
-  --diagram-raised: var(--am-color-bg-paper, var(--vscode-editorWidget-background, #FBF9F3));
-  --diagram-fg: var(--am-color-text-primary, var(--vscode-editor-foreground, #1F1E1C));
-  --diagram-muted: var(--am-color-text-secondary, var(--vscode-descriptionForeground, #5C5A55));
-  --diagram-border: var(--am-color-divider, var(--vscode-panel-border, rgba(31, 30, 28, 0.12)));
-  --diagram-accent: var(--am-color-primary-main, var(--vscode-focusBorder, #3D4A52));
-  --diagram-danger: var(--am-color-error-main, var(--vscode-errorForeground, #6B2A20));
+  --diagram-bg: var(--am-color-bg-default, var(--vscode-editor-background, var(--diagram-host-bg, #F2EFE8)));
+  --diagram-raised: var(--am-color-bg-paper, var(--vscode-editorWidget-background, var(--diagram-host-raised, #FBF9F3)));
+  --diagram-fg: var(--am-color-text-primary, var(--vscode-editor-foreground, var(--diagram-host-fg, #1F1E1C)));
+  --diagram-muted: var(--am-color-text-secondary, var(--vscode-descriptionForeground, var(--diagram-host-muted, #5C5A55)));
+  --diagram-border: var(--am-color-divider, var(--vscode-panel-border, var(--diagram-host-border, rgba(31, 30, 28, 0.12))));
+  --diagram-accent: var(--am-color-primary-main, var(--vscode-focusBorder, var(--diagram-host-accent, #3D4A52)));
+  --diagram-danger: var(--am-color-error-main, var(--vscode-errorForeground, var(--diagram-host-danger, #6B2A20)));
   --diagram-radius: 6px;
   /*
     ミニマップの札の幅。**\`ui/minimap.ts\` の \`MAP_SIZE.width\`（180）＋ 余白 4×2 ＋ 縁 1×2** と

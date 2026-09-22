@@ -265,7 +265,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onToggleEditing: () => { if (draft === null) startEditing(); else stopEditing(); },
     onSave: () => { void save(); },
     onConfirm: (kind) => confirmView.show(kind),
-    onClearSelection: () => { selection = []; paint(); },
+    onClearSelection: () => { clearSelection(); },
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
     onRenameSelected: () => { startRename(lastChosen()); },
     onAnnotateSelected: () => { startAnnotate(lastChosen()); },
@@ -534,8 +534,24 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   }
 
   /** 編集を抜けるとき・図を差し替えるときに畳む、その場かぎりの選択。 */
-  function clearTransientSelection(): void {
+  /**
+   * 選びを外し、宿主へも伝える。
+   *
+   * 伝えないと、図の外の表示を選びに合わせている宿主（anytime-travel は選んだ人物へ地図を
+   * 寄せる）が**一度寄せた表示を戻す手段を持たない**。`onSelect` は片道ではなく、選びが
+   * 無くなったことも渡す契約なので、選びを空にする経路はすべてここを通す。
+   */
+  function clearSelection(): void {
+    const had = selection.length > 0;
     selection = [];
+    paint();
+    if (had) options.onSelect?.(null, false);
+  }
+
+  function clearTransientSelection(): void {
+    const had = selection.length > 0;
+    selection = [];
+    if (had) options.onSelect?.(null, false);
     selectedFamilies = [];
     selectedConnectors = [];
     renaming = null;
@@ -1278,7 +1294,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       if (draft !== null) return;
       if (additive) togglePick(name);
       else { selection = [name]; paint(); }
-      options.onSelect?.(name, additive);
+      // 押した名前ではなく**残った選び**を渡す。足す押下で最後の 1 つが外れたときに、
+      // 外れた名前を「選ばれた」と伝えないため。
+      options.onSelect?.(selection[selection.length - 1] ?? null, additive);
     },
     onAnnexActivate(name: string, itemId: string): void {
       options.onAnnexActivate?.(name, itemId);

@@ -47,6 +47,19 @@ function ensureHostStyle(): void {
   );
 }
 
+/**
+ * `value` に来た JSON が図の形をしているか。
+ *
+ * 中身の正しさまでは見ない（それは `validateDiagramDocument` の仕事で、宿主が保存前に通す）。
+ * ここで防ぐのは「JSON としては通るが図ではないもの」— `null` / 数値 / 文字列 / 別物の
+ * オブジェクトを `DiagramDocument` として mount へ渡さないこと。
+ */
+function isDiagramDocumentLike(value: unknown): value is DiagramDocument {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<DiagramDocument>;
+  return candidate.version === 1 && Array.isArray(candidate.families);
+}
+
 /** `save-request` イベントの `detail`。 */
 export interface DiagramDocumentDetail {
   document: DiagramDocument;
@@ -135,7 +148,12 @@ export class AnytimeDiagramViewerElement extends HTMLElementBase {
    */
   set value(next: string) {
     try {
-      this.document = JSON.parse(next) as DiagramDocument;
+      const parsed: unknown = JSON.parse(next);
+      // `as` で形の検査を飛ばさない。ここは素の HTML から fetch の結果を受ける信頼境界で、
+      // `'null'` や `'0'` は JSON としては通る — 通すと `document = null` が走り、
+      // **記録も残さず図が白紙になる**（「失敗しても現状維持」の約束が構文誤りにしか効かない）。
+      if (!isDiagramDocumentLike(parsed)) throw new TypeError('not a .diagram.json');
+      this.document = parsed;
     } catch (error) {
       console.error(
         '[diagram-viewer] Failed to parse value as .diagram.json. Keeping the current document.',
@@ -162,6 +180,9 @@ export class AnytimeDiagramViewerElement extends HTMLElementBase {
    * フル options（escape hatch）。属性で表現できないものを渡す経路。
    *
    * mount 済みなら現在の図を保ったまま張り直す（生成時にしか効かない項目があるため）。
+   *
+   * **`document` と `elementAnnex` はここに書いても効かない。** 専用の property が常に勝つ
+   * （`mount` で固定値として後置している）。図とその付属物は授受の経路を 1 本に絞る。
    */
   set options(next: Partial<DiagramViewerOptions>) {
     this.fullOptions = next ?? {};
@@ -239,16 +260,31 @@ export class AnytimeDiagramViewerElement extends HTMLElementBase {
   }
 
   private teardown(): void {
+    /*
+      張り直しで下書きは消える。**宿主の「未保存あり」を残したままにしない。**
+
+      `destroy()` は `onDraftChange` を呼ばないので、ここで伝えないと、`options` の差し替えや
+      `always-editing` の切り替えで下書きが消えたあとも宿主の印だけが立ち続ける。
+    */
+    const hadDraft = this.handle?.getDraft() ?? null;
     this.handle?.destroy();
     this.handle = null;
+    if (hadDraft !== null) this.emit<DiagramDraftDetail>('draft-change', { draft: null });
   }
 
-  /** `handle.update` が差分で受けられる項目だけを集める。 */
+  /**
+   * `handle.update` が差分で受けられる項目だけを集める。
+   *
+   * **`options` を属性より優先する順序は `mount` と同じにする。** 属性だけを読むと、
+   * `options` で `editable: true` を渡した宿主が無関係な属性を 1 つ変えただけで
+   * `editable: false` が飛び、編集が黙って切れる（mount では options が勝ち、live 反映では
+   * 属性が勝つ、という向きの食い違いになる）。
+   */
   private liveUpdate(): DiagramViewerUpdate {
     return {
-      locale: this.getAttribute('locale') ?? undefined,
-      editable: this.hasAttribute('editable'),
-      compact: this.hasAttribute('compact'),
+      locale: this.fullOptions.locale ?? this.getAttribute('locale') ?? undefined,
+      editable: this.fullOptions.editable ?? this.hasAttribute('editable'),
+      compact: this.fullOptions.compact ?? this.hasAttribute('compact'),
     };
   }
 
@@ -257,8 +293,12 @@ export class AnytimeDiagramViewerElement extends HTMLElementBase {
    *
    * 図のスタイルは色を自前で持たず宿主のトークンを引くが、最後の既定値はライトの一式しか
    * 持たない。トークンを撒いていない宿主（素の HTML）では、この要素が与えない限りダークが
-   * 成立しない。宿主が `--am-color-*` を撒いている場合は、そちらが継承で勝つわけではない
-   * ので、**この要素を使う宿主は「撒いていない側」である**という前提に立つ。
+   * 成立しない。
+   *
+   * 当てるのは `--am-color-*` ではなく `--diagram-host-*`。参照の連鎖で
+   * `--am-color-*` → `--vscode-*` → ここ の順に見られるので、**宿主が撒いていればそちらが
+   * 勝ち、撒いていないときだけこの一式が効く**（`--am-color-*` を要素へ直に置くと、宿主が
+   * `:root` へ撒いた値は継承で負けて必ず踏み潰される）。
    */
   private applyThemeTokens(): void {
     const tokens = DIAGRAM_THEME_TOKENS[this.getAttribute('theme') === 'dark' ? 'dark' : 'light'];

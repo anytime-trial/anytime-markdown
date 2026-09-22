@@ -190,6 +190,41 @@ describe('選択の公開', () => {
     expect(selected).toEqual([['父', true]]);
   });
 
+  it('足す押下で最後の 1 つが外れたら `null` を渡す', () => {
+    const selected: (string | null)[] = [];
+    mount({ onSelect: (name) => selected.push(name) });
+    const node = nodeOf('父');
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+    // 外れた名前を「選ばれた」と渡すと、宿主は外れたことに気づけない。
+    expect(selected).toEqual(['父', null]);
+  });
+
+  it('図を差し替えて選びが消えたら `null` を渡す', () => {
+    const selected: (string | null)[] = [];
+    const view = mount({ onSelect: (name) => selected.push(name) });
+    nodeOf('父').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    view.update({ document: { ...DOC, title: '別の系図' } });
+    // 渡さないと、図の外の表示を選びに合わせている宿主が一度寄せた表示を戻せない。
+    expect(selected).toEqual(['父', null]);
+  });
+
+  it('選びが無い状態で図を差し替えても `null` を重ねて渡さない', () => {
+    const selected: (string | null)[] = [];
+    const view = mount({ onSelect: (name) => selected.push(name) });
+    view.update({ document: { ...DOC, title: '別の系図' } });
+    expect(selected).toEqual([]);
+  });
+
+  it('見出しの開閉は札の選び直しを起こさない', () => {
+    const selected: (string | null)[] = [];
+    mount({ elementAnnex: ANNEX, onSelect: (name) => selected.push(name) });
+    // `summary` は button / input / select のどれでもないので、札の click は素通りさせる。
+    // 止めないと、項目を開いただけで図の外の表示（travel なら地図）が動く。
+    annexOf('父').querySelector('summary')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(selected).toEqual([]);
+  });
+
   it('添えた項目の押下は札の選び直しを起こさない', () => {
     const selected: (string | null)[] = [];
     mount({

@@ -26,6 +26,17 @@ describe('登録の副作用', () => {
 
   it('二度読んでも登録し直さない（重複定義で throw しない）', async () => {
     await import('../element');
+    const first = customElements.get(TAG);
+    /*
+      **モジュールの記録を捨ててから読み直す。** `import()` は評価結果を覚えているので、
+      そのまま 2 度目を書いても本体は一度も走らず、`customElements.get` のガードが偽になる
+      状況が検査中に一度も起きない（ガードを丸ごと外しても緑のまま通る）。
+
+      ガードは実在の保護で、配布物では ESM と IIFE が同じページに載る事故が起こり得る。
+    */
+    jest.resetModules();
     await expect(import('../element')).resolves.toBeDefined();
+    // 最初の登録が残っている＝再定義が走っていない（走れば NotSupportedError で落ちる）。
+    expect(customElements.get(TAG)).toBe(first);
   });
 });

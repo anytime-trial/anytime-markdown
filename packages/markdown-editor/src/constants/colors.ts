@@ -1,5 +1,21 @@
 import type { EditorSettings } from "../editorSettings";
 
+/*
+  このファイルの一部の値には**写しが在る**。`packages/diagram-viewer/src/theme/diagramStyles.ts`
+  の `DIAGRAM_THEME_TOKENS` が、背景・浮き面・前景・補助文字・境界・強調・警告の 7 つを
+  ライト／ダークとも写して持っている。
+
+  写しにしてあるのは、diagram-viewer の配布バンドル（Custom Element）がこのパッケージを
+  import すると barrel ごとモジュールグラフを引き込むため。パッケージをまたぐ一致は機械で
+  測れないので、**下記の値を変えるときは向こうも直す**（向こう側の 2 箇所の一致は
+  `diagram-viewer/src/__tests__/themeTokens.test.ts` が検査する）。
+
+  対象: DEFAULT_DARK_BG / DEFAULT_LIGHT_BG / DARK_BG_PAPER / LIGHT_BG_PAPER /
+  DARK_TEXT_PRIMARY / LIGHT_TEXT_PRIMARY / DARK_TEXT_SECONDARY / LIGHT_TEXT_SECONDARY /
+  DARK_DIVIDER / LIGHT_DIVIDER / DARK_PRIMARY_MAIN / LIGHT_PRIMARY_MAIN /
+  DARK_ERROR_MAIN / LIGHT_ERROR_MAIN
+*/
+
 // ── エディタ背景色 ──
 export const DEFAULT_DARK_BG = "#0D1117";
 export const DEFAULT_LIGHT_BG = "#F2EFE8";

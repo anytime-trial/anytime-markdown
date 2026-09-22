@@ -3,13 +3,13 @@
  * `./element`（副作用あり）が持つ。mount API だけを使う宿主へ `customElements.define` を
  * 波及させないため。
  */
-export { AnytimeDiagramViewerElement } from './AnytimeDiagramViewerElement';
 export type {
   DiagramDocumentDetail,
   DiagramDraftDetail,
   DiagramElementAnnexDetail,
   DiagramElementSelectDetail,
 } from './AnytimeDiagramViewerElement';
+export { AnytimeDiagramViewerElement } from './AnytimeDiagramViewerElement';
 export { createDiagramT, detectLocale, type DiagramT, resolveLocale, type SupportedLocale } from './i18n';
 export type { DiagramModel, FamilyConnector, GridLines } from './model';
 export { createAutomaticCache, deriveModel, groupLabelsOf, layoutKey, parentsOf } from './model';

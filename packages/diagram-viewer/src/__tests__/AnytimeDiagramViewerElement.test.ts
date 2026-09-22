@@ -90,14 +90,30 @@ describe('プロパティ', () => {
     expect(host.document?.title).toBe('検査用の系図');
   });
 
-  it('`value` の parse に失敗しても throw せず、現在の図を保つ', () => {
+  it.each([
+    ['構文が壊れている', '{ 壊れた JSON'],
+    // JSON としては通るが図ではないもの。素通しすると `document = null` で図が白紙になる。
+    ['null', 'null'],
+    ['数値', '0'],
+    ['文字列', '"図"'],
+    ['別物のオブジェクト', '{"foo":1}'],
+    ['version が違う', '{"version":2,"families":[]}'],
+  ])('`value` が %s のときは throw せず、記録を残して現在の図を保つ', (_name, raw) => {
     const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
     host = place();
     host.document = DOC;
-    host.value = '{ 壊れた JSON';
+    host.value = raw;
     expect(host.document).toBe(DOC);
+    expect(host.viewer).not.toBeNull();
     expect(errors).toHaveBeenCalled();
     errors.mockRestore();
+  });
+
+  it('図を消すのは `document = null` の経路だけ', () => {
+    host = place();
+    host.document = DOC;
+    host.document = null;
+    expect(host.viewer).toBeNull();
   });
 
   it('mount 前に渡した `elementAnnex` も mount 時に届く', () => {
@@ -124,8 +140,8 @@ describe('属性', () => {
     host = place();
     host.setAttribute('theme', 'dark');
     host.document = DOC;
-    expect(host.style.getPropertyValue('--am-color-bg-default')).toBe('#0D1117');
-    expect(host.style.getPropertyValue('--am-color-text-primary')).toBe('#ffffffde');
+    expect(host.style.getPropertyValue('--diagram-host-bg')).toBe('#0D1117');
+    expect(host.style.getPropertyValue('--diagram-host-fg')).toBe('#ffffffde');
   });
 
   it('`theme` の切り替えは再 mount なしでトークンを差し替える', () => {
@@ -134,7 +150,7 @@ describe('属性', () => {
     host.document = DOC;
     const viewer = host.viewer;
     host.setAttribute('theme', 'light');
-    expect(host.style.getPropertyValue('--am-color-bg-default')).toBe('#F2EFE8');
+    expect(host.style.getPropertyValue('--diagram-host-bg')).toBe('#F2EFE8');
     expect(host.viewer).toBe(viewer);
   });
 
@@ -143,15 +159,46 @@ describe('属性', () => {
     // 属性は外部入力。壊れた値を配色の判定へそのまま通さない。
     host.setAttribute('theme', 'ダーク');
     host.document = DOC;
-    expect(host.style.getPropertyValue('--am-color-bg-default')).toBe('#F2EFE8');
+    expect(host.style.getPropertyValue('--diagram-host-bg')).toBe('#F2EFE8');
   });
 
-  it('`compact` の切り替えは再 mount せず handle へ委譲する', () => {
+  it.each([
+    ['compact', 'compact', { compact: true }],
+    ['editable', 'editable', { editable: true }],
+  ])('`%s` の切り替えは再 mount せず handle へ委譲する', (_name, attribute, expected) => {
     host = place();
     host.document = DOC;
-    const viewer = host.viewer;
-    host.setAttribute('compact', '');
+    const viewer = host.viewer!;
+    // ハンドルの同一性だけを見ると、委譲そのものを消しても緑のまま通る。
+    const update = jest.spyOn(viewer, 'update');
+    host.setAttribute(attribute, '');
     expect(host.viewer).toBe(viewer);
+    expect(update).toHaveBeenCalledWith(expect.objectContaining(expected));
+    update.mockRestore();
+  });
+
+  it('`locale` の切り替えは再 mount せず札の文言を差し替える', () => {
+    host = place();
+    host.setAttribute('locale', 'ja');
+    host.setAttribute('editable', '');
+    host.document = DOC;
+    const viewer = host.viewer;
+    const japanese = host.querySelector('.anytime-diagram-toolbar')?.textContent ?? '';
+    host.setAttribute('locale', 'en');
+    expect(host.viewer).toBe(viewer);
+    expect(host.querySelector('.anytime-diagram-toolbar')?.textContent).not.toBe(japanese);
+  });
+
+  it('属性を 1 つ変えても `options` で渡した値が戻らない', () => {
+    host = place();
+    // 属性は付けず options だけで編集可にする。live 反映が属性だけを読むと、無関係な属性を
+    // 触った瞬間に editable: false が飛んで編集が黙って切れる。
+    host.options = { editable: true };
+    host.document = DOC;
+    const update = jest.spyOn(host.viewer!, 'update');
+    host.setAttribute('locale', 'en');
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ editable: true }));
+    update.mockRestore();
   });
 
   it('`always-editing` の切り替えは現在の図を保って張り直す', () => {
@@ -217,6 +264,19 @@ describe('escape hatch', () => {
     host.options = { compact: true };
     expect(host.document).toBe(DOC);
     expect(host.querySelectorAll('.anytime-diagram')).toHaveLength(1);
+  });
+
+  it('張り直しで下書きが消えるときは `draft-change` で知らせる', () => {
+    const seen: unknown[] = [];
+    host = place();
+    host.setAttribute('editable', '');
+    host.setAttribute('always-editing', '');
+    host.document = DOC;
+    expect(host.getDraft()).not.toBeNull();
+    host.addEventListener('draft-change', (event) => seen.push((event as CustomEvent).detail));
+    host.options = { compact: true };
+    // 知らせないと、下書きが消えたあとも宿主の「未保存あり」の印だけが立ち続ける。
+    expect(seen).toContainEqual({ draft: null });
   });
 });
 
