@@ -70,7 +70,7 @@ export interface InsightEntry {
   readonly sources: readonly InsightSource[];
 }
 
-/** 1 テーマ分の経緯。entries は日付昇順（古い順）で、そのまま変遷として読める */
+/** 1 テーマ分の経緯。entries は日付降順（新しい順）で、リリース年表と同じ向きに並ぶ */
 export interface InsightThemeTrack {
   readonly themeId: string;
   readonly label: string;

@@ -1,4 +1,3 @@
-import { Container } from '@mui/material';
 import type { Metadata } from 'next';
 
 import {
@@ -15,7 +14,6 @@ import {
 } from '../../../lib/releaseTimeline/data';
 import { socialTitle } from '../../../lib/siteMetadata';
 import LandingHeader from '../components/LandingHeader';
-import InsightTrack from './components/InsightTrack';
 import TimelineBody from './TimelineBody';
 
 const TITLE = 'Claude Code 年表';
@@ -42,18 +40,18 @@ export default function TimelinePage() {
     <>
       <LandingHeader />
       <TimelineBody
-        entries={RELEASE_ENTRIES}
-        sourceReportCount={RELEASE_SOURCE_REPORT_COUNT}
-        period={RELEASE_PERIOD}
+        release={{
+          entries: RELEASE_ENTRIES,
+          sourceReportCount: RELEASE_SOURCE_REPORT_COUNT,
+          period: RELEASE_PERIOD,
+        }}
+        insight={{
+          entries: INSIGHT_ENTRIES,
+          themes: INSIGHT_THEMES,
+          sourceReportCount: INSIGHT_SOURCE_REPORT_COUNT,
+          period: INSIGHT_PERIOD,
+        }}
       />
-      <Container maxWidth="lg" sx={{ pb: { xs: 4, md: 6 } }}>
-        <InsightTrack
-          entries={INSIGHT_ENTRIES}
-          themes={INSIGHT_THEMES}
-          sourceReportCount={INSIGHT_SOURCE_REPORT_COUNT}
-          period={INSIGHT_PERIOD}
-        />
-      </Container>
     </>
   );
 }

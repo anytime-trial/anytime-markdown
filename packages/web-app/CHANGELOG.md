@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-09-22
+
+### Added
+
+- The `/timeline` filter buttons now include "Insights", and pressing one switches what the page shows rather than only filtering releases. Insights used to sit in a permanent section below the filter, so the same page carried content inside and outside the filter and a reader could not tell which part was the current result. "All" shows both tracks, "Claude Code" / "Models" narrow the releases, "Insights" shows the insight track alone. `KindFilter` / `KIND_FILTERS` were renamed to `TrackFilter` / `TRACK_FILTERS`, since "all" no longer means "every release kind".
+
+### Changed
+
+- Insights are ordered newest first within a theme, matching the release timeline on the same page. The generated `insights.json` stays ascending — it is a deterministic artifact the dataset tests compare against — so only `buildThemeTracks` decides the reading direction. The coverage range still reads oldest-to-newest, and the 20-item paging now starts from the most recent, making "go further back" the explicit action.
+
+### Fixed
+
+- Switching tracks no longer discards the other track's state. `{showRelease && ...}` unmounted the track, so the four insight states (category filter, theme open/closed, paging) and the open release cards reset on every switch, while the parent's "high impact only" toggle survived — a switch that remembered the toggle but forgot everything the reader had opened. Both tracks are now always rendered and hidden with `hidden`, which also removes them from the accessibility tree.
+- Visibility is decided by an exhaustive `TRACK_VISIBILITY` map instead of `track !== 'insight'`. The negated form defaulted a newly added filter value to showing releases, which surfaced as "no releases match" with nothing failing type checks or tests.
+
 ## [0.53.0] - 2026-09-22
 
 ### Added

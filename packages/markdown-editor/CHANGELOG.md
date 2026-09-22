@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-09-22
+
+### Changed
+
+- `constants/colors.ts` now records where its values are copied. Seven of them (background, surface, foreground, secondary text, divider, accent, error — light and dark) are duplicated in `diagram-viewer`'s `DIAGRAM_THEME_TOKENS`, because importing this package into the viewer's distributable bundle would pull in the whole barrel. A cross-package match cannot be checked mechanically, so the copy's location is stated next to the values that must be changed together. No behaviour change.
+
 ## [1.24.0] - 2026-09-22
 
 ### Added

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-09-22
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- `constants/colors.ts` records that seven of its theme values are duplicated in `diagram-viewer`, so the two are changed together. No behaviour change.
+
+### Diagram Core (diagram-core / diagram-viewer)
+
+- The viewer is now a Custom Element (`<anytime-diagram-viewer>`) that supplies its own theme, and hosts can attach their own items to an element and observe selection.
+- Fixed in the viewer the extension bundles: opening an annex group no longer reports a selection, an attribute change no longer reverts `editable` / `compact` given through options, the element no longer overrides a host's `--am-color-*`, and JSON that parses but is not a document no longer blanks the diagram.
+
 ## [1.24.0] - 2026-09-22
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/diagram-core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "private": true,
   "description": "系図（ダイアグラム）のデータ形式・自動配置・升目操作。DOM 非依存。",

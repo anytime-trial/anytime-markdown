@@ -27,13 +27,47 @@ export const KIND_META: Readonly<Record<ReleaseKind, { label: string; short: str
   model: { label: 'Claude モデル', short: 'Model' },
 };
 
-export type KindFilter = ReleaseKind | 'all';
+/**
+ * 画面が今どの中身を出すか。
+ *
+ * 種別の絞り込みではなく**表示の切り替え**である。`all` はリリースと知見の両方、
+ * `cli` / `model` はリリースをその種別で絞ったもの、`insight` は知見だけを出す。
+ * 「すべて」が「リリース全種別」を指していた頃の名前（KindFilter）から改名したのは、
+ * 知見が加わって「種別」では言い表せなくなったため。
+ */
+export type TrackFilter = ReleaseKind | 'all' | 'insight';
 
-export const KIND_FILTERS: readonly { value: KindFilter; label: string }[] = [
+export const TRACK_FILTERS: readonly { value: TrackFilter; label: string }[] = [
   { value: 'all', label: 'すべて' },
   { value: 'cli', label: 'Claude Code' },
   { value: 'model', label: 'モデル' },
+  { value: 'insight', label: '知見' },
 ];
+
+/**
+ * 各切り替えがどのトラックを見せるか。
+ *
+ * Why not: `track !== 'insight'` のような除外条件で書かない。否定で書くと、TrackFilter へ
+ * 値を足したときにリリース側が既定で真へ倒れ、型検査にもテストにも現れないまま
+ * 「条件に合うリリースがありません」という実態と違う案内が出る。全数マップなら
+ * 追加した時点でコンパイルエラーになる。
+ */
+export const TRACK_VISIBILITY: Readonly<
+  Record<TrackFilter, { readonly release: boolean; readonly insight: boolean }>
+> = {
+  all: { release: true, insight: true },
+  cli: { release: true, insight: false },
+  model: { release: true, insight: false },
+  insight: { release: false, insight: true },
+};
+
+/** 切り替えの結果を支援技術へ伝える文言。画面の中身が丸ごと入れ替わるため、件数とは別に出す */
+export const TRACK_ANNOUNCEMENT: Readonly<Record<TrackFilter, string>> = {
+  all: 'リリースと知見の両方を表示中',
+  cli: 'Claude Code 本体のリリースを表示中',
+  model: 'Claude モデルのリリースを表示中',
+  insight: '知見の経緯を表示中',
+};
 
 const MONTH_LABEL_PATTERN = /^(\d{4})-(\d{2})$/;
 
@@ -131,8 +165,8 @@ export const INSIGHT_DEFAULT_OPEN_TRACKS = 3;
  * 1 トラックが最初に描く件数。
  *
  * 最大のテーマは 160 件を超える。既定開の 3 トラックをそのまま描くと初回表示だけで
- * 400 枚のカードになり、DOM も読み手の視界も破綻する。古い順に頭から出し、続きは
- * 明示操作で伸ばす（経緯の読み方＝古い順に追う、を切らない）
+ * 400 枚のカードになり、DOM も読み手の視界も破綻する。新しい順に頭から出し、
+ * 続きは明示操作で伸ばす（まず最近の動きが見え、遡るのは任意の操作になる）
  */
 export const INSIGHT_TRACK_PREVIEW_COUNT = 20;
 

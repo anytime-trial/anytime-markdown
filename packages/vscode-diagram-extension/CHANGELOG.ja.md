@@ -1,5 +1,23 @@
 # 変更履歴
 
+## [0.3.0] - 2026-09-22
+
+### 追加
+
+- Custom Element `<anytime-diagram-viewer>` を登録し、モノレポ外の宿主が素の HTML から系図を埋め込めるようにした。登録は `element.ts` にのみ置き、`index.ts` はクラスと型だけを副作用なしで export する（既存 4 consumer は mount API を使うため、import で `customElements.define` が走ってはいけない）。
+- テーマを自給するようにした。`DIAGRAM_STYLES` は宿主のトークン（`--am-color-*` → `--vscode-*`）を引くが、素の HTML の宿主はどちらも撒いていないため `theme="dark"` を与えても図だけライトのまま残っていた。要素が自分自身へ 7 トークンを当てる。
+- `elementAnnex`（宿主が要素へ添える項目群）を追加した。viewer は項目の id を解釈しない。`onSelect` は内部の要素選択コールバックを公開面へ出したもので、宿主は図の中で何が選ばれたかを受け取れる。
+- esbuild による配布バンドル（ESM 251KB / IIFE 260KB）と、書き出す `scripts/export-viewer-dist/build-diagram-viewer.sh` を足した。ビルドは自分の出力で登録を事後検証する。`customElements.define` が落ちても esbuild は成功し、「読み込んでも何も起きない」バンドルは正常系と見分けがつかないため。
+
+### 修正
+
+- 項目群の見出し（`<summary>`）を開いただけで `element-select` が発火するのを直した。札の click は button / input / select 以外を素通りさせる作りで、項目ボタン側にしか stopPropagation が無かった。
+- 属性を 1 つ変えると `options` で渡した `editable` / `compact` が黙って戻るのを直した。`mount` は options を属性より優先するのに `liveUpdate` は属性だけを読んでおり、options で編集可にした宿主が `locale` を変えただけで編集が切れていた。
+- theme のトークンをインライン指定で当てていたため、宿主が撒いた `--am-color-*` を必ず踏み潰していたのを直した。鍵を `--diagram-host-*` へ移し、参照を `--am-color-*` → `--vscode-*` → `--diagram-host-*` → 水墨既定 の 4 段にして、要件書とコメントの宣言に実体を合わせた。
+- `value` が構文さえ通れば何でも受けていたのを直した。`null` / `0` / `"図"` は parse に成功して `document = null` となり、記録も残さず図が白紙になる。「失敗しても現状維持」が構文誤りにしか効いていなかった。
+- `onSelect(null)` を発火する経路を足した。選択解除・図の差し替え・最後の 1 つが外れる押下のいずれも宿主へ何も伝えず、選んだ要素へ寄せた宿主は戻せなかった。
+- 張り直しで下書きが消えるとき `draft-change` を出すようにした。`destroy` はコールバックを呼ばないため、宿主の「未保存あり」の印だけが立ち続けていた。
+
 ## [0.2.0] - 2026-09-22
 
 ### 追加

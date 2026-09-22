@@ -42,8 +42,7 @@ interface Props {
  * 知見の経緯トラック。
  *
  * リリース年表と同じページに並ぶが、月見出しを共有しない。別の軸（テーマ）で束ねた
- * 別の観測なので、絞り込みも並びも独立して動く。テーマ内だけは日付昇順にする——
- * 経緯は古い順に読まないと変遷にならない（年表本体は新しい順で、向きが逆になる）。
+ * 別の観測なので、絞り込みは独立して動く。並びの向きは年表本体と揃えて新しい順にする。
  */
 export default function InsightTrack({ entries, themes, sourceReportCount, period }: Props) {
   const [category, setCategory] = useState<InsightCategoryFilter>('all');
@@ -111,12 +110,12 @@ export default function InsightTrack({ entries, themes, sourceReportCount, perio
   };
 
   return (
-    <Box component="section" sx={{ mt: 8 }} aria-labelledby="insight-track-heading">
+    <Box component="section" aria-labelledby="insight-track-heading">
       <Typography id="insight-track-heading" variant="h5" component="h2" gutterBottom>
         知見の経緯
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '60ch', lineHeight: 1.8 }}>
-        {`同じ ${sourceReportCount} 本のレポートから、リリースに紐づかない知見——運用手法・技術動向・新語彙・エコシステムの変化——をテーマごとに束ねたものです。テーマの中は古い順に並んでおり、上から読むとその主題が何からどう変わってきたかを追えます。`}
+        {`同じ ${sourceReportCount} 本のレポートから、リリースに紐づかない知見——運用手法・技術動向・新語彙・エコシステムの変化——をテーマごとに束ねたものです。テーマの中は新しい順（上ほど最近）に並んでいます。`}
       </Typography>
 
       <Stack
