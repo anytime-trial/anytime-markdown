@@ -2,6 +2,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 
 import TimelineBody from '../app/[locale]/timeline/TimelineBody';
+import { normalizeInsights } from '../lib/insightTimeline/normalize';
+import type { InsightTheme, RawInsight } from '../lib/insightTimeline/types';
 import { normalizeReleases } from '../lib/releaseTimeline/normalize';
 import type { RawRelease } from '../lib/releaseTimeline/types';
 
@@ -41,14 +43,58 @@ const RAW: RawRelease[] = [
   },
 ];
 
-function renderBody() {
+const INSIGHT_THEMES: InsightTheme[] = [
+  { id: 'subagent', label: 'サブエージェントと並列実行', description: '委譲と並列度の設計' },
+];
+
+const INSIGHT_RAW: RawInsight[] = [
+  {
+    date: '2026-04-05',
+    dateConfidence: 'explicit',
+    category: 'claude-code',
+    title: '上限が Workflow 設計を縛る',
+    summary: 'スポーン上限が 200 件で、大規模並列は分割が要る。',
+    themes: ['subagent'],
+    impact: null,
+    sourceReport: '2026-04-05-daily-research.md',
+    sourceUrl: null,
+  },
+];
+
+const INSIGHT = {
+  entries: normalizeInsights(INSIGHT_RAW, INSIGHT_THEMES),
+  themes: INSIGHT_THEMES,
+  sourceReportCount: 1,
+  period: { from: '2026-04-05', to: '2026-04-05' },
+};
+
+function renderBody(releaseEntries = normalizeReleases(RAW), sourceReportCount = 3) {
   return render(
     <TimelineBody
-      entries={normalizeReleases(RAW)}
-      sourceReportCount={3}
-      period={{ from: '2026-04-01', to: '2026-05-10' }}
+      release={{
+        entries: releaseEntries,
+        sourceReportCount,
+        period: releaseEntries.length > 0 ? { from: '2026-04-01', to: '2026-05-10' } : null,
+      }}
+      insight={INSIGHT}
     />,
   );
+}
+
+/**
+ * 表示切替のボタン。知見トラックのカテゴリ絞り込みにも「すべて」があるため、
+ * 切り替え側はボタン群の accessible name で絞ってから引く
+ */
+function trackButton(name: string): HTMLElement {
+  return within(screen.getByRole('group', { name: '表示する内容を切り替える' })).getByRole(
+    'button',
+    { name },
+  );
+}
+
+/** リリース側の live region。切り替えの告知と混ざらないようセクション内から引く */
+function releaseStatus(): HTMLElement {
+  return within(screen.getByRole('region', { name: 'リリース' })).getByRole('status');
 }
 
 describe('TimelineBody', () => {
@@ -62,14 +108,18 @@ describe('TimelineBody', () => {
 
   it('月ごとに見出しを立てる', () => {
     renderBody();
-    expect(screen.getByRole('heading', { name: /2026年4月/ })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: /2026年5月/ })).toBeTruthy();
+    // 知見トラックのテーマ見出しにも月が入るので、リリース側に絞って引く
+    const release = within(screen.getByRole('region', { name: 'リリース' }));
+    expect(release.getByRole('heading', { name: /2026年4月/ })).toBeTruthy();
+    expect(release.getByRole('heading', { name: /2026年5月/ })).toBeTruthy();
   });
 
   it('収録件数の内訳を出す', () => {
     renderBody();
-    const stats = screen.getByRole('heading', { level: 1 }).parentElement?.nextElementSibling;
-    expect(stats?.textContent).toContain('3 件');
+    const stats = within(screen.getByRole('region', { name: 'リリース' })).getByText(
+      '収録リリース',
+    );
+    expect(stats.nextElementSibling?.textContent).toBe('3 件');
   });
 
   it('影響度 高のリリースは変更点を開いた状態で出す', () => {
@@ -106,7 +156,7 @@ describe('TimelineBody', () => {
 
   it('種別フィルタでモデルだけに絞れる', () => {
     renderBody();
-    fireEvent.click(screen.getByRole('button', { name: 'モデル' }));
+    fireEvent.click(trackButton('モデル'));
     const cards = screen.getAllByTestId('release-card');
     expect(cards).toHaveLength(1);
     expect(cards[0].getAttribute('data-kind')).toBe('model');
@@ -122,7 +172,7 @@ describe('TimelineBody', () => {
 
   it('種別と影響度の絞り込みは重ねて効く', () => {
     renderBody();
-    fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }));
+    fireEvent.click(trackButton('Claude Code'));
     fireEvent.click(screen.getByLabelText('影響度 高のみ'));
     const cards = screen.getAllByTestId('release-card');
     expect(cards).toHaveLength(1);
@@ -131,7 +181,7 @@ describe('TimelineBody', () => {
   });
 
   it('該当が 0 件なら空だと明示する（黙って白紙にしない）', () => {
-    render(<TimelineBody entries={[]} sourceReportCount={0} period={null} />);
+    renderBody([], 0);
     expect(screen.queryAllByTestId('release-card')).toHaveLength(0);
     expect(screen.getByText(/条件に合うリリースがありません/)).toBeTruthy();
   });
@@ -145,16 +195,86 @@ describe('TimelineBody', () => {
 
   it('絞り込み結果の件数を live region で知らせる', () => {
     renderBody();
-    const status = screen.getByRole('status');
-    expect(status.textContent).toContain('3 件を表示中');
+    expect(releaseStatus().textContent).toContain('3 件を表示中');
 
-    fireEvent.click(screen.getByRole('button', { name: 'モデル' }));
-    expect(status.textContent).toContain('1 件を表示中');
+    fireEvent.click(trackButton('モデル'));
+    expect(releaseStatus().textContent).toContain('1 件を表示中');
   });
 
   it('0 件になったことも同じ live region で知らせる', () => {
-    render(<TimelineBody entries={[]} sourceReportCount={0} period={null} />);
-    expect(screen.getByRole('status').textContent).toMatch(/条件に合うリリースがありません/);
+    renderBody([], 0);
+    expect(releaseStatus().textContent).toMatch(/条件に合うリリースがありません/);
+  });
+
+  it('既定ではリリースと知見の両方を出す', () => {
+    renderBody();
+    expect(screen.getByRole('region', { name: 'リリース' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: '知見の経緯' })).toBeTruthy();
+  });
+
+  it('「知見」へ切り替えるとリリースが支援技術から消えて知見だけになる', () => {
+    renderBody();
+    fireEvent.click(trackButton('知見'));
+    // 出さないトラックは DOM には残る（子の状態を捨てないため）。見えているかどうかは
+    // アクセシビリティツリー基準で検査する — testid は hidden を見ないので使わない
+    expect(screen.queryByRole('region', { name: 'リリース' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'リリース' })).toBeNull();
+    expect(screen.getByRole('region', { name: '知見の経緯' })).toBeTruthy();
+  });
+
+  it('リリースの種別へ切り替えると知見は出さない', () => {
+    renderBody();
+    fireEvent.click(trackButton('Claude Code'));
+    expect(screen.getByRole('region', { name: 'リリース' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: '知見の経緯' })).toBeNull();
+  });
+
+  it('知見だけの表示では影響度スイッチを出さない（効く相手が無い）', () => {
+    renderBody();
+    expect(screen.getByLabelText('影響度 高のみ')).toBeTruthy();
+    fireEvent.click(trackButton('知見'));
+    expect(screen.queryByLabelText('影響度 高のみ')).toBeNull();
+  });
+
+  it('切り替えの告知は同じ live region ノードのまま文言だけ変わる', () => {
+    renderBody();
+    const announcer = screen
+      .getAllByRole('status')
+      .find((s) => s.textContent?.includes('リリースと知見の両方を表示中'));
+    expect(announcer).toBeDefined();
+
+    // 作り直された live region は読み上げられないことがある。ノードが生き残ることが契約
+    fireEvent.click(trackButton('知見'));
+    expect(screen.getAllByRole('status')).toContain(announcer);
+    expect(announcer?.textContent).toContain('知見の経緯を表示中');
+
+    fireEvent.click(trackButton('Claude Code'));
+    expect(screen.getAllByRole('status')).toContain(announcer);
+    expect(announcer?.textContent).toContain('Claude Code 本体のリリースを表示中');
+  });
+
+  it('切り替えを往復しても知見トラックで開いたものは閉じない', () => {
+    renderBody();
+    const insight = () => within(screen.getByRole('region', { name: '知見の経緯' }));
+    // 既定で開くのは上位 3 テーマまで。フィクスチャは 1 テーマなので開いている
+    const theme = insight().getByRole('button', { expanded: true });
+    fireEvent.click(theme);
+    expect(insight().getByRole('button', { expanded: false })).toBeTruthy();
+
+    fireEvent.click(trackButton('Claude Code'));
+    fireEvent.click(trackButton('すべて'));
+    expect(insight().getByRole('button', { expanded: false })).toBeTruthy();
+  });
+
+  it('切り替えを往復しても影響度スイッチの設定は残る', () => {
+    renderBody();
+    fireEvent.click(screen.getByLabelText('影響度 高のみ'));
+    expect(screen.getAllByTestId('release-card')).toHaveLength(2);
+
+    fireEvent.click(trackButton('知見'));
+    fireEvent.click(trackButton('すべて'));
+    expect((screen.getByLabelText('影響度 高のみ') as HTMLInputElement).checked).toBe(true);
+    expect(screen.getAllByTestId('release-card')).toHaveLength(2);
   });
 
   it('月別リリース件数のバーが内訳を accessible name で持つ', () => {
@@ -168,7 +288,7 @@ describe('TimelineBody', () => {
   it('月別リリース件数のバーを絞り込みに追従させる', () => {
     renderBody();
     expect(screen.getAllByTestId('cadence-bar')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'モデル' }));
+    fireEvent.click(trackButton('モデル'));
     expect(screen.getAllByTestId('cadence-bar')).toHaveLength(1);
   });
 });
