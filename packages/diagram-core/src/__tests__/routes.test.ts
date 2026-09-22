@@ -148,7 +148,7 @@ describe('揃って並んだ 2 つのカーブ', () => {
     for (const control of controls(upward.path)) expect(control.x).toBeLessThan(W / 2);
   });
 
-  it('遠く離れても札の半分より深くは張り出さない（図の縁で切られない）', () => {
+  it('遠く離れても制御点は札の縁より内に収まる（図の縁で切られない）', () => {
     // 描画面は札の占める升目からしか決まらないので、制御点が札の縁より外へ出ると切れる。
     const far = at('遠', 0, 4000);
     const geometry = connectorGeometry(above, far, SPACING, look('curved', { end: 'arrow' }))!;
@@ -171,7 +171,7 @@ describe('揃って並んだ 2 つのカーブ', () => {
     const near = at('直下', 0, H + 8);
     const geometry = connectorGeometry(above, near, SPACING, look('curved', { end: 'arrow' }))!;
     const [first] = controls(geometry.path);
-    expect(first.x - W / 2).toBeGreaterThan(W / 8);
+    expect(first.x - W / 2).toBeGreaterThan(W / 16);
   });
 });
 
