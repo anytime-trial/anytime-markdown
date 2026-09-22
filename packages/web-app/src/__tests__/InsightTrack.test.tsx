@@ -83,11 +83,11 @@ describe('InsightTrack', () => {
     expect(screen.getAllByRole('button', { expanded: false })).toHaveLength(1);
   });
 
-  it('テーマ内は古い順に並べ、経緯として読めるようにする', () => {
+  it('テーマ内は新しい順に並べる（年表本体と向きを揃える）', () => {
     renderTrack();
     const cards = screen.getAllByTestId('insight-card');
     const subagentDates = cards.slice(0, 3).map((c) => within(c).getByText(/^2026\//).textContent);
-    expect(subagentDates).toEqual(['2026/4/2', '2026/7/3', '2026/8/7']);
+    expect(subagentDates).toEqual(['2026/8/7', '2026/7/3', '2026/4/2']);
   });
 
   it('カテゴリで絞り込むとトラックと件数が追従する', () => {

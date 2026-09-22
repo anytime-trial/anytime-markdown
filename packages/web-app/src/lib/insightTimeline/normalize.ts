@@ -179,8 +179,8 @@ export interface NormalizeInsightsResult {
 /**
  * 生データを正規化し、統合の内訳も一緒に返す。
  *
- * 経緯は古い順でないと変遷として読めないので、成果物そのものを昇順で確定させる
- * （表示の向きは画面の都合だが、こちらは「変遷」という意味の向きである）。
+ * 成果物の並びは日付昇順で確定させる。再生成のたびに同じ並びになることが目的で、
+ * 読む向き（画面では新しい順）とは別物——向きの決定は buildThemeTracks 側に置く。
  *
  * 統合を診断として持ち上げるのは、`raw N 件 → entry M 件` の差だけでは「再掲を畳んだ」
  * のか「抽出が壊れて消えた」のかを呼び出し側が区別できないため（リリース年表の
@@ -237,6 +237,11 @@ export function normalizeInsights(
 /**
  * テーマごとの経緯トラックを組む。件数の多いテーマほど前に置く。
  *
+ * テーマ内は**新しい順**（上ほど最近）。リリース年表と同じ向きに揃えてある。
+ * 成果物 `insights.json` の並びは昇順のままで、向きを変えるのはここだけ——
+ * 生成物は再生成で決まる決定論的なデータで、表示の向きは画面の都合である
+ * （リリース年表の `groupByMonthDescending` と同じ切り分け）。
+ *
  * 1 件も無いテーマはトラックを作らない。カテゴリで絞ったときに空の見出しだけが
  * 並ぶと、そのテーマに知見が無いのか絞り込みで消えたのかが読み手に判別できない。
  */
@@ -245,7 +250,9 @@ export function buildThemeTracks(
   themes: readonly InsightTheme[],
 ): InsightThemeTrack[] {
   const byTheme = new Map<string, InsightEntry[]>();
-  for (const entry of [...entries].sort(compareEntries)) {
+  // Why not: 昇順に積んでから reverse しない。渡された配列が昇順である前提が崩れても
+  // 型検査にもテストにも現れず、テーマの中だけ並びが壊れたトラックが出る
+  for (const entry of [...entries].sort((a, b) => compareEntries(b, a))) {
     for (const theme of entry.themes) {
       const bucket = byTheme.get(theme);
       if (bucket) bucket.push(entry);
@@ -260,8 +267,9 @@ export function buildThemeTracks(
       label: theme.label,
       description: theme.description,
       entries: found,
-      from: found[0].date,
-      to: found[found.length - 1].date,
+      // entries は降順なので、収録範囲の下限は末尾・上限は先頭から取る
+      from: found[found.length - 1].date,
+      to: found[0].date,
     }))
     .sort((a, b) => b.entries.length - a.entries.length || compareOrdinal(a.themeId, b.themeId));
 }
