@@ -1,0 +1,156 @@
+[
+  {
+    "date": "2026-06-30",
+    "dateConfidence": "explicit",
+    "category": "claude-code",
+    "title": "Claude Codeが不可視文字でプロキシ利用者を識別",
+    "summary": "中国系タイムゾーン・プロキシ利用者のシステムプロンプトを不可視Unicodeで自動改変し識別。Anthropicは実験と釈明し07-01に削除済み。",
+    "themes": ["security"],
+    "impact": "high",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://thereallo.dev/blog/claude-code-prompt-steganography"
+  },
+  {
+    "date": "2026-07-10",
+    "dateConfidence": "explicit",
+    "category": "tech-trend",
+    "title": "AlibabaがClaude Codeを社内禁止しQoderへ移行",
+    "summary": "ステガノグラフィー発覚を受けAlibabaが全社員のClaude Code利用を禁止。内製AIコーディングツールQoderへの切替を指示した。",
+    "themes": ["competitors", "security"],
+    "impact": "high",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://www.tomshardware.com/tech-industry/artificial-intelligence/alibaba-bans-anthropics-claude-code-after-an-alleged-hidden-china-detection-backdoor-is-uncovered-employees-told-to-switch-to-qoder-as-the-rift-between-the-firms-widens"
+  },
+  {
+    "date": "2026-07-28",
+    "dateConfidence": "explicit",
+    "category": "tech-trend",
+    "title": "MCP仕様がステートレスコアへ根本変更",
+    "summary": "MCP 2026-07-28仕様で双方向ステートフルからリクエスト/レスポンス型へ移行。OAuth/OIDC強化とバージョン付きExtensionsも追加。",
+    "themes": ["mcp"],
+    "impact": "medium",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://claude.com/blog/bringing-mcp-2026-07-28-to-claude"
+  },
+  {
+    "date": "2026-08-04",
+    "dateConfidence": "report-date",
+    "category": "tech-trend",
+    "title": "Claude for Governmentが政府機関向けにβ提供開始",
+    "summary": "AnthropicがClaude Code/Coworkを政府機関向けに直接契約で提供開始。カリフォルニア州が初の州レベル導入を発表済み。",
+    "themes": ["enterprise"],
+    "impact": "medium",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://claude.com/blog/bringing-claude-code-and-claude-cowork-to-government"
+  },
+  {
+    "date": "2026-08-01",
+    "dateConfidence": "explicit",
+    "category": "tech-trend",
+    "title": "OpenAIが次世代Astraで数学難問10件を解決と発表",
+    "summary": "OpenAIが長期タスクを協調処理するマルチエージェントモデルAstraを発表。10年超未解決の数学問題10件を解決。米政府審査待ちで未リリース。",
+    "themes": ["subagent", "competitors"],
+    "impact": "high",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://the-decoder.com/openai-announces-its-next-major-model-astra-by-dropping-ten-previously-unsolved-math-solutions/"
+  },
+  {
+    "date": "2026-08-04",
+    "dateConfidence": "report-date",
+    "category": "tech-trend",
+    "title": "NamoWorkとMemmyがエージェント連携基盤として台頭",
+    "summary": "500超の専門エージェントを集約するNamoWorkと、Claude Code・Codex横断の共有メモリ層Memmyが8月のエコシステムで注目された。",
+    "themes": ["subagent", "context-memory"],
+    "impact": "medium",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://aiagentstore.ai/ai-agent-news/this-week"
+  },
+  {
+    "date": "2026-08-04",
+    "dateConfidence": "report-date",
+    "category": "tech-trend",
+    "title": "8月コーディングツール勢力図でOpus 5が首位評価",
+    "summary": "月次評価でClaude Code on Opus 5がターミナルエージェント最強と評価。Cursor 3はIDE統合、Kimi K3が低コストOWとして急台頭。",
+    "themes": ["competitors", "model-generation"],
+    "impact": "medium",
+    "sourceReport": "2026-08-04-daily-research.md",
+    "sourceUrl": "https://www.morphllm.com/best-ai-coding-agents-2026"
+  },
+  {
+    "date": "2026-08-05",
+    "dateConfidence": "explicit",
+    "category": "tech-trend",
+    "title": "rust-lang/rustがLLM貢献制限ポリシーを正式採用",
+    "summary": "Rustコアリポジトリの5チームがLLM利用を「質問・分析は可、執筆は禁」に制限。低品質なSlop PR急増への対応。",
+    "themes": ["dev-culture", "review-quality"],
+    "impact": "high",
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://blog.rust-lang.org/inside-rust/2026/08/05/rust-langrust-is-adopting-an-llm-policy/"
+  },
+  {
+    "date": "2026-08-05",
+    "dateConfidence": "report-date",
+    "category": "claude-code",
+    "title": "Claude Code活用の核心がタスク分解へ移行と収束",
+    "summary": "コミュニティ知見がプロンプト最適化からタスク分解・アウトカム指定へ移行。CLAUDE.mdは60行以内が現実的上限との合意。",
+    "themes": ["subagent", "prompting"],
+    "impact": "medium",
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://medium.com/@sathishkraju/claude-code-subagents-the-complete-guide-to-ai-agent-delegation-d0a9aba419d0"
+  },
+  {
+    "date": "2026-08-05",
+    "dateConfidence": "report-date",
+    "category": "vocabulary",
+    "title": "Microsoftが「Tokenmaxxing」を禁止し部門別予算制導入",
+    "summary": "MicrosoftがAIトークン浪費を反パターンと宣言し部門別予算制度を導入。UberはAIコーディング年間予算を4ヶ月で消化。",
+    "themes": ["token-cost", "dev-culture"],
+    "impact": "medium",
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://thenextweb.com/news/microsoft-tokenmaxxing-ai-spending-limits"
+  },
+  {
+    "date": "2026-08-04",
+    "dateConfidence": "explicit",
+    "category": "tech-trend",
+    "title": "AIエージェントのWebアクセスに連邦控訴裁が法的根拠",
+    "summary": "第9巡回区がPerplexity Cometのスクレイピングを適法と判示。「アクセスしたのはユーザー」というCFAA解釈が確立。",
+    "themes": ["regulation"],
+    "impact": null,
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://aiweekly.co/ai-news-today"
+  },
+  {
+    "date": "2026-08-05",
+    "dateConfidence": "report-date",
+    "category": "tech-trend",
+    "title": "Kimi K3がWebDev ArenaでOWモデル史上初の首位",
+    "summary": "Moonshotの2.8T MoEモデルKimi K3がWebDev Arenaでオープンウェイト初の首位を獲得。Opus級性能をbespokeライセンスで提供。",
+    "themes": ["local-llm", "evaluation"],
+    "impact": "high",
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://cryptobriefing.com/moonshot-ai-unveils-kimi-k3-model-with-28t-parameters-open-sources/"
+  },
+  {
+    "date": "2026-07-29",
+    "dateConfidence": "explicit",
+    "category": "tech-trend",
+    "title": "未公開モデルMythosが量子耐性暗号HAWK-256を突破",
+    "summary": "Anthropicの未公開モデルClaude Mythosが専門家が2年見逃したHAWK-256の鍵回復攻撃を発見。7ラウンドAES攻撃も200〜800倍高速化。",
+    "themes": ["model-generation", "security"],
+    "impact": "high",
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://thehackernews.com/2026/07/claude-ai-just-cracked-post-quantum-test-scheme-and-found-a-faster-7-round-aes-attack.html"
+  },
+  {
+    "date": "2026-08-04",
+    "dateConfidence": "explicit",
+    "category": "tech-trend",
+    "title": "MCPサーバーの73%に脆弱性、Enkrypt調査が定量化",
+    "summary": "Anaconda買収のEnkrypt AI調査で、スキャン対象MCPサーバーの73%に計14.3万件の脆弱性が判明。ADI攻撃面の実測値。",
+    "themes": ["mcp", "security"],
+    "impact": "medium",
+    "sourceReport": "2026-08-05-daily-research.md",
+    "sourceUrl": "https://aiweekly.co/ai-news-today"
+  }
+]

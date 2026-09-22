@@ -1,0 +1,33 @@
+{
+  "themes": [
+    { "id": "subagent", "label": "サブエージェントと並列実行", "description": "サブエージェント・マルチエージェント・Workflow オーケストレーション・並列度と委譲の設計" },
+    { "id": "context-memory", "label": "コンテキストと記憶", "description": "コンテキスト長・圧縮・セッション横断の記憶・文脈の引き継ぎ" },
+    { "id": "token-cost", "label": "トークンとコスト", "description": "トークン消費・課金体系・料金改定・予算管理とコスト削減" },
+    { "id": "skills-plugins", "label": "スキルとプラグイン", "description": "Skill・plugin・マーケットプレイス・再利用可能な手順の配布" },
+    { "id": "mcp", "label": "MCP と外部接続", "description": "Model Context Protocol・コネクタ・外部ツール連携の仕様と実装" },
+    { "id": "hooks-automation", "label": "フックと自動化", "description": "hook・スケジュール実行・定期ルーティン・無人運転" },
+    { "id": "sandbox-permission", "label": "サンドボックスと権限", "description": "実行隔離・権限モデル・承認フロー・資格情報の保護" },
+    { "id": "security", "label": "セキュリティと脆弱性", "description": "CVE・プロンプトインジェクション・供給網攻撃・事故事例" },
+    { "id": "spec-driven", "label": "仕様駆動開発", "description": "SDD・要件定義・設計書を起点にした開発・仕様と実装の乖離" },
+    { "id": "review-quality", "label": "レビューとコード品質", "description": "コードレビュー・リファクタリング・静的解析・技術的負債" },
+    { "id": "testing", "label": "テストと検証", "description": "TDD・テスト戦略・E2E・検証手段の設計" },
+    { "id": "git-workflow", "label": "Git とブランチ運用", "description": "worktree・ブランチ戦略・PR 運用・マージとリリースの手順" },
+    { "id": "ci-devops", "label": "CI とデプロイ", "description": "CI/CD・GitHub Actions・ビルド基盤・self-hosted 実行環境" },
+    { "id": "agent-autonomy", "label": "自律性と監督", "description": "エージェントの自律度・ガードレール・人の介在点・監査と説明責任" },
+    { "id": "evaluation", "label": "評価とベンチマーク", "description": "SWE-bench 等のベンチマーク・eval 設計・性能の測り方" },
+    { "id": "model-generation", "label": "モデルの世代交代", "description": "Opus/Sonnet/Haiku/Fable/Mythos の性能差・移行・非推奨化" },
+    { "id": "reasoning", "label": "推論と思考制御", "description": "thinking・effort 調整・推論時計算・長考と打ち切り" },
+    { "id": "prompting", "label": "プロンプト設計", "description": "プロンプト技法・指示の書き方・出力制御・システムプロンプト" },
+    { "id": "reliability", "label": "誤りと信頼性", "description": "ハルシネーション・虚偽報告・検証責任・失敗の検知" },
+    { "id": "competitors", "label": "競合ツールの動向", "description": "Codex・Cursor・Copilot・Gemini CLI・Devin 等の機能と勢力図" },
+    { "id": "local-llm", "label": "ローカル LLM と OSS モデル", "description": "Ollama・オープンウェイトモデル・自前運用・オンプレ推論" },
+    { "id": "rag-search", "label": "検索と RAG", "description": "RAG・コードグラフ・索引・大規模コードベースの探索" },
+    { "id": "ide-terminal", "label": "IDE とターミナル体験", "description": "VS Code 連携・CLI の UX・エディタ統合・操作系の変化" },
+    { "id": "api-sdk", "label": "API と SDK", "description": "Claude API・Agent SDK・プログラマブルな組み込み" },
+    { "id": "enterprise", "label": "企業導入と組織運用", "description": "エンタープライズ要件・チーム運用・導入事例・データ主権" },
+    { "id": "regulation", "label": "規制・法・ライセンス", "description": "AI 規制・著作権・ライセンス・コンプライアンス" },
+    { "id": "labor", "label": "職能と働き方の変化", "description": "雇用への影響・開発者の役割の変化・スキルセットの移り変わり" },
+    { "id": "dev-tooling", "label": "開発ツールチェーン", "description": "ビルドツール・パッケージマネージャ・型検査器・フレームワークなど、エージェント以外の開発基盤の動き" },
+    { "id": "dev-culture", "label": "開発文化と語彙", "description": "vibe coding・slop 等の新語彙、開発者コミュニティの規範と作法の変化" }
+  ]
+}
