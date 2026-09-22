@@ -1,5 +1,23 @@
 # Change Log
 
+## [0.3.0] - 2026-09-22
+
+### Added
+
+- The viewer registers a Custom Element, `<anytime-diagram-viewer>`, so a host outside this monorepo can embed a diagram from plain HTML. Registration lives only in `element.ts`; `index.ts` still exports the class and types without side effects, because the four existing consumers use the mount API and must not have `customElements.define` run on import.
+- The element supplies its own theme. `DIAGRAM_STYLES` reads host tokens (`--am-color-*` → `--vscode-*`), and on a bare HTML host neither is present, so `theme="dark"` used to leave the diagram light. The element now applies seven tokens to itself for the mode it is given.
+- `elementAnnex`: a host can attach its own list of items to an element, and the viewer does not interpret the item ids. `onSelect` exposes the existing internal node-selection callback, so a host can react to what the reader picked without reaching inside the canvas.
+- A distributable bundle (ESM 251KB / IIFE 260KB) built with esbuild, plus `scripts/export-viewer-dist/build-diagram-viewer.sh` to write it out. The build verifies registration in its own output: `customElements.define` failing still produces a successful esbuild run, and a bundle that loads and does nothing is indistinguishable from a working one.
+
+### Fixed
+
+- Opening an annex group no longer fires `element-select`. A card's click handler forwards everything that is not a button/input/select, and only the item buttons stopped propagation, so expanding the `<summary>` also told the host the element had been picked.
+- Changing one attribute no longer silently reverts `editable` / `compact` supplied through `options`. `mount` gave options priority over attributes but `liveUpdate` read attributes only, so a host that enabled editing through options lost it by changing `locale`.
+- Theme tokens are no longer written inline, which always overrode a host's own `--am-color-*`. The element's keys moved to `--diagram-host-*` and the lookup chain is now `--am-color-*` → `--vscode-*` → `--diagram-host-*` → ink-wash default, matching what the spec and the code comments already claimed.
+- `value` now rejects JSON that parses but is not a document. `null`, `0` and `"図"` all parsed, set `document = null` and tore the viewer down to a blank frame with nothing logged — "keep the current diagram on failure" only held for syntax errors.
+- There is now a path that fires `onSelect(null)`. Clearing a selection, replacing the document, or removing the last selected element told the host nothing, so a host that had panned to the selected element could not return.
+- Rebuilding the viewer emits `draft-change`. `destroy` skipped the callback, leaving a host's "unsaved" marker set with no draft behind it.
+
 ## [0.2.0] - 2026-09-22
 
 ### Added

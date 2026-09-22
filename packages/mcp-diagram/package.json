@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/mcp-diagram",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "private": true,
   "description": "系図（*.diagram.json）を読み書きする MCP サーバー。",

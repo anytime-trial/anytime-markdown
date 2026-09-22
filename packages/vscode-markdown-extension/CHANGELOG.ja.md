@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-09-22
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- `constants/colors.ts` に、テーマ 7 値の写しが `diagram-viewer` にあることを明記した（同時に直すため）。挙動は変わらない。
+
+### Diagram Core (diagram-core / diagram-viewer)
+
+- ビューアを Custom Element（`<anytime-diagram-viewer>`）にし、テーマを自給するようにした。宿主は要素へ独自の項目群を添えられ、選択を受け取れる。
+- 拡張が同梱するビューアの修正: 項目群を開いただけで選択が通知される、属性変更で options 指定の `editable` / `compact` が戻る、要素が宿主の `--am-color-*` を踏み潰す、構文だけ通る JSON で図が白紙になる、の 4 件を直した。
+
 ## [1.24.0] - 2026-09-22
 
 ### 変更
