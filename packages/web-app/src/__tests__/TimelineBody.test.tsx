@@ -2,6 +2,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 
 import TimelineBody from '../app/[locale]/timeline/TimelineBody';
+import { normalizeInsights } from '../lib/insightTimeline/normalize';
+import type { InsightTheme, RawInsight } from '../lib/insightTimeline/types';
 import { normalizeReleases } from '../lib/releaseTimeline/normalize';
 import type { RawRelease } from '../lib/releaseTimeline/types';
 
@@ -41,14 +43,47 @@ const RAW: RawRelease[] = [
   },
 ];
 
-function renderBody() {
+const INSIGHT_THEMES: InsightTheme[] = [
+  { id: 'subagent', label: 'サブエージェントと並列実行', description: '委譲と並列度の設計' },
+];
+
+const INSIGHT_RAW: RawInsight[] = [
+  {
+    date: '2026-04-05',
+    dateConfidence: 'explicit',
+    category: 'claude-code',
+    title: '上限が Workflow 設計を縛る',
+    summary: 'スポーン上限が 200 件で、大規模並列は分割が要る。',
+    themes: ['subagent'],
+    impact: null,
+    sourceReport: '2026-04-05-daily-research.md',
+    sourceUrl: null,
+  },
+];
+
+const INSIGHT = {
+  entries: normalizeInsights(INSIGHT_RAW, INSIGHT_THEMES),
+  themes: INSIGHT_THEMES,
+  sourceReportCount: 1,
+  period: { from: '2026-04-05', to: '2026-04-05' },
+};
+
+function renderBody(releaseEntries = normalizeReleases(RAW), sourceReportCount = 3) {
   return render(
     <TimelineBody
-      entries={normalizeReleases(RAW)}
-      sourceReportCount={3}
-      period={{ from: '2026-04-01', to: '2026-05-10' }}
+      release={{
+        entries: releaseEntries,
+        sourceReportCount,
+        period: releaseEntries.length > 0 ? { from: '2026-04-01', to: '2026-05-10' } : null,
+      }}
+      insight={INSIGHT}
     />,
   );
+}
+
+/** リリース側の live region。切り替えの告知と混ざらないようセクション内から引く */
+function releaseStatus(): HTMLElement {
+  return within(screen.getByRole('region', { name: 'リリース' })).getByRole('status');
 }
 
 describe('TimelineBody', () => {
@@ -62,14 +97,18 @@ describe('TimelineBody', () => {
 
   it('月ごとに見出しを立てる', () => {
     renderBody();
-    expect(screen.getByRole('heading', { name: /2026年4月/ })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: /2026年5月/ })).toBeTruthy();
+    // 知見トラックのテーマ見出しにも月が入るので、リリース側に絞って引く
+    const release = within(screen.getByRole('region', { name: 'リリース' }));
+    expect(release.getByRole('heading', { name: /2026年4月/ })).toBeTruthy();
+    expect(release.getByRole('heading', { name: /2026年5月/ })).toBeTruthy();
   });
 
   it('収録件数の内訳を出す', () => {
     renderBody();
-    const stats = screen.getByRole('heading', { level: 1 }).parentElement?.nextElementSibling;
-    expect(stats?.textContent).toContain('3 件');
+    const stats = within(screen.getByRole('region', { name: 'リリース' })).getByText(
+      '収録リリース',
+    );
+    expect(stats.nextElementSibling?.textContent).toBe('3 件');
   });
 
   it('影響度 高のリリースは変更点を開いた状態で出す', () => {
@@ -131,7 +170,7 @@ describe('TimelineBody', () => {
   });
 
   it('該当が 0 件なら空だと明示する（黙って白紙にしない）', () => {
-    render(<TimelineBody entries={[]} sourceReportCount={0} period={null} />);
+    renderBody([], 0);
     expect(screen.queryAllByTestId('release-card')).toHaveLength(0);
     expect(screen.getByText(/条件に合うリリースがありません/)).toBeTruthy();
   });
@@ -145,16 +184,57 @@ describe('TimelineBody', () => {
 
   it('絞り込み結果の件数を live region で知らせる', () => {
     renderBody();
-    const status = screen.getByRole('status');
-    expect(status.textContent).toContain('3 件を表示中');
+    expect(releaseStatus().textContent).toContain('3 件を表示中');
 
     fireEvent.click(screen.getByRole('button', { name: 'モデル' }));
-    expect(status.textContent).toContain('1 件を表示中');
+    expect(releaseStatus().textContent).toContain('1 件を表示中');
   });
 
   it('0 件になったことも同じ live region で知らせる', () => {
-    render(<TimelineBody entries={[]} sourceReportCount={0} period={null} />);
-    expect(screen.getByRole('status').textContent).toMatch(/条件に合うリリースがありません/);
+    renderBody([], 0);
+    expect(releaseStatus().textContent).toMatch(/条件に合うリリースがありません/);
+  });
+
+  it('既定ではリリースと知見の両方を出す', () => {
+    renderBody();
+    expect(screen.getByRole('region', { name: 'リリース' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: '知見の経緯' })).toBeTruthy();
+  });
+
+  it('「知見」へ切り替えるとリリースが消えて知見だけになる', () => {
+    renderBody();
+    fireEvent.click(screen.getByRole('button', { name: '知見' }));
+    expect(screen.queryByRole('region', { name: 'リリース' })).toBeNull();
+    expect(screen.queryAllByTestId('release-card')).toHaveLength(0);
+    expect(screen.getByRole('region', { name: '知見の経緯' })).toBeTruthy();
+    expect(screen.getAllByTestId('insight-card')).toHaveLength(1);
+  });
+
+  it('リリースの種別へ切り替えると知見は出さない', () => {
+    renderBody();
+    fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }));
+    expect(screen.getByRole('region', { name: 'リリース' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: '知見の経緯' })).toBeNull();
+  });
+
+  it('知見だけの表示では影響度スイッチを出さない（効く相手が無い）', () => {
+    renderBody();
+    expect(screen.getByLabelText('影響度 高のみ')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '知見' }));
+    expect(screen.queryByLabelText('影響度 高のみ')).toBeNull();
+  });
+
+  it('切り替えた結果を常設の live region で知らせる', () => {
+    renderBody();
+    const announcement = within(screen.getByRole('region', { name: '知見の経緯' }));
+    expect(announcement).toBeTruthy();
+    const all = screen.getAllByRole('status').map((s) => s.textContent);
+    expect(all.some((t) => t?.includes('リリースと知見の両方を表示中'))).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: '知見' }));
+    expect(
+      screen.getAllByRole('status').some((s) => s.textContent?.includes('知見の経緯を表示中')),
+    ).toBe(true);
   });
 
   it('月別リリース件数のバーが内訳を accessible name で持つ', () => {

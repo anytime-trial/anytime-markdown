@@ -27,13 +27,30 @@ export const KIND_META: Readonly<Record<ReleaseKind, { label: string; short: str
   model: { label: 'Claude モデル', short: 'Model' },
 };
 
-export type KindFilter = ReleaseKind | 'all';
+/**
+ * 画面が今どの中身を出すか。
+ *
+ * 種別の絞り込みではなく**表示の切り替え**である。`all` はリリースと知見の両方、
+ * `cli` / `model` はリリースをその種別で絞ったもの、`insight` は知見だけを出す。
+ * 「すべて」が「リリース全種別」を指していた頃の名前（KindFilter）から改名したのは、
+ * 知見が加わって「種別」では言い表せなくなったため。
+ */
+export type TrackFilter = ReleaseKind | 'all' | 'insight';
 
-export const KIND_FILTERS: readonly { value: KindFilter; label: string }[] = [
+export const TRACK_FILTERS: readonly { value: TrackFilter; label: string }[] = [
   { value: 'all', label: 'すべて' },
   { value: 'cli', label: 'Claude Code' },
   { value: 'model', label: 'モデル' },
+  { value: 'insight', label: '知見' },
 ];
+
+/** 切り替えの結果を支援技術へ伝える文言。画面の中身が丸ごと入れ替わるため、件数とは別に出す */
+export const TRACK_ANNOUNCEMENT: Readonly<Record<TrackFilter, string>> = {
+  all: 'リリースと知見の両方を表示中',
+  cli: 'Claude Code 本体のリリースを表示中',
+  model: 'Claude モデルのリリースを表示中',
+  insight: '知見の経緯を表示中',
+};
 
 const MONTH_LABEL_PATTERN = /^(\d{4})-(\d{2})$/;
 

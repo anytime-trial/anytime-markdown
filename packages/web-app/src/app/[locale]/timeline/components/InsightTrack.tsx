@@ -111,7 +111,7 @@ export default function InsightTrack({ entries, themes, sourceReportCount, perio
   };
 
   return (
-    <Box component="section" sx={{ mt: 8 }} aria-labelledby="insight-track-heading">
+    <Box component="section" aria-labelledby="insight-track-heading">
       <Typography id="insight-track-heading" variant="h5" component="h2" gutterBottom>
         知見の経緯
       </Typography>
