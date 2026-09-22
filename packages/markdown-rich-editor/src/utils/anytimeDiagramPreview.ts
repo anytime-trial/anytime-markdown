@@ -49,8 +49,13 @@ export function mountAnytimeDiagramPreview(
   const validated = validateDiagramDocument(value);
   if (!validated.ok) return showError(container, validated.errors.join("\n"));
 
+  /*
+    **器も縦の flex にする。** ビューア（`.anytime-diagram`）は `flex: 1 1 auto` で残りの高さを
+    受け取る作りなので、器が block のままだと伸びる相手が居ず、図は枠の最小高さ（240px）で
+    止まって器の下が空く（編集ダイアログ `createDiagramEditDialog` と同じ理由）。
+  */
   const el = document.createElement("div");
-  el.style.cssText = "display:block;width:100%;height:360px";
+  el.style.cssText = "display:flex;flex-direction:column;width:100%;min-width:0;height:360px";
   el.style.colorScheme = ctx.isDark ? "dark" : "light";
   container.replaceChildren(el);
   const handle = mountDiagramViewer(el, {
