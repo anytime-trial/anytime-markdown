@@ -73,7 +73,12 @@ import { createAutomaticCache, deriveModel, type DiagramModel, groupBadgesOf, re
 import { createGroupDialogView } from './ui/groupDialog';
 import { createLineLabelView } from './ui/lineLabels';
 import { DIAGRAM_ROOT_CLASS, DIAGRAM_STYLES } from './theme/diagramStyles';
-import type { DiagramViewerHandle, DiagramViewerOptions, DiagramViewerUpdate } from './types';
+import type {
+  DiagramElementAnnex,
+  DiagramViewerHandle,
+  DiagramViewerOptions,
+  DiagramViewerUpdate,
+} from './types';
 import { createCellAdderView } from './ui/cellAdders';
 import { createChromeView, createConfirmView, type LineSelection, RESET_LAYOUT } from './ui/chrome';
 import { createLinkView, type LinkView } from './ui/connectors';
@@ -127,6 +132,13 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   /** 常に編集状態で出すか。切替と保存の口を図から外し、保存は宿主の `save()` が起こす。 */
   const alwaysEditing = options.alwaysEditing ?? false;
   let compact = options.compact ?? false;
+  /**
+   * 宿主が要素へ添えた項目群。**空の写しを既定にする**（`undefined` を配らない）。
+   *
+   * 図より後に読み終える宿主が居るので `update` でも差し替わる。鍵が無い要素は「添えるものが
+   * 無い」であって、欠落ではない。
+   */
+  let elementAnnex: Readonly<Record<string, DiagramElementAnnex>> = options.elementAnnex ?? {};
   let t: DiagramT = createDiagramT(options.locale);
   /**
    * 文言の入口。**中身を差し替えても同じ関数**を配るために 1 枚かませる。
@@ -253,7 +265,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onToggleEditing: () => { if (draft === null) startEditing(); else stopEditing(); },
     onSave: () => { void save(); },
     onConfirm: (kind) => confirmView.show(kind),
-    onClearSelection: () => { selection = []; paint(); },
+    onClearSelection: () => { clearSelection(); },
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
     onRenameSelected: () => { startRename(lastChosen()); },
     onAnnotateSelected: () => { startAnnotate(lastChosen()); },
@@ -522,8 +534,24 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   }
 
   /** 編集を抜けるとき・図を差し替えるときに畳む、その場かぎりの選択。 */
-  function clearTransientSelection(): void {
+  /**
+   * 選びを外し、宿主へも伝える。
+   *
+   * 伝えないと、図の外の表示を選びに合わせている宿主（anytime-travel は選んだ人物へ地図を
+   * 寄せる）が**一度寄せた表示を戻す手段を持たない**。`onSelect` は片道ではなく、選びが
+   * 無くなったことも渡す契約なので、選びを空にする経路はすべてここを通す。
+   */
+  function clearSelection(): void {
+    const had = selection.length > 0;
     selection = [];
+    paint();
+    if (had) options.onSelect?.(null, false);
+  }
+
+  function clearTransientSelection(): void {
+    const had = selection.length > 0;
+    selection = [];
+    if (had) options.onSelect?.(null, false);
     selectedFamilies = [];
     selectedConnectors = [];
     renaming = null;
@@ -1266,6 +1294,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       if (draft !== null) return;
       if (additive) togglePick(name);
       else { selection = [name]; paint(); }
+      // 押した名前ではなく**残った選び**を渡す。足す押下で最後の 1 つが外れたときに、
+      // 外れた名前を「選ばれた」と伝えないため。
+      options.onSelect?.(selection[selection.length - 1] ?? null, additive);
+    },
+    onAnnexActivate(name: string, itemId: string): void {
+      options.onAnnexActivate?.(name, itemId);
     },
     onTogglePick: togglePick,
     onNudge: nudgeCells,
@@ -1515,6 +1549,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         groupBadges: groupBadgesOf(model.source, node.name),
         annotation: model.source.annotations[node.name] ?? '',
         connectSource: connectSource !== null && sameAnchor(connectSource, elementAnchor(node.name)),
+        // 添えた項目も群の札・注記と同じく描くたびに当てる（作るときに焼き込まない）。
+        annex: elementAnnex[node.name] ?? null,
+        annexActivatable: options.onAnnexActivate !== undefined,
       });
     }
 
@@ -1666,6 +1703,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       if (next.locale !== undefined) t = createDiagramT(next.locale);
       if (next.editable !== undefined) editable = next.editable;
       if (next.compact !== undefined) compact = next.compact;
+      // 札は作り直さない。`paint()` が `nodeView.update` で当て直すので、差し替えだけで届く。
+      if (next.elementAnnex !== undefined) elementAnnex = next.elementAnnex;
       if (next.document !== undefined && next.document !== document_) {
         document_ = next.document;
         // 別の図の人物名・升目を次の操作へ持ち越さない。
