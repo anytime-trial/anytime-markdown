@@ -78,6 +78,13 @@ export interface ConnectorGeometry {
   readonly end: ConnectorPointAt;
   /** 線そのもの。端の印は別に描く（印の大きさを倍率から切り離すため）。 */
   readonly path: string;
+  /**
+   * 弦から**どちらへどれだけ張り出しているか**（`clockwiseBow`）。張り出していない線には持たない。
+   *
+   * 経路の文字列だけを持たない。線の中点（`midpointOf`）は取っ手・添え字・別の線の取り付き先に
+   * なるので、張り出したぶんを知らないと**線から浮いた場所**を指す。
+   */
+  readonly bow?: { readonly x: number; readonly y: number };
 }
 
 /**
@@ -161,7 +168,7 @@ export function connectorGeometry(
   from: ConnectorEnd,
   to: ConnectorEnd,
   spacing: DiagramSpacing,
-  look: ConnectorLook = DEFAULT_CONNECTOR_LOOK,
+  look: ConnectorLook,
 ): ConnectorGeometry | null {
   const route = look.route;
   const fromCentre = centreOf(from, spacing);
@@ -186,7 +193,13 @@ export function connectorGeometry(
   ) => (axis === 'horizontal' ? { x: other.x, y: centre.y } : { x: centre.x, y: other.y });
   const start = borderPoint(from, spacing, along(fromCentre, toCentre));
   const end = borderPoint(to, spacing, along(toCentre, fromCentre));
-  const bow = clockwiseBow(look, axis, fromCentre, toCentre, start, end, spacing);
+  const bow = clockwiseBow({
+    look,
+    axis,
+    centres: { from: fromCentre, to: toCentre },
+    edges: { start, end },
+    spacing,
+  });
   if (bow !== null) return bowedCurve(start, end, bow);
   // 端の印の向きも軸へ揃える。中心どうしの角度のままだと、真横から入る線に斜めの矢尻が付く。
   const angle = axis === 'horizontal'
@@ -209,31 +222,38 @@ export function connectorGeometry(
  * 右回り・左回りの区別が読み手に伝わらず、ただ遠回りした線に見えるため。両端が矢印なら
  * 書いてある順（始点 → 終点）を線の進む向きとする。
  */
-function clockwiseBow(
-  look: ConnectorLook,
-  axis: RouteAxis,
-  fromCentre: Point,
-  toCentre: Point,
-  start: Point,
-  end: Point,
-  spacing: DiagramSpacing,
-): Point | null {
+function clockwiseBow(input: {
+  readonly look: ConnectorLook;
+  readonly axis: RouteAxis;
+  /** 2 つの箱の中心。揃っているか・どちらへ進むかを決める。 */
+  readonly centres: { readonly from: Point; readonly to: Point };
+  /** 縁で切り詰めた端の点。張り出しの深さを距離から決める。 */
+  readonly edges: { readonly start: Point; readonly end: Point };
+  readonly spacing: DiagramSpacing;
+}): Point | null {
+  const { look, axis, centres, edges, spacing } = input;
   if (look.route !== 'curved') return null;
   if (look.start !== 'arrow' && look.end !== 'arrow') return null;
-  const aligned = axis === 'vertical' ? fromCentre.x === toCentre.x : fromCentre.y === toCentre.y;
+  const aligned = axis === 'vertical' ? centres.from.x === centres.to.x : centres.from.y === centres.to.y;
   if (!aligned) return null;
   // 線の進む向き（矢印の指す先へ向かう向き）。終点側に印が無ければ、進むのは始点へ向かう側。
   const forward = look.end === 'arrow' ? 1 : -1;
   const travel = axis === 'vertical'
-    ? { x: 0, y: Math.sign(toCentre.y - fromCentre.y) * forward }
-    : { x: Math.sign(toCentre.x - fromCentre.x) * forward, y: 0 };
-  // 画面の y は下向き。進む向きを (y, -x) へ回した側が、時計回りに回り込む側になる。
+    ? { x: 0, y: Math.sign(centres.to.y - centres.from.y) * forward }
+    : { x: Math.sign(centres.to.x - centres.from.x) * forward, y: 0 };
+  // 画面の y は下向き。時計回りに進む弧は回転の中心と反対側へ膨らむので、張り出すのは進む向きを
+  // (y, -x) へ回した側になる（回転そのものが時計回りなのではない）。
   const side = { x: travel.y, y: -travel.x };
-  const length = Math.abs(axis === 'vertical' ? end.y - start.y : end.x - start.x);
-  // 短い線でも曲がって見えるよう、札の**交差軸側の大きさ**を下限に敷く。距離だけに比例させると、
-  // 隣り合う 2 つ（間が刻みの隙間しかない）でほぼ直線のままになる。
+  const length = Math.abs(axis === 'vertical' ? edges.end.y - edges.start.y : edges.end.x - edges.start.x);
   const span = axis === 'vertical' ? spacing.nodeWidth : spacing.nodeHeight;
-  const reach = Math.max(length * CURVE_BOW_RATIO, span * CURVE_BOW_MIN_RATIO);
+  // 深さは距離に比例させつつ、**札の交差軸側の大きさ**で上下から挟む。下限は隣り合う 2 つ（間が
+  // 刻みの隙間しかない）でほぼ直線に潰れないため。上限は図の縁で切られないため — 描画面は札の
+  // 占める升目からしか決まらず、線の経路を含めない（`diagram-viewer` の `surface`）。半分までなら
+  // 制御点は札の縁より外へ出ないので、最上段・最左列でも負の座標へ回り込まない。
+  const reach = Math.min(
+    Math.max(length * CURVE_BOW_RATIO, span * CURVE_BOW_MIN_RATIO),
+    span * CURVE_BOW_MAX_RATIO,
+  );
   return { x: side.x * reach, y: side.y * reach };
 }
 
@@ -241,6 +261,10 @@ function clockwiseBow(
 const CURVE_BOW_RATIO = 0.3;
 /** 張り出しの下限。札の交差軸側の大きさに対する割合。 */
 const CURVE_BOW_MIN_RATIO = 0.25;
+/** 張り出しの上限。札の交差軸側の**半分**まで（制御点が札の縁より外へ出ない）。 */
+const CURVE_BOW_MAX_RATIO = 0.5;
+/** 3 次ベジェの中点が制御点から受け取る割合。`B(0.5)` の重みが (3+3)/8 になるため。 */
+const BOW_MIDPOINT_SHARE = 0.75;
 
 /**
  * 張り出したカーブ 1 本。**端の印の向きは曲線の接線から出す。**
@@ -261,6 +285,7 @@ function bowedCurve(start: Point, end: Point, bow: Point): ConnectorGeometry {
     end: { ...end, angle: Math.atan2(second.y - end.y, second.x - end.x) },
     path: `M ${round(start.x)} ${round(start.y)} C ${round(first.x)} ${round(first.y)}`
       + ` ${round(second.x)} ${round(second.y)} ${round(end.x)} ${round(end.y)}`,
+    bow,
   };
 }
 
@@ -304,15 +329,20 @@ export function routePath(
 }
 
 /**
- * 線の中点。**経路に依らず両端の真ん中**に置く。
+ * 線の中点。**両端の真ん中**に置き、**張り出したぶんだけ線へ寄せる**。
  *
- * 経路に沿った本当の中点を取らない。折れ線とカーブで取っ手の位置が変わると、引き回しを
- * 選び直すだけで「その中点から引いた線」の付け根が動く。両端の真ん中なら引き回しと独立に決まる。
+ * 経路に沿った本当の中点は取らない。折れ線で折れ方に追わせると、引き回しを選び直すだけで
+ * 「その中点から引いた線」の付け根が動く。両端の真ん中なら引き回しと独立に決まる。
+ *
+ * 張り出し（`geometry.bow`）だけは足す。この点は取っ手・添え字・別の線の取り付き先になるので、
+ * 弦の真ん中のままだと**線から離れた空間**に取っ手が浮き、そこから別の線が生える。同じ 2 点・
+ * 同じ端の印なら張り出しも同じなので、位置が独立に決まる性質は保たれる。
  */
 export function midpointOf(geometry: ConnectorGeometry): { readonly x: number; readonly y: number } {
+  const bow = geometry.bow ?? { x: 0, y: 0 };
   return {
-    x: round((geometry.start.x + geometry.end.x) / 2),
-    y: round((geometry.start.y + geometry.end.y) / 2),
+    x: round((geometry.start.x + geometry.end.x) / 2 + bow.x * BOW_MIDPOINT_SHARE),
+    y: round((geometry.start.y + geometry.end.y) / 2 + bow.y * BOW_MIDPOINT_SHARE),
   };
 }
 

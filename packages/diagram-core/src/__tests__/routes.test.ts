@@ -132,6 +132,41 @@ describe('揃って並んだ 2 つのカーブ', () => {
     expect(second.x).toBe(geometry.end.x);
   });
 
+  it('両端が矢印なら書いてある順（始点 → 終点）を進む向きとする', () => {
+    const both = connectorGeometry(above, below, SPACING, look('curved', { start: 'arrow', end: 'arrow' }))!;
+    const forward = connectorGeometry(above, below, SPACING, look('curved', { end: 'arrow' }))!;
+    expect(both.path).toBe(forward.path);
+  });
+
+  it('丸印は矢印ではないので曲げない', () => {
+    const geometry = connectorGeometry(above, below, SPACING, look('curved', { end: 'circle' }))!;
+    for (const control of controls(geometry.path)) expect(control.x).toBe(W / 2);
+  });
+
+  it('下から上へ引けば張り出す側も逆になる', () => {
+    const upward = connectorGeometry(below, above, SPACING, look('curved', { end: 'arrow' }))!;
+    for (const control of controls(upward.path)) expect(control.x).toBeLessThan(W / 2);
+  });
+
+  it('遠く離れても札の半分より深くは張り出さない（図の縁で切られない）', () => {
+    // 描画面は札の占める升目からしか決まらないので、制御点が札の縁より外へ出ると切れる。
+    const far = at('遠', 0, 4000);
+    const geometry = connectorGeometry(above, far, SPACING, look('curved', { end: 'arrow' }))!;
+    for (const control of controls(geometry.path)) expect(control.x).toBeLessThanOrEqual(W);
+  });
+
+  it('張り出した線でも中点は線の上にある（取っ手と添え字が浮かない）', () => {
+    const geometry = connectorGeometry(above, below, SPACING, look('curved', { end: 'arrow' }))!;
+    const [first, second] = controls(geometry.path);
+    // 3 次ベジェの t=0.5。両端と 2 つの制御点から出す。
+    const half = (
+      p0: number, p1: number, p2: number, p3: number,
+    ) => (p0 + 3 * p1 + 3 * p2 + p3) / 8;
+    const middle = midpointOf(geometry);
+    expect(middle.x).toBeCloseTo(half(geometry.start.x, first.x, second.x, geometry.end.x), 1);
+    expect(middle.y).toBeCloseTo(half(geometry.start.y, first.y, second.y, geometry.end.y), 1);
+  });
+
   it('隣り合っていても札の大きさぶんは張り出す（ほぼ直線に潰れない）', () => {
     const near = at('直下', 0, H + 8);
     const geometry = connectorGeometry(above, near, SPACING, look('curved', { end: 'arrow' }))!;
