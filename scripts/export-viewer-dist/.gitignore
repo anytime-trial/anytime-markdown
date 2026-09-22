@@ -2,4 +2,5 @@
 # 出力先ディレクトリ名は対象パッケージ名。ここに無いパッケージを書き出したときは
 # git status に現れる（黙って無視されるより、気づける方に倒す）。
 /cooccurrence-viewer/
+/diagram-viewer/
 /markdown-editor/
