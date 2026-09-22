@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { useMemo, useState } from 'react';
 
-import { summarizeByMonth } from '../../../lib/releaseTimeline/normalize';
+import { groupByMonthDescending, summarizeByMonth } from '../../../lib/releaseTimeline/normalize';
 import type { ReleaseEntry } from '../../../lib/releaseTimeline/types';
 import ReleaseCadence from './components/ReleaseCadence';
 import ReleaseCard from './components/ReleaseCard';
@@ -23,17 +23,6 @@ interface Props {
   readonly entries: readonly ReleaseEntry[];
   readonly sourceReportCount: number;
   readonly period: { readonly from: string; readonly to: string } | null;
-}
-
-function groupByMonth(entries: readonly ReleaseEntry[]): [string, ReleaseEntry[]][] {
-  const groups = new Map<string, ReleaseEntry[]>();
-  for (const entry of entries) {
-    const month = entry.date.slice(0, 7);
-    const bucket = groups.get(month);
-    if (bucket) bucket.push(entry);
-    else groups.set(month, [entry]);
-  }
-  return [...groups.entries()];
 }
 
 export default function TimelineBody({ entries, sourceReportCount, period }: Props) {
@@ -51,7 +40,8 @@ export default function TimelineBody({ entries, sourceReportCount, period }: Pro
 
   // 件数バーは絞り込みに追従させる。全期間固定にすると、絞った結果とグラフが別の話をする
   const months = useMemo(() => summarizeByMonth(filtered), [filtered]);
-  const grouped = useMemo(() => groupByMonth(filtered), [filtered]);
+  // 一覧は新しい順（上ほど最近）。件数バーは左から右へ時間が流れる読み方を崩さないため昇順のまま
+  const grouped = useMemo(() => groupByMonthDescending(filtered), [filtered]);
 
   const cliCount = entries.filter((e) => e.kind === 'cli').length;
   const modelCount = entries.length - cliCount;
@@ -70,7 +60,7 @@ export default function TimelineBody({ entries, sourceReportCount, period }: Pro
         >
           {/* JSX は改行とインデントを空白 1 つへ畳むため、日本語文を行で割ると
               「リリースを、 時系列」のように不要な空白が入る。1 式にまとめる */}
-          {`日次技術調査レポートが観測した Claude Code 本体と Claude モデルのリリースを、時系列に並べたものです。changelog の全件ではなく、${sourceReportCount} 本のレポートが実際に取り上げたリリースを収録しています。`}
+          {`日次技術調査レポートが観測した Claude Code 本体と Claude モデルのリリースを、新しい順（上ほど最近）に並べたものです。changelog の全件ではなく、${sourceReportCount} 本のレポートが実際に取り上げたリリースを収録しています。`}
         </Typography>
       </Box>
 

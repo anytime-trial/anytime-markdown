@@ -218,3 +218,26 @@ export function summarizeByMonth(entries: readonly ReleaseEntry[]): MonthlyRelea
     .map(([month, bucket]) => ({ month, cli: bucket.cli, model: bucket.model }))
     .sort((a, b) => (a.month < b.month ? -1 : 1));
 }
+
+/**
+ * 月グループを新しい順（先頭が最新月）に組み立てる。月内のリリースも新しい順に並べる。
+ *
+ * Why not: 生成物 `releases.json` の並び自体を降順にしない。あれは再生成で決まる決定論的な
+ * 成果物で、`releaseTimelineDataset` のテストが昇順の正規化結果と突き合わせている。表示の
+ * 向きは画面の都合なので、並べ替えは表示側で行う。
+ *
+ * Why not: 渡された配列が昇順である前提で reverse しない。前提が崩れても型検査にもテストにも
+ * 現れず、月の中だけ並びが壊れた年表が出る。並べ替えの定義は `compareEntries` 1 箇所に置く。
+ */
+export function groupByMonthDescending(
+  entries: readonly ReleaseEntry[],
+): [string, ReleaseEntry[]][] {
+  const groups = new Map<string, ReleaseEntry[]>();
+  for (const entry of [...entries].sort((a, b) => compareEntries(b, a))) {
+    const month = entry.date.slice(0, 7);
+    const bucket = groups.get(month);
+    if (bucket) bucket.push(entry);
+    else groups.set(month, [entry]);
+  }
+  return [...groups.entries()];
+}

@@ -1,6 +1,7 @@
 import {
   canonicalVersion,
   entryId,
+  groupByMonthDescending,
   normalizeImpact,
   normalizeReleases,
   normalizeReleasesWithDiagnostics,
@@ -289,5 +290,54 @@ describe('summarizeByMonth', () => {
       raw({ version: '2.1.140', date: '2026-05-02' }),
     ]);
     expect(summarizeByMonth(entries).map((m) => m.month)).toEqual(['2026-03', '2026-05']);
+  });
+});
+
+describe('groupByMonthDescending', () => {
+  it('月グループを新しい順に返す', () => {
+    const entries = normalizeReleases([
+      raw({ version: '2.1.100', date: '2026-04-01' }),
+      raw({ version: '2.1.140', date: '2026-05-02' }),
+      raw({ version: '2.1.090', date: '2026-03-10' }),
+    ]);
+    expect(groupByMonthDescending(entries).map(([month]) => month)).toEqual([
+      '2026-05',
+      '2026-04',
+      '2026-03',
+    ]);
+  });
+
+  it('月内のリリースも新しい順に並べる', () => {
+    const entries = normalizeReleases([
+      raw({ version: '2.1.100', date: '2026-04-01' }),
+      raw({ version: '2.1.101', date: '2026-04-20' }),
+      raw({ version: '2.1.102', date: '2026-04-28' }),
+    ]);
+    const [[, aprilEntries]] = groupByMonthDescending(entries);
+    expect(aprilEntries.map((e) => e.version)).toEqual(['2.1.102', '2.1.101', '2.1.100']);
+  });
+
+  it('同日に複数版が出た日は版数の大きい順に並べる', () => {
+    const entries = normalizeReleases([
+      raw({ version: '2.1.221', date: '2026-08-04' }),
+      raw({ version: '2.1.222', date: '2026-08-04' }),
+    ]);
+    const [[, augustEntries]] = groupByMonthDescending(entries);
+    expect(augustEntries.map((e) => e.version)).toEqual(['2.1.222', '2.1.221']);
+  });
+
+  // 入力順に依存しない（呼び出し側が並べ替え済みであることを前提にしない）
+  it('入力が降順でも昇順でも同じ結果を返す', () => {
+    const entries = normalizeReleases([
+      raw({ version: '2.1.100', date: '2026-04-01' }),
+      raw({ version: '2.1.140', date: '2026-05-02' }),
+    ]);
+    const ascending = groupByMonthDescending(entries);
+    const descending = groupByMonthDescending([...entries].reverse());
+    expect(descending).toEqual(ascending);
+  });
+
+  it('リリースが 1 件も無ければ空配列を返す', () => {
+    expect(groupByMonthDescending([])).toEqual([]);
   });
 });
