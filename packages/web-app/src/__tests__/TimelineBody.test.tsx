@@ -81,6 +81,17 @@ function renderBody(releaseEntries = normalizeReleases(RAW), sourceReportCount =
   );
 }
 
+/**
+ * 表示切替のボタン。知見トラックのカテゴリ絞り込みにも「すべて」があるため、
+ * 切り替え側はボタン群の accessible name で絞ってから引く
+ */
+function trackButton(name: string): HTMLElement {
+  return within(screen.getByRole('group', { name: '表示する内容を切り替える' })).getByRole(
+    'button',
+    { name },
+  );
+}
+
 /** リリース側の live region。切り替えの告知と混ざらないようセクション内から引く */
 function releaseStatus(): HTMLElement {
   return within(screen.getByRole('region', { name: 'リリース' })).getByRole('status');
@@ -145,7 +156,7 @@ describe('TimelineBody', () => {
 
   it('種別フィルタでモデルだけに絞れる', () => {
     renderBody();
-    fireEvent.click(screen.getByRole('button', { name: 'モデル' }));
+    fireEvent.click(trackButton('モデル'));
     const cards = screen.getAllByTestId('release-card');
     expect(cards).toHaveLength(1);
     expect(cards[0].getAttribute('data-kind')).toBe('model');
@@ -161,7 +172,7 @@ describe('TimelineBody', () => {
 
   it('種別と影響度の絞り込みは重ねて効く', () => {
     renderBody();
-    fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }));
+    fireEvent.click(trackButton('Claude Code'));
     fireEvent.click(screen.getByLabelText('影響度 高のみ'));
     const cards = screen.getAllByTestId('release-card');
     expect(cards).toHaveLength(1);
@@ -186,7 +197,7 @@ describe('TimelineBody', () => {
     renderBody();
     expect(releaseStatus().textContent).toContain('3 件を表示中');
 
-    fireEvent.click(screen.getByRole('button', { name: 'モデル' }));
+    fireEvent.click(trackButton('モデル'));
     expect(releaseStatus().textContent).toContain('1 件を表示中');
   });
 
@@ -201,18 +212,19 @@ describe('TimelineBody', () => {
     expect(screen.getByRole('region', { name: '知見の経緯' })).toBeTruthy();
   });
 
-  it('「知見」へ切り替えるとリリースが消えて知見だけになる', () => {
+  it('「知見」へ切り替えるとリリースが支援技術から消えて知見だけになる', () => {
     renderBody();
-    fireEvent.click(screen.getByRole('button', { name: '知見' }));
+    fireEvent.click(trackButton('知見'));
+    // 出さないトラックは DOM には残る（子の状態を捨てないため）。見えているかどうかは
+    // アクセシビリティツリー基準で検査する — testid は hidden を見ないので使わない
     expect(screen.queryByRole('region', { name: 'リリース' })).toBeNull();
-    expect(screen.queryAllByTestId('release-card')).toHaveLength(0);
+    expect(screen.queryByRole('heading', { name: 'リリース' })).toBeNull();
     expect(screen.getByRole('region', { name: '知見の経緯' })).toBeTruthy();
-    expect(screen.getAllByTestId('insight-card')).toHaveLength(1);
   });
 
   it('リリースの種別へ切り替えると知見は出さない', () => {
     renderBody();
-    fireEvent.click(screen.getByRole('button', { name: 'Claude Code' }));
+    fireEvent.click(trackButton('Claude Code'));
     expect(screen.getByRole('region', { name: 'リリース' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: '知見の経緯' })).toBeNull();
   });
@@ -220,21 +232,49 @@ describe('TimelineBody', () => {
   it('知見だけの表示では影響度スイッチを出さない（効く相手が無い）', () => {
     renderBody();
     expect(screen.getByLabelText('影響度 高のみ')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '知見' }));
+    fireEvent.click(trackButton('知見'));
     expect(screen.queryByLabelText('影響度 高のみ')).toBeNull();
   });
 
-  it('切り替えた結果を常設の live region で知らせる', () => {
+  it('切り替えの告知は同じ live region ノードのまま文言だけ変わる', () => {
     renderBody();
-    const announcement = within(screen.getByRole('region', { name: '知見の経緯' }));
-    expect(announcement).toBeTruthy();
-    const all = screen.getAllByRole('status').map((s) => s.textContent);
-    expect(all.some((t) => t?.includes('リリースと知見の両方を表示中'))).toBe(true);
+    const announcer = screen
+      .getAllByRole('status')
+      .find((s) => s.textContent?.includes('リリースと知見の両方を表示中'));
+    expect(announcer).toBeDefined();
 
-    fireEvent.click(screen.getByRole('button', { name: '知見' }));
-    expect(
-      screen.getAllByRole('status').some((s) => s.textContent?.includes('知見の経緯を表示中')),
-    ).toBe(true);
+    // 作り直された live region は読み上げられないことがある。ノードが生き残ることが契約
+    fireEvent.click(trackButton('知見'));
+    expect(screen.getAllByRole('status')).toContain(announcer);
+    expect(announcer?.textContent).toContain('知見の経緯を表示中');
+
+    fireEvent.click(trackButton('Claude Code'));
+    expect(screen.getAllByRole('status')).toContain(announcer);
+    expect(announcer?.textContent).toContain('Claude Code 本体のリリースを表示中');
+  });
+
+  it('切り替えを往復しても知見トラックで開いたものは閉じない', () => {
+    renderBody();
+    const insight = () => within(screen.getByRole('region', { name: '知見の経緯' }));
+    // 既定で開くのは上位 3 テーマまで。フィクスチャは 1 テーマなので開いている
+    const theme = insight().getByRole('button', { expanded: true });
+    fireEvent.click(theme);
+    expect(insight().getByRole('button', { expanded: false })).toBeTruthy();
+
+    fireEvent.click(trackButton('Claude Code'));
+    fireEvent.click(trackButton('すべて'));
+    expect(insight().getByRole('button', { expanded: false })).toBeTruthy();
+  });
+
+  it('切り替えを往復しても影響度スイッチの設定は残る', () => {
+    renderBody();
+    fireEvent.click(screen.getByLabelText('影響度 高のみ'));
+    expect(screen.getAllByTestId('release-card')).toHaveLength(2);
+
+    fireEvent.click(trackButton('知見'));
+    fireEvent.click(trackButton('すべて'));
+    expect((screen.getByLabelText('影響度 高のみ') as HTMLInputElement).checked).toBe(true);
+    expect(screen.getAllByTestId('release-card')).toHaveLength(2);
   });
 
   it('月別リリース件数のバーが内訳を accessible name で持つ', () => {
@@ -248,7 +288,7 @@ describe('TimelineBody', () => {
   it('月別リリース件数のバーを絞り込みに追従させる', () => {
     renderBody();
     expect(screen.getAllByTestId('cadence-bar')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'モデル' }));
+    fireEvent.click(trackButton('モデル'));
     expect(screen.getAllByTestId('cadence-bar')).toHaveLength(1);
   });
 });

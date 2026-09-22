@@ -44,6 +44,23 @@ export const TRACK_FILTERS: readonly { value: TrackFilter; label: string }[] = [
   { value: 'insight', label: '知見' },
 ];
 
+/**
+ * 各切り替えがどのトラックを見せるか。
+ *
+ * Why not: `track !== 'insight'` のような除外条件で書かない。否定で書くと、TrackFilter へ
+ * 値を足したときにリリース側が既定で真へ倒れ、型検査にもテストにも現れないまま
+ * 「条件に合うリリースがありません」という実態と違う案内が出る。全数マップなら
+ * 追加した時点でコンパイルエラーになる。
+ */
+export const TRACK_VISIBILITY: Readonly<
+  Record<TrackFilter, { readonly release: boolean; readonly insight: boolean }>
+> = {
+  all: { release: true, insight: true },
+  cli: { release: true, insight: false },
+  model: { release: true, insight: false },
+  insight: { release: false, insight: true },
+};
+
 /** 切り替えの結果を支援技術へ伝える文言。画面の中身が丸ごと入れ替わるため、件数とは別に出す */
 export const TRACK_ANNOUNCEMENT: Readonly<Record<TrackFilter, string>> = {
   all: 'リリースと知見の両方を表示中',
