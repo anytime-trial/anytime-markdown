@@ -684,8 +684,13 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-annex > summary::-webkit-details-marker { display: none; }
 .anytime-diagram-annex > summary:hover { color: var(--diagram-accent); }
 /*
-  開いた項目は札の外へせり出す。\`position: absolute\` で浮かせるのは、札の高さが升目で
-  決まっているため — 中に積むと札が縦に伸びて隣の行の升目へ食い込む。
+  開いた項目は浮かせる。\`position: absolute\` にするのは、札の高さが升目で決まっているため —
+  流し込みで積むと、開いた瞬間に札の他の段（名札・群・注記）が押し出されて版組みが動く。
+
+  **札の外へは出ない。** 札は \`overflow: auto\` なので、入り切らない項目はそこで切られ、札の中の
+  巻き取りで届く（実機で確認。既定の刻みでは 2 件までが見えて、6 件では最後の 1 件が切れる）。
+  切らずに外へ出す・札を伸ばす・件数を絞るのどれを採るかは、travel の実機を見てから決める
+  （要件書 §7 の U-02）。
 */
 .anytime-diagram-annex-items {
   position: absolute; left: 0; right: 0; z-index: 2;
