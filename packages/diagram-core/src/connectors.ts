@@ -248,8 +248,8 @@ function clockwiseBow(input: {
   const span = axis === 'vertical' ? spacing.nodeWidth : spacing.nodeHeight;
   // 深さは距離に比例させつつ、**札の交差軸側の大きさ**で上下から挟む。下限は隣り合う 2 つ（間が
   // 刻みの隙間しかない）でほぼ直線に潰れないため。上限は図の縁で切られないため — 描画面は札の
-  // 占める升目からしか決まらず、線の経路を含めない（`diagram-viewer` の `surface`）。半分までなら
-  // 制御点は札の縁より外へ出ないので、最上段・最左列でも負の座標へ回り込まない。
+  // 占める升目からしか決まらず、線の経路を含めない（`diagram-viewer` の `surface`）。四分の一まで
+  // なら制御点は札の縁より内に収まるので、最上段・最左列でも負の座標へ回り込まない。
   const reach = Math.min(
     Math.max(length * CURVE_BOW_RATIO, span * CURVE_BOW_MIN_RATIO),
     span * CURVE_BOW_MAX_RATIO,
@@ -258,11 +258,11 @@ function clockwiseBow(input: {
 }
 
 /** 張り出しの深さ。端どうしの距離に対する制御点の持ち上げ幅（実際の膨らみはこの 3/4）。 */
-const CURVE_BOW_RATIO = 0.3;
+const CURVE_BOW_RATIO = 0.15;
 /** 張り出しの下限。札の交差軸側の大きさに対する割合。 */
-const CURVE_BOW_MIN_RATIO = 0.25;
-/** 張り出しの上限。札の交差軸側の**半分**まで（制御点が札の縁より外へ出ない）。 */
-const CURVE_BOW_MAX_RATIO = 0.5;
+const CURVE_BOW_MIN_RATIO = 0.125;
+/** 張り出しの上限。札の交差軸側の**四分の一**まで（制御点が札の縁より内に収まる）。 */
+const CURVE_BOW_MAX_RATIO = 0.25;
 /** 3 次ベジェの中点が制御点から受け取る割合。`B(0.5)` の重みが (3+3)/8 になるため。 */
 const BOW_MIDPOINT_SHARE = 0.75;
 
