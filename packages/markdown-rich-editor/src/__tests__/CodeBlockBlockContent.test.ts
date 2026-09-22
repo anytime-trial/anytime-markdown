@@ -77,12 +77,22 @@ describe("defaultPreviewWidth", () => {
     expect(defaultPreviewWidth("markdown")).toBe("100%");
   });
 
-  it("markdown 以外は内容幅に縮める", () => {
-    expect(defaultPreviewWidth("diagram")).toBe("fit-content");
+  // anytime-diagram のビューアは百分率と flex で自分の枠を埋める作り。fit-content の器に置くと
+  // 百分率が効かず、題名の文字幅（実測 70px 程度）まで潰れて図が見えなくなる。
+  it("anytime-diagram は枠いっぱいに広げる", () => {
+    expect(defaultPreviewWidth("anytime-diagram")).toBe("100%");
+  });
+
+  it("実寸で描く言語は内容幅に縮める", () => {
+    expect(defaultPreviewWidth("mermaid")).toBe("fit-content");
+    expect(defaultPreviewWidth("plantuml")).toBe("fit-content");
+    expect(defaultPreviewWidth("anytime-thinking-model")).toBe("fit-content");
+    expect(defaultPreviewWidth("anytime-chart")).toBe("fit-content");
     expect(defaultPreviewWidth("math")).toBe("fit-content");
     expect(defaultPreviewWidth("html")).toBe("fit-content");
     expect(defaultPreviewWidth("embed")).toBe("fit-content");
-    expect(defaultPreviewWidth("regular")).toBe("fit-content");
+    expect(defaultPreviewWidth("typescript")).toBe("fit-content");
+    expect(defaultPreviewWidth(null)).toBe("fit-content");
   });
 });
 

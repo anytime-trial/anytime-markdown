@@ -56,14 +56,34 @@ export function classifyCodeBlock(language: unknown): CodeBlockKind {
 const MIN_RESIZE_WIDTH = 50;
 
 /**
+ * 枠いっぱいの幅で描く言語。**種別（`CodeBlockKind`）ではなく言語で持つ。**
+ *
+ * 中身を百分率・flex で組んだ描画（screenmock の iframe、anytime-diagram のビューア）は、
+ * `fit-content` の器に置くと百分率の幅が効かず、intrinsic 幅まで潰れる。同じ `diagram` 種別でも
+ * mermaid / plantuml / anytime-thinking-model / anytime-chart は実寸を持つ SVG・画像・canvas を
+ * 返すので潰れない — 種別で括るとこの差を表現できず、片方を直すともう片方が壊れる。
+ *
+ * （実測 2026-09-22: anytime-diagram のインラインプレビューが題名の文字幅まで潰れ、図が見えず
+ * ミニマップの端だけが出ていた。編集ダイアログは器を flex にしているため再現しない。）
+ */
+const FULL_WIDTH_PREVIEW_LANGUAGES: ReadonlySet<string> = new Set([
+  // 本文と同じ文章なので、エディタ設定の本文幅（`--am-editor-measure`）いっぱいまで伸ばす。
+  "markdown",
+  // 幅 100% 前提の iframe を持つ。
+  "screenmock",
+  // ビューアが `flex: 1 1 auto` と `width: 100%` で自分の枠を埋める（`mountAnytimeDiagramPreview`）。
+  "anytime-diagram",
+]);
+
+/**
  * 手動リサイズ幅（`width` 属性）が無いときのプレビュー枠の既定幅。
  *
- * markdown は本文と同じ文章のため、エディタ設定の本文幅（`--am-editor-measure`）いっぱいまで
- * 伸ばす。図（mermaid 等）や math は描画結果に合わせて縮める方が自然なので `fit-content`。
+ * 引数は種別ではなく **language そのもの**（`FULL_WIDTH_PREVIEW_LANGUAGES` の注記を参照）。
  */
-export function defaultPreviewWidth(kind: CodeBlockKind): string {
-  // screenmock は幅 100% 前提の iframe を持つため fit-content だと intrinsic 幅に潰れる
-  return kind === "markdown" || kind === "screenmock" ? "100%" : "fit-content";
+export function defaultPreviewWidth(language: unknown): string {
+  return typeof language === "string" && FULL_WIDTH_PREVIEW_LANGUAGES.has(language)
+    ? "100%"
+    : "fit-content";
 }
 
 /**
@@ -274,7 +294,7 @@ export function createCodeBlockNodeView(
       ? getEmbedStoredWidth(String(currentNode.attrs.language ?? "")) ?? ""
       : (currentNode.attrs.width as string | null) || "";
     const w = draftWidth != null ? `${draftWidth}px` : stored;
-    previewEl.style.width = w || defaultPreviewWidth(kind);
+    previewEl.style.width = w || defaultPreviewWidth(currentNode.attrs.language);
   };
 
   const applyChrome = (): void => {
