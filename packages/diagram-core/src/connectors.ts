@@ -88,6 +88,18 @@ export interface ConnectorGeometry {
  */
 export type ConnectorEnd = ChartNode | { readonly x: number; readonly y: number };
 
+/** 図の上の 1 点。中心・縁・制御点を同じ形で扱うための短縮。 */
+type Point = { readonly x: number; readonly y: number };
+
+/**
+ * 幾何に効く見た目だけ。**引き回しと端の印**を 1 つの塊で受ける。
+ *
+ * 引き回しだけを受け取って端の印を別引数の任意にしない。カーブの張り出し（`clockwiseBow`）は
+ * 印を見て決めるので、渡し忘れた呼び出しだけが黙って昔の形へ戻る。塊で受ければ、引き回しを
+ * 渡す側は必ず印も決めることになる。
+ */
+export type ConnectorLook = Pick<DiagramLineLook, 'route' | 'start' | 'end'>;
+
 const isBox = (end: ConnectorEnd): end is ChartNode => (end as ChartNode).name !== undefined;
 
 const centreOf = (end: ConnectorEnd, spacing: DiagramSpacing) => (isBox(end)
@@ -120,47 +132,158 @@ export function borderPoint(
 }
 
 /**
+ * 折れ線・カーブが端で走る軸。**中心どうしの離れ方が大きいほう**を選ぶ。
+ *
+ * 曲げる軸と端の取り付き位置は同じ 1 つの決定から出す。別々に決めると、縁で切り詰めた 2 点から
+ * 選び直した軸が中心で選んだ軸と食い違い、札の横腹から出た線がすぐ縦へ折れる形が出る。
+ */
+export type RouteAxis = 'horizontal' | 'vertical';
+
+export function routeAxis(
+  from: { readonly x: number; readonly y: number },
+  to: { readonly x: number; readonly y: number },
+): RouteAxis {
+  return Math.abs(to.x - from.x) >= Math.abs(to.y - from.y) ? 'horizontal' : 'vertical';
+}
+
+/**
  * 接続線 1 本の幾何。**箱が重なっている（中心が同じ）ときは `null`**。
  *
  * `null` を返すのは、向きが決まらない線に印を付けると角度が 0 に倒れ、どちらを向いているとも
  * 読めない矢尻が原点向きで残るため。描かないほうが「線がまだ引けていない」と分かる。
+ *
+ * **端は経路に合わせて取る。** 直線は相手の中心を向いた縁の点、折れ線とカーブは**自分の中心から
+ * 軸に沿って伸ばした先**の縁の点（＝その辺の中央）に取り付く。折れ線の端を相手の中心向きで取ると、
+ * 斜めに離れた 2 つでは角の近くに当たり、縦横にしか進めない線が札の角から生えて見える（家族の線は
+ * 最初から辺の中央へ降ろしており、手で引いた線だけがこの決め方から外れていた）。
  */
 export function connectorGeometry(
   from: ConnectorEnd,
   to: ConnectorEnd,
   spacing: DiagramSpacing,
-  route: DiagramLineRoute = 'straight',
+  look: ConnectorLook = DEFAULT_CONNECTOR_LOOK,
 ): ConnectorGeometry | null {
+  const route = look.route;
   const fromCentre = centreOf(from, spacing);
   const toCentre = centreOf(to, spacing);
   if (fromCentre.x === toCentre.x && fromCentre.y === toCentre.y) return null;
-  const start = borderPoint(from, spacing, toCentre);
-  const end = borderPoint(to, spacing, fromCentre);
-  const angle = Math.atan2(toCentre.y - fromCentre.y, toCentre.x - fromCentre.x);
+  if (route === 'straight') {
+    const start = borderPoint(from, spacing, toCentre);
+    const end = borderPoint(to, spacing, fromCentre);
+    const angle = Math.atan2(toCentre.y - fromCentre.y, toCentre.x - fromCentre.x);
+    return {
+      start: { ...start, angle },
+      // 終端から線が伸びていく向きは逆（矢尻は線の進む先を向く）。
+      end: { ...end, angle: angle + Math.PI },
+      path: routePath(start, end, route),
+    };
+  }
+  const axis = routeAxis(fromCentre, toCentre);
+  // 軸の向きだけを見た行き先。横なら相手の x へ真横、縦なら相手の y へ真下（真上）。
+  const along = (
+    centre: { readonly x: number; readonly y: number },
+    other: { readonly x: number; readonly y: number },
+  ) => (axis === 'horizontal' ? { x: other.x, y: centre.y } : { x: centre.x, y: other.y });
+  const start = borderPoint(from, spacing, along(fromCentre, toCentre));
+  const end = borderPoint(to, spacing, along(toCentre, fromCentre));
+  const bow = clockwiseBow(look, axis, fromCentre, toCentre, start, end, spacing);
+  if (bow !== null) return bowedCurve(start, end, bow);
+  // 端の印の向きも軸へ揃える。中心どうしの角度のままだと、真横から入る線に斜めの矢尻が付く。
+  const angle = axis === 'horizontal'
+    ? (toCentre.x >= fromCentre.x ? 0 : Math.PI)
+    : (toCentre.y >= fromCentre.y ? Math.PI / 2 : -Math.PI / 2);
   return {
     start: { ...start, angle },
-    // 終端から線が伸びていく向きは逆（矢尻は線の進む先を向く）。
     end: { ...end, angle: angle + Math.PI },
-    path: routePath(start, end, route),
+    path: routePath(start, end, route, axis),
   };
 }
 
 /**
- * 2 点を結ぶ経路。**端の点は経路で動かさない。**
+ * 揃って並んだ 2 つを結ぶカーブの張り出し。**片端が矢印のときだけ**返す（他は `null`）。
  *
- * 折れ線もカーブも、端そのものは直線のときと同じ場所に置く。経路ごとに取り付き位置を変えると、
- * 引き回しを選び直すたびに端の印（矢尻・丸）が札の周りを跳ぶ。
+ * 上下（左右）に揃っていると、軸の上だけを通るカーブは直線と同じ形に潰れ、「カーブ」を選んだのに
+ * 何も変わらない。そこで軸と直交する側へ張り出して、見た目にも曲線にする。
+ *
+ * 張り出す側は**矢印の向きから見て右回り**。矢印の無い線を曲げないのは、向きの無い線では
+ * 右回り・左回りの区別が読み手に伝わらず、ただ遠回りした線に見えるため。両端が矢印なら
+ * 書いてある順（始点 → 終点）を線の進む向きとする。
+ */
+function clockwiseBow(
+  look: ConnectorLook,
+  axis: RouteAxis,
+  fromCentre: Point,
+  toCentre: Point,
+  start: Point,
+  end: Point,
+  spacing: DiagramSpacing,
+): Point | null {
+  if (look.route !== 'curved') return null;
+  if (look.start !== 'arrow' && look.end !== 'arrow') return null;
+  const aligned = axis === 'vertical' ? fromCentre.x === toCentre.x : fromCentre.y === toCentre.y;
+  if (!aligned) return null;
+  // 線の進む向き（矢印の指す先へ向かう向き）。終点側に印が無ければ、進むのは始点へ向かう側。
+  const forward = look.end === 'arrow' ? 1 : -1;
+  const travel = axis === 'vertical'
+    ? { x: 0, y: Math.sign(toCentre.y - fromCentre.y) * forward }
+    : { x: Math.sign(toCentre.x - fromCentre.x) * forward, y: 0 };
+  // 画面の y は下向き。進む向きを (y, -x) へ回した側が、時計回りに回り込む側になる。
+  const side = { x: travel.y, y: -travel.x };
+  const length = Math.abs(axis === 'vertical' ? end.y - start.y : end.x - start.x);
+  // 短い線でも曲がって見えるよう、札の**交差軸側の大きさ**を下限に敷く。距離だけに比例させると、
+  // 隣り合う 2 つ（間が刻みの隙間しかない）でほぼ直線のままになる。
+  const span = axis === 'vertical' ? spacing.nodeWidth : spacing.nodeHeight;
+  const reach = Math.max(length * CURVE_BOW_RATIO, span * CURVE_BOW_MIN_RATIO);
+  return { x: side.x * reach, y: side.y * reach };
+}
+
+/** 張り出しの深さ。端どうしの距離に対する制御点の持ち上げ幅（実際の膨らみはこの 3/4）。 */
+const CURVE_BOW_RATIO = 0.3;
+/** 張り出しの下限。札の交差軸側の大きさに対する割合。 */
+const CURVE_BOW_MIN_RATIO = 0.25;
+
+/**
+ * 張り出したカーブ 1 本。**端の印の向きは曲線の接線から出す。**
+ *
+ * 軸の向き（真下・真横）のままにしない。張り出したぶん曲線は斜めに出ていくので、軸で決めた
+ * 矢尻だけが線から浮く。
+ */
+function bowedCurve(start: Point, end: Point, bow: Point): ConnectorGeometry {
+  const at = (ratio: number): Point => ({
+    x: start.x + (end.x - start.x) * ratio + bow.x,
+    y: start.y + (end.y - start.y) * ratio + bow.y,
+  });
+  const first = at(1 / 3);
+  const second = at(2 / 3);
+  return {
+    start: { ...start, angle: Math.atan2(first.y - start.y, first.x - start.x) },
+    // 終端から線が伸びていく向きは、最後の制御点へ戻る向き（矢尻は線の進む先を向く）。
+    end: { ...end, angle: Math.atan2(second.y - end.y, second.x - end.x) },
+    path: `M ${round(start.x)} ${round(start.y)} C ${round(first.x)} ${round(first.y)}`
+      + ` ${round(second.x)} ${round(second.y)} ${round(end.x)} ${round(end.y)}`,
+  };
+}
+
+/**
+ * 2 点を結ぶ経路。**受け取った端の点は動かさない。**
+ *
+ * どこへ取り付くかは呼ぶ側（`connectorGeometry`）が経路と一緒に決める。ここで端を選び直すと、
+ * 家族の線（結び目から子の辺の中央へ降ろす）と手で引いた線とで取り付きの決め方が二重になる。
+ *
+ * `axis` は曲げる軸。省略すると渡された 2 点から選ぶ（家族の線はこちら。結び目も子の取り付きも
+ * 点で渡すので、縁で切り詰めたことによる食い違いが起きない）。
  */
 export function routePath(
   start: { readonly x: number; readonly y: number },
   end: { readonly x: number; readonly y: number },
   route: DiagramLineRoute,
+  axis?: RouteAxis,
 ): string {
   const head = `M ${round(start.x)} ${round(start.y)}`;
   if (route === 'straight') return `${head} L ${round(end.x)} ${round(end.y)}`;
   // 長いほうの軸から曲げる。短いほうから曲げると、横に長い図で線が縦へ大きく張り出して
   // 間の札を横切る。
-  const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+  const horizontal = (axis ?? routeAxis(start, end)) === 'horizontal';
   if (route === 'orthogonal') {
     const midX = round((start.x + end.x) / 2);
     const midY = round((start.y + end.y) / 2);

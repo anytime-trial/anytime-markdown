@@ -14,10 +14,13 @@ export {
   DEFAULT_CONNECTOR_LOOK,
   type ConnectorGeometry,
   connectorGeometry,
+  type ConnectorLook,
   familyLook,
   midpointOf,
   type ConnectorPointAt,
   MAX_CONNECTORS_PER_DIAGRAM,
+  type RouteAxis,
+  routeAxis,
   routePath,
   sameAnchor,
 } from './connectors';
