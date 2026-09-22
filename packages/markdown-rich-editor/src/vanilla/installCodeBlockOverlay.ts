@@ -62,6 +62,7 @@ import { attachAnytimeGraphInteractions } from "./anytimeGraphInteract";
 import { createCodeEditState } from "./codeEditState";
 import { captureDiagramPng, exportDiagramSource } from "./diagramCapture";
 import { createCodeBlockEditDialog } from "./createCodeBlockEditDialog";
+import { createDiagramEditDialog } from "./createDiagramEditDialog";
 import { mountAnytimeChartPreview } from "../utils/anytimeChartPreview";
 import { createChartTableEditor } from "./createChartTableEditor";
 import { createFullscreenDiffDialog } from "./createFullscreenDiffDialog";
@@ -451,6 +452,13 @@ export function installCodeBlockOverlay(
     activeDialog = handle;
   };
 
+  const openAnytimeDiagramEdit = (common: CommonDialogOptions): void => {
+    activeDialog = createDiagramEditDialog({
+      ...common,
+      label: t("anytimeDiagram"),
+    });
+  };
+
   const openScreenmockEdit = (common: CommonDialogOptions): void => {
     let designMode = false;
     let lastSelectedPath: string | null = null;
@@ -592,6 +600,10 @@ export function installCodeBlockOverlay(
     }
     if (language === "anytime-chart") {
       openAnytimeChartEdit(common);
+      return true;
+    }
+    if (language === "anytime-diagram") {
+      openAnytimeDiagramEdit(common);
       return true;
     }
     return false;

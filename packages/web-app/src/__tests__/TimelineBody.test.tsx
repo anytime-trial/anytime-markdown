@@ -56,7 +56,8 @@ describe('TimelineBody', () => {
     renderBody();
     const cards = screen.getAllByTestId('release-card');
     expect(cards).toHaveLength(3);
-    expect(cards.map((c) => c.getAttribute('data-kind'))).toEqual(['cli', 'cli', 'model']);
+    // 月グループは新しい順（上ほど最近）。2026-05 のモデルが先に来る
+    expect(cards.map((c) => c.getAttribute('data-kind'))).toEqual(['model', 'cli', 'cli']);
   });
 
   it('月ごとに見出しを立てる', () => {

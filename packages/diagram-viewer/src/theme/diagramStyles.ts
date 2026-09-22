@@ -51,6 +51,13 @@ export const DIAGRAM_STYLES = `
   --diagram-accent: var(--am-color-primary-main, var(--vscode-focusBorder, #3D4A52));
   --diagram-danger: var(--am-color-error-main, var(--vscode-errorForeground, #6B2A20));
   --diagram-radius: 6px;
+  /*
+    ミニマップの札の幅。**\`ui/minimap.ts\` の \`MAP_SIZE.width\`（180）＋ 余白 4×2 ＋ 縁 1×2** と
+    同じ値。ここに写しを置くのは、左上の操作列が右上の札と重ならないよう幅を空けるのに要るため
+    （下の \`.anytime-diagram-toolbar\`）。両方が同じ数を知らないと、狭い枠で操作列の右端が札の下へ
+    潜り、押せないボタンが出る。
+  */
+  --diagram-minimap-width: 190px;
 
   display: flex;
   flex-direction: column;
@@ -80,6 +87,27 @@ export const DIAGRAM_STYLES = `
 
 .anytime-diagram-toolbar,
 .anytime-diagram-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+
+/*
+  操作列（要素を選ぶ・編集と閲覧の切り替え・保存・自動配置に戻す）。**枠の中の左上**へ浮かせる
+  （ユーザー指示）。かつては枠の外の帯だったが、対象（図）と操作を同じ場所へ置くため中へ移した
+  — 見え方の操作・選択の区画を枠の中へ移したのと同じ理由。
+
+  左上はミニマップを右上へ寄せて空いた場所（\`.anytime-diagram-minimap\`）。見た目は選択の区画と
+  同じ札（\`.anytime-diagram-panel\` を併せて付ける）で、枠の中の浮きものを 1 種類に揃える。
+
+  縁のアイコン（z-index 1）より上に置く。代わりに、この区画と重なる ＋ は描かない
+  （\`blockedBoxes\`）。
+*/
+.anytime-diagram-toolbar {
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  /*
+    右上の札のぶんを空ける（8px の余白 2 つ＋札と札の間 8px）。空けないと、狭い枠で操作列の
+    右端が札の下へ潜る — 同じ z-index では後から置いた札が上に来るので、\`自動配置に戻す\` が
+    見えているのに押せない状態になる。入り切らない操作は折り返す（\`flex-wrap: wrap\`）。
+  */
+  max-width: calc(100% - var(--diagram-minimap-width) - 24px);
+}
 
 /*
   枠の中へ浮かせる区画（選択・線の見た目）。左下に重ね、下から上へ積む。
@@ -115,9 +143,19 @@ export const DIAGRAM_STYLES = `
   background: var(--diagram-bg); color: var(--diagram-fg); border: 1px solid var(--diagram-border);
   border-radius: var(--diagram-radius); padding: 6px 10px; font: inherit; cursor: pointer;
 }
+/*
+  枠の中へ移した操作列は、図に譲る面積が惜しいので選択の区画と同じ寸法まで詰める。
+  **\`font-size\` は上の \`font: inherit\` より後ろに置く**（前に置くと一括指定に消される）。
+*/
+.anytime-diagram-toolbar button,
+.anytime-diagram-toolbar select { padding: 3px 8px; font-size: 11px; }
 .anytime-diagram-toolbar button:disabled,
 .anytime-diagram-selection button:disabled { opacity: 0.45; cursor: default; }
-.anytime-diagram-toolbar select { max-width: min(65vw, 300px); cursor: default; }
+/*
+  選び口の上限は **px で置く**（画面幅 \`vw\` でも親の % でもなく）。\`vw\` は狭い器へ埋め込んだ図で
+  枠からはみ出し、% は中身の幅で決まる札の中では基準が定まらず効かない。
+*/
+.anytime-diagram-toolbar select { max-width: 200px; cursor: default; }
 .anytime-diagram-toolbar output,
 .anytime-diagram-selection output { color: var(--diagram-muted); }
 
@@ -761,13 +799,13 @@ export const DIAGRAM_STYLES = `
 }
 
 /*
-  ミニマップ。**図の枠の左上**へ浮かせ、中に見え方の操作を抱える。
+  ミニマップ。**図の枠の右上**へ浮かせ、中に見え方の操作を抱える（ユーザー指示）。
 
-  縁のアイコン（z-index 1）より上に置く。両方が左上へ集まるので、下にすると全体図が ＋ に
-  隠れる。代わりに、この区画と重なる ＋ は描かない（\`blockedBoxes\`）。
+  縁のアイコン（z-index 1）より上に置く。下にすると全体図が ＋ に隠れる。代わりに、この区画と
+  重なる ＋ は描かない（\`blockedBoxes\` が実寸で測るので、寄せる辺を変えても追従する）。
 */
 .anytime-diagram-minimap {
-  position: absolute; top: 8px; left: 8px; z-index: 2;
+  position: absolute; top: 8px; right: 8px; z-index: 2; width: var(--diagram-minimap-width);
   display: flex; flex-direction: column; gap: 4px; padding: 4px;
   border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
   background: var(--diagram-raised);

@@ -3,6 +3,8 @@ import { detectMermaidType } from "../hooks/useMermaidRender";
 /** Max input length to prevent ReDoS */
 const MAX_INPUT_LENGTH = 500;
 const MAX_ELEMENTS = 5;
+/** 代替テキストへ載せる題名の上限（読み上げが長くなりすぎないため） */
+const MAX_TITLE_LENGTH = 60;
 
 /** Type label map (matches i18n keys from detectMermaidType) */
 const TYPE_LABELS: Record<string, string> = {
@@ -207,6 +209,45 @@ function buildChartAltText(code: string): string {
   return "Chart";
 }
 
+/**
+ * 系図 JSON の題名と要素名を要約する。
+ *
+ * 入力は切り詰めない（切り詰めると JSON が壊れて常に汎用ラベルへ落ち、実寸の図で代替テキストが
+ * 一切出なくなる。chart と同じ扱い）。読み上げが長くなりすぎないよう、題名の長さと列挙件数は
+ * ここで抑える。
+ */
+function buildDiagramAltText(code: string): string {
+  try {
+    const parsed: unknown = JSON.parse(code);
+    if (parsed === null || typeof parsed !== "object") return "Diagram";
+    const doc = parsed as { title?: unknown; nodes?: unknown; families?: unknown };
+    const names: string[] = [];
+    const collect = (values: unknown): void => {
+      if (Array.isArray(values)) {
+        for (const value of values) {
+          if (typeof value === "string" && value) names.push(value);
+        }
+      }
+    };
+    collect(doc.nodes);
+    if (Array.isArray(doc.families)) {
+      for (const family of doc.families) {
+        if (family !== null && typeof family === "object") {
+          collect(family.parents);
+          collect(family.children);
+        }
+      }
+    }
+    const people = unique(names);
+    const rawTitle = typeof doc.title === "string" && doc.title ? doc.title : "Diagram";
+    const title = rawTitle.length > MAX_TITLE_LENGTH ? `${rawTitle.slice(0, MAX_TITLE_LENGTH)}...` : rawTitle;
+    return formatList(title + " (" + people.length + " elements)", people);
+  } catch {
+    // 不完全または入力上限を超える JSON は汎用ラベルへ戻す。
+    return "Diagram";
+  }
+}
+
 /** math の数式から alt テキストを組み立てる（30 文字で切り詰め） */
 function buildMathAltText(code: string): string {
   const trimmed = code.trim();
@@ -239,7 +280,7 @@ function buildMermaidAltText(safeCode: string): string {
  */
 export function extractDiagramAltText(
   code: string,
-  language: "mermaid" | "plantuml" | "html" | "math" | "anytime-thinking-model" | "anytime-chart"
+  language: "mermaid" | "plantuml" | "html" | "math" | "anytime-thinking-model" | "anytime-chart" | "anytime-diagram"
 ): string {
   if (!code.trim()) return "Diagram";
 
@@ -251,6 +292,7 @@ export function extractDiagramAltText(
   if (language === "anytime-thinking-model") return buildThinkingModelAltText(safeCode);
 
   if (language === "anytime-chart") return buildChartAltText(code);
+  if (language === "anytime-diagram") return buildDiagramAltText(code);
 
   if (language === "math") return buildMathAltText(code);
 

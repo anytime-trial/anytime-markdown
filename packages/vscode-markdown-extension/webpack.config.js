@@ -71,6 +71,11 @@ const webviewConfig = {
       '@anytime-markdown/graph-core': path.resolve(__dirname, '../graph-core/src'),
       '@anytime-markdown/ui-core$': path.resolve(__dirname, '../ui-core/src/index.ts'),
       '@anytime-markdown/ui-core': path.resolve(__dirname, '../ui-core/src'),
+      // 系図（anytime-diagram フェンス）も同じ理由で当該 worktree の src に固定する。
+      '@anytime-markdown/diagram-core$': path.resolve(__dirname, '../diagram-core/src/index.ts'),
+      '@anytime-markdown/diagram-core': path.resolve(__dirname, '../diagram-core/src'),
+      '@anytime-markdown/diagram-viewer$': path.resolve(__dirname, '../diagram-viewer/src/index.ts'),
+      '@anytime-markdown/diagram-viewer': path.resolve(__dirname, '../diagram-viewer/src'),
     },
   },
   module: {

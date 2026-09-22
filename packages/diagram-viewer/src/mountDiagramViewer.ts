@@ -91,9 +91,16 @@ const INITIAL_VIEW: ChartView = { x: 20, y: 20, scale: 0.7 };
 const RESIZE_PX = 4;
 const COARSE_RESIZE_PX = 20;
 
-/** 押下を渡さない要素。ここで始めたドラッグは図の平行移動にしない。 */
+/**
+ * 押下を渡さない要素。ここで始めたドラッグは図の平行移動にしない。
+ *
+ * **枠の中へ浮かせた札（操作列・選択の区画）は、器ごと渡さない。** 操作要素の名前だけで見ると、
+ * 札の中のボタンとボタンの**隙間**（余白・`gap`）が素通りし、操作しに行った指が図を動かし、
+ * ついでに選択まで外す。札は図の上に載っているのだから、札のどこを押しても図への操作ではない。
+ */
 const interactive = (target: EventTarget | null): boolean =>
-  target instanceof Element && target.closest('button, a, input, select, details') !== null;
+  target instanceof Element
+  && target.closest('button, a, input, select, details, .anytime-diagram-toolbar, .anytime-diagram-panel') !== null;
 /**
  * ホイールの拡大縮小を塞いでよい要素。**中でスクロール・値の増減が起こるものだけ**。
  *
@@ -117,6 +124,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   const doc = container.ownerDocument;
   let document_ = options.document;
   let editable = options.editable ?? false;
+  /** 常に編集状態で出すか。切替と保存の口を図から外し、保存は宿主の `save()` が起こす。 */
+  const alwaysEditing = options.alwaysEditing ?? false;
   let compact = options.compact ?? false;
   let t: DiagramT = createDiagramT(options.locale);
   /**
@@ -167,7 +176,11 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     readonly start: DiagramSpacing;
     readonly scale: number;
   } | null = null;
-  let draft: DiagramDocument | null = null;
+  /*
+    常時編集の宿主は下書きを持った状態から始める。**`setDraft` を通さない**のは、開いただけで
+    「下書きが変わった」と宿主へ伝えると、何も触っていない図に未保存の印が点くため。
+  */
+  let draft: DiagramDocument | null = alwaysEditing && editable ? document_ : null;
   let saving = false;
   let notice = '';
   let dragging = false;
@@ -320,8 +333,8 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    * 選択と線の区画を枠の左下へ重ねる入れ物。
    *
    * 枠の外の帯から移した。対象（選んだ札・選んだ線）と、それに効く操作を同じ場所へ置くため
-   * — 見え方の操作を枠の中へ移したのと同じ理由。左下を選ぶのは、左上が見え方の操作で、
-   * 上端と左端には行・列を増やす ＋ の帯が走っているため。
+   * — 見え方の操作を枠の中へ移したのと同じ理由。左下を選ぶのは、左上が操作列・右上が見え方の
+   * 操作で埋まっており、上端と左端には行・列を増やす ＋ の帯が走っているため。
    */
   const panels = el(doc, 'div', { className: 'anytime-diagram-panels' });
   panels.append(chrome.selectionBar, chrome.connectorBar);
@@ -329,9 +342,14 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   // 縁のアイコンは**図より前に置く**。後ろに置くとタブ順が人物数ぶんの取っ手の後になり、
   // 最初の ＋ へ届くまで何百回も Tab を押すことになる。重ね順は z-index で決める。
   minimap.controls.appendChild(viewControls.root);
-  viewport.append(gutter.root, cellAdders.root, surface, minimap.root, panels, groupDialog.root, confirmView.root);
+  // 操作列は**縁のアイコンより前**に置く。枠に入った浮きものの中でいちばん使うので、Tab の
+  // 1 回目で届く場所に要る（後ろに置くと行・列の ＋ を全部越えてからになる）。
+  viewport.append(
+    chrome.toolbar, gutter.root, cellAdders.root, surface,
+    minimap.root, panels, groupDialog.root, confirmView.root,
+  );
   root.append(
-    style, chrome.title, chrome.lead, chrome.toolbar,
+    style, chrome.title, chrome.lead,
     chrome.blocked, chrome.error, viewport, chrome.note,
   );
   container.appendChild(root);
@@ -1155,13 +1173,30 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   }
 
   async function save(): Promise<void> {
-    if (options.onSave === undefined || draft === null) return;
+    // 門はここに置く。図の中の保存ボタンの `disabled` に頼ると、そのボタンを出さない
+    // `alwaysEditing` の宿主（自分の「適用」から呼ぶ）では門が 1 つも無くなり、連打した
+    // 2 本目が保存中の `updateDraft` 抑止を素通りする。
+    if (options.onSave === undefined || draft === null || saving) return;
     saving = true;
     notice = '';
     paint();
     try {
-      await options.onSave(draft);
-      setDraft(null);
+      const saved = draft;
+      // 宿主が実際に書いた形（検証で正規化された図）を返してきたらそれを採る。返さなければ
+      // 渡した下書きのまま。返り値を無視すると、正規化で変わった図を「未保存」として持ち続ける。
+      const persisted = await options.onSave(saved);
+      const kept = persisted ?? saved;
+      /*
+        常時編集では編集を抜けない（抜ける口が画面に無い）。保存した図を次の土台に据えて
+        下書きを置き直す — 据え直さないと「変更あり」が落ちず、宿主の未保存の印も
+        「自動配置に戻す」も保存のたびに点いたまま残る。
+      */
+      if (alwaysEditing) {
+        document_ = kept;
+        setDraft(kept);
+      } else {
+        setDraft(null);
+      }
       clearTransientSelection();
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
@@ -1316,7 +1351,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
    */
   function blockedBoxes(): readonly { left: number; top: number; right: number; bottom: number }[] {
     const frameBox = viewport.getBoundingClientRect();
-    return [minimap.root, chrome.selectionBar, chrome.connectorBar]
+    return [chrome.toolbar, minimap.root, chrome.selectionBar, chrome.connectorBar]
       .map((element) => element.getBoundingClientRect())
       .filter((box) => box.width > 0 && box.height > 0)
       .map((box) => ({
@@ -1523,16 +1558,12 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       view,
       frame,
     });
-    // 見え方の操作の区画（枠の左上）と重なる ＋／− は描かない。重ねると上に載っているほうが
-    // 押下を取り、押したつもりの切れ目とは違う位置へ挿入される。
-    const blocked = blockedBoxes();
-    gutter.update({
-      editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,
-    });
-    cellAdders.update({
-      editing, saving, spacing: model.spacing, view, frame,
-      extent: model.extent, occupied: model.occupied, blocked,
-    });
+    /*
+      **札の中身を先に当ててから測る。** 保存の口・自動配置に戻す・選択の区画は、この更新で
+      出入りし幅も変わる。測ってから当てる順にすると、ゲッターは 1 描画前の札の大きさを見て
+      逃がし先を決め、広がった側の切れ目が札の下に入ったまま押せなくなる（編集へ入った直後の
+      1 描画で実測）。
+    */
     chrome.update({
       document: model.source,
       names: model.chart.nodes.map((node) => node.name),
@@ -1540,6 +1571,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       selectionCount: picked.size,
       editing,
       editable,
+      alwaysEditing,
       compact,
       canSave: options.onSave !== undefined,
       changed: model.changed,
@@ -1553,6 +1585,20 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         ? diagramShapeOf(model.source, lastChosen())
         : DEFAULT_DIAGRAM_SHAPE,
       lineSelection: currentLineSelection(),
+    });
+    /*
+      枠の中へ浮かせた札（左上の操作列・右上の見え方の操作・左下の選択）と重なる ＋／− は、
+      札の脇へ逃がす（`ui/gutter.ts` の `avoiding`）。重ねたままにすると上に載っているほうが
+      押下を取り、押したつもりの切れ目とは違う位置へ挿入される。升目の ＋ は逃がし先が
+      その升目そのものなので、従来どおり描かない。
+    */
+    const blocked = blockedBoxes();
+    gutter.update({
+      editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,
+    });
+    cellAdders.update({
+      editing, saving, spacing: model.spacing, view, frame,
+      extent: model.extent, occupied: model.occupied, blocked,
     });
   }
 
@@ -1629,6 +1675,10 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
         // 差し替えた図も全体表示から始める。前の図に合わせた倍率を持ち越すと、大きさの違う
         // 図では画面の外や豆粒の状態で開く。
         fitted = false;
+        // 常時編集の宿主では新しい図で編集し直す。**`setDraft` を通す** — 直前の
+        // `setDraft(null)` で「編集していない」と伝えたままにすると、宿主が持つ下書きの
+        // 有無が画面と食い違う。
+        if (alwaysEditing && editable) setDraft(document_);
       }
       if (next.locale !== undefined || next.document !== undefined) {
         // 札の文言は要素を作るときに焼き込むので、locale が変わったら作り直す。
@@ -1641,6 +1691,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       paint();
     },
     getDraft: () => draft,
+    save,
     destroy(): void {
       observer?.disconnect();
       viewport.removeEventListener('wheel', onWheel);

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-09-22
+
+### Added
+
+- Added the `anytime-diagram` code block language (genealogy fence). The fence body is the full `DiagramDocument` JSON, the same content a `*.diagram.json` file holds. The "Genealogy Diagram" slash command inserts an empty document built by `createEmptyDiagramDocument` and opens the edit dialog through `autoEditOpen`; both the inserted template and the saved text go through `serializeDiagramDocument`, so opening and saving a fence never rewrites the body wholesale. `diagram-core` was added as a dependency and `lowlight` now registers the language.
+- `markdown-rich-editor` renders the fence inline with `mountDiagramViewer` in read-only mode (`editable: false`) and edits it in a dedicated dialog (`createDiagramEditDialog`) rather than the generic code block dialog, whose `render()` rebuilds the preview pane on every state change and would drop a selection or a rename in progress on each keystroke. Bodies that cannot be read (malformed JSON, validation errors) show the reason under the `anytime-diagram-fence-error` class instead of silently rendering empty.
+
+### Fixed
+
+- `markdown-rich-editor`: inline previews of `anytime-diagram` no longer collapse to the width of the title (~70px measured). The default preview width is now decided by `language` rather than by `CodeBlockKind`: the diagram viewer fills its container with percentages and flex, which do not resolve inside a `fit-content` box, while `mermaid` / `plantuml` / `anytime-thinking-model` / `anytime-chart` return SVG, images or canvases with intrinsic size and must keep the old behaviour. The languages that expand to full width are held as a set (`markdown` / `screenmock` / `anytime-diagram`).
+- `markdown-rich-editor`: the preview container is now a column flex box, so the viewer's `flex: 1 1 auto` has something to grow against. It previously stopped at the viewer's 240px minimum height and left the bottom of the frame empty.
+
+### Changed
+
+- `markdown-rich-editor`: added tests that pin the full-width preview contract. Every member of `FULL_WIDTH_PREVIEW_LANGUAGES` is checked against `classifyCodeBlock`, and the container's `display: flex` / `flexDirection: column` are asserted. The language list lives in two places, so a rename or a typo in one of them would have reintroduced the collapse without failing type checks or tests.
+
 
 ## [1.23.3] - 2026-09-21
 

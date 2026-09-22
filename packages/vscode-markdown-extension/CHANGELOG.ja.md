@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-09-22
+
+### 変更
+
+- webview のバンドルで `@anytime-markdown/diagram-core` / `@anytime-markdown/diagram-viewer` を当該 worktree の `src` に固定した（他のワークスペースパッケージと同じ扱い）。別チェックアウトのソースへ解決されないようにするため。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- コードブロック言語 `anytime-diagram`（系図フェンス）を追加した。本文は `*.diagram.json` と同じ `DiagramDocument` の JSON で、スラッシュコマンド「系図」で空の系図を挿入して専用の編集ダイアログを開く。
+- `anytime-diagram` のインラインプレビューが題名の文字幅まで潰れていたのを直した。全幅にする判断を種別から言語へ移し、プレビューの器を縦の flex にしてビューアが伸びられるようにした。
+
+### Diagram Core (diagram-core / diagram-viewer)
+
+- 手で引いた線を持つ系図を保存すると検証で断られていたのを直した。画面の形の端を `diagram-core` の `validateDiagramDraft` で正規化し、フェンス・`mcp-diagram`・web-app の 3 経路が同じ入口を通る。
+- 編集ダイアログを最初から編集状態で開き、保存の口を「適用」1 つへ寄せた。上下（左右）に揃った 2 要素を結ぶカーブは直線に潰れず右回りに張り出す。
+
 
 ## [1.23.3] - 2026-09-21
 

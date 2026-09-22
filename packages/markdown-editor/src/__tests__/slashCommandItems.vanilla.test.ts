@@ -6,7 +6,7 @@
  * リグレッションテスト。旧 slashCommandItems.test.ts の検証観点を vanilla 仕様で復元する。
  *
  * 検証観点:
- *   1. 既定 items が全コマンド分（34 件）定義されている
+ *   1. 既定 items が全コマンド分（40 件）定義されている
  *   2. 必須プロパティ（id/labelKey/iconPath/keywords/action）と id 一意性
  *   3. labelKey が ja/en の i18n リソースに存在する
  *   4. e2e が依存する代表クエリが filterVanillaSlashItems でヒットする
@@ -24,6 +24,12 @@ jest.mock("../constants/templates", () => ({
 jest.mock("../constants/defaultContent", () => ({
   getDefaultContent: (locale: string) => `# Welcome ${locale}`,
 }));
+
+import {
+  createEmptyDiagramDocument,
+  serializeDiagramDocument,
+  validateDiagramDocument,
+} from "@anytime-markdown/diagram-core";
 
 import { DEFAULT_SLASH_ITEMS } from "../components-vanilla/slashCommandItems";
 import { filterVanillaSlashItems } from "../components-vanilla/SlashCommandMenu";
@@ -54,13 +60,14 @@ function createChainEditor() {
 }
 
 describe("DEFAULT_SLASH_ITEMS", () => {
-  it("全コマンド分（39 件）が定義されている", () => {
+  it("全コマンド分（40 件）が定義されている", () => {
     expect(Array.isArray(DEFAULT_SLASH_ITEMS)).toBe(true);
     // 思考法ダイアグラムは6図種→総称1項目に集約したため 40→35。
     // チャート（anytime-chart）総称1項目を追加して 36。
     // Web 取り込みを追加して 38。
     // 画面モック（screenmock）を追加して 39。
-    expect(DEFAULT_SLASH_ITEMS.length).toBe(39);
+    // 系図（anytime-diagram）を追加して 40。
+    expect(DEFAULT_SLASH_ITEMS.length).toBe(40);
   });
 
   it("必須プロパティが揃い id が一意である", () => {
@@ -238,5 +245,30 @@ describe("DEFAULT_SLASH_ITEMS", () => {
         .text;
       expect(text).toContain("チャート");
     });
+  });
+});
+
+describe("anytime-diagram action", () => {
+  it("diagram-core の正本と同じ本文を挿入する", () => {
+    const { editor, calls } = createChainEditor();
+    DEFAULT_SLASH_ITEMS.find((item) => item.id === "anytime-diagram")!.action(editor);
+    const inserted = calls.find((call) => call.method === "insertContent")!.args[0] as {
+      type: string;
+      attrs: { language: string; autoEditOpen: boolean };
+      content: { text: string }[];
+    };
+    expect(inserted.type).toBe("codeBlock");
+    expect(inserted.attrs).toEqual({ language: "anytime-diagram", autoEditOpen: true });
+
+    // 保存時に通る serializeDiagramDocument と同じ形であること。ここが食い違うと、開いて
+    // 保存しただけで本文が丸ごと書き換わる（雛形を書き写すと静かに壊れる箇所）。
+    const text = inserted.content[0].text;
+    const doc = JSON.parse(text) as { title: string };
+    expect(["系図", "Diagram"]).toContain(doc.title);
+    expect(text).toBe(serializeDiagramDocument(createEmptyDiagramDocument(doc.title)).trimEnd());
+
+    // 図として読めること（正本の parser を通す）。
+    const parsed = validateDiagramDocument(JSON.parse(text));
+    expect(parsed.ok).toBe(true);
   });
 });

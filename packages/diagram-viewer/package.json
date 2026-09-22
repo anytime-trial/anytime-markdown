@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/diagram-viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "private": true,
   "description": "系図（ダイアグラム）の閲覧・配置編集 UI。React 非依存の vanilla DOM。",

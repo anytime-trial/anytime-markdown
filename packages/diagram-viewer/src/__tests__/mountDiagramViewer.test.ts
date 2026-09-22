@@ -10,7 +10,7 @@
 import { DEFAULT_DIAGRAM_SPACING, type DiagramDocument, type DiagramLayout } from '@anytime-markdown/diagram-core';
 
 import { mountDiagramViewer } from '../mountDiagramViewer';
-import { covered, type Spec } from '../ui/gutter';
+import { avoiding, type Spec } from '../ui/gutter';
 import type { DiagramViewerHandle, DiagramViewerOptions } from '../types';
 
 const DOC: DiagramDocument = {
@@ -188,6 +188,98 @@ describe('保存', () => {
     expect(error.classList.contains('anytime-diagram-hidden')).toBe(false);
   });
 
+  /*
+    宿主（markdown 拡張の系図フェンス）は編集そのものを目的にダイアログを開く。閲覧状態から
+    始めて切替を押させるのは、開いた人がまず何もできない画面を 1 枚挟むということ。
+    切替と保存の口は宿主の「適用」が受け持つので、図の側には出さない（ユーザー指示）。
+  */
+  describe('常時編集（alwaysEditing）', () => {
+    /** 幾何に依らない編集 1 つ（升目の ＋ は枠を測ってからでないと出ない）。 */
+    const moved = { ...DOC, layout: { placements: { 子: { column: 4, row: 3 } } } };
+    const resetLayout = (): void => { byText('自動配置に戻す')!.click(); byText('戻す')!.click(); };
+
+    it('開いた時点で編集状態にし、切替と保存の口を出さない', () => {
+      mount({ editable: true, onSave: () => {}, alwaysEditing: true });
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(false);
+      // 編集中なので絵は「閲覧へ戻る」を指している。その 1 つを出さない。
+      expect(byLabel('編集に切り替える')).toBeNull();
+      expect(byLabel('閲覧に切り替える')!.classList.contains('anytime-diagram-hidden')).toBe(true);
+      expect(byText('保存')?.classList.contains('anytime-diagram-hidden')).toBe(true);
+      // 自動配置に戻す口は残す（編集中の操作であって、編集への入口ではない）。
+      expect(byText('自動配置に戻す')?.classList.contains('anytime-diagram-hidden')).toBe(false);
+    });
+
+    it('開いただけでは下書きの変化を伝えない（宿主の未保存の印を点けない）', () => {
+      const onDraftChange = jest.fn();
+      mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });
+      expect(onDraftChange).not.toHaveBeenCalled();
+      resetLayout();
+      expect(onDraftChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('閲覧専用では編集状態にしない', () => {
+      mount({ editable: false, onSave: () => {}, alwaysEditing: true });
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(true);
+    });
+
+    it('宿主から保存を起こせる（図に保存ボタンが無いため）', async () => {
+      const onSave = jest.fn();
+      const view = mount({ document: moved, editable: true, onSave, alwaysEditing: true });
+      resetLayout();
+      await view.save();
+      expect(onSave).toHaveBeenCalledTimes(1);
+      expect(onSave.mock.calls[0]![0].layout.placements).toEqual({});
+    });
+
+    it('保存中は 2 本目の保存を受け付けない', async () => {
+      let finish = (): void => {};
+      const onSave = jest.fn(() => new Promise<void>((resolve) => { finish = () => resolve(); }));
+      const view = mount({ document: moved, editable: true, onSave, alwaysEditing: true });
+      resetLayout();
+      const first = view.save();
+      // 図に保存ボタンが無いぶん、門は save() の中にしか無い（宿主の「適用」は連打できる）。
+      void view.save();
+      finish();
+      await first;
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+
+    it('宿主が書いた形を返せばそれを次の土台にする', async () => {
+      const written: DiagramDocument = { ...DOC, title: '書かれた図' };
+      const view = mount({ document: moved, editable: true, onSave: () => written, alwaysEditing: true });
+      resetLayout();
+      await view.save();
+      expect(view.getDraft()).toBe(written);
+    });
+
+    it('図を差し替えても編集状態のまま続け、宿主へも伝える', () => {
+      const onDraftChange = jest.fn();
+      const view = mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });
+      const next: DiagramDocument = { ...DOC, title: '差し替えた図' };
+      view.update({ document: next });
+      expect(view.getDraft()).toBe(next);
+      // 「編集していない」（null）を伝えたまま終わらない。宿主の未保存の印が画面と食い違う。
+      expect(onDraftChange).toHaveBeenLastCalledWith(next);
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(false);
+    });
+
+    it('保存しても編集状態のまま続け、保存した図を次の土台にする', async () => {
+      const onDraftChange = jest.fn();
+      const view = mount({ document: moved, editable: true, onSave: () => {}, alwaysEditing: true, onDraftChange });
+      resetLayout();
+      await view.save();
+      // 編集を抜けない（抜ける口が画面に無い）。抜けると操作列も取っ手も消えて手が止まる。
+      expect(container.querySelector('.anytime-diagram-grid')?.classList.contains('anytime-diagram-hidden'))
+        .toBe(false);
+      expect(view.getDraft()!.layout.placements).toEqual({});
+      // 保存した図を下書きとして伝え直す。伝えないと、宿主は保存済みの中身を未保存として扱う。
+      expect(onDraftChange).toHaveBeenLastCalledWith(view.getDraft());
+    });
+  });
+
   it('下書きの変化を宿主へ伝える', () => {
     const onDraftChange = jest.fn();
     mount({ editable: true, onSave: () => {}, onDraftChange });
@@ -236,6 +328,53 @@ describe('行・列を増減できない図', () => {
 });
 
 /**
+ * 操作列（要素を選ぶ・編集と閲覧の切り替え・保存・自動配置に戻す）も**図の枠の中**へ浮かせる。
+ *
+ * 枠の外の帯に残すと、対象（図）と操作が別の場所に分かれ、図を見ながら指と視線が上の帯へ往復する。
+ * 枠の外に戻っても jsdom の見た目は変わらない（位置は CSS が決める）ので、**どちらの親に属するか**を
+ * 見張る。ここが緩むと、次に枠まわりを触った誰かが何も壊さずに枠の外へ戻せてしまう。
+ *
+ * ＋ との重なり（`blockedBoxes` に操作列を入れたこと）はここでは測れない — jsdom の矩形はすべて
+ * 0 で、実寸の重なりは必ず「重ならない」と出る。規則そのものは「縁のアイコンと操作の区画の重なり」
+ * が測っており、実寸での確認は実機で行う。
+ */
+describe('操作列の置き場', () => {
+  const toolbar = () => container.querySelector('.anytime-diagram-toolbar')!;
+
+  it('図の枠の中に置く（枠の外＝根の直下には出さない）', () => {
+    mount();
+    const viewport = container.querySelector('.anytime-diagram-viewport')!;
+    expect(viewport.contains(toolbar())).toBe(true);
+    expect(toolbar().parentElement).toBe(viewport);
+  });
+
+  it('枠の中の浮きものと同じ札の見た目にする', () => {
+    mount();
+    expect(toolbar().classList.contains('anytime-diagram-panel')).toBe(true);
+  });
+
+  /*
+    札は図の上に載っているので、**ボタンとボタンの隙間**（余白・`gap`）を押しても図への操作には
+    しない。枠の中へ移すまでは操作列が枠の外に居たので起こり得なかった破れで、素通りさせると
+    操作しに行った指が選択を外し、そのまま動かせば図まで動く。
+  */
+  it('札の隙間を押しても線の選択は外れない（図の地ではない）', () => {
+    mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    container.querySelector('.anytime-diagram-edges path:not(.anytime-diagram-hidden)')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const bar = (): boolean =>
+      !container.querySelector('.anytime-diagram-connectorbar')!.classList.contains('anytime-diagram-hidden');
+    expect(bar()).toBe(true);
+
+    // jsdom に `PointerEvent` は無い。他の押下の検査と同じく `MouseEvent` で代える。
+    toolbar().dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+
+    expect(bar()).toBe(true);
+  });
+});
+
+/**
  * 見え方の操作（拡大・縮小・全体表示・初期表示）は**図の枠の中**に、**絵で**置く。
  *
  * 枠の外の操作列に字で並べると、幅 1 万 px の図を見ながら視線と指が上の帯へ往復する。
@@ -275,45 +414,70 @@ describe('見え方の操作', () => {
 });
 
 /**
- * 行・列の ＋／− を、見え方の操作の区画の下へ置かない（押下を奪い合わせない）。
+ * 行・列の ＋／− を、枠へ浮かせた札の下に埋めない（押下を奪い合わせない）。
+ *
+ * **消さずに脇へ逃がす。** 操作列を枠の中へ移してからは隠れる切れ目が増え、「＋ が出ない」と
+ * 読まれた（ユーザー指摘）。逃がすのは固定されている側だけ — 列のアイコンは札の下へ、行の
+ * アイコンは札の右へ出し、切れ目そのものの位置は動かさない。
  *
  * **判定の規則そのものを測る。** jsdom は版組みをしないので `getBoundingClientRect` が
  * すべて 0 を返す。実際の矩形で重なりを測る検査はここでは必ず「重ならない」と言い、何も
  * 守らない。実寸での確認は実機（ブラウザ）で行う。
  */
-describe('縁のアイコンと操作の区画の重なり', () => {
+describe('縁のアイコンと枠へ浮かせた札の重なり', () => {
   const spec = (over: Partial<Spec>): Spec => ({
     key: 'k', axis: 'column', kind: 'insert', index: 0, left: null, top: null, label: 'l', ...over,
   });
-  /** 枠の左上に浮かぶ操作の区画（幅 150 × 高さ 32、8px の余白つき）を模す。 */
+  /** 枠の左上に浮かぶ札（幅 150 × 高さ 32、8px の余白つき）を模す。 */
   const panel = [{ left: 8, top: 8, right: 158, bottom: 40 }];
+  /** 十分に広い枠。逃がし先が枠に収まるかの判定に使う。 */
+  const frame = { width: 1000, height: 800 };
+  /** アイコンの半径（10）＋ 隙間（6）。札の縁からこの分だけ離れた位置へ逃げる。 */
+  const clearance = 16;
 
-  it('区画に掛かる列のアイコンは描かない', () => {
-    // 列のアイコンは縦位置が帯に固定されている（top は null）。区画の縦幅に入る。
-    expect(covered(spec({ axis: 'column', left: 100 }), panel)).toBe(true);
+  it('札に掛かる列のアイコンは札の下へ逃がす（横位置＝切れ目は動かさない）', () => {
+    // 列のアイコンは縦位置が帯に固定されている（top は null）。札の縦幅に入る。
+    expect(avoiding(spec({ axis: 'column', left: 100 }), panel, frame))
+      .toEqual(spec({ axis: 'column', left: 100, top: 40 + clearance }));
   });
 
-  it('区画の外の列のアイコンは描く', () => {
-    expect(covered(spec({ axis: 'column', left: 300 }), panel)).toBe(false);
+  it('札の外の列のアイコンはそのまま（帯の位置に置いたままにする）', () => {
+    const untouched = spec({ axis: 'column', left: 300 });
+    expect(avoiding(untouched, panel, frame)).toBe(untouched);
   });
 
-  it('区画に掛かる行のアイコンは描かない', () => {
+  it('札に掛かる行のアイコンは札の右へ逃がす（縦位置＝切れ目は動かさない）', () => {
     // 行のアイコンは横位置が帯に固定されている（left は null）。
-    expect(covered(spec({ axis: 'row', top: 20 }), panel)).toBe(true);
+    expect(avoiding(spec({ axis: 'row', top: 20 }), panel, frame))
+      .toEqual(spec({ axis: 'row', top: 20, left: 158 + clearance }));
   });
 
-  it('区画より下の行のアイコンは描く', () => {
-    expect(covered(spec({ axis: 'row', top: 200 }), panel)).toBe(false);
+  it('札より下の行のアイコンはそのまま', () => {
+    const untouched = spec({ axis: 'row', top: 200 });
+    expect(avoiding(untouched, panel, frame)).toBe(untouched);
   });
 
   it('固定されている側を 0 とみなさない（帯の位置で測る）', () => {
-    // 行のアイコンの横位置を 0 と見ると、区画の左端 8px より手前になり「掛かっていない」と
+    // 行のアイコンの横位置を 0 と見ると、札の左端 8px より手前になり「掛かっていない」と
     // 誤判定する。実際は帯（14px）に居るので掛かる。
-    expect(covered(spec({ axis: 'row', top: 20 }), [{ ...panel[0]!, left: 8 }])).toBe(true);
+    expect(avoiding(spec({ axis: 'row', top: 20 }), [{ ...panel[0]!, left: 8 }], frame)?.left)
+      .toBe(158 + clearance);
   });
 
-  it('区画が無ければ何も落とさない', () => {
-    expect(covered(spec({ left: 10, top: 10 }), undefined)).toBe(false);
+  it('札から札へ玉突きしても、最後の札の外まで逃がす', () => {
+    // 逃げた先にもう 1 枚載っている配置。1 回で済ませると、避けたつもりが別の札の下に入る。
+    const two = [panel[0]!, { left: 8, top: 50, right: 158, bottom: 90 }];
+    expect(avoiding(spec({ axis: 'column', left: 100 }), two, frame)?.top).toBe(90 + clearance);
+  });
+
+  it('逃げた先が枠の外になるなら描かない（見えない場所にタブ順だけ残さない）', () => {
+    const tall = [{ left: 8, top: 8, right: 158, bottom: 780 }];
+    expect(avoiding(spec({ axis: 'column', left: 100 }), tall, { width: 1000, height: 400 })).toBeNull();
+  });
+
+  it('札が無ければ何も動かさない', () => {
+    const untouched = spec({ left: 10, top: 10 });
+    expect(avoiding(untouched, undefined, frame)).toBe(untouched);
   });
 });
 

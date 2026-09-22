@@ -1,4 +1,4 @@
-import { arrowHeadPath, borderPoint, connectorGeometry } from '../connectors';
+import { arrowHeadPath, borderPoint, connectorGeometry, DEFAULT_CONNECTOR_LOOK } from '../connectors';
 import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
 import type { DiagramSpacing } from '../types';
 import { node } from './fixture';
@@ -39,20 +39,20 @@ describe('connectorGeometry', () => {
   it('両端は箱の縁に取り付き、線はその 2 点を結ぶ', () => {
     const from = at('左', 0, 0);
     const to = at('右', 400, 0);
-    const geometry = connectorGeometry(from, to, SPACING)!;
+    const geometry = connectorGeometry(from, to, SPACING, DEFAULT_CONNECTOR_LOOK)!;
     expect(geometry.start).toMatchObject({ x: W, y: H / 2 });
     expect(geometry.end).toMatchObject({ x: 400, y: H / 2 });
     expect(geometry.path).toBe(`M ${W} ${H / 2} L 400 ${H / 2}`);
   });
 
   it('終端の向きは始端の逆（矢尻が内側を向かない）', () => {
-    const geometry = connectorGeometry(at('左', 0, 0), at('右', 400, 0), SPACING)!;
+    const geometry = connectorGeometry(at('左', 0, 0), at('右', 400, 0), SPACING, DEFAULT_CONNECTOR_LOOK)!;
     expect(geometry.start.angle).toBeCloseTo(0);
     expect(geometry.end.angle).toBeCloseTo(Math.PI);
   });
 
   it('中心が重なった 2 つには線を引かない（向きが決まらない）', () => {
-    expect(connectorGeometry(at('甲', 30, 30), at('乙', 30, 30), SPACING)).toBeNull();
+    expect(connectorGeometry(at('甲', 30, 30), at('乙', 30, 30), SPACING, DEFAULT_CONNECTOR_LOOK)).toBeNull();
   });
 });
 

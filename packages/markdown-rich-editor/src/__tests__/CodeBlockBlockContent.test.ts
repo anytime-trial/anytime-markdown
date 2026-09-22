@@ -30,6 +30,7 @@ import {
   classifyCodeBlock,
   createCodeBlockNodeView,
   defaultPreviewWidth,
+  FULL_WIDTH_PREVIEW_LANGUAGES,
   CODE_BLOCK_EDIT_INTENT_EVENT,
 } from "../components/codeblock/CodeBlockBlockContent";
 
@@ -77,12 +78,30 @@ describe("defaultPreviewWidth", () => {
     expect(defaultPreviewWidth("markdown")).toBe("100%");
   });
 
-  it("markdown 以外は内容幅に縮める", () => {
-    expect(defaultPreviewWidth("diagram")).toBe("fit-content");
+  // anytime-diagram のビューアは百分率と flex で自分の枠を埋める作り。fit-content の器に置くと
+  // 百分率が効かず、題名の文字幅（実測 70px 程度）まで潰れて図が見えなくなる。
+  it("anytime-diagram は枠いっぱいに広げる", () => {
+    expect(defaultPreviewWidth("anytime-diagram")).toBe("100%");
+  });
+
+  it("実寸で描く言語は内容幅に縮める", () => {
+    expect(defaultPreviewWidth("mermaid")).toBe("fit-content");
+    expect(defaultPreviewWidth("plantuml")).toBe("fit-content");
+    expect(defaultPreviewWidth("anytime-thinking-model")).toBe("fit-content");
+    expect(defaultPreviewWidth("anytime-chart")).toBe("fit-content");
     expect(defaultPreviewWidth("math")).toBe("fit-content");
     expect(defaultPreviewWidth("html")).toBe("fit-content");
     expect(defaultPreviewWidth("embed")).toBe("fit-content");
-    expect(defaultPreviewWidth("regular")).toBe("fit-content");
+    expect(defaultPreviewWidth("typescript")).toBe("fit-content");
+    expect(defaultPreviewWidth(null)).toBe("fit-content");
+  });
+
+  // 言語名を集合と classifyCodeBlock の 2 か所で別々に並べているので、改名・誤字で片方だけが
+  // 取り残されると図が潰れる形で静かに戻る。既知の言語であることだけは機械に見張らせる。
+  it("枠いっぱいに広げる言語はすべて既知の language である", () => {
+    for (const language of FULL_WIDTH_PREVIEW_LANGUAGES) {
+      expect(classifyCodeBlock(language)).not.toBe("regular");
+    }
   });
 });
 
@@ -115,6 +134,13 @@ describe("createCodeBlockNodeView (native content NodeView)", () => {
 
   it("markdown はプレビュー枠を本文幅いっぱいに広げる", () => {
     const view = makeView({ language: "markdown", text: "# 見出し" });
+    const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
+    expect(preview.style.width).toBe("100%");
+  });
+
+  it("anytime-diagram はプレビュー枠を枠いっぱいに広げる", () => {
+    // ビューアは百分率と flex で自分の枠を埋めるので、fit-content の器では題名の文字幅まで潰れる。
+    const view = makeView({ language: "anytime-diagram", text: "{}" });
     const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
     expect(preview.style.width).toBe("100%");
   });

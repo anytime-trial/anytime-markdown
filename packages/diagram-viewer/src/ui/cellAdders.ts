@@ -46,7 +46,12 @@ export interface CellAdderState {
   readonly extent: GridExtent;
   /** 要素が載っている升目の鍵。ここには出さない。 */
   readonly occupied: ReadonlySet<string>;
-  /** 枠の中で別のものが載っている場所（見え方の操作を浮かせた区画）。 */
+  /**
+   * 枠の中で**別のものが載っている場所**（枠へ浮かせた札。操作列・ミニマップ・選択の区画）。
+   *
+   * ここに掛かる升目の ＋ は**描かない**。縁の ＋／− のように脇へ逃がせないのは、この ＋ の
+   * 位置が升目そのものだから — 動かすと別の升目へ要素を足すことになる。
+   */
   readonly blocked?: readonly BlockedBox[];
 }
 

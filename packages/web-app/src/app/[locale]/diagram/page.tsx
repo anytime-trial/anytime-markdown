@@ -67,13 +67,13 @@ export default function DiagramPage() {
   /**
    * 保存（＝書き出し）。viewer が返す**図の全体**を書き出す。
    *
-   * 受け取った図はそのまま信じず、書き出す前に `validateDiagramDocument` を通す（VS Code 拡張と
+   * 受け取った図はそのまま信じず、書き出す前に `validateDiagramDraft` を通す（VS Code 拡張と
    * 同じ検査）。通さないと、開き直せないファイルを落として初めて壊れていたと分かる。
    */
   async function saveDocument(next: DiagramDocument): Promise<void> {
     if (documentRef.current === null) throw new Error(t('invalid'));
-    const { serializeDiagramDocument, validateDiagramDocument } = await import('@anytime-markdown/diagram-core');
-    const validated = validateDiagramDocument(JSON.parse(serializeDiagramDocument(next)));
+    const { serializeDiagramDocument, validateDiagramDraft } = await import('@anytime-markdown/diagram-core');
+    const validated = validateDiagramDraft(next);
     if (!validated.ok) throw new Error(validated.errors.join('\n'));
     documentRef.current = validated.document;
     downloadBlob(

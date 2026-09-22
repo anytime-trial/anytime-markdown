@@ -1,3 +1,4 @@
+import type { InsightCategory } from '../../../lib/insightTimeline/types';
 import { compareOrdinal } from '../../../lib/releaseTimeline/compare';
 import type {
   MonthlyReleaseCount,
@@ -83,4 +84,74 @@ export function fillMonthGaps(months: readonly MonthlyReleaseCount[]): MonthlyRe
     }
   }
   return filled;
+}
+
+// ---------------------------------------------------------------------------
+// 知見の経緯トラック
+// ---------------------------------------------------------------------------
+
+export const INSIGHT_CATEGORY_META: Readonly<
+  Record<InsightCategory, { label: string; description: string }>
+> = {
+  'claude-code': {
+    label: '活用知見',
+    description: 'Claude Code の使い方・運用で分かったこと',
+  },
+  'tech-trend': {
+    label: '技術動向',
+    description: 'AI・開発手法・ソフトウェア技術の動き',
+  },
+  vocabulary: {
+    label: '新語彙',
+    description: 'その日に現れた新しい概念と言葉',
+  },
+  ecosystem: {
+    label: 'エコシステム',
+    description: '競合ツール・ローカル LLM・利用モジュールの動向',
+  },
+};
+
+export type InsightCategoryFilter = InsightCategory | 'all';
+
+export const INSIGHT_CATEGORY_FILTERS: readonly {
+  value: InsightCategoryFilter;
+  label: string;
+}[] = [
+  { value: 'all', label: 'すべて' },
+  ...(Object.keys(INSIGHT_CATEGORY_META) as InsightCategory[]).map((value) => ({
+    value,
+    label: INSIGHT_CATEGORY_META[value].label,
+  })),
+];
+
+/** 既定で開いておくテーマ数。全部閉じていると経緯が 1 つも見えないため 0 にはしない */
+export const INSIGHT_DEFAULT_OPEN_TRACKS = 3;
+
+/**
+ * 1 トラックが最初に描く件数。
+ *
+ * 最大のテーマは 160 件を超える。既定開の 3 トラックをそのまま描くと初回表示だけで
+ * 400 枚のカードになり、DOM も読み手の視界も破綻する。古い順に頭から出し、続きは
+ * 明示操作で伸ばす（経緯の読み方＝古い順に追う、を切らない）
+ */
+export const INSIGHT_TRACK_PREVIEW_COUNT = 20;
+
+/** `2026-04-16` → `2026/4/16`。テーマ内は年をまたぐので年を省かない */
+export function formatCompactDate(date: string): string {
+  const matched = DATE_LABEL_PATTERN.exec(date);
+  if (!matched) return date;
+  return `${matched[1]}/${Number(matched[2])}/${Number(matched[3])}`;
+}
+
+/** `2026-05-12` と `2026-08-07` → `2026年5月〜8月`。年をまたぐときは両方に年を付ける */
+export function formatSpan(from: string, to: string): string {
+  const start = MONTH_LABEL_PATTERN.exec(from.slice(0, 7));
+  const end = MONTH_LABEL_PATTERN.exec(to.slice(0, 7));
+  if (!start || !end) return `${from}〜${to}`;
+  if (start[1] === end[1]) {
+    return start[2] === end[2]
+      ? `${start[1]}年${Number(start[2])}月`
+      : `${start[1]}年${Number(start[2])}月〜${Number(end[2])}月`;
+  }
+  return `${formatMonth(from.slice(0, 7))}〜${formatMonth(to.slice(0, 7))}`;
 }

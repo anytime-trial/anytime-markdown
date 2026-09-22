@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-09-22
+
+### Added
+
+- `/timeline` gained a second track for insights. The release timeline only picked releases out of the research reports, so insights that are not tied to a release — operating practices, technology trends, new vocabulary, ecosystem shifts — had no chronology anywhere. 1,011 items were extracted from all 157 reports (132 daily, 25 weekly), normalised to 994 and grouped into 29 themes. It follows the same derived pipeline as the release timeline (raw JSON extracted by hand, normalised deterministically by a script, imported by the page), because reading report bodies at runtime is impossible: docsRoot is a separate repository the production runtime cannot reach. Theme ids are restricted to a fixed dictionary and normalisation throws on an unknown id, so a typo cannot quietly create a one-item theme.
+- Backfilled the release timeline with 44 CLI versions (2.1.225 - 2.1.278) and 2 models covering 2026-08-08 to 2026-09-19. Daily research had stopped on 2026-08-07 and weekly on 2026-08-01, leaving the timeline cut off at v2.1.224; a gap in a timeline is indistinguishable from "that release never happened", so the entries were taken directly from primary sources (the official changelog and Anthropic announcements) rather than waiting for the reports to resume.
+
+### Changed
+
+- The release timeline list is ordered newest first. Reaching the latest release previously meant scrolling past 144 entries. The reordering happens in the view (`groupByMonthDescending`); the generated `releases.json` stays ascending because it is a deterministic artifact that `releaseTimelineDataset` tests compare against. The cadence bar chart stays ascending as well, since a horizontal bar chart reads left to right in time.
+
+### Fixed
+
+- Insight IDs no longer collide and merge unrelated insights. `insightId` was built with `title.replace(/[^a-z0-9]+/g, '-')`, which drops non-ASCII, so Japanese titles collapsed to their leading ASCII word: two different insights published on the same day both became `2026-04-26-claude-md` and `mergeEntries` folded them into one without a warning. Measured, 12 ids had swallowed 15 distinct titles, publishing entries whose title and summary described different facts. The merge key is now the full title — matching the condition `mergeEntries` and the README already declared ("same day, same title") — and the displayed id always carries a hash.
+
 
 ## [0.52.0] - 2026-09-21
 
