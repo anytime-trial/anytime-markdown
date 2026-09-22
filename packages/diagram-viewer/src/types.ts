@@ -1,5 +1,30 @@
 import type { DiagramDocument } from '@anytime-markdown/diagram-core';
 
+/**
+ * 宿主が要素へ添える項目 1 つ。
+ *
+ * viewer は `id` の中身を解釈しない。押されたら宿主へそのまま返すだけで、何を指す鍵なのかは
+ * 宿主だけが知っている。図の形式（`DiagramDocument`）に宿主固有の概念を持ち込まないための境界。
+ */
+export interface DiagramElementAnnexItem {
+  readonly id: string;
+  readonly label: string;
+  /** 支援技術へ読ませる名前。省略時は `label` を使う。 */
+  readonly ariaLabel?: string;
+}
+
+/**
+ * 要素 1 つに添える項目群。札の中へ畳んで出す。
+ *
+ * 見出しの語（「地図で見る」など）は宿主が渡す。viewer 側の i18n に宿主固有の語を置くと、
+ * 使う宿主が増えるたびに viewer の文言が増えて全言語ぶんの写しが要る。件数は viewer が添える
+ * （数の書き方は言語に依らない）。
+ */
+export interface DiagramElementAnnex {
+  readonly summary: string;
+  readonly items: readonly DiagramElementAnnexItem[];
+}
+
 export interface DiagramViewerOptions {
   readonly document: DiagramDocument;
   /** 表示 locale。省略時はブラウザ言語から検出する。 */
@@ -44,6 +69,22 @@ export interface DiagramViewerOptions {
   readonly onSave?: (document: DiagramDocument) => void | DiagramDocument | Promise<void | DiagramDocument>;
   /** 下書きの変化。宿主が「未保存あり」の印を出すのに読む。`null` は編集していない状態。 */
   readonly onDraftChange?: (draft: DiagramDocument | null) => void;
+  /**
+   * 札を押して選んだ。`null` は選びを外したこと。
+   *
+   * 図の外の表示を選びに合わせる宿主が読む（anytime-travel は人物の選びで地図を寄せる）。
+   * 内部の `onSelectNode` を公開面へ出したもので、新しい操作を足すものではない。
+   */
+  readonly onSelect?: (name: string | null, additive: boolean) => void;
+  /**
+   * 要素ごとに札へ添える項目群。鍵は要素の名前。
+   *
+   * 関数ではなく写しで受ける。Custom Element の property として渡せる形にするため
+   * （関数は属性にも property の JSON にも載らない）。
+   */
+  readonly elementAnnex?: Readonly<Record<string, DiagramElementAnnex>>;
+  /** 添えた項目を押した。渡さなければ項目は押せない表示になる。 */
+  readonly onAnnexActivate?: (elementName: string, itemId: string) => void;
 }
 
 export interface DiagramViewerUpdate {
@@ -51,6 +92,8 @@ export interface DiagramViewerUpdate {
   readonly locale?: string;
   readonly editable?: boolean;
   readonly compact?: boolean;
+  /** 添える項目群の差し替え。宿主が図より後に読み終えることがあるため update でも受ける。 */
+  readonly elementAnnex?: Readonly<Record<string, DiagramElementAnnex>>;
 }
 
 export interface DiagramViewerHandle {

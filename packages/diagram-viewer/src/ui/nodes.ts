@@ -17,7 +17,8 @@ import {
 
 import type { DiagramT } from '../i18n';
 import { parentsOf } from '../model';
-import { additiveFrom, el, setAttr, setClass, svg } from './dom';
+import type { DiagramElementAnnex, DiagramElementAnnexItem } from '../types';
+import { additiveFrom, el, setAttr, setClass, setText, svg } from './dom';
 import { createIcon } from './icons';
 
 /** どの辺を掴んだか。取っ手ごとに固定なので、毎回作り直さず 1 つを配る。 */
@@ -39,6 +40,8 @@ export interface NodeCallbacks {
    * 閲覧中は掴めない。押下で受けると、札の上から始めた平行移動が選択に化ける。
    */
   onSelectNode(name: string, additive: boolean): void;
+  /** 宿主が添えた項目を押した。`itemId` は宿主が決めた鍵で、viewer は中身を解釈しない。 */
+  onAnnexActivate(name: string, itemId: string): void;
   onNudge(name: string, columns: number, rows: number): void;
   onRelease(name: string): void;
   /** 接続点を掴んだ。相手の札の上で離すと線が 1 本できる。 */
@@ -95,6 +98,15 @@ export interface NodeViewState {
   readonly annotation: string;
   /** 接続の始点として待ち受けているか。 */
   readonly connectSource: boolean;
+  /**
+   * 宿主が添えた項目群。`null` は添えるものが無いこと。
+   *
+   * 群の札・注記と同じく**描くたびに当てる**。作るときに焼き込むと、宿主が後から
+   * `update({ elementAnnex })` で差し替えても札は前の内容のまま残る。
+   */
+  readonly annex: DiagramElementAnnex | null;
+  /** 添えた項目を押せるか（宿主が `onAnnexActivate` を渡しているか）。 */
+  readonly annexActivatable: boolean;
 }
 
 export interface NodeView {
@@ -204,6 +216,9 @@ export function createNodeView(
       callbacks.onStartAnnotate(name);
       return;
     }
+    // 添えた項目の段は書き換えの行き先を持たない。振り分けから外さないと、開閉を 2 度押した
+    // だけで名札の書き換えが開く（段ごとの行き先を座標から引き直す作りのため）。
+    if (target?.closest('.anytime-diagram-annex') != null) return;
     callbacks.onStartRename(name);
   });
 
@@ -260,6 +275,32 @@ export function createNodeView(
   });
   annotateInput.addEventListener('blur', () => finishAnnotate(true));
   root.appendChild(annotateInput);
+
+  /**
+   * 宿主が添えた項目群。**常に作り、項目が無いときはクラスで隠す**（注記と同じ作法）。
+   *
+   * 無いときに要素ごと作らないと、宿主が項目を読み終えた瞬間に札の中身が増えて版組みが跳ぶ
+   * （図を開いた直後と、一覧を取り終えた後とで札の高さが変わる）。
+   *
+   * 畳んで出すのは、項目の件数が要素ごとに大きく違うため。開いた形で出すと、項目を多く持つ
+   * 要素の札だけが縦に伸びて図の升目から外れる。
+   */
+  const annex = el(doc, 'details', { className: 'anytime-diagram-annex anytime-diagram-hidden' });
+  const annexSummary = el(doc, 'summary');
+  const annexItems = el(doc, 'span', { className: 'anytime-diagram-annex-items' });
+  annex.append(annexSummary, annexItems);
+  /** 項目の貸し借り。件数は要素ごとに変わるので、足りなければ作り、余ったら隠す（群の札と同じ）。 */
+  const annexButtons: HTMLButtonElement[] = [];
+  /**
+   * 直近に描いた項目。**押下の受け口は作るときに 1 度だけ張り、中身はここから引く。**
+   *
+   * 描くたびに張り直すと、札を作り直さない作りの中で受け口だけが積み上がり、1 回の押下が
+   * 積んだ回数ぶん呼ばれる。位置だけを閉じ込め、中身は描画のたびに差し替える。
+   */
+  let latestAnnexItems: readonly DiagramElementAnnexItem[] = [];
+  // 押下を親へ渡さない。渡すと、開閉のつもりの押下が札の移動の始まりになる（書き換え口と同じ）。
+  annex.addEventListener('pointerdown', (event) => event.stopPropagation());
+  root.appendChild(annex);
 
   // 取っ手は常に作り、編集していない間はクラスで隠す。作り直すと、押している最中に
   // 要素が入れ替わってキーボードの焦点が図の外へ飛ぶ。
@@ -466,6 +507,45 @@ export function createNodeView(
         annotateInput.select();
       }
       annotating = state.annotating;
+      /*
+        宿主が添えた項目。**器は常に在り、件数が 0 のときだけ隠す。**
+
+        件数は要素ごとに変わるので、群の札と同じ貸し借りで数を合わせる（足りなければ作り、
+        余ったら隠す）。押せるかどうかは宿主が受け口を渡したかで決まり、渡していないときは
+        `disabled` にする — 押しても何も起きない見た目のままにすると、押せると読めてしまう。
+      */
+      const annexItemList = state.annex?.items ?? [];
+      setClass(annex, 'anytime-diagram-hidden', annexItemList.length === 0);
+      if (annexItemList.length === 0) {
+        // 隠す前に畳む。開いたまま隠すと、次に項目が付いたとき開いた状態で現れる。
+        annex.open = false;
+      } else {
+        setText(annexSummary, `${state.annex?.summary ?? ''} (${annexItemList.length})`);
+      }
+      while (annexButtons.length < annexItemList.length) {
+        const button = el(doc, 'button', {
+          className: 'anytime-diagram-annex-item',
+          attrs: { type: 'button' },
+        });
+        const index = annexButtons.length;
+        button.addEventListener('click', (event) => {
+          // 札の選び直しと二重に走らせない。項目の押下は項目だけの意味を持つ。
+          event.stopPropagation();
+          const item = latestAnnexItems[index];
+          if (item !== undefined) callbacks.onAnnexActivate(name, item.id);
+        });
+        annexButtons.push(button);
+        annexItems.appendChild(button);
+      }
+      latestAnnexItems = annexItemList;
+      for (const [index, button] of annexButtons.entries()) {
+        const item = annexItemList[index];
+        setClass(button, 'anytime-diagram-hidden', item === undefined);
+        if (item === undefined) continue;
+        setText(button, item.label);
+        setAttr(button, 'aria-label', item.ariaLabel ?? null);
+        button.disabled = !state.annexActivatable || state.saving;
+      }
       for (const { button, sliderKey } of sizeHandles) {
         setClass(button, 'anytime-diagram-hidden', !(state.editing && state.isAnchor));
         button.disabled = state.saving;

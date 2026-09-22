@@ -635,6 +635,37 @@ export const DIAGRAM_STYLES = `
   color: var(--diagram-fg); background: var(--diagram-raised);
   border: 1px solid var(--diagram-accent); border-radius: 3px;
 }
+/*
+  宿主が添えた項目群。畳んだ状態では見出し 1 行ぶんだけを占める。
+
+  色は既存の \`--diagram-*\` から引き、この段のために新しい色を作らない。宿主のトークンに
+  追随する仕組みが 1 か所に閉じていないと、ダークで図の一部だけが取り残される。
+*/
+.anytime-diagram-annex { width: 100%; min-width: 0; font-size: 10px; }
+.anytime-diagram-annex > summary {
+  cursor: pointer; list-style: none; color: var(--diagram-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.anytime-diagram-annex > summary::-webkit-details-marker { display: none; }
+.anytime-diagram-annex > summary:hover { color: var(--diagram-accent); }
+/*
+  開いた項目は札の外へせり出す。\`position: absolute\` で浮かせるのは、札の高さが升目で
+  決まっているため — 中に積むと札が縦に伸びて隣の行の升目へ食い込む。
+*/
+.anytime-diagram-annex-items {
+  position: absolute; left: 0; right: 0; z-index: 2;
+  display: flex; flex-direction: column; gap: 2px; padding: 3px;
+  background: var(--diagram-raised);
+  border: 1px solid var(--diagram-border); border-radius: var(--diagram-radius);
+}
+.anytime-diagram-annex-item {
+  padding: 1px 3px; font: inherit; font-size: 10px; text-align: left;
+  color: var(--diagram-fg); background: transparent;
+  border: none; border-radius: 3px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.anytime-diagram-annex-item:hover:not(:disabled) { background: var(--diagram-bg); color: var(--diagram-accent); }
+.anytime-diagram-annex-item:disabled { cursor: default; color: var(--diagram-muted); }
 /* 群の札は 1 件 1 行で縦に積む（人物ごとに件数が変わる）。 */
 .anytime-diagram-groups { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 /* 群の札の 1 行。編集中は押せる場所として示す（閲覧中は素の字のまま）。 */
