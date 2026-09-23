@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.24.2] - 2026-09-23
+
+### Security
+
+- mermaid updated from 11.15.0 to 11.17.2.
+
+### Changed
+
+- Bundled skills updated. `anytime-mermaid` now says not to write layout / theme / look into a diagram (the app switches the theme between dark and light), and statements that subagents do not inherit CLAUDE.md were corrected to match measured behaviour.
+
+### Diagram Core (diagram-core / diagram-viewer)
+
+- Diagrams have an orientation (left-to-right / top-to-bottom) that decides where elbow lines attach and bend; top-to-bottom also lays generations out as rows. Two elements in the same column or row are joined between their facing sides.
+- Fixed: marriage lines of couples with children and lines from a third or later parent vanishing in elbow mode, dashed lines looking solid when zoomed out, and a selected line's midpoint handle hidden under the grid's ＋.
+
 ## [1.24.1] - 2026-09-22
 
 ### Editor Core (markdown-editor / markdown-rich-editor)

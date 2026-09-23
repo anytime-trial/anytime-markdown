@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.54.1] - 2026-09-23
+
+### セキュリティ
+
+- mermaid を 11.15.0 から 11.17.2 へ更新した。
+- CI と日次ビルドの `npm audit` の閾値を critical から moderate へ上げた。critical 閾値では hono・mermaid・qs などの moderate が素通りしていた。あわせて検出中の 6 件（hono・mermaid・@humanfs/node・qs・postcss-selector-parser）を解消した。残る low の esbuild（Windows の開発サーバ限定、修正版は破壊的更新）はゲートに含めない。
+
 ## [0.54.0] - 2026-09-22
 
 ### 追加

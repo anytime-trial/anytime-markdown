@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.54.1] - 2026-09-23
+
+### Security
+
+- mermaid updated from 11.15.0 to 11.17.2.
+- The `npm audit` threshold in CI and the daily build was raised from critical to moderate; the critical threshold let moderate advisories in hono, mermaid and qs through. The six advisories it found (hono, mermaid, @humanfs/node, qs, postcss-selector-parser) are resolved. The remaining low advisory in esbuild (Windows dev server only; the fix is a breaking update) is outside the gate.
+
 ## [0.54.0] - 2026-09-22
 
 ### Added

@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-09-23
+
+### 変更
+
+- 同梱スキルを更新した。サブエージェントが CLAUDE.md を継承しないとしていた記述を実測（CLAUDE.md と rules は継承し、スキル本文は継承しない）に合わせて直した（`anytime-analysis` / `anytime-dev-audit` / `anytime-dev-cycle` / `anytime-loop-start`）。`anytime-dev-cycle` に fork と fresh のサブエージェントの選び分け、`anytime-dev-audit` に供給経路（プラグイン・hooks スクリプト・同期スキル）の read-only 棚卸し、`anytime-loop-start` に子セッションで `--restricted` を使わない理由を足した。
+
 ## [1.20.0] - 2026-09-21
 
 ### 追加

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-09-23
+
+### Fixed
+
+- Costs are now calculated at the correct rate for models whose price changed between generations. The price table was keyed by family (opus / fable / sonnet), so it could not reflect a price change within a family and put the 30 days from 2026-08-24 to 09-23 at 16,477 USD instead of 15,001 USD. Opus 5.5 ($4/$20, cache read $0.20), Fable 5.1 (cache read $0.25) and Sonnet 5 ($2/$10) are now selected by generation. Aggregation keys stay at family level so time series such as the Opus share do not split into a new series at every generation change.
+- IDs with a suffix such as `claude-opus-5-5-latest` or `claude-fable-5-1[1m]` silently fell back to the family's old rate without a warning.
+
 ## [1.5.3] - 2026-09-13
 
 ### Fixed
