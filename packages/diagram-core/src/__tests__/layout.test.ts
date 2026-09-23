@@ -151,17 +151,19 @@ describe('配置差分の適用', () => {
 });
 
 describe('関係線', () => {
-  it('折れ線の家族は両親それぞれから線を出して合流させ、両親を結ぶ線は引かない', () => {
+  it('折れ線の家族も両親を婚姻の線で結び、子への線はその中点から出す', () => {
     const chart = diagramChart(families);
     const nodes = byName(chart.nodes);
     const connector = familyConnector(families[0]!, nodes, { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
-    expect(connector.marriage).toBeNull();
-    expect(connector.descent).not.toBeNull();
-    // 親ごとの線は、その親の右面の中央から出る。
-    for (const name of families[0]!.parents) {
-      const parent = nodes.get(name)!;
-      expect(connector.descent).toContain(`M ${parent.x + DEFAULT_DIAGRAM_SPACING.nodeWidth} ${parent.y + DEFAULT_DIAGRAM_SPACING.nodeHeight / 2}`);
-    }
+    expect(connector.marriage).not.toBeNull();
+    // 婚姻の線は、両親それぞれの右面の中央を結ぶ。
+    const [one, other] = families[0]!.parents.map((name) => nodes.get(name)!);
+    const { nodeWidth, nodeHeight } = DEFAULT_DIAGRAM_SPACING;
+    const bend = connector.junction.x;
+    expect(connector.marriage).toBe(
+      `M ${one!.x + nodeWidth} ${one!.y + nodeHeight / 2} H ${bend} V ${other!.y + nodeHeight / 2} H ${other!.x + nodeWidth}`,
+    );
+    expect(connector.descent?.startsWith(`M ${connector.junction.x} ${connector.junction.y} `)).toBe(true);
   });
 
   it('子の居ない家族は、合流先が無いので両親を結ぶ線だけを引く', () => {

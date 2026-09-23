@@ -171,11 +171,9 @@ export function familyConnector(
 }
 
 /**
- * 子の居る家族の折れ線。**親ごとに先頭の面から線を出し、子の直前のすき間で合流させる**。
- *
- * 両親を結ぶ線（`marriage`）は引かない（ユーザー指示）。合流する縦（横）の線が両親を束ねるので、
- * 結ぶ線を重ねると同じ関係を 2 本で描くことになる。子の居ない家族は合流先が無いので、従来どおり
- * 両親を結ぶ線だけを描く（`familyConnector` の残りの経路）。
+ * 子の居る家族の折れ線。両親を婚姻の線で結び、その結び目から子の直前のすき間へ降ろす
+ * （`directedFamilyRoute`）。子の居ない家族は降ろす先が無いので、両親を結ぶ線だけを描く
+ * （`familyConnector` の残りの経路）。
  */
 function directedFamily(
   family: DiagramFamily,
@@ -193,7 +191,7 @@ function directedFamily(
   ];
   return {
     junction: route.junction,
-    marriage: null,
+    marriage: route.marriage,
     descent: route.path,
     points,
     caps: { start: { ...route.junction, angle: route.startAngle }, ends: route.ends },
