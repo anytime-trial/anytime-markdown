@@ -6,7 +6,7 @@ description: anytime-markdown の Markdown ドキュメントを検索・調査�
 
 # Markdown 利用ガイド（検索・編集・設計書ナビのトークン削減）
 
-更新日: 2026-08-22（旧 `anytime-spec-lookup`（設計書ナビゲーション）を §D へ統合。どちらも「Markdown をメイン文脈に載せない」同一原則の適用のため）
+更新日: 2026-09-23（2026-08-22 に旧 `anytime-spec-lookup`（設計書ナビゲーション）を §D へ統合。どちらも「Markdown をメイン文脈に載せない」同一原則の適用のため）
 
 原則: 加重コストの本丸は「文脈サイズ × 再読込（cache_read）」。**Markdown 本文をメイン文脈に載せない**ことが削減の核心。
 mcp-markdown ツールはそれを実現する手段（[[markdown-ext-markdown-catalog-pipeline]] / [[markdown-ext-bundle-mcp-markdown]]）。
@@ -42,7 +42,7 @@ mcp-markdown ツールはそれを実現する手段（[[markdown-ext-markdown-c
 ## C. サブエージェントへの委譲（検索・調査）
 
 検索・トリアージ・ログ解析は Haiku サブエージェントへ委譲し、メイン（Opus）文脈を保護する。
-**サブエージェントは CLAUDE.md を継承しない**ため、本文を返さないルールは委任プロンプトに必ず明記する。
+**サブエージェントは CLAUDE.md を継承するが、本スキルの本文は継承しない**（2026-09-23 実測）。本文を返さないルールは本スキル固有のため、委任プロンプトに必ず明記する。
 
 委任プロンプト雛形:
 

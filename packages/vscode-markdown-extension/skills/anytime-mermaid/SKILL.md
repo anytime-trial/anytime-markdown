@@ -6,7 +6,7 @@ description: Mermaid 図（flowchart/block-beta/stateDiagram-v2 等）を作成�
 
 # Mermaid 図解 可読性向上ガイドライン
 
-更新日: 2026-08-15
+更新日: 2026-09-23
 
 ---
 
@@ -36,6 +36,15 @@ description: Mermaid 図（flowchart/block-beta/stateDiagram-v2 等）を作成�
 
 
 ## 3. 共通ルール（すべての図種で適用）
+
+
+### 3.0 図にレイアウト・テーマ・見た目を書かない（mermaid 12 互換）
+
+図の frontmatter（`---\nconfig: ...\n---`）や `%%{init: ...}%%` で `layout` / `theme` / `look` を指定しない。
+
+- **テーマ**: アプリがダーク / ライトに合わせて `mermaid.initialize` の `theme` を切り替える（`packages/markdown-rich-editor/src/hooks/useMermaidRender.ts`、印刷用は `prepareDarkDiagramsForPrint.ts`）。図側で `theme: default` を書くと、ダークモードでも明るい配色のまま描かれる。
+- **レイアウトと見た目**: mermaid 12.0.0 で既定のレイアウトが Dagre から ELK に、既定のテーマ・見た目も変わった（2026-09-10 リリース。本プロジェクトは 11.15.0）。12 へ上げる時は、図を 1 枚ずつ直さず、上記の `initialize` に `layout: "dagre"` と `look: "classic"` を足して旧挙動を一括で固定する。図ごとに書くと、固定を外す時に全図の修正が要る。
+- ELK の配置を意図して使いたい図が出てきた場合だけ、その図に `layout: elk` を書く。その場合は理由を図の直前の本文に 1 行残す。
 
 
 ### 3.1 ラベル内の HTML タグ制約（strict モード）

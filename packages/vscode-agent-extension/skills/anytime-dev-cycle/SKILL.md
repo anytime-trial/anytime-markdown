@@ -6,7 +6,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 
 # anytime-dev-cycle — 開発基本スキル
 
-更新日: 2026-09-13
+更新日: 2026-09-23
 
 本体は入口判定・工程ルート・ゲートだけを持つ。提案、仕様、計画、実装、レビュー、回転、委譲の詳細手順は各スキルまたは `references/` へ委譲し、ここへ複製しない。
 
@@ -136,6 +136,8 @@ node .claude/skills/anytime-dev-cycle/delegation-triage.cjs --paths packages/<pk
 | E5 | 委譲契約 6 点を組めない（対象パスが未確定） | `--paths` 未指定 |
 
 サブエージェント回転は Codex 委譲の代替ではなく、多段・長い段階リストで**メイン文脈を守る運用機構**として併用する（`references/agent-rotation.md`。独立タスクは `always-fresh`、依存チェーンは `continue-while-cheap`）。ollama は実装・レビューの委譲先にしない（`references/delegation.md` §4.1）。
+
+**fork と fresh の選び分け**: Agent ツールの `subagent_type: "fork"` は会話全体と prompt cache を継承し、**親モデルで動く**（`model` 指定は無視される）。fresh（fork 以外の型）は会話文脈を持たないが `model` を指定できる。global `CLAUDE.md` の委譲 3 条件のうち「独立した文脈で完結する」を満たさないタスクでも fork なら委譲できるが、親モデルで動くため §3.1 のモデル階層によるコスト低減は効かない。**コスト低減が目的なら fresh にモデルを明示し、会話文脈の再説明が委譲の価値を上回る場合だけ fork を使う**。なお CLAUDE.md と `~/.claude/rules/` は fresh でも継承される（2026-09-23 実測）。委任プロンプトへ書き写すのは、スキル本文と会話にしか無い前提（対象パス・直前の判断）だけでよい。
 
 **判定は必ず記録する。** 委譲したタスクには `references/delegation.md` §2.2 の見積り・結果・実測行を、見送ったタスクには見送り行（`- 委譲見送り: [E2] <理由>`）をプランファイル（プランなしなら当日の作業記録）へ残す。記録の無い見送りは主観による除外と区別できず、委譲率を後から測れない。
 
