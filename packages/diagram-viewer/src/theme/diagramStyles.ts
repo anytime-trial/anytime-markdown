@@ -213,7 +213,10 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-viewport.is-dragging { cursor: grabbing; }
 .anytime-diagram-surface { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 
-.anytime-diagram-edges { position: absolute; inset: 0; pointer-events: none; }
+.anytime-diagram-edges {
+  position: absolute; inset: 0; pointer-events: none;
+  --diagram-line-w: clamp(1.8px, calc(1.8px / var(--diagram-scale, 1)), 14px);
+}
 /*
   線は**本文の色**から引く（補足の色ではない）。そのうえで、太さを図の倍率から切り離す。
 
@@ -227,7 +230,7 @@ export const DIAGRAM_STYLES = `
 */
 .anytime-diagram-edges path {
   fill: none; stroke: color-mix(in srgb, var(--diagram-fg) 62%, transparent);
-  stroke-width: clamp(1.8px, calc(1.8px / var(--diagram-scale, 1)), 14px);
+  stroke-width: var(--diagram-line-w);
   stroke-linecap: round; stroke-linejoin: round; pointer-events: stroke; cursor: pointer;
 }
 .anytime-diagram-edges g.is-line-dimmed { opacity: 0.12; }
@@ -238,9 +241,20 @@ export const DIAGRAM_STYLES = `
   outline: none; stroke: var(--diagram-accent);
   stroke-width: clamp(3px, calc(3px / var(--diagram-scale, 1)), 20px);
 }
-.anytime-diagram-edges .edge-spouse { stroke: var(--diagram-accent); stroke-dasharray: 8 5; }
+/*
+  破線の刻みは**線幅の倍数**で書く（\`--diagram-line-w\` は線の層で定義）。図の座標の定数にすると
+  縮めた図で刻みが画面上 1〜2px に詰まり、丸い線端が隙間を埋めて実線に見える。倍率で割るだけ
+  でも足りない — 線幅は \`clamp\` で上下限を持つので、拡大側で線幅だけが太り隙間が埋まる。
+  隙間は線幅の 1.5 倍より広く取る（丸い線端が両側へ半分ずつ伸びるぶんを差し引いて残るように）。
+*/
+.anytime-diagram-edges .edge-spouse {
+  stroke: var(--diagram-accent);
+  stroke-dasharray: calc(var(--diagram-line-w) * 4.5) calc(var(--diagram-line-w) * 3);
+}
 .anytime-diagram-edges .edge-oath,
-.anytime-diagram-edges .edge-creation { stroke-dasharray: 2 5; }
+.anytime-diagram-edges .edge-creation {
+  stroke-dasharray: calc(var(--diagram-line-w) * 1) calc(var(--diagram-line-w) * 3);
+}
 /* 家族の線の二重線。手で引いた線と同じ手で描く（芯は絵だけで当たり判定を持たない）。 */
 .anytime-diagram-edges .edge-core {
   fill: none; stroke: var(--diagram-bg); stroke-width: 0;
@@ -278,7 +292,7 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-edges g.is-look-set.is-color-muted { --link-color: color-mix(in srgb, var(--diagram-fg) 32%, transparent); }
 .anytime-diagram-edges g.is-look-set path { stroke: var(--link-color); stroke-dasharray: none; }
 .anytime-diagram-edges g.is-look-set.is-dashed path {
-  stroke-dasharray: calc(9px / var(--diagram-scale, 1)) calc(6px / var(--diagram-scale, 1));
+  stroke-dasharray: calc(var(--diagram-line-w) * 5) calc(var(--diagram-line-w) * 3.5);
 }
 /*
   端の印は塗り。**線の規則（\`fill: none\` / \`stroke\`）に負けない詳細度で書く** — 負けると
@@ -437,7 +451,10 @@ export const DIAGRAM_STYLES = `
   手で引いた線。家族の線と**別の層**に置く（\`fill: none\` が端の印の塗りを消さないように）。
   線の太さは家族の線と同じく倍率から切り離し、全体表示でも消えないようにする。
 */
-.anytime-diagram-links { position: absolute; inset: 0; pointer-events: none; }
+.anytime-diagram-links {
+  position: absolute; inset: 0; pointer-events: none;
+  --diagram-line-w: clamp(1.8px, calc(1.8px / var(--diagram-scale, 1)), 14px);
+}
 /*
   線の色は**役割の名前**（\`DiagramLineColor\`）で選び、実際の色は宿主のトークンから引く。
   値（\`#c0392b\` のような）を保存に持たせると、ダークとライトの片方で背景に溶ける線が作れる。
@@ -451,12 +468,12 @@ export const DIAGRAM_STYLES = `
 .anytime-diagram-links g.is-color-muted { --link-color: color-mix(in srgb, var(--diagram-fg) 32%, transparent); }
 .anytime-diagram-links .link-line {
   fill: none; stroke: var(--link-color);
-  stroke-width: clamp(1.8px, calc(1.8px / var(--diagram-scale, 1)), 14px);
+  stroke-width: var(--diagram-line-w);
   stroke-linecap: round; stroke-linejoin: round;
 }
 .anytime-diagram-links .link-line.is-dashed {
-  /* 破線の刻みも倍率で割る。割らないと、縮めた図で刻みが詰まって実線と見分けが付かない。 */
-  stroke-dasharray: calc(9px / var(--diagram-scale, 1)) calc(6px / var(--diagram-scale, 1));
+  /* 刻みは線幅の倍数（家族の線の破線と同じ理由。\`.edge-spouse\` の注記を参照）。 */
+  stroke-dasharray: calc(var(--diagram-line-w) * 5) calc(var(--diagram-line-w) * 3.5);
 }
 /*
   二重線。**太い線の上へ図の地の色で細い線を重ねて**描く。
@@ -503,8 +520,9 @@ export const DIAGRAM_STYLES = `
 /* 引いている最中の仮の線。確定した線と見分けが付くよう、細かい破線で薄く引く。 */
 .anytime-diagram-links .link-preview {
   fill: none; stroke: var(--diagram-accent); opacity: 0.6;
-  stroke-width: clamp(1.5px, calc(1.5px / var(--diagram-scale, 1)), 12px);
-  stroke-dasharray: calc(4px / var(--diagram-scale, 1)) calc(4px / var(--diagram-scale, 1));
+  --diagram-line-w: clamp(1.5px, calc(1.5px / var(--diagram-scale, 1)), 12px);
+  stroke-width: var(--diagram-line-w);
+  stroke-dasharray: calc(var(--diagram-line-w) * 2.5) calc(var(--diagram-line-w) * 2.5);
 }
 
 /*
