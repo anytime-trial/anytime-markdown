@@ -1,7 +1,7 @@
 /**
  * リモート (Supabase / PostgREST) 呼び出しのリトライ判定と、エラー要約。
  *
- * 一過性 (ネットワーク断・ゲートウェイ 5xx・接続過多・statement timeout) と
+ * 一過性 (ネットワーク断・ゲートウェイ 5xx・PostgREST の DB 接続断・接続過多・statement timeout) と
  * 恒久 (制約違反・スキーマ不整合・認証) を分離する。恒久エラーを再試行しても
  * 同じ結果になるだけなので、即座に throw して呼び出し元へ返す。
  */
@@ -28,8 +28,9 @@ export function isRetryableRemoteError(error: RemoteErrorLike): boolean {
   if (/^\d{5}$/.test(code)) {
     return !NON_RETRYABLE_SQLSTATE_CLASSES.includes(code.slice(0, 2));
   }
-  // PGRST1xx/2xx/3xx はリクエスト/スキーマ/認証の不正。
-  if (code.startsWith('PGRST')) return false;
+  // PGRST0xx は PostgREST → DB の接続断・スキーマキャッシュ読込失敗 (503) で一過性。
+  // PGRST1xx/2xx/3xx はリクエスト/スキーマ/認証の不正で、再試行しても変わらない。
+  if (code.startsWith('PGRST')) return code.startsWith('PGRST0');
   // code なし = fetch 層の例外、ゲートウェイの HTML エラーページ、タイムアウト等。一過性とみなす。
   return true;
 }

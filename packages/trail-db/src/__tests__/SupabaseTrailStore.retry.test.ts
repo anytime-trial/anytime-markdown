@@ -7,15 +7,22 @@ jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn() }));
 
 type UpsertResponse = { error: { message: string; code?: string | null } | null };
 
-/** upsert 呼び出しごとに、キューに積んだ応答を順に返す fake Supabase client。 */
+/** upsert / delete 呼び出しごとに、キューに積んだ応答を順に返す fake Supabase client。 */
 function fakeClient(responses: UpsertResponse[]): { client: unknown; calls: { table: string; rowCount: number }[] } {
   const calls: { table: string; rowCount: number }[] = [];
+  const respond = (): Promise<UpsertResponse> => Promise.resolve(responses.shift() ?? { error: null });
   const client = {
     from: (table: string) => ({
       upsert: (payload: unknown[]) => {
         calls.push({ table, rowCount: Array.isArray(payload) ? payload.length : 1 });
-        const next = responses.shift() ?? { error: null };
-        return Promise.resolve(next);
+        return respond();
+      },
+      delete: () => {
+        const filter = (): Promise<UpsertResponse> => {
+          calls.push({ table, rowCount: 0 });
+          return respond();
+        };
+        return { gte: filter, gt: filter };
       },
     }),
   };
@@ -56,6 +63,12 @@ describe('isRetryableRemoteError', () => {
 
   it('PostgREST のリクエスト不正 (PGRST204) は再試行しない', () => {
     expect(isRetryableRemoteError({ message: 'column not found', code: 'PGRST204' })).toBe(false);
+  });
+
+  it('PostgREST の DB 接続エラー (PGRST000〜003) は一過性として再試行する', () => {
+    for (const code of ['PGRST000', 'PGRST001', 'PGRST002', 'PGRST003']) {
+      expect(isRetryableRemoteError({ message: 'Could not query the database for the schema cache. Retrying.', code })).toBe(true);
+    }
   });
 
   it('code なし (ネットワーク断・ゲートウェイの HTML エラー) は再試行する', () => {
@@ -140,5 +153,39 @@ describe('SupabaseTrailStore のチャンク隔離', () => {
     await expect(store.upsertAllSessionCosts(rows)).rejects.toThrow(/failed for 1\/501 rows/);
     // 2 チャンク目が失敗しても 1 チャンク目は送信済み（部分同期を捨てない）。
     expect(calls.map((c) => c.rowCount)).toEqual([500, 1]);
+  });
+});
+
+describe('SupabaseTrailStore の洗い替えクリア', () => {
+  const SCHEMA_CACHE_ERROR = { message: 'Could not query the database for the schema cache. Retrying.', code: 'PGRST002' };
+
+  it('delete の恒久エラーを握り潰さず throw する', async () => {
+    const { store } = makeStore([{ error: { message: 'permission denied', code: '42501' } }]);
+    await store.connect();
+
+    await expect(store.unsafeClearCurrentCoverage()).rejects.toThrow(/trail_current_coverage.*42501/);
+  });
+
+  it('delete の DB 接続エラー (PGRST002) は再試行して成功する', async () => {
+    const { store, calls } = makeStore([{ error: SCHEMA_CACHE_ERROR }, { error: null }]);
+    await store.connect();
+
+    await expect(store.unsafeClearReleaseCoverage()).resolves.toBeUndefined();
+    expect(calls).toHaveLength(2);
+  });
+
+  it('upsert の DB 接続エラー (PGRST002) もチャンク単位で再試行し、行を取りこぼさない', async () => {
+    const rows = [{
+      release_id: 1, package: 'p', file_path: 'f',
+      lines_total: 0, lines_covered: 0, lines_pct: 0,
+      statements_total: 0, statements_covered: 0, statements_pct: 0,
+      functions_total: 0, functions_covered: 0, functions_pct: 0,
+      branches_total: 0, branches_covered: 0, branches_pct: 0,
+    }];
+    const { store, calls } = makeStore([{ error: SCHEMA_CACHE_ERROR }, { error: null }]);
+    await store.connect();
+
+    await expect(store.upsertReleaseCoverage(rows)).resolves.toBeUndefined();
+    expect(calls).toHaveLength(2);
   });
 });
