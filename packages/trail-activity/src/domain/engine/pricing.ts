@@ -145,10 +145,13 @@ export function resolvePricingModelName(model: string, source?: PricingSource): 
  * 蓄積されており、Opus 占有率などの時系列が世代交代のたびに別系列へ割れる。
  * Mythos 5.1 はキャッシュ読取単価が未公表のため fable（Fable 5 と同じ単価）に残す。
  */
+// 世代トークンの直後は「終端・数字/ドット/ハイフン以外（[1m] 等）・日付 8 桁・英字で始まる別名（-latest 等）」を許す。
+// Why not: 数字やドットの続きは許さない。sonnet-5-5 や opus-5-50 のような別世代の ID を取り違えるため。
+const GENERATION_END = String.raw`(?:$|[^0-9.\-]|-(?:\d{8}(?!\d)|[a-z]))`;
 const RATE_GENERATIONS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/opus-5[-.]5(?:$|-\d{8})/, 'opus-5.5'],
-  [/fable-5[-.]1(?:$|-\d{8})/, 'fable-5.1'],
-  [/sonnet-5(?:$|-\d{8})/, 'sonnet-5'],
+  [new RegExp(String.raw`opus-5[-.]5` + GENERATION_END), 'opus-5.5'],
+  [new RegExp(String.raw`fable-5[-.]1` + GENERATION_END), 'fable-5.1'],
+  [new RegExp(String.raw`sonnet-5` + GENERATION_END), 'sonnet-5'],
 ];
 
 export function resolveRateModelName(model: string, source?: PricingSource): string {

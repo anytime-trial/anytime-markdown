@@ -116,6 +116,20 @@ describe('pricing', () => {
       expect(resolvePricingModelName('claude-sonnet-5')).toBe('sonnet');
     });
 
+    it('日付・エイリアス・文脈長の接尾辞が付いても世代を判定する', () => {
+      expect(resolveRateModelName('claude-opus-5-5-20260915')).toBe('opus-5.5');
+      expect(resolveRateModelName('claude-opus-5-5-latest')).toBe('opus-5.5');
+      expect(resolveRateModelName('claude-fable-5-1[1m]')).toBe('fable-5.1');
+      expect(resolveRateModelName('Claude-Sonnet-5')).toBe('sonnet-5');
+      expect(resolveRateModelName('claude-sonnet-5[1m]')).toBe('sonnet-5');
+    });
+
+    it('別の世代の ID を取り違えない', () => {
+      expect(resolveRateModelName('claude-sonnet-5-5')).toBe('sonnet');
+      expect(resolveRateModelName('claude-opus-5-50')).toBe('opus');
+      expect(resolveRateModelName('claude-fable-5-10')).toBe('fable');
+    });
+
     it('単価キーは世代を区別する', () => {
       expect(resolveRateModelName('claude-opus-5-5')).toBe('opus-5.5');
       expect(resolveRateModelName('claude-fable-5-1')).toBe('fable-5.1');
