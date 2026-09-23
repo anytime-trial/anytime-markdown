@@ -23,6 +23,8 @@ import { MAX_CONNECTORS_PER_DIAGRAM } from './connectors';
 // 別々の判定を持つと、片方だけが輪を通す）。
 import { findDiagramCycle } from './layout';
 import {
+  DEFAULT_DIAGRAM_DIRECTION,
+  DIAGRAM_DIRECTIONS,
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_ROUTES,
@@ -31,6 +33,7 @@ import {
   DIAGRAM_SHAPES,
   type DiagramAnchor,
   type DiagramConnector,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramEndpoint,
   type DiagramFamily,
@@ -297,7 +300,31 @@ function readPlacementMap(
  * 押せないボタンの向こうで差分だけが消える組み合わせが生まれる。
  */
 export function isEmptyLayout(layout: DiagramLayout): boolean {
-  return Object.keys(layout.placements).length === 0 && isDefaultDiagramSpacing(layout.spacing);
+  return Object.keys(layout.placements).length === 0 && isDefaultDiagramSpacing(layout.spacing)
+    && (layout.direction ?? DEFAULT_DIAGRAM_DIRECTION) === DEFAULT_DIAGRAM_DIRECTION;
+}
+
+function isDirection(value: unknown): value is DiagramDirection {
+  return typeof value === 'string' && (DIAGRAM_DIRECTIONS as readonly string[]).includes(value);
+}
+
+/**
+ * 配置・刻み・向きから差分を組む。**既定と同じ刻みと向きは持たない**（読み取り・検証・書き出しの
+ * 3 か所が同じ 1 つを読む）。
+ *
+ * 3 か所で別々に組むと、項目を足した日に 1 か所だけが既定を焼き付け、「触っていないのに保存すると
+ * 差分が出る」図ができる。
+ */
+function composeLayout(
+  placements: Readonly<Record<string, DiagramPlacement>>,
+  spacing: DiagramSpacing | null | undefined,
+  direction: DiagramDirection | null | undefined,
+): DiagramLayout {
+  return {
+    placements,
+    ...(spacing === null || spacing === undefined || isDefaultDiagramSpacing(spacing) ? {} : { spacing }),
+    ...(direction === null || direction === undefined || direction === DEFAULT_DIAGRAM_DIRECTION ? {} : { direction }),
+  };
 }
 
 /**
@@ -342,7 +369,11 @@ export function readDiagramLayout(value: unknown, onWarn: Warn = () => {}): Diag
   const stored = value.spacing;
   const spacing = stored === undefined ? null : readDiagramSpacing(stored);
   if (stored !== undefined && spacing === null) onWarn('[diagram] layout.spacing を読めないため既定で描きます');
-  return spacing === null || isDefaultDiagramSpacing(spacing) ? { placements } : { placements, spacing };
+  const direction = value.direction;
+  if (direction !== undefined && !isDirection(direction)) {
+    onWarn(`[diagram] layout.direction は ${DIAGRAM_DIRECTIONS.join(' | ')} のどれかです。既定（${DEFAULT_DIAGRAM_DIRECTION}）で描きます`);
+  }
+  return composeLayout(placements, spacing, isDirection(direction) ? direction : null);
 }
 
 /** 分類の軸の一覧。1 件でも読めなければ図ごと読まない（軸が欠けた札が黙って並ばないように）。 */
@@ -636,12 +667,13 @@ export function validateDiagramLayout(
       .join('、');
     errors.push(`layout.spacing: ${ranges} の数値が必要です（書かない項目は既定で埋めます）`);
   }
+  const direction = value.direction;
+  if (direction !== undefined && !isDirection(direction)) {
+    errors.push(`layout.direction: ${DIAGRAM_DIRECTIONS.join(' | ')} のどれかが必要です`);
+  }
   if (errors.length > 0) return { ok: false, errors };
-  // 既定と同じ刻みは持たない。持つと「既定を変えたのに古い既定が焼き付いた図」が残る。
-  const layout: DiagramLayout = spacing === null || isDefaultDiagramSpacing(spacing)
-    ? { placements: normalized }
-    : { placements: normalized, spacing };
-  return { ok: true, layout };
+  // 既定と同じ刻み・向きは持たない。持つと「既定を変えたのに古い既定が焼き付いた図」が残る。
+  return { ok: true, layout: composeLayout(normalized, spacing, isDirection(direction) ? direction : null) };
 }
 
 
@@ -659,10 +691,7 @@ export function serializeDiagramDocument(document: DiagramDocument): string {
   // 変わった日に `spacing: undefined` を書き出す形へ静かに壊れる。
   // 形は先に整える（既定を落とした結果が空なら、項目そのものを書かない）。
   const shapes = sortedShapes(document.shapes);
-  const spacing = document.layout.spacing;
-  const layout: DiagramLayout = spacing === undefined || isDefaultDiagramSpacing(spacing)
-    ? { placements }
-    : { placements, spacing };
+  const layout = composeLayout(placements, document.layout.spacing, document.layout.direction);
   return `${JSON.stringify({
     version: 1,
     title: document.title,

@@ -16,9 +16,11 @@ import {
   anchorKey,
   DEFAULT_CONNECTOR_LOOK,
   DEFAULT_DIAGRAM_SHAPE,
+  DEFAULT_DIAGRAM_DIRECTION,
   DEFAULT_DIAGRAM_SPACING,
   type DiagramAnchor,
   type DiagramConnector,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramLayout,
   type DiagramLineLook,
@@ -267,6 +269,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onConfirm: (kind) => confirmView.show(kind),
     onClearSelection: () => { clearSelection(); },
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
+    onDirection: changeDirection,
     onRenameSelected: () => { startRename(lastChosen()); },
     onAnnotateSelected: () => { startAnnotate(lastChosen()); },
     onRemoveSelected: () => { removeElement(lastChosen()); },
@@ -613,6 +616,17 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     updateLayout((current) => {
       if (!isDefaultDiagramSpacing(next)) return { ...current, spacing: next };
       const { spacing: _dropped, ...rest } = current;
+      return rest;
+    });
+  }
+
+  /**
+   * 図の向きを差し替える。既定（左→右）なら**持たない**（刻みと同じ理由 — 既定の値を焼き付けない）。
+   */
+  function changeDirection(next: DiagramDirection): void {
+    updateLayout((current) => {
+      if (next !== DEFAULT_DIAGRAM_DIRECTION) return { ...current, direction: next };
+      const { direction: _dropped, ...rest } = current;
       return rest;
     });
   }
@@ -1615,6 +1629,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       saving,
       notice,
       spacing: model.spacing,
+      direction: model.direction,
       draft: draft?.layout ?? null,
       shiftable: model.lines.shiftable,
       // 選んだ 1 つの形。0 個・2 個以上のときは既定を出す（選び口はそのとき押せない）。

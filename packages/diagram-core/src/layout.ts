@@ -19,7 +19,9 @@ import {
 // 経路は手で引いた線と共有する（`connectors.ts`）。家族の線だけ別の式で曲げると、同じ「カーブ」を
 // 選んだのに線の出どころで曲がり方が変わる。型だけの逆参照なので実行時の循環にはならない。
 import { routePath } from './connectors';
+import { directedFamilyRoute } from './direction';
 import type {
+  DiagramDirection,
   DiagramFamily,
   DiagramLayout,
   DiagramLineRoute,
@@ -88,9 +90,17 @@ export function familyConnector(
      * 直線を引くと、車線の縦棒だけが折れ線のまま残り、2 つの引き方が 1 本の線に混ざる。
      */
     readonly route?: DiagramLineRoute;
+    /**
+     * 図の向き。折れ線の取り付きと折れる位置を決める（`directedFamilyRoute`）。
+     *
+     * 既定値を置かない理由は `spacing` と同じ — 渡し忘れると、向きを上→下にした図で家族の線だけが
+     * 左→右のまま描かれ、既定の向きで描くテストは全部緑のまま通る。
+     */
+    readonly direction: DiagramDirection;
   },
 ) {
-  const { lane = 0, spacing, route = 'orthogonal' } = options;
+  const { lane = 0, spacing, route = 'orthogonal', direction } = options;
+  if (route === 'orthogonal' && family.children.length > 0) return directedFamily(family, nodes, spacing, direction);
   const { nodeWidth, nodeHeight } = spacing;
   const first = nodes.get(family.parents[0]!)!;
   const second = family.parents[1] === undefined ? undefined : nodes.get(family.parents[1]);
@@ -158,6 +168,36 @@ export function familyConnector(
     })),
   };
   return { junction, marriage, descent, points, caps };
+}
+
+/**
+ * 子の居る家族の折れ線。**親ごとに先頭の面から線を出し、子の直前のすき間で合流させる**。
+ *
+ * 両親を結ぶ線（`marriage`）は引かない（ユーザー指示）。合流する縦（横）の線が両親を束ねるので、
+ * 結ぶ線を重ねると同じ関係を 2 本で描くことになる。子の居ない家族は合流先が無いので、従来どおり
+ * 両親を結ぶ線だけを描く（`familyConnector` の残りの経路）。
+ */
+function directedFamily(
+  family: DiagramFamily,
+  nodes: ReadonlyMap<string, ChartNode>,
+  spacing: DiagramSpacing,
+  direction: DiagramDirection,
+) {
+  const parents = family.parents.map((name) => nodes.get(name)!);
+  const children = family.children.map((name) => nodes.get(name)!);
+  const route = directedFamilyRoute(parents, children, spacing, direction);
+  const points: ConnectorPoint[] = [
+    ...route.starts.map((point) => ({ ...point, kind: 'parent' as const })),
+    { ...route.junction, kind: 'junction' },
+    ...route.ends.map(({ x, y }) => ({ x, y, kind: 'child' as const })),
+  ];
+  return {
+    junction: route.junction,
+    marriage: null,
+    descent: route.path,
+    points,
+    caps: { start: { ...route.junction, angle: route.startAngle }, ends: route.ends },
+  };
 }
 
 /**

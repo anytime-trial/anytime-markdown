@@ -9,11 +9,13 @@
  */
 
 import {
+  DIAGRAM_DIRECTIONS,
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_ROUTES,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_SHAPES,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramEndpoint,
   type DiagramLayout,
@@ -37,6 +39,8 @@ export interface ChromeCallbacks {
   onConfirm(kind: 'discard' | 'reset'): void;
   onClearSelection(): void;
   onResetSpacing(): void;
+  /** 図の向きを変える（折れ線の取り付きが変わる。配置は動かさない）。 */
+  onDirection(direction: DiagramDirection): void;
   /** 編集と閲覧を切り替える。いまどちらかは呼ばれた側が知っている。 */
   onToggleEditing(): void;
   /** 選んでいる 1 つの要素の名札を書き換える。 */
@@ -68,6 +72,8 @@ export interface ChromeState {
   /** 図の中に出す短い知らせ（保存の失敗・できない操作の理由）。空なら何も出さない。 */
   readonly notice: string;
   readonly spacing: DiagramSpacing;
+  /** いまの図の向き（下書きがあれば下書きの値）。 */
+  readonly direction: DiagramDirection;
   readonly draft: DiagramLayout | null;
   readonly shiftable: boolean;
   /**
@@ -143,7 +149,12 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
   const modeToggle = iconButton(doc, 'editMode', callbacks.onToggleEditing);
   const save = button(doc, callbacks.onSave);
   const resetLayout = button(doc, () => callbacks.onConfirm('reset'));
-  toolbar.append(find, modeToggle, save, resetLayout);
+  /*
+    図の向き。**図ぜんぶに 1 つの設定**なので、選んだものに効く選択の区画ではなく操作列に置く。
+    選択肢は列挙から作る（線の見た目の選び口と同じ `picker()`）。
+  */
+  const direction = picker<DiagramDirection>(doc, DIAGRAM_DIRECTIONS, callbacks.onDirection);
+  toolbar.append(find, modeToggle, save, resetLayout, direction.label);
 
   /*
     選択の区画は**図の枠の中**へ浮かせる（`mountDiagramViewer` が枠の中へ入れる）。対象（選んだ
@@ -264,6 +275,9 @@ export function createChromeView(doc: Document, t: DiagramT, callbacks: ChromeCa
       modeToggle.disabled = state.saving;
       setClass(save, 'anytime-diagram-hidden', state.alwaysEditing || !state.editing);
       setClass(resetLayout, 'anytime-diagram-hidden', !state.editing);
+      // 向きを変えられるのは編集中だけ（閲覧中に変えても保存する口が無い）。
+      setClass(direction.label, 'anytime-diagram-hidden', !state.editing);
+      direction.apply(t('direction'), state.direction, (value) => t(`direction.${value}`), state.saving);
       save.textContent = state.saving ? t('saving') : t('save');
       save.disabled = !state.changed || state.saving;
       resetLayout.disabled = state.saving || state.draft === null || isEmptyLayout(state.draft);

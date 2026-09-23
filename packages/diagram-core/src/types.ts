@@ -207,11 +207,33 @@ export interface DiagramSpacing {
   readonly nodeHeight: number;
 }
 
+/**
+ * 図の向き。**上位から下位へ線が進む向き**で、綴りは Mermaid のフローチャートに寄せる
+ * （`LR` は左から右、`TB` は上から下）。
+ *
+ * 向きが決めるのは**折れ線の取り付き**だけで、自動配置（世代＝列）は組み替えない（ユーザー指示）。
+ * 上位の要素は先頭の面（`LR` なら右面・`TB` なら下面）の中央から出し、下位の要素へは末尾の面
+ * （左面・上面）の中央から入れ、下位の要素の**直前のすき間の中央**で折る。
+ */
+export const DIAGRAM_DIRECTIONS = ['LR', 'TB'] as const;
+export type DiagramDirection = (typeof DIAGRAM_DIRECTIONS)[number];
+
+/** 向きを書いていない図の向き。**左から右**（これまでの図はすべてこの向きで並んでいた）。 */
+export const DEFAULT_DIAGRAM_DIRECTION: DiagramDirection = 'LR';
+
 export interface DiagramLayout {
   /** 人物名 → 配置。動かした人物だけが載る。 */
   readonly placements: Readonly<Record<string, DiagramPlacement>>;
   /** 図の刻み。既定と同じなら持たない。 */
   readonly spacing?: DiagramSpacing;
+  /**
+   * 図の向き。既定（`LR`）なら持たない。
+   *
+   * 刻みと同じく図ぜんぶに 1 つの設定なので、配置差分と一緒にここへ置く。別の項目にすると、
+   * 配置だけを書き換える口（MCP の `set_diagram_layout`・画面の保存）が向きを運ばず、
+   * 保存のたびに既定へ戻る経路ができる。
+   */
+  readonly direction?: DiagramDirection;
 }
 
 /**

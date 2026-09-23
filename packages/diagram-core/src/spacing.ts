@@ -191,3 +191,18 @@ export function resizedSpacing(
     nodeHeight: axes.height ? clamp(start.nodeHeight + delta.y, DIAGRAM_SPACING_RANGE.nodeHeight) : start.nodeHeight,
   };
 }
+
+/**
+ * 列 `index` の**手前の切れ目**の x（図の座標）。空の列を入れるアイコンをここへ置く。
+ *
+ * 切れ目はすき間の中央。ただし左端（`index` 0）の手前にはすき間が無く、中央を取ると図の外の
+ * 負の座標になる — そこへ置いたアイコンは初期表示で画面の外に出て、押せない。
+ */
+export function columnBoundaryX(spacing: DiagramSpacing, index: number): number {
+  return Math.max(DIAGRAM_MARGIN / 2, DIAGRAM_MARGIN + index * columnPitch(spacing) - spacing.columnGap / 2);
+}
+
+/** 行 `index` の手前の切れ目の y。列と同じ組み立て。 */
+export function rowBoundaryY(spacing: DiagramSpacing, index: number): number {
+  return Math.max(DIAGRAM_MARGIN / 2, DIAGRAM_MARGIN + index * rowPitch(spacing) - spacing.rowGap / 2);
+}

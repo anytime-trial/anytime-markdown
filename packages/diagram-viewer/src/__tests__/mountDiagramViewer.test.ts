@@ -1953,3 +1953,28 @@ describe('保存している間は下書きを進めない', () => {
     expect(saved).toHaveLength(1);
   });
 });
+
+describe('図の向き', () => {
+  const directionSelect = (): HTMLSelectElement =>
+    [...container.querySelectorAll('label')].find((label) => label.textContent?.startsWith('向き'))!
+      .querySelector('select')!;
+  const descent = (): string => container.querySelector('path.edge-birth:not(.edge-spouse)')!.getAttribute('d') ?? '';
+
+  it('向きを上→下に変えると家族の折れ線が引き直され、保存に向きが載る', async () => {
+    const onSave = jest.fn();
+    const view = mount({ editable: true, onSave, alwaysEditing: true });
+    const before = descent();
+    const select = directionSelect();
+    expect(select.value).toBe('LR');
+    select.value = 'TB';
+    select.dispatchEvent(new Event('change'));
+    expect(descent()).not.toBe(before);
+    await view.save();
+    expect(onSave.mock.calls[0]![0].layout.direction).toBe('TB');
+  });
+
+  it('閲覧中は向きの選び口を出さない', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(directionSelect().closest('label')!.classList.contains('anytime-diagram-hidden')).toBe(true);
+  });
+});

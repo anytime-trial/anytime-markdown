@@ -4,6 +4,7 @@ import {
   DIAGRAM_LINE_ROUTES,
   DIAGRAM_LINE_STYLES,
   DIAGRAM_RELATIONS,
+  DIAGRAM_DIRECTIONS,
   DIAGRAM_SHAPES,
   DIAGRAM_SPACING_RANGE,
 } from '@anytime-markdown/diagram-core';
@@ -185,6 +186,10 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
       placements: z.record(z.string(), placementSchema)
         .describe('Person name to grid cell. This replaces the whole override set, it is not merged'),
       spacing: spacingSchema.optional(),
+      direction: z.enum(DIAGRAM_DIRECTIONS).optional()
+        .describe('Chart direction: LR (left to right, default) or TB (top to bottom). Fixes where orthogonal lines attach — '
+          + 'out of the leading face of the upper element, into the trailing face of the lower one, bending in the gap just before it. '
+          + 'The automatic layout is not rearranged. Omit to keep the direction already in the file'),
     },
     async (input) => {
       try {
