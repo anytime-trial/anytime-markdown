@@ -189,7 +189,9 @@ export function createMcpServer(options: McpDiagramOptions): McpServer {
       direction: z.enum(DIAGRAM_DIRECTIONS).optional()
         .describe('Chart direction: LR (left to right, default) or TB (top to bottom). Fixes where orthogonal lines attach — '
           + 'out of the leading face of the upper element, into the trailing face of the lower one, bending in the gap just before it. '
-          + 'The automatic layout is not rearranged. Omit to keep the direction already in the file'),
+          + 'The automatic layout follows it: TB puts generations in rows and siblings in columns. '
+          + 'placements are screen cells and are taken as given (not transposed), so pass them for the new direction. '
+          + 'Omit to keep the direction already in the file'),
     },
     async (input) => {
       try {

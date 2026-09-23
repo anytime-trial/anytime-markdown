@@ -39,6 +39,7 @@ import {
   anchorKey,
   layoutDiagram,
   MAX_PLACEMENTS_PER_DIAGRAM,
+  orientDiagramChart,
   midpointOf,
   paintableExtent,
   type PlacedChart,
@@ -132,21 +133,25 @@ export interface DiagramModel {
 }
 
 /**
- * 自動配置の記憶。**並べ替えの入力（家族と単独の要素）が同じなら**やり直さない。
+ * 自動配置の記憶。**並べ替えの入力（家族と単独の要素）と図の向きが同じなら**やり直さない。
  *
  * 図そのものを鍵にしない。下書きは図の全体を持つので、升目を 1 つ動かすたびに別の図になり、
  * 記憶が毎フレーム外れる（指を動かすたびに人物数ぶんの並べ替えが走る）。並べ替えに効くのは
- * 家族と要素の一覧だけなので、その 2 つの同一性で見る。
+ * 家族と要素の一覧、升目の縦横に効くのは向きだけなので、その 3 つで見る。
  */
 export function createAutomaticCache(): (document: DiagramDocument) => AutomaticChart {
   let families: readonly DiagramFamily[] | null = null;
   let nodes: readonly string[] | null = null;
+  let direction: DiagramDirection | null = null;
   let value: AutomaticChart | null = null;
   return (document) => {
-    if (families === document.families && nodes === document.nodes && value !== null) return value;
+    const nextDirection = document.layout?.direction ?? DEFAULT_DIAGRAM_DIRECTION;
+    if (families === document.families && nodes === document.nodes && direction === nextDirection
+      && value !== null) return value;
     families = document.families;
     nodes = document.nodes;
-    value = layoutDiagram(document.families, document.nodes);
+    direction = nextDirection;
+    value = orientDiagramChart(layoutDiagram(document.families, document.nodes), nextDirection);
     return value;
   };
 }

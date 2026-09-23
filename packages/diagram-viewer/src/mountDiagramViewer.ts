@@ -66,6 +66,7 @@ import {
   resizeFromDrag,
   rowPitch,
   shiftCell,
+  transposeDiagramPlacements,
   viewForRect,
   zoomAt,
 } from '@anytime-markdown/diagram-core';
@@ -622,12 +623,16 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
 
   /**
    * 図の向きを差し替える。既定（左→右）なら**持たない**（刻みと同じ理由 — 既定の値を焼き付けない）。
+   *
+   * 手で置いた升目は列と行を入れ替える。自動配置は向きで列と行が入れ替わる（`orientDiagramChart`）
+   * ので、差分だけ元の升目に残すと、手で置いた人物だけが元の並びに取り残される。
    */
   function changeDirection(next: DiagramDirection): void {
     updateLayout((current) => {
-      if (next !== DEFAULT_DIAGRAM_DIRECTION) return { ...current, direction: next };
+      if ((current.direction ?? DEFAULT_DIAGRAM_DIRECTION) === next) return current;
       const { direction: _dropped, ...rest } = current;
-      return rest;
+      const turned = { ...rest, placements: transposeDiagramPlacements(current.placements) };
+      return next === DEFAULT_DIAGRAM_DIRECTION ? turned : { ...turned, direction: next };
     });
   }
 
