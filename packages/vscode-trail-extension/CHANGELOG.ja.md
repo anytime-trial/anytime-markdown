@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-09-23
+
+### 変更
+
+- 同梱スキル `anytime-dev-retro` の doctrine 抽出手順で、サブエージェントが CLAUDE.md を継承しないとしていた記述を実測に合わせて直した。
+
+### Trail Core (trail-activity)
+
+- LLM コストを世代別の単価で計算するようにした（Opus 5.5 / Fable 5.1 / Sonnet 5）。接尾辞付きのモデル ID でも世代別単価を選ぶ。
+
 ## [1.5.3] - 2026-09-13
 
 ### Trail Core (trail-activity / trail-server / trail-caravan-book / trail-db / mcp-trail / agent-core / code-analysis)

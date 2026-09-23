@@ -5,7 +5,7 @@ description: 分析と分析結果の出力。対象を調査・分析し、結�
 
 # 分析と分析結果の出力（anytime-analysis）
 
-更新日: 2026-09-13
+更新日: 2026-09-23
 
 ## Overview
 
@@ -439,7 +439,7 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 
 ### 9.6 サブエージェントへ委譲する場合
 
-委任プロンプトに本スキルの §9（`.claude/skills/anytime-analysis/SKILL.md` の該当節を Read して従う）と、鉄則 1〜3 を明記する（サブエージェントは CLAUDE.md / rules を継承しない）。
+委任プロンプトに本スキルの §9（`.claude/skills/anytime-analysis/SKILL.md` の該当節を Read して従う）と、鉄則 1〜3 を明記する（サブエージェントは CLAUDE.md と rules を継承するが、本スキルの本文は継承しない。2026-09-23 実測）。
 
 
 ## 補足: proposal と plan の関係

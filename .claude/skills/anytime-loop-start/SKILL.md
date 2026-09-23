@@ -5,7 +5,7 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 
 # anytime-loop-start — チケット駆動自動実行（1 tick・ループ開始）
 
-更新日: 2026-09-13
+更新日: 2026-09-23
 
 チケット正本は Git リポジトリの `.tickets/` 配下の Markdown（フォーマットは要件定義書
 `spec/00.requirements/ticket-system-requirements.ja.md` の FR-2 / §8。web-app の /tickets ボードと同一）。
@@ -122,7 +122,9 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
            < /tmp/ticket-delegation-T-12.prompt.md
          ```
 
-         `export TICKET_DELEGATION_MARKER` は `exec` で claude に継承され、`--settings` で注入した hooks（同梱 `heartbeat-hook.cjs`）がこの env でマーカーを特定して heartbeat を書く（env 未設定のセッションでは hook は no-op）。マーカーのフィールド契約は §3 を参照。
+         Why not `--restricted`: 最小権限の `--restricted`（Bash などコマンド実行系の組み込みツールを外す）は子セッションに使わない。子は完了時に `git commit` を実行する必要があり、Bash が無いと完了条件へ到達できない（2026-09-23 に `claude --help` で確認）。権限の絞り込みは `--allowedTools` で行う。
+
+`export TICKET_DELEGATION_MARKER` は `exec` で claude に継承され、`--settings` で注入した hooks（同梱 `heartbeat-hook.cjs`）がこの env でマーカーを特定して heartbeat を書く（env 未設定のセッションでは hook は no-op）。マーカーのフィールド契約は §3 を参照。
 
          プロンプトは `-p` の引数ではなく **stdin リダイレクトで渡す**（`"$(cat …)"` も使わない。argv 経由は ARG_MAX 依存かつ `ps` で全文露出する）。`$$` は `exec` で claude に引き継がれるため pid 記録は正しい。マーカーの記録と `exec` を同一プロセスに閉じることで「記録前の起動」を構造的に排除している。
       4. `bash -n` で構文ゲートを通してから `setsid` で起動する（テンプレート退行を起動前に検知する。ゲートで落ちたらスクリプトを直すまで起動しない）:
@@ -243,7 +245,7 @@ Agent({
 })
 ```
 
-委任プロンプトに含める 6 点（サブエージェントは CLAUDE.md を継承しないため、参照ではなく本文を渡す）:
+委任プロンプトに含める 6 点（サブエージェントは CLAUDE.md を継承するが本スキルの本文は継承しないため、参照ではなく本文を渡す。2026-09-23 実測）:
 
 - **対象**: チケットリポジトリの絶対パス（§0 で解決済みの値）、AI エージェント識別名、コードワークスペースのルート
 - **禁止範囲**: §3 の安全境界。加えて `CronCreate` / `CronDelete` を呼ばないこと（ループ管理はメインセッションの責務。サブエージェントの cron 操作はメインセッションのジョブ一覧と一致しない）

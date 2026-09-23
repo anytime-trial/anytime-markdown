@@ -1,5 +1,20 @@
 # Change Log
 
+## [0.4.0] - 2026-09-23
+
+### Added
+
+- A diagram now has an orientation, left-to-right or top-to-bottom (`layout.direction`; left-to-right is the default and is not written to the file). An elbow line leaves the centre of the upper element's leading face (right for LR, bottom for TB), enters the centre of the lower element's trailing face, and bends in the gap just before the lower element. It used to pick its axis from how far apart the two boxes were, so a diagonally placed parent and child bent inside an empty column and the face it attached to depended on placement. Hand-drawn elbow lines follow the same rule, and when the lower element sits in the same or an earlier column the line goes round through the gaps instead of crossing a box.
+- Top-to-bottom also rearranges the automatic layout so that generations are rows and siblings are columns. Switching orientation on screen transposes manually placed cells too. MCP `set_diagram_layout` placements are a full replacement given in screen cells, so they are not transposed.
+- Two elements in the same column (same row for top-to-bottom) joined by an elbow line are connected straight between their facing sides. If another box lies between them the previous rule applies, because a straight line would read as connecting to that person.
+
+### Fixed
+
+- The marriage line of a couple with children disappeared in elbow mode (a regression from the orientation setting: both parents' lines merged in the parent-child style, contradicting the legend's "dashed means marriage"). The marriage line is back and the line to the children drops from its midpoint.
+- Lines from a third or later parent were dropped from elbow-mode families (same regression).
+- Marriage and oath lines looked solid when the diagram was zoomed out. Dash lengths are now multiples of the line-width token `--diagram-line-w`, so the ratio of width to dash stays constant at any zoom.
+- The midpoint handle of a selected line was hidden under the grid's ＋ button, so a line could not be drawn from it. The ＋ over the selected line's midpoint is no longer drawn.
+
 ## [0.3.0] - 2026-09-22
 
 ### Added

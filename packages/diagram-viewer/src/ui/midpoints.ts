@@ -10,11 +10,47 @@
  * 取っ手そのものが入れ替わってポインタの捕捉が外れ、引きかけの線が指から離れる。
  */
 
-import { type DiagramAnchor, sameAnchor } from '@anytime-markdown/diagram-core';
+import { type ChartView, type DiagramAnchor, sameAnchor } from '@anytime-markdown/diagram-core';
 
 import type { DiagramT } from '../i18n';
 import type { LineMidpoint } from '../model';
 import { el, setClass } from './dom';
+import type { BlockedBox } from './overlap';
+
+/**
+ * 取っ手の当たり判定の半幅（px）。見た目の丸（11px）に `::before` の広げ（四方 7px）を足した
+ * 25px 四方の半分を切り上げる。`diagramStyles.ts` の `.anytime-diagram-midpoint` と揃える。
+ */
+const MIDPOINT_HIT_HALF_PX = 13;
+
+/**
+ * 選んだ線の中点が枠の上で占める場所。**升目の ＋ をここに重ねない**ために渡す。
+ *
+ * 升目の ＋ は枠に貼り付く層にあり、図の面に載る取っ手より上へ重なる。1 行空けて縦に結んだ線は
+ * 中点が空いた升目の真ん中に来るので、重ねたままでは ＋ が押下を奪い、中点から線を引けない。
+ *
+ * 選んだ線に限るのは、升目の ＋ を消しすぎないため。全部の中点で引っ込めると、線が横切る空き
+ * 升目には要素を足せなくなる。線を選ぶのは「この線を触る」という意思表示なので、そのときだけ
+ * 取っ手を優先する。取っ手は画面上で大きさが変わらない（拡大率を掛けない）。
+ */
+export function selectedMidpointBoxes(
+  midpoints: readonly LineMidpoint[],
+  selected: readonly DiagramAnchor[],
+  view: ChartView,
+): readonly BlockedBox[] {
+  return midpoints
+    .filter((midpoint) => selected.some((anchor) => sameAnchor(anchor, midpoint.anchor)))
+    .map((midpoint) => {
+      const x = view.x + midpoint.x * view.scale;
+      const y = view.y + midpoint.y * view.scale;
+      return {
+        left: x - MIDPOINT_HIT_HALF_PX,
+        top: y - MIDPOINT_HIT_HALF_PX,
+        right: x + MIDPOINT_HIT_HALF_PX,
+        bottom: y + MIDPOINT_HIT_HALF_PX,
+      };
+    });
+}
 
 export interface MidpointCallbacks {
   onConnectPointerDown(event: PointerEvent, anchor: DiagramAnchor): void;

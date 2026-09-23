@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-09-23
+
+### Changed
+
+- Bundled skills updated. Statements that subagents do not inherit CLAUDE.md were corrected to match measured behaviour (CLAUDE.md and rules are inherited, skill bodies are not) in `anytime-analysis`, `anytime-dev-audit`, `anytime-dev-cycle` and `anytime-loop-start`. `anytime-dev-cycle` adds when to use a fork versus a fresh subagent, `anytime-dev-audit` adds a read-only inventory of supply paths (plugins, hook scripts, synced skills), and `anytime-loop-start` explains why child sessions do not use `--restricted`.
+
 ## [1.20.0] - 2026-09-21
 
 ### Added

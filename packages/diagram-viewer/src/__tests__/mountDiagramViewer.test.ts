@@ -1012,6 +1012,81 @@ describe('線の中点から線を引く', () => {
   });
 });
 
+/**
+ * 選んだ線の中点に掛かる升目の ＋ は描かない。
+ *
+ * 升目の ＋ は枠に貼り付く層（`z-index: 1`）にあり、図の面に載る中点の取っ手より上へ重なる。
+ * 1 行空けて縦に結んだ線は中点が空いた升目の真ん中に来るので、そのままでは ＋ が押下を奪い、
+ * 線を選んでも中点から線を引けない（実機で観測）。
+ */
+describe('選んだ線の中点と升目の ＋', () => {
+  const FRAME = { width: 1200, height: 800 };
+  let sizes: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    sizes = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => FRAME.width });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => FRAME.height });
+  });
+
+  afterEach(() => {
+    if (sizes === undefined) return;
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', sizes);
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', sizes);
+  });
+
+  // 1 行空けて縦に結ぶ。線の中点は空いた升目（1 列 2 行目）の真ん中に来る。
+  const SKIPPED_ROW: DiagramDocument = {
+    ...DOC,
+    families: [],
+    annotations: {},
+    nodes: ['上', '下'],
+    connectors: [{
+      id: 'c1', from: { kind: 'element', name: '上' }, to: { kind: 'element', name: '下' },
+      line: 'solid', color: 'default', route: 'straight', start: 'none', end: 'arrow',
+    }],
+    layout: { placements: { 上: { column: 0, row: 0 }, 下: { column: 0, row: 2 } } },
+  };
+  const adderBetween = (): HTMLButtonElement | null =>
+    byLabel('1 列 2 行目へ要素を足す');
+  const selectLine = (): void => {
+    container.querySelector<SVGPathElement>('.anytime-diagram-links g[data-connector="c1"] .link-hit')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  };
+
+  beforeEach(() => {
+    mount({ document: SKIPPED_ROW, editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+  });
+
+  it('線を選ぶまでは、その升目にも ＋ が出る', () => {
+    expect(adderBetween()).not.toBeNull();
+  });
+
+  it('線を選ぶと中点に掛かる ＋ を引っ込め、中点の取っ手を押せるようにする', () => {
+    selectLine();
+    expect(adderBetween()).toBeNull();
+    // 他の升目の ＋ は残す（引っ込めるのは中点に掛かるものだけ）。
+    expect(byLabel('2 列 2 行目へ要素を足す')).not.toBeNull();
+  });
+
+  it('選んだ線の中点から引いた線は、その線の中点に取り付く', () => {
+    selectLine();
+    const view = handle!;
+    container.querySelector<HTMLButtonElement>('.anytime-diagram-midpoint[data-line-anchor="l:c1"]')!.click();
+    container.querySelector<HTMLButtonElement>('[data-person="下"] .anytime-diagram-connect')!.click();
+    const made = view.getDraft()!.connectors.find((item) => item.id !== 'c1')!;
+    expect(made.from).toEqual({ kind: 'line', line: 'c1' });
+  });
+
+  it('選択を外すと ＋ が戻る', () => {
+    selectLine();
+    container.querySelector('.anytime-diagram-viewport')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    expect(adderBetween()).not.toBeNull();
+  });
+});
+
 describe('線の経路', () => {
   it('選び直すと下書きと描かれる path が変わる', () => {
     const view = mount({ editable: true, onSave: () => {} });
@@ -1951,5 +2026,67 @@ describe('保存している間は下書きを進めない', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(saved).toHaveLength(1);
+  });
+});
+
+describe('図の向き', () => {
+  const directionSelect = (): HTMLSelectElement =>
+    [...container.querySelectorAll('label')].find((label) => label.textContent?.startsWith('向き'))!
+      .querySelector('select')!;
+  const descent = (): string => container.querySelector('path.edge-birth:not(.edge-spouse)')!.getAttribute('d') ?? '';
+
+  it('向きを上→下に変えると家族の折れ線が引き直され、保存に向きが載る', async () => {
+    const onSave = jest.fn();
+    const view = mount({ editable: true, onSave, alwaysEditing: true });
+    const before = descent();
+    const select = directionSelect();
+    expect(select.value).toBe('LR');
+    select.value = 'TB';
+    select.dispatchEvent(new Event('change'));
+    expect(descent()).not.toBe(before);
+    await view.save();
+    expect(onSave.mock.calls[0]![0].layout.direction).toBe('TB');
+  });
+
+  const cellOf = (name: string) => {
+    const node = container.querySelector(`[data-person="${name}"]`) as HTMLElement;
+    const { nodeWidth, nodeHeight, columnGap, rowGap } = DEFAULT_DIAGRAM_SPACING;
+    return {
+      column: (Number.parseFloat(node.style.left) - 30) / (nodeWidth + columnGap),
+      row: (Number.parseFloat(node.style.top) - 30) / (nodeHeight + rowGap),
+    };
+  };
+  const chooseDirection = (value: string) => {
+    const select = directionSelect();
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+  };
+
+  it('上→下では世代が行に並ぶ（自動配置の列と行が入れ替わる）', () => {
+    mount({ editable: true, onSave: () => {}, alwaysEditing: true });
+    const before = ['祖父', '父', '子'].map(cellOf);
+    chooseDirection('TB');
+    expect(['祖父', '父', '子'].map(cellOf)).toEqual(before.map(({ column, row }) => ({ column: row, row: column })));
+  });
+
+  it('向きを変えると手で置いた升目も列と行を入れ替え、往復で元に戻る', async () => {
+    const onSave = jest.fn();
+    const view = mount({
+      document: { ...DOC, layout: { placements: { 子: { column: 4, row: 1 } } } },
+      editable: true,
+      onSave,
+      alwaysEditing: true,
+    });
+    chooseDirection('TB');
+    expect(cellOf('子')).toEqual({ column: 1, row: 4 });
+    await view.save();
+    expect(onSave.mock.calls[0]![0].layout.placements).toEqual({ 子: { column: 1, row: 4 } });
+    chooseDirection('LR');
+    expect(cellOf('子')).toEqual({ column: 4, row: 1 });
+  });
+
+  it('閲覧中は向きの選び口を出さない', () => {
+    mount({ editable: true, onSave: () => {} });
+    expect(directionSelect().closest('label')!.classList.contains('anytime-diagram-hidden')).toBe(true);
   });
 });

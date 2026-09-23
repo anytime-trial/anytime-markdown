@@ -227,3 +227,31 @@ describe('輪を作る家族', () => {
     expect(parseDiagramDocument(json())).not.toBeNull();
   });
 });
+
+describe('図の向き', () => {
+  it('上→下は読み取り・書き出しを往復しても残る', () => {
+    const document: DiagramDocument = { ...SAMPLE, layout: { placements: {}, direction: 'TB' } };
+    expect(json(document).layout).toEqual({ placements: {}, direction: 'TB' });
+    expect(parseDiagramFile(serializeDiagramDocument(document))!.layout.direction).toBe('TB');
+  });
+
+  it('既定の左→右は書かない（触っていない図の形を変えない）', () => {
+    const document: DiagramDocument = { ...SAMPLE, layout: { placements: {}, direction: 'LR' } };
+    expect(json(document).layout).toBeUndefined();
+    expect(isEmptyLayout({ placements: {}, direction: 'LR' })).toBe(true);
+    expect(isEmptyLayout({ placements: {}, direction: 'TB' })).toBe(false);
+  });
+
+  it('読めない向きは警告して既定で描く', () => {
+    const warnings: string[] = [];
+    const layout = readDiagramLayout({ placements: {}, direction: 'RL' }, (message) => warnings.push(message));
+    expect(layout.direction).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('保存の入口は読めない向きを断り、上→下は通す', () => {
+    expect(validateDiagramLayout({ placements: {}, direction: 'RL' }).ok).toBe(false);
+    const result = validateDiagramLayout({ placements: {}, direction: 'TB' });
+    expect(result).toEqual({ ok: true, layout: { placements: {}, direction: 'TB' } });
+  });
+});

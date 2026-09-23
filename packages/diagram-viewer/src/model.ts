@@ -17,11 +17,13 @@ import {
   columnPitch,
   type ConnectorGeometry,
   connectorGeometry,
+  DEFAULT_DIAGRAM_DIRECTION,
   type ConnectorEnd,
   type ConnectorPointAt,
   DEFAULT_DIAGRAM_SPACING,
   type DiagramAnchor,
   type DiagramConnector,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramFamily,
   type DiagramLayout,
@@ -37,6 +39,7 @@ import {
   anchorKey,
   layoutDiagram,
   MAX_PLACEMENTS_PER_DIAGRAM,
+  orientDiagramChart,
   midpointOf,
   paintableExtent,
   type PlacedChart,
@@ -106,6 +109,8 @@ export interface DiagramModel {
   readonly chart: PlacedChart;
   readonly byName: ReadonlyMap<string, ChartNode>;
   readonly spacing: DiagramSpacing;
+  /** 図の向き。折れ線の取り付きを決める（設定の区画が今の値として読む）。 */
+  readonly direction: DiagramDirection;
   readonly placements: Readonly<Record<string, { readonly column: number; readonly row: number }>>;
   readonly connectors: readonly FamilyConnector[];
   /** 手で引いた線のうち、両端が図に出ているもの。 */
@@ -128,21 +133,25 @@ export interface DiagramModel {
 }
 
 /**
- * 自動配置の記憶。**並べ替えの入力（家族と単独の要素）が同じなら**やり直さない。
+ * 自動配置の記憶。**並べ替えの入力（家族と単独の要素）と図の向きが同じなら**やり直さない。
  *
  * 図そのものを鍵にしない。下書きは図の全体を持つので、升目を 1 つ動かすたびに別の図になり、
  * 記憶が毎フレーム外れる（指を動かすたびに人物数ぶんの並べ替えが走る）。並べ替えに効くのは
- * 家族と要素の一覧だけなので、その 2 つの同一性で見る。
+ * 家族と要素の一覧、升目の縦横に効くのは向きだけなので、その 3 つで見る。
  */
 export function createAutomaticCache(): (document: DiagramDocument) => AutomaticChart {
   let families: readonly DiagramFamily[] | null = null;
   let nodes: readonly string[] | null = null;
+  let direction: DiagramDirection | null = null;
   let value: AutomaticChart | null = null;
   return (document) => {
-    if (families === document.families && nodes === document.nodes && value !== null) return value;
+    const nextDirection = document.layout?.direction ?? DEFAULT_DIAGRAM_DIRECTION;
+    if (families === document.families && nodes === document.nodes && direction === nextDirection
+      && value !== null) return value;
     families = document.families;
     nodes = document.nodes;
-    value = layoutDiagram(document.families, document.nodes);
+    direction = nextDirection;
+    value = orientDiagramChart(layoutDiagram(document.families, document.nodes), nextDirection);
     return value;
   };
 }
@@ -161,6 +170,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
   const layout = source.layout ?? EMPTY_DIAGRAM_LAYOUT;
   const placements = layout.placements;
   const spacing = layout.spacing ?? DEFAULT_DIAGRAM_SPACING;
+  const direction = layout.direction ?? DEFAULT_DIAGRAM_DIRECTION;
   const chart = applyDiagramPlacements(applyDiagramSpacing(automatic, spacing), { placements, spacing });
   const byName = new Map(chart.nodes.map((node) => [node.name, node]));
 
@@ -177,7 +187,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     laneByColumn.set(parentColumn, lane + 1);
     const look = familyLook(family);
     return {
-      ...familyConnector(family, byName, { lane, spacing, route: look.route }),
+      ...familyConnector(family, byName, { lane, spacing, route: look.route, direction }),
       family,
       look,
     };
@@ -231,7 +241,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
       const from = endOf(connector.from);
       const to = endOf(connector.to);
       if (from === undefined || to === undefined) { rest.push(connector); continue; }
-      const geometry = connectorGeometry(from, to, spacing, connector);
+      const geometry = connectorGeometry(from, to, spacing, connector, direction, chart.nodes);
       if (geometry === null) continue;
       solved.set(connector.id, geometry);
       links.push({ connector, geometry });
@@ -268,6 +278,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     chart,
     byName,
     spacing,
+    direction,
     placements,
     connectors,
     links,

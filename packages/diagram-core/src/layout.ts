@@ -19,11 +19,15 @@ import {
 // 経路は手で引いた線と共有する（`connectors.ts`）。家族の線だけ別の式で曲げると、同じ「カーブ」を
 // 選んだのに線の出どころで曲がり方が変わる。型だけの逆参照なので実行時の循環にはならない。
 import { routePath } from './connectors';
-import type {
-  DiagramFamily,
-  DiagramLayout,
-  DiagramLineRoute,
-  DiagramSpacing,
+import { directedFamilyRoute } from './direction';
+import {
+  DEFAULT_DIAGRAM_DIRECTION,
+  type DiagramDirection,
+  type DiagramFamily,
+  type DiagramLayout,
+  type DiagramLineRoute,
+  type DiagramPlacement,
+  type DiagramSpacing,
 } from './types';
 
 export interface ChartNode {
@@ -88,9 +92,17 @@ export function familyConnector(
      * 直線を引くと、車線の縦棒だけが折れ線のまま残り、2 つの引き方が 1 本の線に混ざる。
      */
     readonly route?: DiagramLineRoute;
+    /**
+     * 図の向き。折れ線の取り付きと折れる位置を決める（`directedFamilyRoute`）。
+     *
+     * 既定値を置かない理由は `spacing` と同じ — 渡し忘れると、向きを上→下にした図で家族の線だけが
+     * 左→右のまま描かれ、既定の向きで描くテストは全部緑のまま通る。
+     */
+    readonly direction: DiagramDirection;
   },
 ) {
-  const { lane = 0, spacing, route = 'orthogonal' } = options;
+  const { lane = 0, spacing, route = 'orthogonal', direction } = options;
+  if (route === 'orthogonal' && family.children.length > 0) return directedFamily(family, nodes, spacing, direction);
   const { nodeWidth, nodeHeight } = spacing;
   const first = nodes.get(family.parents[0]!)!;
   const second = family.parents[1] === undefined ? undefined : nodes.get(family.parents[1]);
@@ -158,6 +170,34 @@ export function familyConnector(
     })),
   };
   return { junction, marriage, descent, points, caps };
+}
+
+/**
+ * 子の居る家族の折れ線。両親を婚姻の線で結び、その結び目から子の直前のすき間へ降ろす
+ * （`directedFamilyRoute`）。子の居ない家族は降ろす先が無いので、両親を結ぶ線だけを描く
+ * （`familyConnector` の残りの経路）。
+ */
+function directedFamily(
+  family: DiagramFamily,
+  nodes: ReadonlyMap<string, ChartNode>,
+  spacing: DiagramSpacing,
+  direction: DiagramDirection,
+) {
+  const parents = family.parents.map((name) => nodes.get(name)!);
+  const children = family.children.map((name) => nodes.get(name)!);
+  const route = directedFamilyRoute(parents, children, spacing, direction, [...nodes.values()]);
+  const points: ConnectorPoint[] = [
+    ...route.starts.map((point) => ({ ...point, kind: 'parent' as const })),
+    { ...route.junction, kind: 'junction' },
+    ...route.ends.map(({ x, y }) => ({ x, y, kind: 'child' as const })),
+  ];
+  return {
+    junction: route.junction,
+    marriage: route.marriage,
+    descent: route.path,
+    points,
+    caps: { start: { ...route.junction, angle: route.startAngle }, ends: route.ends },
+  };
 }
 
 /**
@@ -500,14 +540,48 @@ export function applyDiagramPlacements(
   };
 }
 
-/** 自動配置・刻み・差分の適用を続けて行う（テストと、差分を持たない呼び出し向け）。 */
+/**
+ * 自動配置を図の向きへ合わせる。`TB` では**世代を行、兄弟を列**に置く（`LR` の列と行を入れ替える）。
+ *
+ * 並べ替え（`layoutDiagram`）に向きを持ち込まず、組んだ後で升目を入れ替える。並べ替えは世代と
+ * 兄弟の 2 軸だけを決めており、どちらを画面の縦横へ当てるかは向きだけで決まるため。向きを
+ * 線の取り付きだけに効かせると、上→下にしても世代が横に並んだまま線だけが回り込む。
+ *
+ * 座標は**既定の刻み**で引き直す（`applyDiagramSpacing` が既定の刻みでは座標を引き直さないので、
+ * 並べ替えと同じ前提に揃える）。
+ */
+export function orientDiagramChart(chart: AutomaticChart, direction: DiagramDirection): AutomaticChart {
+  if (direction === 'LR') return chart;
+  const nodes = chart.nodes.map((node) => {
+    const cell = { column: node.row, row: node.column };
+    return { ...node, ...cell, ...cellPosition(DEFAULT_DIAGRAM_SPACING, cell) };
+  });
+  return { nodes, edges: chart.edges, automatic: new Map(nodes.map((node) => [node.name, node])) };
+}
+
+/**
+ * 配置差分の列と行を入れ替える。画面で図の向きを切り替えたときに当てる。
+ *
+ * 差分は画面上の升目を持つので、向きだけを変えると手で置いた人物は元の並びに残り、自動配置の
+ * 人物だけが向きへ追随して図が崩れる。2 回当てると元に戻る（向きの往復で配置を失わない）。
+ */
+export function transposeDiagramPlacements(
+  placements: Readonly<Record<string, DiagramPlacement>>,
+): Record<string, DiagramPlacement> {
+  return Object.fromEntries(
+    Object.entries(placements).map(([name, cell]) => [name, { column: cell.row, row: cell.column }]),
+  );
+}
+
+/** 自動配置・向き・刻み・差分の適用を続けて行う（テストと、差分を持たない呼び出し向け）。 */
 export function diagramChart(
   families: readonly DiagramFamily[],
   overrides: DiagramLayout | null = null,
   extraNames: readonly string[] = [],
 ): PlacedChart {
+  const direction = overrides?.direction ?? DEFAULT_DIAGRAM_DIRECTION;
   return applyDiagramPlacements(
-    applyDiagramSpacing(layoutDiagram(families, extraNames), overrides?.spacing),
+    applyDiagramSpacing(orientDiagramChart(layoutDiagram(families, extraNames), direction), overrides?.spacing),
     overrides,
   );
 }

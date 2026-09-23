@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import {
   type DiagramConnector,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramFamily,
   type DiagramAnchor,
@@ -114,6 +115,13 @@ export interface SetDiagramLayoutInput {
   /** 人物名 → 升目。**この対応で丸ごと置き換える**（部分更新ではない）。 */
   placements: Record<string, { column: number; row: number }>;
   spacing?: { columnGap?: number; nodeWidth?: number; rowGap?: number; nodeHeight?: number };
+  /**
+   * 図の向き。**省略したらファイルの向きを保つ**（配置差分と違い、置き換えの対象にしない）。
+   *
+   * 向きは「動かした人物」の記録ではなく図ぜんぶの設定なので、配置を書き換えるたびに渡し直させると、
+   * 渡し忘れた 1 回で上→下の図が黙って左→右へ戻る。
+   */
+  direction?: DiagramDirection;
 }
 
 /**
@@ -132,6 +140,9 @@ export async function setDiagramLayout(
   const validated = validateDiagramLayout({
     placements: input.placements,
     ...(input.spacing === undefined ? {} : { spacing: input.spacing }),
+    ...((input.direction ?? document.layout.direction) === undefined
+      ? {}
+      : { direction: input.direction ?? document.layout.direction }),
   });
   if (!validated.ok) throw new Error(validated.errors.join('\n'));
   const next: DiagramDocument = { ...document, layout: validated.layout };

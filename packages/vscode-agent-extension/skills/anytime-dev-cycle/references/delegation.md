@@ -196,6 +196,8 @@ node ollama-probe.cjs                    # spec + inventory（数秒）
 
 出力の「委譲可否表」を読む。`.anytime/ollama-profile.json` が無い、または導入モデルの署名（name + digest）が変わっていれば **未検証**。次へ進む。
 
+probe は `/api/show` の `capabilities` をプロファイルへ記録する。`thinking` を含むモデルは思考の有無で成績が変わるため、§4.2 手順 3 のベンチ値（例: `ifeval` の non-thinking mode 値）が、委譲時に使う思考モードの値かを確かめてから比べる。Ollama v0.34.3 以降は `/api/show` がモデルごとの思考制御レベルと既定値も返す（2026-09-19 週次調査）。応答のフィールド名は本環境で未確認のため、probe はまだ読んでいない。Ollama を更新した環境で probe を回す時に、応答の実物を見てから取り込む。
+
 **2. 実証実験を実走する（未検証時のみ）**
 
 ```bash

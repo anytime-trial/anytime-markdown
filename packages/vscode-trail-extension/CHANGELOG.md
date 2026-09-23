@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-09-23
+
+### Changed
+
+- In the bundled `anytime-dev-retro` skill, the doctrine extraction steps no longer claim that subagents do not inherit CLAUDE.md, matching measured behaviour.
+
+### Trail Core (trail-activity)
+
+- LLM costs are calculated at per-generation rates (Opus 5.5 / Fable 5.1 / Sonnet 5), including model IDs with a suffix.
+
 ## [1.5.3] - 2026-09-13
 
 ### Trail Core (trail-activity / trail-server / trail-caravan-book / trail-db / mcp-trail / agent-core / code-analysis)

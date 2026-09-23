@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-23
+
+### Security
+
+- hono updated from 4.12.26 to 4.13.8 (includes fixes for a cross-request information leak and nine other advisories).
+
 ## [0.4.0] - 2026-08-01
 
 ### Changed

@@ -6,7 +6,7 @@ description: PC 環境（ディレクトリ構造）と Claude Code 設定（CLA
 
 # anytime-dev-audit — セットアップ監査（Claude Code 環境の read-only 診断）
 
-更新日: 2026-09-13
+更新日: 2026-09-23
 
 PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）を read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。`anytime-dev-retro`（Trail DB のデルタ分析・インシデント要件化）が「**開発活動**の健全性」を見るのに対し、本スキルは「**環境・設定**の健全性」を見る（2026-07-14 に `anytime-dev-health` の references から独立スキルへ分離）。Claude Code 標準の `/doctor`（v2.1.205+。旧 `/checkup`）とは役割分担する: インストール健全性・未使用 skill/MCP のコスト対比・CLAUDE.md トリム提案は `/doctor` の実行を推奨事項として提示し、本スキルで再実装しない（本スキルはディレクトリ構造・プロジェクト固有運用まで含む広域監査を担う）。初回実施と是正の実例は 20260713 監査レポート（`<docsRoot>/report/20260713-claude-code-setup-audit.ja.md`） / 是正プラン `plan/20260713-setup-audit-remediation.ja.md`、診断観点の設計と出典は設計書 `spec/90.skill/anytime-dev-audit.ja.md` を参照。
 
@@ -30,7 +30,7 @@ PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）�
 | output-styles | 有無と CLAUDE.md「応答」節との二重管理リスク |
 | MCP | .mcp.json と settings の enable リストの整合・未使用サーバー・権限過多。**enable リストに無くても実セッションで接続されている場合がある**ため「実接続」と突合して断定する。スコープ選択（機密を含む個人用サーバーの project スコープ誤コミット）・Tool Search の意図しない無効化・`alwaysLoad` の濫用・外部コンテンツ取得系のプロンプトインジェクション評価 |
 | settings 各スコープ | user / project / local / managed。permissions（allow/deny/ask）と defaultMode。deny → ask → allow の評価順を踏まえたルール設計・`bypassPermissions` の隔離環境外利用（要警告）・sandbox 有効化と認証情報（`~/.ssh` 等）の読み取り遮断・project 共有 settings.json の不在（local 偏重）も指摘対象 |
-| プラグイン | インストール済み・マーケットプレイス・キャッシュ旧世代の GC 漏れ |
+| プラグイン | インストール済み・マーケットプレイス・キャッシュ旧世代の GC 漏れ・**供給経路の棚卸し**（§1.2 末尾） |
 | モデル運用 | タスク別使い分け（メイン既定/サブエージェント委譲の model 明示）・effort 方針・`fallbackModel` の活用余地 |
 | コンテキスト効率 | always-on 合計（CLAUDE.md+rules+MEMORY.md 索引）の推定トークン・/compact 運用・compaction で失われる要素（会話内でのみ伝えた口頭指示等）の永続化漏れ・委譲すべき重い処理 |
 | 自動化 | CI（workflows）・git hooks（pre-commit の set -e 有無まで見る）・npm scripts・スケジュール実行 |
@@ -64,6 +64,11 @@ Claude Code 側の機能追加により、次の観点を診断へ組み込む�
 - auto モードと classifier: 利用要件（対応モデル・組織設定）と `permissions.ask` による人間チェックポイントの整合。
 - `--safe-mode`（v2.1.166+）: 全カスタマイズ無効化起動がトラブルシュート手段として周知されているか。
 - managed-only ロック群（`allowManagedHooksOnly` 等）: 組織展開時のフック・権限ルール出所制限の要否。
+- `/skill-doctor`（v2.1.261+）と `claude plugin eval`（v2.1.269+）: スキル一覧の予算超過とキーワード不一致の実測、プラグインのテスト実行。**2026-09-23 時点では本スキルに未組込み**。次回の監査で `/skill-doctor` を 1 回流し、SKILL.md 行数・description 字数の推測値より有用なら「skills/」行の診断手段を置き換える（`<docsRoot>/proposal/20260923-insight-feedback-to-skills.ja.md` A3）。
+- **供給経路の棚卸し**（Plugin4Shell・ChainDrop を受けて追加。2026-09-23）: 外から入ってきて自動で実行・注入される物を read-only で列挙する。変更はしない。
+  - プラグイン: `~/.claude/plugins/installed_plugins.json` の各エントリの `gitCommitSha` の有無と、`known_marketplaces.json` のマーケットプレイス一覧。SHA 固定の無いものを挙げる。Plugin4Shell（SHA と同名のブランチで固定を迂回）は Claude Code 2.1.179 で修正済みのため、`claude --version` がそれ以上かも確かめる。
+  - hooks: settings の各 hook の `command` が指すスクリプトの実在と、`~/.claude/settings-fragments/*.settings.json` との差分。`verify-settings-wiring.sh` は配線の有無しか見ないため、スクリプト本体の最終更新日時と git 追跡の有無を並べ、追跡外のスクリプトを挙げる。
+  - 同期スキル: `~/.claude/skills/synced/` 配下（claude.ai からの自動同期。v2.1.275+）のスキル名と description。ローカルのスキルと名前や発火語が衝突するものを挙げる。
 
 ### 1.3. global CLAUDE.md のプロンプティング規範照合
 
@@ -136,7 +141,7 @@ node .claude/skills/anytime-dev-audit/ingest-wiring-check.cjs [--json] [--worksp
 2. **グローバル設定**: ~/.claude 全域（CLAUDE.md・rules・skills・agents・output-styles・settings・plugins・~/.claude.json のキー抽出のみ・memory 索引サイズ）。DB ファイルは開かない（readOnly でも WAL 書込があるため sqlite 接続禁止。例外は §1.4 の ingest 配線診断のみで、これはサブエージェントへ委任せずメインでスクリプトを実行する）。
 3. **プロジェクト設定・自動化**: プロジェクト CLAUDE.md/AGENTS.md・.claude/・.mcp.json・workflows・hooks・scripts・docs リポジトリ構成。
 
-委任プロンプトには「コンテキスト・ツール効率」ルールと read-only 制約を明記する（サブエージェントは CLAUDE.md を継承しない）。
+委任プロンプトには read-only 制約を明記する。「コンテキスト・ツール効率」ルールは CLAUDE.md 経由でサブエージェントも継承するため書き写さない（2026-09-23 実測）。
 
 ## 3. 検証原則（サブエージェント報告の裏取り）
 

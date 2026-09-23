@@ -151,19 +151,33 @@ describe('配置差分の適用', () => {
 });
 
 describe('関係線', () => {
-  it('子の線は両親を結ぶ線の中央から一度だけ分岐する', () => {
+  it('折れ線の家族も両親を婚姻の線で結び、子への線はその中点から出す', () => {
     const chart = diagramChart(families);
     const nodes = byName(chart.nodes);
-    const connector = familyConnector(families[0]!, nodes, { spacing: DEFAULT_DIAGRAM_SPACING });
+    const connector = familyConnector(families[0]!, nodes, { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
     expect(connector.marriage).not.toBeNull();
-    expect(connector.descent).not.toBeNull();
-    // 分岐は 1 本（縦のバス）で、子の数だけ横へ伸びる。
-    expect(connector.descent!.split('M ').length - 1).toBe(2 + families[0]!.children.length);
+    // 同じ列の両親は、向かい合う面（下側の上面・上側の下面）の中央どうしを真っ直ぐ結ぶ。
+    const [one, other] = families[0]!.parents.map((name) => nodes.get(name)!);
+    const { nodeWidth, nodeHeight } = DEFAULT_DIAGRAM_SPACING;
+    expect(one!.x).toBe(other!.x);
+    const [upper, lower] = one!.y < other!.y ? [one!, other!] : [other!, one!];
+    const centre = one!.x + nodeWidth / 2;
+    const [from, to] = upper === one ? [upper.y + nodeHeight, lower.y] : [lower.y, upper.y + nodeHeight];
+    expect(connector.marriage).toBe(`M ${centre} ${from} V ${to}`);
+    expect(connector.descent?.startsWith(`M ${connector.junction.x} ${connector.junction.y} `)).toBe(true);
+  });
+
+  it('子の居ない家族は、合流先が無いので両親を結ぶ線だけを引く', () => {
+    const chart = diagramChart(families);
+    const childless = { ...families[0]!, children: [] };
+    const connector = familyConnector(childless, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
+    expect(connector.marriage).not.toBeNull();
+    expect(connector.descent).toBeNull();
   });
 
   it('片親の家族には配偶の線を作らない', () => {
     const chart = diagramChart(families);
-    const connector = familyConnector(families[2]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING });
+    const connector = familyConnector(families[2]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
     expect(connector.marriage).toBeNull();
     expect(connector.points.some((point) => point.kind === 'junction')).toBe(true);
   });
@@ -171,8 +185,8 @@ describe('関係線', () => {
   it('箱の大きさは線の取り付き位置に効く', () => {
     const spacing = { ...DEFAULT_DIAGRAM_SPACING, nodeWidth: 300 };
     const chart = diagramChart(families, { placements: {}, spacing });
-    const narrow = familyConnector(families[0]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING });
-    const wide = familyConnector(families[0]!, byName(chart.nodes), { spacing });
+    const narrow = familyConnector(families[0]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
+    const wide = familyConnector(families[0]!, byName(chart.nodes), { spacing, direction: 'LR' });
     expect(wide.junction.x).not.toBe(narrow.junction.x);
   });
 });

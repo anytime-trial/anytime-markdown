@@ -1,7 +1,14 @@
-import type { ConnectorLook } from '../connectors';
-import { anchorKey, connectorGeometry, midpointOf, sameAnchor } from '../connectors';
+import type { ConnectorEnd, ConnectorLook } from '../connectors';
+
+/**
+ * 向きは既定（左→右）で測る。向きごとの折れ線は `direction.test.ts` が測る。箱の一覧は空で渡す
+ * （同じ列・行の間が空いているかの判定は `direction.test.ts` が測る）。
+ */
+const connectorGeometry = (...args: Parameters<typeof geometryIn> extends [...infer Head, unknown, unknown] ? Head : never) =>
+  geometryIn(...(args as unknown as [ConnectorEnd, ConnectorEnd, DiagramSpacing, ConnectorLook]), 'LR', []);
+import { anchorKey, connectorGeometry as geometryIn, midpointOf, sameAnchor } from '../connectors';
 import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
-import type { DiagramEndpoint, DiagramLineRoute } from '../types';
+import type { DiagramEndpoint, DiagramLineRoute, DiagramSpacing } from '../types';
 import { elementAnchor, lineAnchor } from '../types';
 import { node } from './fixture';
 
@@ -49,11 +56,18 @@ describe('経路', () => {
     }
   });
 
-  it('縦に離れていれば上辺・下辺の中央に取り付く', () => {
+  it('カーブは縦に離れていれば上辺・下辺の中央に取り付く', () => {
     const below = at('下', 40, 600);
-    const geometry = connectorGeometry(left, below, SPACING, look('orthogonal'))!;
+    const geometry = connectorGeometry(left, below, SPACING, look('curved'))!;
     expect([geometry.start.x, geometry.start.y]).toEqual([W / 2, H]);
     expect([geometry.end.x, geometry.end.y]).toEqual([40 + W / 2, 600]);
+  });
+
+  it('折れ線は縦に離れていても図の向き（左→右）に従い、右面から出て左面へ入る', () => {
+    const below = at('下', 40, 600);
+    const geometry = connectorGeometry(left, below, SPACING, look('orthogonal'))!;
+    expect([geometry.start.x, geometry.start.y]).toEqual([W, H / 2]);
+    expect([geometry.end.x, geometry.end.y]).toEqual([40, 600 + H / 2]);
   });
 
   it('折れ線の端の印は軸に揃う（真横から入る線に斜めの矢尻を付けない）', () => {

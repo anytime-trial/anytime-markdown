@@ -16,9 +16,11 @@ import {
   anchorKey,
   DEFAULT_CONNECTOR_LOOK,
   DEFAULT_DIAGRAM_SHAPE,
+  DEFAULT_DIAGRAM_DIRECTION,
   DEFAULT_DIAGRAM_SPACING,
   type DiagramAnchor,
   type DiagramConnector,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramLayout,
   type DiagramLineLook,
@@ -64,6 +66,7 @@ import {
   resizeFromDrag,
   rowPitch,
   shiftCell,
+  transposeDiagramPlacements,
   viewForRect,
   zoomAt,
 } from '@anytime-markdown/diagram-core';
@@ -86,7 +89,7 @@ import { el, setAttr, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
 import { createGapView, nudgeStep } from './ui/gaps';
 import { createGutterView } from './ui/gutter';
-import { createMidpointView } from './ui/midpoints';
+import { createMidpointView, selectedMidpointBoxes } from './ui/midpoints';
 import { createMinimapView } from './ui/minimap';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
 import { createViewControls } from './ui/viewControls';
@@ -267,6 +270,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     onConfirm: (kind) => confirmView.show(kind),
     onClearSelection: () => { clearSelection(); },
     onResetSpacing: () => changeSpacing(DEFAULT_DIAGRAM_SPACING),
+    onDirection: changeDirection,
     onRenameSelected: () => { startRename(lastChosen()); },
     onAnnotateSelected: () => { startAnnotate(lastChosen()); },
     onRemoveSelected: () => { removeElement(lastChosen()); },
@@ -614,6 +618,21 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       if (!isDefaultDiagramSpacing(next)) return { ...current, spacing: next };
       const { spacing: _dropped, ...rest } = current;
       return rest;
+    });
+  }
+
+  /**
+   * 図の向きを差し替える。既定（左→右）なら**持たない**（刻みと同じ理由 — 既定の値を焼き付けない）。
+   *
+   * 手で置いた升目は列と行を入れ替える。自動配置は向きで列と行が入れ替わる（`orientDiagramChart`）
+   * ので、差分だけ元の升目に残すと、手で置いた人物だけが元の並びに取り残される。
+   */
+  function changeDirection(next: DiagramDirection): void {
+    updateLayout((current) => {
+      if ((current.direction ?? DEFAULT_DIAGRAM_DIRECTION) === next) return current;
+      const { direction: _dropped, ...rest } = current;
+      const turned = { ...rest, placements: transposeDiagramPlacements(current.placements) };
+      return next === DEFAULT_DIAGRAM_DIRECTION ? turned : { ...turned, direction: next };
     });
   }
 
@@ -1615,6 +1634,7 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       saving,
       notice,
       spacing: model.spacing,
+      direction: model.direction,
       draft: draft?.layout ?? null,
       shiftable: model.lines.shiftable,
       // 選んだ 1 つの形。0 個・2 個以上のときは既定を出す（選び口はそのとき押せない）。
@@ -1633,10 +1653,27 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     gutter.update({
       editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,
     });
+    /*
+      升目の ＋ はさらに、**選んだ線の中点**に掛かるものも描かない。＋ の層は図の面より上に
+      あるので、中点が空いた升目の真ん中に来た線では ＋ が取っ手の押下を奪う。縁の ＋／− は
+      升目の真ん中には来ないので、こちらにだけ足す。
+    */
     cellAdders.update({
       editing, saving, spacing: model.spacing, view, frame,
-      extent: model.extent, occupied: model.occupied, blocked,
+      extent: model.extent, occupied: model.occupied,
+      blocked: [...blocked, ...selectedMidpointBoxes(model.midpoints, selectedLineAnchors(), view)],
     });
+  }
+
+  /** 選んでいる線の端。手で引いた線は id で、家族の線は親の名前で指す（中点の取っ手と同じ形）。 */
+  function selectedLineAnchors(): readonly DiagramAnchor[] {
+    return [
+      ...selectedConnectors.map(lineAnchor),
+      ...selectedFamilies.flatMap((index) => {
+        const family = model.connectors[index]?.family;
+        return family === undefined ? [] : [familyAnchor(family.parents)];
+      }),
+    ];
   }
 
   /**
