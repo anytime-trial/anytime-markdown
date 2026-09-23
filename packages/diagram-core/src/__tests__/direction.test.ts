@@ -89,25 +89,64 @@ describe('線の中点に取り付いた端', () => {
 });
 
 describe('家族の折れ線', () => {
-  it('両親はそれぞれ先頭の面から出て、子の直前のすき間で合流する（両親を結ぶ線は無い）', () => {
+  it('両親は先頭のすき間の手前半分で婚姻の線に結ばれ、その中点から子へ降ろす', () => {
     const route = directedFamilyRoute(
       [box('父', 0, 0), box('母', 0, 2)],
       [box('子1', 1, 0), box('子2', 1, 1)],
       SPACING,
       'LR',
     );
+    // 右面（224）とすき間の中央（317）の中ほど（270.5）で縦に結ぶ。子への幹（317）と重ねない。
+    expect(route.marriage).toBe('M 224 86 H 270.5 V 446 H 224');
     expect(subpaths(route.path)).toEqual([
-      'M 224 86 H 317',
-      'M 224 446 H 317',
-      'M 317 86 V 446',
+      'M 270.5 266 H 317',
+      'M 317 86 V 266',
       'M 317 86 H 410',
       'M 317 266 H 410',
     ]);
-    expect(route.junction).toEqual({ x: 317, y: 266 });
+    expect(route.junction).toEqual({ x: 270.5, y: 266 });
     expect(route.starts).toEqual([{ x: 224, y: 86 }, { x: 224, y: 446 }]);
     expect(route.ends).toEqual([
       { x: 410, y: 86, angle: Math.PI },
       { x: 410, y: 266, angle: Math.PI },
+    ]);
+  });
+
+  it('上→下の両親は下面から出て、横に結ばれる', () => {
+    const route = directedFamilyRoute([box('父', 0, 0), box('母', 2, 0)], [box('子', 1, 1)], SPACING, 'TB');
+    expect(route.marriage).toBe('M 127 142 V 159 H 887 V 142');
+    expect(route.junction).toEqual({ x: 507, y: 159 });
+    expect(subpaths(route.path)).toEqual(['M 507 159 V 176', 'M 507 176 V 210']);
+  });
+
+  it('3 人目以降の親は、婚姻の線に入らず自分の面から子への幹へ合流する', () => {
+    const route = directedFamilyRoute(
+      [box('父', 0, 0), box('母', 0, 2), box('三', 0, 4)],
+      [box('子', 1, 1)],
+      SPACING,
+      'LR',
+    );
+    expect(route.marriage).toBe('M 224 86 H 270.5 V 446 H 224');
+    expect(subpaths(route.path)).toEqual([
+      'M 270.5 266 H 317',
+      'M 224 806 H 317',
+      'M 317 266 V 806',
+      'M 317 266 H 410',
+    ]);
+  });
+
+  it('片親の家族には婚姻の線が無い', () => {
+    const route = directedFamilyRoute([box('親', 0, 0)], [box('子', 1, 0)], SPACING, 'LR');
+    expect(route.marriage).toBeNull();
+  });
+
+  it('子より先の列に居る両親は、結び目から箱を貫かずに回り込んで降ろす', () => {
+    const route = directedFamilyRoute([box('父', 1, 0), box('母', 1, 2)], [box('子', 1, 1)], SPACING, 'LR');
+    expect(route.marriage).toBe('M 604 86 H 650.5 V 446 H 604');
+    expect(subpaths(route.path)).toEqual([
+      'M 650.5 266 H 697 V 176 H 317',
+      'M 317 176 V 266',
+      'M 317 266 H 410',
     ]);
   });
 
