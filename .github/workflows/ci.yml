@@ -74,9 +74,12 @@ jobs:
       # critical 3 件が日次だけを 7 日連続で落とし、ci.yml は素通りした実績がある）。
       # Why not: --omit=dev を残さない。日次が dev 込みで判定している以上、条件を分けると
       # 「どちらのゲートで落ちたか」で対処要否が変わり、揃える意味がなくなる。
+      # Why not: critical に戻さない。critical だけを見ていた間、hono・mermaid・qs の moderate 5 件が
+      # CI を素通りした（2026-09-19 週次調査で検出）。low は対象外にする。low は Windows の開発サーバ限定
+      # など本プロジェクトで成立しない条件のものが多く、赤が常態化するとゲートが読まれなくなるため。
       - name: Security audit
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=moderate
 
       - name: Type check
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'

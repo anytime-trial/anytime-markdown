@@ -117,6 +117,9 @@
     },
     "@eslint/eslintrc": {
       "js-yaml": "4.3.2"
+    },
+    "typed-rest-client": {
+      "qs": "6.16.0"
     }
   },
   "devDependencies": {
