@@ -34,8 +34,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ci.yml の Security audit と同一条件（moderate 以上）に揃える。理由は ci.yml 側のコメント。
       - name: Security audit
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=moderate
 
       - name: Type check
         run: npx tsc --noEmit
