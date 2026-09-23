@@ -37,7 +37,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   /**
-   * 書き込み 1 回を実行し、一過性エラー（ネットワーク断・ゲートウェイ 5xx/HTML・接続過多・
+   * 書き込み 1 回を実行し、一過性エラー（ネットワーク断・ゲートウェイ 5xx/HTML・PostgREST の DB 接続断・接続過多・
    * statement timeout）なら指数バックオフで再試行する。制約違反等の恒久エラーは即 throw する。
    */
   private async runWithRetry(
@@ -64,6 +64,23 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       );
       await sleep(delayMs);
     }
+  }
+
+  /**
+   * `column >= lowerBound`（`exclusive` なら `>`）の行を全削除する（洗い替え同期の前処理）。
+   * supabase-js の delete は失敗を throw せず `{ error }` で返すため、runWithRetry に通して
+   * 一過性エラーは再試行し、それ以外は throw する（握り潰すと古い行が残ったまま upsert に進む）。
+   */
+  private async unsafeDeleteAllRows(
+    table: string,
+    column: string,
+    lowerBound: number | string,
+    exclusive = false,
+  ): Promise<void> {
+    await this.runWithRetry(`clear ${table}`, () => {
+      const query = this.ensureClient().from(table).delete();
+      return exclusive ? query.gt(column, lowerBound) : query.gte(column, lowerBound);
+    });
   }
 
   /**
@@ -124,10 +141,10 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     await this.deleteAllPaged('trail_messages', 'uuid');
     await this.deleteAllPaged('trail_sessions', 'id');
     await this.deleteAllPaged('trail_releases', 'release_id');
-    await this.ensureClient().from('trail_daily_counts').delete().gte('date', '0000-01-01');
+    await this.unsafeDeleteAllRows('trail_daily_counts', 'date', '0000-01-01');
     await this.deleteAllPaged('trail_release_graphs', 'release_id');
-    await this.ensureClient().from('trail_current_file_analysis').delete().gte('repo_id', 0);
-    await this.ensureClient().from('trail_current_function_analysis').delete().gte('repo_id', 0);
+    await this.unsafeDeleteAllRows('trail_current_file_analysis', 'repo_id', 0);
+    await this.unsafeDeleteAllRows('trail_current_function_analysis', 'repo_id', 0);
   }
 
   private async deleteAllPaged(table: string, pk: string, pageSize = 500): Promise<void> {
@@ -187,8 +204,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
 
   async unsafeClearRepos(): Promise<void> {
     // sentinel(repo_id=0) は残す (子の DEFAULT 0 を FK 充足させるため)。
-    const { error } = await this.ensureClient().from('trail_repos').delete().gt('repo_id', 0);
-    if (error) throw new Error(`Supabase clear trail_repos failed: ${error.message}`);
+    await this.unsafeDeleteAllRows('trail_repos', 'repo_id', 0, true);
   }
 
   async upsertSessions(rows: readonly SessionRow[]): Promise<void> {
@@ -399,22 +415,14 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
    * trail_current_graphs を全削除する（洗い替え同期の前処理）。
    */
   async unsafeClearCurrentGraphs(): Promise<void> {
-    const { error } = await this.ensureClient()
-      .from('trail_current_graphs')
-      .delete()
-      .gte('repo_id', 0);
-    if (error) throw new Error(`Supabase clear current graphs failed: ${error.message}`);
+    await this.unsafeDeleteAllRows('trail_current_graphs', 'repo_id', 0);
   }
 
   /**
    * trail_release_graphs を全削除する（洗い替え同期の前処理）。
    */
   async unsafeClearReleaseGraphs(): Promise<void> {
-    const { error } = await this.ensureClient()
-      .from('trail_release_graphs')
-      .delete()
-      .gte('release_id', 0);
-    if (error) throw new Error(`Supabase clear release graphs failed: ${error.message}`);
+    await this.unsafeDeleteAllRows('trail_release_graphs', 'release_id', 0);
   }
 
   /**
@@ -487,7 +495,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async unsafeClearCurrentCoverage(): Promise<void> {
-    await this.ensureClient().from('trail_current_coverage').delete().gte('repo_id', 0);
+    await this.unsafeDeleteAllRows('trail_current_coverage', 'repo_id', 0);
   }
 
   async upsertCurrentCoverage(rows: readonly {
@@ -514,7 +522,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async unsafeClearReleaseCoverage(): Promise<void> {
-    await this.ensureClient().from('trail_release_coverage').delete().gte('release_id', 0);
+    await this.unsafeDeleteAllRows('trail_release_coverage', 'release_id', 0);
   }
 
   async upsertReleaseCoverage(rows: readonly {
@@ -539,7 +547,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async unsafeClearCurrentFileAnalysis(): Promise<void> {
-    await this.ensureClient().from('trail_current_file_analysis').delete().gte('repo_id', 0);
+    await this.unsafeDeleteAllRows('trail_current_file_analysis', 'repo_id', 0);
   }
 
   async upsertCurrentFileAnalysis(rows: readonly {
@@ -570,7 +578,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async unsafeClearCurrentFunctionAnalysis(): Promise<void> {
-    await this.ensureClient().from('trail_current_function_analysis').delete().gte('repo_id', 0);
+    await this.unsafeDeleteAllRows('trail_current_function_analysis', 'repo_id', 0);
   }
 
   async upsertCurrentFunctionAnalysis(rows: readonly {
@@ -597,8 +605,8 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async unsafeClearCurrentCodeGraphs(): Promise<void> {
-    await this.ensureClient().from('trail_current_code_graph_communities').delete().gte('repo_id', 0);
-    await this.ensureClient().from('trail_current_code_graphs').delete().gte('repo_id', 0);
+    await this.unsafeDeleteAllRows('trail_current_code_graph_communities', 'repo_id', 0);
+    await this.unsafeDeleteAllRows('trail_current_code_graphs', 'repo_id', 0);
   }
 
   async upsertCurrentCodeGraphs(rows: readonly {
@@ -633,8 +641,8 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async unsafeClearReleaseCodeGraphs(): Promise<void> {
-    await this.ensureClient().from('trail_release_code_graph_communities').delete().gte('release_id', 0);
-    await this.ensureClient().from('trail_release_code_graphs').delete().gte('release_id', 0);
+    await this.unsafeDeleteAllRows('trail_release_code_graph_communities', 'release_id', 0);
+    await this.unsafeDeleteAllRows('trail_release_code_graphs', 'release_id', 0);
   }
 
   async upsertReleaseCodeGraphs(rows: readonly {
