@@ -2,6 +2,7 @@ import {
   MODEL_PRICING,
   calculateCost,
   resolvePricingModelName,
+  resolveRateModelName,
   isKnownPricingModel,
   isCountableModel,
 } from '../pricing';
@@ -82,6 +83,60 @@ describe('pricing', () => {
 
     it('should default empty Codex models to Codex pricing', () => {
       expect(calculateCost('', M(1_000_000, 0), 'codex')).toBeCloseTo(1.25, 2);
+    });
+  });
+
+  describe('世代で単価が変わるモデル（2026-09 時点の公式単価）', () => {
+    it('Opus 5.5 は $4/$20・キャッシュ読取 $0.20 で計算する（Opus 5 の $5/$25 ではない）', () => {
+      expect(calculateCost('claude-opus-5-5', M(1_000_000, 1_000_000, 1_000_000, 1_000_000))).toBeCloseTo(4 + 20 + 0.2 + 4 * 1.25, 3);
+    });
+
+    it('Fable 5.1 はキャッシュ読取を $0.25 で計算する（Fable 5 は $1.00 のまま）', () => {
+      expect(calculateCost('claude-fable-5-1', M(1_000_000, 1_000_000, 1_000_000, 0))).toBeCloseTo(10 + 50 + 0.25, 3);
+      expect(calculateCost('claude-fable-5', M(0, 0, 1_000_000, 0))).toBeCloseTo(1, 3);
+    });
+
+    it('Sonnet 5 は $2/$10 で計算する（Sonnet 4.6 は $3/$15 のまま）', () => {
+      expect(calculateCost('claude-sonnet-5', M(1_000_000, 1_000_000))).toBeCloseTo(2 + 10, 3);
+      expect(calculateCost('claude-sonnet-4-6', M(1_000_000, 1_000_000))).toBeCloseTo(3 + 15, 3);
+    });
+
+    it('Opus 5 と Opus 4.x は従来の $5/$25 のまま', () => {
+      expect(calculateCost('claude-opus-5', M(1_000_000, 1_000_000))).toBeCloseTo(5 + 25, 3);
+      expect(calculateCost('claude-opus-4-8', M(1_000_000, 1_000_000))).toBeCloseTo(5 + 25, 3);
+    });
+
+    it('Mythos 5.1 はキャッシュ読取単価が未公表のため Fable 5 と同じ単価で計算する', () => {
+      expect(calculateCost('claude-mythos-5-1', M(0, 0, 1_000_000, 0))).toBeCloseTo(1, 3);
+    });
+
+    it('集計キー（resolvePricingModelName）は family のまま変えない', () => {
+      expect(resolvePricingModelName('claude-opus-5-5')).toBe('opus');
+      expect(resolvePricingModelName('claude-fable-5-1')).toBe('fable');
+      expect(resolvePricingModelName('claude-sonnet-5')).toBe('sonnet');
+    });
+
+    it('日付・エイリアス・文脈長の接尾辞が付いても世代を判定する', () => {
+      expect(resolveRateModelName('claude-opus-5-5-20260915')).toBe('opus-5.5');
+      expect(resolveRateModelName('claude-opus-5-5-latest')).toBe('opus-5.5');
+      expect(resolveRateModelName('claude-fable-5-1[1m]')).toBe('fable-5.1');
+      expect(resolveRateModelName('Claude-Sonnet-5')).toBe('sonnet-5');
+      expect(resolveRateModelName('claude-sonnet-5[1m]')).toBe('sonnet-5');
+    });
+
+    it('別の世代の ID を取り違えない', () => {
+      expect(resolveRateModelName('claude-sonnet-5-5')).toBe('sonnet');
+      expect(resolveRateModelName('claude-opus-5-50')).toBe('opus');
+      expect(resolveRateModelName('claude-fable-5-10')).toBe('fable');
+    });
+
+    it('単価キーは世代を区別する', () => {
+      expect(resolveRateModelName('claude-opus-5-5')).toBe('opus-5.5');
+      expect(resolveRateModelName('claude-fable-5-1')).toBe('fable-5.1');
+      expect(resolveRateModelName('claude-sonnet-5')).toBe('sonnet-5');
+      expect(resolveRateModelName('claude-opus-5')).toBe('opus');
+      expect(resolveRateModelName('claude-sonnet-4-6')).toBe('sonnet');
+      expect(resolveRateModelName('gpt-5.1-codex', 'codex')).toBe('gpt-5.1-codex');
     });
   });
 

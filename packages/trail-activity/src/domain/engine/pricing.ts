@@ -7,7 +7,7 @@ export type PricingSource = 'claude_code' | 'codex';
 
 // 価格の正は Anthropic 公式（platform.claude.com/docs/en/pricing）。
 // 世代で価格が変わるモデル（opus / haiku）は世代別キーで持つ。
-// 期限付き導入価格（Sonnet 5 の 2026-08-31 までの 2/10 等）は焼き込まない（定価で統一）。
+// 期限付き導入価格は焼き込まない（定価で統一）。Sonnet 5 の 2/10 は 2026-09-01 の値上げが撤回され定価になった。
 export const MODEL_PRICING: Readonly<Record<string, ModelPricing>> = {
   // Opus 4.5 以降（4.5/4.6/4.7/4.8）
   opus: {
@@ -41,6 +41,27 @@ export const MODEL_PRICING: Readonly<Record<string, ModelPricing>> = {
     inputPerM: 0.8,
     outputPerM: 4,
     cacheReadMultiplier: 0.1,
+    cacheCreationMultiplier: 1.25,
+  },
+  // Opus 5.5（2026-09。Opus 5 より安い。キャッシュ読取 $0.20 = 入力の 5%）
+  'opus-5.5': {
+    inputPerM: 4,
+    outputPerM: 20,
+    cacheReadMultiplier: 0.05,
+    cacheCreationMultiplier: 1.25,
+  },
+  // Sonnet 5（Sonnet 4.6 以前は sonnet の 3/15）
+  'sonnet-5': {
+    inputPerM: 2,
+    outputPerM: 10,
+    cacheReadMultiplier: 0.1,
+    cacheCreationMultiplier: 1.25,
+  },
+  // Fable 5.1（2026-09-01。入出力は Fable 5 と同じで、キャッシュ読取だけ $1.00 → $0.25）
+  'fable-5.1': {
+    inputPerM: 10,
+    outputPerM: 50,
+    cacheReadMultiplier: 0.025,
     cacheCreationMultiplier: 1.25,
   },
   // Fable 5 / Mythos 5（同価格）
@@ -117,6 +138,29 @@ export function resolvePricingModelName(model: string, source?: PricingSource): 
 }
 
 /**
+ * 単価の選択に使うキー。集計キー（resolvePricingModelName）が family 単位なのに対し、
+ * 同じ family の中で単価が変わった世代だけを別キーへ分ける。
+ *
+ * Why not: 集計キー自体を世代で分けない。activity_session_costs.model や日次集計は family キーで
+ * 蓄積されており、Opus 占有率などの時系列が世代交代のたびに別系列へ割れる。
+ * Mythos 5.1 はキャッシュ読取単価が未公表のため fable（Fable 5 と同じ単価）に残す。
+ */
+// 世代トークンの直後は「終端・数字/ドット/ハイフン以外（[1m] 等）・日付 8 桁・英字で始まる別名（-latest 等）」を許す。
+// Why not: 数字やドットの続きは許さない。sonnet-5-5 や opus-5-50 のような別世代の ID を取り違えるため。
+const GENERATION_END = String.raw`(?:$|[^0-9.\-]|-(?:\d{8}(?!\d)|[a-z]))`;
+const RATE_GENERATIONS: ReadonlyArray<readonly [RegExp, string]> = [
+  [new RegExp(String.raw`opus-5[-.]5` + GENERATION_END), 'opus-5.5'],
+  [new RegExp(String.raw`fable-5[-.]1` + GENERATION_END), 'fable-5.1'],
+  [new RegExp(String.raw`sonnet-5` + GENERATION_END), 'sonnet-5'],
+];
+
+export function resolveRateModelName(model: string, source?: PricingSource): string {
+  const lower = model.toLowerCase().trim();
+  const generation = RATE_GENERATIONS.find(([re]) => re.test(lower));
+  return generation ? generation[1] : resolvePricingModelName(model, source);
+}
+
+/**
  * 料金表にエントリのあるモデルか。false のとき calculateCost は既定単価
  * （claude 系: sonnet / codex 系: gpt-5.1-codex）へフォールバックする。
  * 呼び出し側はこの判定で WARN ログを出し、silent フォールバックを可視化する。
@@ -138,8 +182,7 @@ export function isCountableModel(model: string): boolean {
 }
 
 export function calculateCost(model: string, usage: TokenUsage, source?: PricingSource): number {
-  const normalized = resolvePricingModelName(model, source);
-  const pricing = MODEL_PRICING[normalized] ?? MODEL_PRICING[DEFAULT_MODEL];
+  const pricing = MODEL_PRICING[resolveRateModelName(model, source)] ?? MODEL_PRICING[DEFAULT_MODEL];
   const inputCost = (usage.inputTokens * pricing.inputPerM) / 1_000_000;
   const outputCost = (usage.outputTokens * pricing.outputPerM) / 1_000_000;
   const cacheReadCost =
