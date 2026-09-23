@@ -119,6 +119,22 @@ describe('家族の折れ線', () => {
     expect(subpaths(route.path)).toEqual(['M 507 159 V 176', 'M 507 176 V 210']);
   });
 
+  it('3 人目以降の親は、婚姻の線に入らず自分の面から子への幹へ合流する', () => {
+    const route = directedFamilyRoute(
+      [box('父', 0, 0), box('母', 0, 2), box('三', 0, 4)],
+      [box('子', 1, 1)],
+      SPACING,
+      'LR',
+    );
+    expect(route.marriage).toBe('M 224 86 H 270.5 V 446 H 224');
+    expect(subpaths(route.path)).toEqual([
+      'M 270.5 266 H 317',
+      'M 224 806 H 317',
+      'M 317 266 V 806',
+      'M 317 266 H 410',
+    ]);
+  });
+
   it('片親の家族には婚姻の線が無い', () => {
     const route = directedFamilyRoute([box('親', 0, 0)], [box('子', 1, 0)], SPACING, 'LR');
     expect(route.marriage).toBeNull();

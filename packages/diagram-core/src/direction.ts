@@ -222,11 +222,14 @@ export function directedFamilyRoute(
   // 子の居ない家族は合流先が無い。呼ぶ側（`familyConnector`）が婚姻の線へ振り分ける。
   if (first === undefined) throw new Error('directedFamilyRoute: 子の居ない家族には折れ線を組めません');
   const towardCross = entries.reduce((sum, item) => sum + item.entry.cross, 0) / entries.length;
-  const [one, other] = parents;
+  const [one, other, ...rest] = parents;
   const marriage = one !== undefined && other !== undefined ? marriageRoute(frame, one, other) : null;
+  const fromFace = (parent: ChartNode) => leadTo(frame, frame.exit(parent), parent, first, towardCross);
+  // 3 人目以降の親は婚姻の線に入れず、自分の面から幹へ合流させる（読み取りは親の人数に上限を
+  // 置かないので、先頭 2 人だけで線を組むと残りの親の線が黙って消える）。
   const leads = marriage === null
-    ? parents.map((parent) => leadTo(frame, frame.exit(parent), parent, first, towardCross))
-    : [leadTo(frame, marriage.junction, marriage.owner, first, towardCross)];
+    ? parents.map(fromFace)
+    : [leadTo(frame, marriage.junction, marriage.owner, first, towardCross), ...rest.map(fromFace)];
   const joins = leads.map((lead) => lead[lead.length - 1]!.cross);
   const junctionCross = joins.reduce((sum, value) => sum + value, 0) / joins.length;
 
