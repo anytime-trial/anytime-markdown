@@ -88,7 +88,7 @@ import { el, setAttr, setClass, svg } from './ui/dom';
 import { createEdgeView, type EdgeView } from './ui/edges';
 import { createGapView, nudgeStep } from './ui/gaps';
 import { createGutterView } from './ui/gutter';
-import { createMidpointView } from './ui/midpoints';
+import { createMidpointView, selectedMidpointBoxes } from './ui/midpoints';
 import { createMinimapView } from './ui/minimap';
 import { createNodeView, type NodeView, type ResizeAxes } from './ui/nodes';
 import { createViewControls } from './ui/viewControls';
@@ -1648,10 +1648,27 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     gutter.update({
       editing, saving, spacing: model.spacing, view, frame, lines: model.lines, blocked,
     });
+    /*
+      升目の ＋ はさらに、**選んだ線の中点**に掛かるものも描かない。＋ の層は図の面より上に
+      あるので、中点が空いた升目の真ん中に来た線では ＋ が取っ手の押下を奪う。縁の ＋／− は
+      升目の真ん中には来ないので、こちらにだけ足す。
+    */
     cellAdders.update({
       editing, saving, spacing: model.spacing, view, frame,
-      extent: model.extent, occupied: model.occupied, blocked,
+      extent: model.extent, occupied: model.occupied,
+      blocked: [...blocked, ...selectedMidpointBoxes(model.midpoints, selectedLineAnchors(), view)],
     });
+  }
+
+  /** 選んでいる線の端。手で引いた線は id で、家族の線は親の名前で指す（中点の取っ手と同じ形）。 */
+  function selectedLineAnchors(): readonly DiagramAnchor[] {
+    return [
+      ...selectedConnectors.map(lineAnchor),
+      ...selectedFamilies.flatMap((index) => {
+        const family = model.connectors[index]?.family;
+        return family === undefined ? [] : [familyAnchor(family.parents)];
+      }),
+    ];
   }
 
   /**
