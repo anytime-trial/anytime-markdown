@@ -185,7 +185,7 @@ function directedFamily(
 ) {
   const parents = family.parents.map((name) => nodes.get(name)!);
   const children = family.children.map((name) => nodes.get(name)!);
-  const route = directedFamilyRoute(parents, children, spacing, direction);
+  const route = directedFamilyRoute(parents, children, spacing, direction, [...nodes.values()]);
   const points: ConnectorPoint[] = [
     ...route.starts.map((point) => ({ ...point, kind: 'parent' as const })),
     { ...route.junction, kind: 'junction' },

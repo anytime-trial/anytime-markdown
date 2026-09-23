@@ -1,11 +1,14 @@
-import type { ConnectorLook } from '../connectors';
+import type { ConnectorEnd, ConnectorLook } from '../connectors';
 
-/** 向きは既定（左→右）で測る。向きごとの折れ線は `direction.test.ts` が測る。 */
-const connectorGeometry = (...args: Parameters<typeof geometryIn> extends [...infer Head, unknown] ? Head : never) =>
-  geometryIn(...(args as [never, never, never, never]), 'LR');
+/**
+ * 向きは既定（左→右）で測る。向きごとの折れ線は `direction.test.ts` が測る。箱の一覧は空で渡す
+ * （同じ列・行の間が空いているかの判定は `direction.test.ts` が測る）。
+ */
+const connectorGeometry = (...args: Parameters<typeof geometryIn> extends [...infer Head, unknown, unknown] ? Head : never) =>
+  geometryIn(...(args as unknown as [ConnectorEnd, ConnectorEnd, DiagramSpacing, ConnectorLook]), 'LR', []);
 import { anchorKey, connectorGeometry as geometryIn, midpointOf, sameAnchor } from '../connectors';
 import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
-import type { DiagramEndpoint, DiagramLineRoute } from '../types';
+import type { DiagramEndpoint, DiagramLineRoute, DiagramSpacing } from '../types';
 import { elementAnchor, lineAnchor } from '../types';
 import { node } from './fixture';
 

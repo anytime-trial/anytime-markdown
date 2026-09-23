@@ -176,12 +176,14 @@ export function connectorGeometry(
   spacing: DiagramSpacing,
   look: ConnectorLook,
   direction: DiagramDirection,
+  /** 図に載っている箱。折れ線が同じ列・行の 2 つを真っ直ぐ結べるか（間が空いているか）を見る。 */
+  boxes: readonly ChartNode[],
 ): ConnectorGeometry | null {
   const route = look.route;
   const fromCentre = centreOf(from, spacing);
   const toCentre = centreOf(to, spacing);
   if (fromCentre.x === toCentre.x && fromCentre.y === toCentre.y) return null;
-  if (route === 'orthogonal') return directedConnectorRoute(from, to, spacing, direction);
+  if (route === 'orthogonal') return directedConnectorRoute(from, to, spacing, direction, boxes);
   if (route === 'straight') {
     const start = borderPoint(from, spacing, toCentre);
     const end = borderPoint(to, spacing, fromCentre);

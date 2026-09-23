@@ -156,13 +156,14 @@ describe('関係線', () => {
     const nodes = byName(chart.nodes);
     const connector = familyConnector(families[0]!, nodes, { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
     expect(connector.marriage).not.toBeNull();
-    // 婚姻の線は、両親それぞれの右面の中央を結ぶ。
+    // 同じ列の両親は、向かい合う面（下側の上面・上側の下面）の中央どうしを真っ直ぐ結ぶ。
     const [one, other] = families[0]!.parents.map((name) => nodes.get(name)!);
     const { nodeWidth, nodeHeight } = DEFAULT_DIAGRAM_SPACING;
-    const bend = connector.junction.x;
-    expect(connector.marriage).toBe(
-      `M ${one!.x + nodeWidth} ${one!.y + nodeHeight / 2} H ${bend} V ${other!.y + nodeHeight / 2} H ${other!.x + nodeWidth}`,
-    );
+    expect(one!.x).toBe(other!.x);
+    const [upper, lower] = one!.y < other!.y ? [one!, other!] : [other!, one!];
+    const centre = one!.x + nodeWidth / 2;
+    const [from, to] = upper === one ? [upper.y + nodeHeight, lower.y] : [lower.y, upper.y + nodeHeight];
+    expect(connector.marriage).toBe(`M ${centre} ${from} V ${to}`);
     expect(connector.descent?.startsWith(`M ${connector.junction.x} ${connector.junction.y} `)).toBe(true);
   });
 
