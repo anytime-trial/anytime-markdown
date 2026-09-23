@@ -94,6 +94,17 @@ describe('配置差分の書き換え', () => {
       .rejects.toThrow(/nodeWidth/);
   });
 
+  it('向きを書き、省略した次の呼び出しでも向きを保つ', async () => {
+    await setDiagramLayout({ path: FILE, placements: {}, direction: 'TB' }, rootDir);
+    expect((await readDiagram({ path: FILE }, rootDir)).layout.direction).toBe('TB');
+    // 配置だけを書き換える呼び出しが、渡し忘れた向きを既定へ戻さない。
+    await setDiagramLayout({ path: FILE, placements: { 子: { column: 4, row: 3 } } }, rootDir);
+    expect((await readDiagram({ path: FILE }, rootDir)).layout.direction).toBe('TB');
+    // 既定の向きを渡せば戻る（既定は書かない）。
+    await setDiagramLayout({ path: FILE, placements: {}, direction: 'LR' }, rootDir);
+    expect((await readDiagram({ path: FILE }, rootDir)).layout.direction).toBeUndefined();
+  });
+
   it('図の中身（人物・家族）には触らない', async () => {
     await setDiagramLayout({ path: FILE, placements: { 子: { column: 4, row: 3 } } }, rootDir);
     const document = await readDiagram({ path: FILE }, rootDir);

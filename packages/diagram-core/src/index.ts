@@ -24,6 +24,7 @@ export {
   routePath,
   sameAnchor,
 } from './connectors';
+export { directedConnectorRoute, type DirectedFamilyRoute, directedFamilyRoute } from './direction';
 export { assertNever } from './exhaustive';
 export {
   addDiagramGroupAxis,
@@ -129,6 +130,8 @@ export {
   spacedGaps,
 } from './spacing';
 export {
+  DEFAULT_DIAGRAM_DIRECTION,
+  DIAGRAM_DIRECTIONS,
   DIAGRAM_ENDPOINTS,
   DIAGRAM_LINE_COLORS,
   DIAGRAM_LINE_ROUTES,
@@ -138,6 +141,7 @@ export {
   DEFAULT_DIAGRAM_SHAPE,
   type DiagramAnchor,
   type DiagramConnector,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramEndpoint,
   type DiagramFamily,

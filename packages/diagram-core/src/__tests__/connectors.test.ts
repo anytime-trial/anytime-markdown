@@ -1,4 +1,8 @@
-import { arrowHeadPath, borderPoint, connectorGeometry, DEFAULT_CONNECTOR_LOOK } from '../connectors';
+import { arrowHeadPath, borderPoint, connectorGeometry as geometryIn, DEFAULT_CONNECTOR_LOOK } from '../connectors';
+
+/** 向きは既定（左→右）で測る。向きごとの折れ線は `direction.test.ts` が測る。 */
+const connectorGeometry = (...args: Parameters<typeof geometryIn> extends [...infer Head, unknown] ? Head : never) =>
+  geometryIn(...(args as [never, never, never, never]), 'LR');
 import { DEFAULT_DIAGRAM_SPACING } from '../spacing';
 import type { DiagramSpacing } from '../types';
 import { node } from './fixture';

@@ -151,19 +151,30 @@ describe('配置差分の適用', () => {
 });
 
 describe('関係線', () => {
-  it('子の線は両親を結ぶ線の中央から一度だけ分岐する', () => {
+  it('折れ線の家族は両親それぞれから線を出して合流させ、両親を結ぶ線は引かない', () => {
     const chart = diagramChart(families);
     const nodes = byName(chart.nodes);
-    const connector = familyConnector(families[0]!, nodes, { spacing: DEFAULT_DIAGRAM_SPACING });
-    expect(connector.marriage).not.toBeNull();
+    const connector = familyConnector(families[0]!, nodes, { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
+    expect(connector.marriage).toBeNull();
     expect(connector.descent).not.toBeNull();
-    // 分岐は 1 本（縦のバス）で、子の数だけ横へ伸びる。
-    expect(connector.descent!.split('M ').length - 1).toBe(2 + families[0]!.children.length);
+    // 親ごとの線は、その親の右面の中央から出る。
+    for (const name of families[0]!.parents) {
+      const parent = nodes.get(name)!;
+      expect(connector.descent).toContain(`M ${parent.x + DEFAULT_DIAGRAM_SPACING.nodeWidth} ${parent.y + DEFAULT_DIAGRAM_SPACING.nodeHeight / 2}`);
+    }
+  });
+
+  it('子の居ない家族は、合流先が無いので両親を結ぶ線だけを引く', () => {
+    const chart = diagramChart(families);
+    const childless = { ...families[0]!, children: [] };
+    const connector = familyConnector(childless, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
+    expect(connector.marriage).not.toBeNull();
+    expect(connector.descent).toBeNull();
   });
 
   it('片親の家族には配偶の線を作らない', () => {
     const chart = diagramChart(families);
-    const connector = familyConnector(families[2]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING });
+    const connector = familyConnector(families[2]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
     expect(connector.marriage).toBeNull();
     expect(connector.points.some((point) => point.kind === 'junction')).toBe(true);
   });
@@ -171,8 +182,8 @@ describe('関係線', () => {
   it('箱の大きさは線の取り付き位置に効く', () => {
     const spacing = { ...DEFAULT_DIAGRAM_SPACING, nodeWidth: 300 };
     const chart = diagramChart(families, { placements: {}, spacing });
-    const narrow = familyConnector(families[0]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING });
-    const wide = familyConnector(families[0]!, byName(chart.nodes), { spacing });
+    const narrow = familyConnector(families[0]!, byName(chart.nodes), { spacing: DEFAULT_DIAGRAM_SPACING, direction: 'LR' });
+    const wide = familyConnector(families[0]!, byName(chart.nodes), { spacing, direction: 'LR' });
     expect(wide.junction.x).not.toBe(narrow.junction.x);
   });
 });

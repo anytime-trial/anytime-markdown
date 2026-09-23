@@ -7,10 +7,12 @@
  * **箱の縁どうしを直線で結ぶ**。
  */
 
+import { directedConnectorRoute } from './direction';
 import { assertNever } from './exhaustive';
 import type { ChartNode } from './layout';
 import type {
   DiagramAnchor,
+  DiagramDirection,
   DiagramFamily,
   DiagramLineLook,
   DiagramLineRoute,
@@ -163,17 +165,23 @@ export function routeAxis(
  * 軸に沿って伸ばした先**の縁の点（＝その辺の中央）に取り付く。折れ線の端を相手の中心向きで取ると、
  * 斜めに離れた 2 つでは角の近くに当たり、縦横にしか進めない線が札の角から生えて見える（家族の線は
  * 最初から辺の中央へ降ろしており、手で引いた線だけがこの決め方から外れていた）。
+ *
+ * **折れ線だけは図の向き（`direction`）に従う。** `from` を上位・`to` を下位として、上位の先頭の面
+ * から出て下位の末尾の面へ入り、下位の直前のすき間で折れる（`directedConnectorRoute`。家族の線と
+ * 同じ規則）。直線とカーブは向きを見ない — 向きが決めるのは「折れ線の取り付き」だけ（ユーザー指示）。
  */
 export function connectorGeometry(
   from: ConnectorEnd,
   to: ConnectorEnd,
   spacing: DiagramSpacing,
   look: ConnectorLook,
+  direction: DiagramDirection,
 ): ConnectorGeometry | null {
   const route = look.route;
   const fromCentre = centreOf(from, spacing);
   const toCentre = centreOf(to, spacing);
   if (fromCentre.x === toCentre.x && fromCentre.y === toCentre.y) return null;
+  if (route === 'orthogonal') return directedConnectorRoute(from, to, spacing, direction);
   if (route === 'straight') {
     const start = borderPoint(from, spacing, toCentre);
     const end = borderPoint(to, spacing, fromCentre);

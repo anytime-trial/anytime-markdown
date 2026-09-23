@@ -249,20 +249,9 @@ export function nudgeCell(
   return shiftCell(from, nudgeShift(extent, occupied, [from], step));
 }
 
-/**
- * 列 `index` の**手前の切れ目**の x（図の座標）。空の列を入れるアイコンをここへ置く。
- *
- * 切れ目はすき間の中央。ただし左端（`index` 0）の手前にはすき間が無く、中央を取ると図の外の
- * 負の座標になる — そこへ置いたアイコンは初期表示で画面の外に出て、押せない。
- */
-export function columnBoundaryX(spacing: DiagramSpacing, index: number): number {
-  return Math.max(MARGIN / 2, MARGIN + index * columnPitch(spacing) - spacing.columnGap / 2);
-}
-
-/** 行 `index` の手前の切れ目の y。列と同じ組み立て。 */
-export function rowBoundaryY(spacing: DiagramSpacing, index: number): number {
-  return Math.max(MARGIN / 2, MARGIN + index * rowPitch(spacing) - spacing.rowGap / 2);
-}
+// 切れ目の式は折れ線の折れる位置（`direction.ts`）も読むので刻みの側に置く。ここから辿れるよう
+// 再び公開する（`direction.ts` がここを読むと grid → document → layout → connectors → direction の輪になる）。
+export { columnBoundaryX, rowBoundaryY } from './spacing';
 
 /** 列 `index` の中央の x。**その列を詰める**アイコンをここへ置く（切れ目のアイコンと重ならない）。 */
 export function columnCentreX(spacing: DiagramSpacing, index: number): number {

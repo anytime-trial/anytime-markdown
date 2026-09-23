@@ -17,11 +17,13 @@ import {
   columnPitch,
   type ConnectorGeometry,
   connectorGeometry,
+  DEFAULT_DIAGRAM_DIRECTION,
   type ConnectorEnd,
   type ConnectorPointAt,
   DEFAULT_DIAGRAM_SPACING,
   type DiagramAnchor,
   type DiagramConnector,
+  type DiagramDirection,
   type DiagramDocument,
   type DiagramFamily,
   type DiagramLayout,
@@ -106,6 +108,8 @@ export interface DiagramModel {
   readonly chart: PlacedChart;
   readonly byName: ReadonlyMap<string, ChartNode>;
   readonly spacing: DiagramSpacing;
+  /** 図の向き。折れ線の取り付きを決める（設定の区画が今の値として読む）。 */
+  readonly direction: DiagramDirection;
   readonly placements: Readonly<Record<string, { readonly column: number; readonly row: number }>>;
   readonly connectors: readonly FamilyConnector[];
   /** 手で引いた線のうち、両端が図に出ているもの。 */
@@ -161,6 +165,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
   const layout = source.layout ?? EMPTY_DIAGRAM_LAYOUT;
   const placements = layout.placements;
   const spacing = layout.spacing ?? DEFAULT_DIAGRAM_SPACING;
+  const direction = layout.direction ?? DEFAULT_DIAGRAM_DIRECTION;
   const chart = applyDiagramPlacements(applyDiagramSpacing(automatic, spacing), { placements, spacing });
   const byName = new Map(chart.nodes.map((node) => [node.name, node]));
 
@@ -177,7 +182,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     laneByColumn.set(parentColumn, lane + 1);
     const look = familyLook(family);
     return {
-      ...familyConnector(family, byName, { lane, spacing, route: look.route }),
+      ...familyConnector(family, byName, { lane, spacing, route: look.route, direction }),
       family,
       look,
     };
@@ -231,7 +236,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
       const from = endOf(connector.from);
       const to = endOf(connector.to);
       if (from === undefined || to === undefined) { rest.push(connector); continue; }
-      const geometry = connectorGeometry(from, to, spacing, connector);
+      const geometry = connectorGeometry(from, to, spacing, connector, direction);
       if (geometry === null) continue;
       solved.set(connector.id, geometry);
       links.push({ connector, geometry });
@@ -268,6 +273,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
     chart,
     byName,
     spacing,
+    direction,
     placements,
     connectors,
     links,
