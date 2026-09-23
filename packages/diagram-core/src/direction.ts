@@ -4,6 +4,12 @@
  * 規則（ユーザー指示）: 上位の要素は先頭の面（`LR` は右面・`TB` は下面）の中央から出し、下位の
  * 要素へは末尾の面（左面・上面）の中央から入れる。折れるのは**下位の要素の直前のすき間の中央**。
  *
+ * ただし**同じ列（`LR`）・同じ行（`TB`）に並ぶ 2 つ**は、向かい合う面の中央どうしを真っ直ぐ結ぶ
+ * （`LR` は上側の下面と下側の上面、`TB` は左側の右面と右側の左面。ユーザー指示）。先頭の面から
+ * 出すと、同じすき間へ出て戻るだけのコの字になる。**間に別の箱が居るときは結ばない**（ユーザー
+ * 指示）— 真っ直ぐ結ぶと線がその箱を貫き、間の人物とつながっているように読める。そのときは
+ * 先頭の面から出す規則に戻る。判定のために、線を組む関数は図に載っている箱（`boxes`）を受ける。
+ *
  * 向きごとに 2 通り書かず、**進む軸（main）と交わる軸（cross）**で 1 通りだけ書いて最後に x・y へ
  * 写す。2 通り書くと、片方の向きだけで直した回り込みがもう片方に取り残される。
  */
@@ -53,6 +59,25 @@ function axes(direction: DiagramDirection, spacing: DiagramSpacing) {
         ? rowBoundaryY(spacing, toward >= centre ? node.row + 1 : node.row)
         : columnBoundaryX(spacing, toward >= centre ? node.column + 1 : node.column);
     },
+    /** 同じ列（`LR`）・同じ行（`TB`）に並ぶか。線を引くのと同じ座標で見る（升目の番号と食い違う箱が来ても、描いた線と判定がずれない）。 */
+    sameSlot: (a: ChartNode, b: ChartNode): boolean => (lr ? a.x === b.x : a.y === b.y),
+    /** 同じ列・行に並ぶ 2 つの間（交わる軸で両者に挟まれた所）に別の箱が居ないか。 */
+    clearBetween: (a: ChartNode, b: ChartNode, boxes: readonly ChartNode[]): boolean => {
+      const at = (node: ChartNode) => (lr ? node.y : node.x);
+      const [low, high] = [Math.min(at(a), at(b)), Math.max(at(a), at(b))];
+      return !boxes.some((node) => node.name !== a.name && node.name !== b.name
+        && (lr ? node.x === a.x : node.y === a.y) && at(node) > low && at(node) < high);
+    },
+    /**
+     * 交わる軸で `other` の側を向く面の中央（同じ列・行に並ぶ 2 つを結ぶ所）。`other` が交わる軸で
+     * 先に居れば末端の面（`LR` は下面・`TB` は右面）、手前なら始まりの面（上面・左面）。
+     */
+    facing: (node: ChartNode, other: ChartNode): Frame => {
+      const [main, cross, otherCross] = lr
+        ? [node.x + mainSize / 2, node.y, other.y]
+        : [node.y + mainSize / 2, node.x, other.x];
+      return { main, cross: otherCross > cross ? cross + crossSize : cross };
+    },
     /** 進む向き（ラジアン）。端の印は出る側がこの向き、入る側がその逆を持つ。 */
     forward: lr ? 0 : Math.PI / 2,
     backward: lr ? Math.PI : -Math.PI / 2,
@@ -85,12 +110,24 @@ function leadTo(
 /**
  * 両親を結ぶ婚姻の線と、その結び目（子への線が出る所）。
  *
+ * 同じ列（`LR`）・同じ行（`TB`）の両親は、間に別の箱が居なければ向かい合う面の中央どうしを
+ * 真っ直ぐ結ぶ（`facing`）。
+ *
  * 両親とも先頭の面から出て、**先頭のすき間の手前半分**（面とすき間の中央の中ほど）で交わる軸に
  * 沿って結ぶ。すき間の中央は子への幹が通る所なので、そこで結ぶと実線の幹が破線の婚姻の線に
  * 重なって、婚姻が読めなくなる。両親の列が違えば、先の列の親のすき間に揃える（手前の親の線が
  * 先の親の箱を貫かない位置）。
  */
-function marriageRoute(frame: Axes, first: ChartNode, second: ChartNode) {
+function marriageRoute(frame: Axes, first: ChartNode, second: ChartNode, boxes: readonly ChartNode[]) {
+  if (frame.sameSlot(first, second) && frame.clearBetween(first, second, boxes)) {
+    const [a, b] = [frame.facing(first, second), frame.facing(second, first)];
+    return {
+      path: polyline([a, b].map(frame.toPoint)),
+      junction: { main: a.main, cross: (a.cross + b.cross) / 2 },
+      owner: first,
+      starts: [a, b],
+    };
+  }
   const [a, b] = [frame.exit(first), frame.exit(second)];
   const later = b.main > a.main ? second : first;
   const face = Math.max(a.main, b.main);
@@ -99,6 +136,7 @@ function marriageRoute(frame: Axes, first: ChartNode, second: ChartNode) {
     path: polyline([a, { main, cross: a.cross }, { main, cross: b.cross }, b].map(frame.toPoint)),
     junction: { main, cross: (a.cross + b.cross) / 2 },
     owner: later,
+    starts: [a, b],
   };
 }
 
@@ -151,11 +189,16 @@ export function directedConnectorRoute(
   to: ConnectorEnd,
   spacing: DiagramSpacing,
   direction: DiagramDirection,
+  /** 図に載っている箱。同じ列・行の 2 つの間が空いているかを見る。 */
+  boxes: readonly ChartNode[],
 ): { readonly start: ConnectorPointAt; readonly end: ConnectorPointAt; readonly path: string } | null {
   const frame = axes(direction, spacing);
+  if (isBox(from) && isBox(to) && from.x === to.x && from.y === to.y) return null;
+  if (isBox(from) && isBox(to) && frame.sameSlot(from, to) && frame.clearBetween(from, to, boxes)) {
+    return facingRoute(frame, from, to);
+  }
   const start = isBox(from) ? frame.exit(from) : frame.toFrame(from);
   const end = isBox(to) ? frame.entry(to) : frame.toFrame(to);
-  if (isBox(from) && isBox(to) && from.x === to.x && from.y === to.y) return null;
   if (start.main === end.main && start.cross === end.cross) return null;
   const bend = isBox(to) ? frame.gapBefore(to) : (start.main + end.main) / 2;
   const lead = isBox(from)
@@ -172,6 +215,17 @@ export function directedConnectorRoute(
     start: { ...frame.toPoint(start), angle: startAngle },
     end: { ...frame.toPoint(end), angle: endAngle },
     path: polyline(points),
+  };
+}
+
+/** 同じ列・行に並ぶ 2 つの箱を、向かい合う面の中央どうしで真っ直ぐ結ぶ。 */
+function facingRoute(frame: Axes, from: ChartNode, to: ChartNode) {
+  const start = frame.toPoint(frame.facing(from, to));
+  const end = frame.toPoint(frame.facing(to, from));
+  return {
+    start: { ...start, angle: Math.atan2(end.y - start.y, end.x - start.x) },
+    end: { ...end, angle: Math.atan2(start.y - end.y, start.x - end.x) },
+    path: polyline([start, end]),
   };
 }
 
@@ -214,6 +268,8 @@ export function directedFamilyRoute(
   children: readonly ChartNode[],
   spacing: DiagramSpacing,
   direction: DiagramDirection,
+  /** 図に載っている箱。同じ列・行の両親の間が空いているかを見る。 */
+  boxes: readonly ChartNode[],
 ): DirectedFamilyRoute {
   const frame = axes(direction, spacing);
   const entries = children.map((child) => ({ child, entry: frame.entry(child), bend: frame.gapBefore(child) }));
@@ -223,7 +279,7 @@ export function directedFamilyRoute(
   if (first === undefined) throw new Error('directedFamilyRoute: 子の居ない家族には折れ線を組めません');
   const towardCross = entries.reduce((sum, item) => sum + item.entry.cross, 0) / entries.length;
   const [one, other, ...rest] = parents;
-  const marriage = one !== undefined && other !== undefined ? marriageRoute(frame, one, other) : null;
+  const marriage = one !== undefined && other !== undefined ? marriageRoute(frame, one, other, boxes) : null;
   const fromFace = (parent: ChartNode) => leadTo(frame, frame.exit(parent), parent, first, towardCross);
   // 3 人目以降の親は婚姻の線に入れず、自分の面から幹へ合流させる（読み取りは親の人数に上限を
   // 置かないので、先頭 2 人だけで線を組むと残りの親の線が黙って消える）。
@@ -252,7 +308,10 @@ export function directedFamilyRoute(
     junction: frame.toPoint(marriage?.junction ?? { main: first, cross: junctionCross }),
     marriage: marriage?.path ?? null,
     path: parts.filter((part) => part !== '').join(' '),
-    starts: parents.map((parent) => frame.toPoint(frame.exit(parent))),
+    starts: [
+      ...(marriage?.starts ?? []),
+      ...parents.slice(marriage === null ? 0 : 2).map((parent) => frame.exit(parent)),
+    ].map(frame.toPoint),
     ends: entries.map((item) => ({ ...frame.toPoint(item.entry), angle: frame.backward })),
     startAngle: frame.forward,
   };

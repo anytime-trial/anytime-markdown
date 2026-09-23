@@ -241,7 +241,7 @@ export function deriveModel({ document, draft, automatic }: DeriveOptions): Diag
       const from = endOf(connector.from);
       const to = endOf(connector.to);
       if (from === undefined || to === undefined) { rest.push(connector); continue; }
-      const geometry = connectorGeometry(from, to, spacing, connector, direction);
+      const geometry = connectorGeometry(from, to, spacing, connector, direction, chart.nodes);
       if (geometry === null) continue;
       solved.set(connector.id, geometry);
       links.push({ connector, geometry });
