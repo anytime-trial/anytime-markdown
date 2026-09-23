@@ -101,7 +101,9 @@ export {
   diagramChart,
   familyConnector,
   layoutDiagram,
+  orientDiagramChart,
   type PlacedChart,
+  transposeDiagramPlacements,
 } from './layout';
 export {
   type ShapeOutline,

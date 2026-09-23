@@ -2048,6 +2048,43 @@ describe('図の向き', () => {
     expect(onSave.mock.calls[0]![0].layout.direction).toBe('TB');
   });
 
+  const cellOf = (name: string) => {
+    const node = container.querySelector(`[data-person="${name}"]`) as HTMLElement;
+    const { nodeWidth, nodeHeight, columnGap, rowGap } = DEFAULT_DIAGRAM_SPACING;
+    return {
+      column: (Number.parseFloat(node.style.left) - 30) / (nodeWidth + columnGap),
+      row: (Number.parseFloat(node.style.top) - 30) / (nodeHeight + rowGap),
+    };
+  };
+  const chooseDirection = (value: string) => {
+    const select = directionSelect();
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+  };
+
+  it('上→下では世代が行に並ぶ（自動配置の列と行が入れ替わる）', () => {
+    mount({ editable: true, onSave: () => {}, alwaysEditing: true });
+    const before = ['祖父', '父', '子'].map(cellOf);
+    chooseDirection('TB');
+    expect(['祖父', '父', '子'].map(cellOf)).toEqual(before.map(({ column, row }) => ({ column: row, row: column })));
+  });
+
+  it('向きを変えると手で置いた升目も列と行を入れ替え、往復で元に戻る', async () => {
+    const onSave = jest.fn();
+    const view = mount({
+      document: { ...DOC, layout: { placements: { 子: { column: 4, row: 1 } } } },
+      editable: true,
+      onSave,
+      alwaysEditing: true,
+    });
+    chooseDirection('TB');
+    expect(cellOf('子')).toEqual({ column: 1, row: 4 });
+    await view.save();
+    expect(onSave.mock.calls[0]![0].layout.placements).toEqual({ 子: { column: 1, row: 4 } });
+    chooseDirection('LR');
+    expect(cellOf('子')).toEqual({ column: 4, row: 1 });
+  });
+
   it('閲覧中は向きの選び口を出さない', () => {
     mount({ editable: true, onSave: () => {} });
     expect(directionSelect().closest('label')!.classList.contains('anytime-diagram-hidden')).toBe(true);
