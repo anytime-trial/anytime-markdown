@@ -1,7 +1,7 @@
 ---
 name: anytime-cross-review
 effort: medium
-description: develop マージ前に Claude(pr-review-toolkit:code-reviewer subagent)と Codex(codex exec review)が同一 diff を独立レビューし、互いの指摘を検証(adversarial cross-check)して合意指摘を採用する相互レビュー。指摘は review doc + trail caravan_reviews に記録する。「相互レビュー」「cross review」「/anytime-cross-review」「Claude Codex レビュー」「二者レビュー」の指示で使用する。
+description: "develop マージ前に Claude（pr-review-toolkit:code-reviewer subagent）と Codex（codex exec review）が同一 diff を独立レビューし、相互検証して合意指摘を採用する。指摘は review doc と trail caravan_reviews に記録。「相互レビュー」「cross review」「/anytime-cross-review」「Claude Codex レビュー」「二者レビュー」で使用。"
 ---
 
 # anytime-cross-review — Claude × Codex 相互レビュー

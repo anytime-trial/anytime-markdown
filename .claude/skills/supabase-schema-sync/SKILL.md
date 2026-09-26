@@ -1,7 +1,7 @@
 ---
 name: supabase-schema-sync
 effort: low
-description: anytime-markdown の Supabase スキーマ変更と同期方式の規約。マイグレーションファイルを新規追加せず supabase/migrations/001_schema.sql を直接編集する運用と、拡張機能 (SyncService) から Supabase への洗い替え（wash-away）同期方式を定義する。Supabase のテーブル・カラムを追加/変更する時、001_schema.sql を編集する時、SyncService の同期処理を実装・変更・レビューする時に使用する。
+description: "anytime-markdown の Supabase スキーマ変更と同期方式の規約。マイグレーションを追加せず supabase/migrations/001_schema.sql を直接編集する運用と、拡張機能（SyncService）からの洗い替え（wash-away）同期。テーブル・カラム追加、001_schema.sql 編集、SyncService の実装・変更・レビュー時に使用。"
 ---
 
 # Supabase スキーマ・同期規約

@@ -1,7 +1,7 @@
 ---
 name: prosemirror-conventions
 effort: low
-description: anytime-markdown の ProseMirror / TipTap Plugin を実装・修正・レビューする際の状態管理規約と変更禁止エリア。Plugin 状態の更新フロー（Meta → apply → decorations）・DOM 計測と状態更新の循環防止・エディタ破棄時のクリーンアップ・複数 Plugin 間の状態整合性を定義する。ProseMirror Plugin / PluginKey / Decoration / TipTap Extension を追加・変更する時、blockAlignment・diffHighlight に触れる時、エディタの状態更新に起因する不具合を調査する時に使用する。
+description: "anytime-markdown の ProseMirror / TipTap Plugin を実装・修正・レビューする際の状態管理規約と変更禁止エリア（Meta → apply → decorations の更新フロー・DOM 計測と状態更新の循環防止・エディタ破棄時のクリーンアップ・複数 Plugin 間の整合性）。Plugin / PluginKey / Decoration / TipTap Extension の追加・変更、blockAlignment・diffHighlight、エディタ状態更新起因の不具合調査で使用。"
 ---
 
 # ProseMirror / TipTap 規約

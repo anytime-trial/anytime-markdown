@@ -1,7 +1,7 @@
 ---
 name: anytime-markdown-usage
 effort: low
-description: anytime-markdown の Markdown ドキュメントを検索・調査・編集・整形する時、設計書（<docsRoot>/spec）を辿る・参照する・「どの spec を読むべきか」を判断する時、特にトークン（cache_read 加重）を抑えたい時に使用する。mcp-markdown の search_docs/search_sections/get_outline/get_section/update_section/get_frontmatter/update_frontmatter/format_markdown/doc_backlinks/doc_neighbors を使う時、索引(index.ja.md) → 対象 frontmatter → 型付き related を必要な深さだけ辿る progressive disclosure で設計書を調査・参照・関連ドキュメント探索する時、検索・調査をサブエージェントへ委譲する時の運用手順と委任プロンプト雛形。
+description: "anytime-markdown の Markdown ドキュメント・設計書（<docsRoot>/spec）を検索・調査・参照・編集する時、「どの spec を読むべきか」を判断する時、トークン（cache_read）を抑えたい時に使用。mcp-markdown（search_docs / search_sections / get_outline / get_section / update_section / get_frontmatter / update_frontmatter / format_markdown / doc_backlinks / doc_neighbors）の使い方、索引→frontmatter→related を辿る progressive disclosure、検索委譲時の委任プロンプト雛形。"
 ---
 
 # Markdown 利用ガイド（検索・編集・設計書ナビのトークン削減）

@@ -1,7 +1,7 @@
 ---
 name: anytime-dev-retro
 effort: medium
-description: 開発の実績データと事故から改善を還流させるふりかえり（retrospective）。Trail の 3DB(trail-caravan-book/markdown-catalog/trail)を横断分析し、セッション粒度の LLM コスト分析（旧 anytime-token-budget を統合）も含めて、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案書＋チケットを生成する。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「健全性レポート」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。「暗黙知を明文化」「経典を生成」「doctrine を抽出」「設計哲学を抽出」「ユビキタス言語をまとめて」「暗黙ルールを見える化」「/anytime-reverse-doctrine」（旧スキル名）の指示では doctrine 抽出モード（旧 anytime-reverse-doctrine を統合。`--delta` で差分更新と乖離報告、`--category` でカテゴリ限定。手順は references/reverse-doctrine.ja.md）を使用する。PC 環境・Claude Code 設定の診断（「セットアップ監査」「環境監査」「環境診断」）は anytime-dev-audit、システム構造の設計書生成は anytime-reverse-spec を使う。
+description: "開発のふりかえり。Trail の 3DB を横断分析し、前回デルタに基づく健全性レポートと閾値超の改善提案＋チケットを生成する（セッション粒度の LLM コスト分析を含む）。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」、または週次スケジュールで使用。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策」はインシデントモード、「暗黙知を明文化」「経典を生成」「doctrine を抽出」「ユビキタス言語」「/anytime-reverse-doctrine」は doctrine 抽出モード（--delta / --category）。環境診断は anytime-dev-audit、設計書生成は anytime-reverse-spec。"
 ---
 
 # anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化＋doctrine 抽出）

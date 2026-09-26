@@ -1,7 +1,7 @@
 ---
 name: sqlite-table-definition-trail-activity
 effort: low
-description: anytime-markdown（activity.db / trail-activity）固有の SQLite テーブル定義の補足。スキーマ配置パス・マイグレーションスクリプト規約・本番 DB 運用を定義する。汎用 SQLite 規約（STRICT / CHECK / FK ON DELETE / 12-step migration）は global スキル `sqlite-table-definition` に集約。trail-activity のテーブル・制約・インデックス・マイグレーションを追加/変更する時に使用する。
+description: "anytime-markdown（activity.db / trail-activity）固有の SQLite テーブル定義の補足（スキーマ配置パス・マイグレーションスクリプト規約・本番 DB 運用）。trail-activity のテーブル・制約・インデックス・マイグレーションを追加/変更する時に使用。汎用規約は global スキル sqlite-table-definition。"
 ---
 
 # SQLite テーブル定義（trail-activity 固有補足）

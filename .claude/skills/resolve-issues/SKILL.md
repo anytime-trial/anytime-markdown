@@ -1,6 +1,6 @@
 ---
 name: resolve-issues
-description: GitHub Issues、Security/Dependabot Alerts、Code Scanning (CodeQL)、SonarCloud Issues、SonarCloud Security Hotspots、TypeScript/Lint警告を収集・トリアージ・自動修正する。「issueを解決して」「SonarQubeの課題を直して」「Security Hotspotを確認して」「セキュリティアラートを確認して」「CodeQLの課題を確認して」「警告を修正して」「resolve issues」などの指示、または `/loop` からの定期呼び出しで使用する。
+description: "GitHub Issues・Dependabot / Code Scanning（CodeQL）・SonarCloud Issues / Security Hotspots・TypeScript / Lint 警告を収集・トリアージ・自動修正する。「issue を解決して」「SonarQube の課題を直して」「Security Hotspot を確認して」「セキュリティアラートを確認して」「CodeQL の課題を確認して」「警告を修正して」「resolve issues」、または /loop からの定期呼び出しで使用。"
 ---
 
 # Issue 自動解決

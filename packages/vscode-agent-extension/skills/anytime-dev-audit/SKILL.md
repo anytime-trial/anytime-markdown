@@ -1,7 +1,7 @@
 ---
 name: anytime-dev-audit
 effort: medium
-description: PC 環境（ディレクトリ構造）と Claude Code 設定（CLAUDE.md / rules / skills / hooks / settings / MCP / メモリ）の全レイヤーを read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「Claude Code 設定の診断」「CLAUDE.md の見直し」「CLAUDE.md レビュー」「/anytime-dev-audit」の指示で使用する。VS Code 拡張の設定と Trail の ingest 配線（「取込が止まっている」「データが更新されない」「パイプラインが skip される」）の診断も担う。開発活動の健全性（Trail DB のデルタ分析・ふりかえり）は anytime-dev-retro を使う。
+description: "PC 環境と Claude Code 設定（CLAUDE.md / rules / skills / hooks / settings / MCP / メモリ）を read-only で診断し、影響度×工数マトリクスと最適化プランを提示する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「CLAUDE.md の見直し」「CLAUDE.md レビュー」「/anytime-dev-audit」、および VS Code 拡張設定と Trail ingest 配線の診断（「取込が止まっている」「データが更新されない」「パイプラインが skip される」）で使用。開発活動の健全性は anytime-dev-retro。"
 ---
 
 # anytime-dev-audit — セットアップ監査（Claude Code 環境の read-only 診断）

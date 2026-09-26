@@ -1,7 +1,7 @@
 ---
 name: anytime-markdown-output
 effort: low
-description: Markdown ドキュメント（spec/tech/test/manual/proposal/plan/review/report）を出力・編集する際の構文・フロントマター・整形規約と、出力後の検証手順。<docsRoot>/ 配下に .md を作成/更新する時、見出し・テーブル・コードブロック・脚注・アドモニション・図表・フロントマター(type/c4Scope 等)を書く時、Markdown 出力仕様を確認する時、および Markdown ドキュメントを出力・更新した後の検証時（機械的整形は format_markdown へ委譲し、自動化できない意味判断をチェックする。旧 anytime-markdown-check スキル）に使用する。
+description: "<docsRoot>/ 配下の Markdown（spec/tech/test/manual/proposal/plan/review/report）を出力・編集する際の構文・フロントマター・整形規約と、出力後の検証手順（旧 anytime-markdown-check）。見出し・テーブル・コードブロック・脚注・アドモニション・図表・frontmatter（type/c4Scope 等）を書く時、Markdown 出力仕様を確認する時、出力後の検証時に使用。"
 ---
 
 # Claude Code Markdown 出力仕様

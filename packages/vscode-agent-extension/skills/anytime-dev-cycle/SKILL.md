@@ -1,7 +1,7 @@
 ---
 name: anytime-dev-cycle
 effort: medium
-description: anytime-markdown で「実装して」「直して」「リファクタして」「変更して」「追加して」「開発サイクル」「提案から実装まで」「一気通貫」「/anytime-dev-cycle」と指示された時に使用する。単発委譲の「Codex にやらせて」「Codex に委任」「codex exec で実装」「ollama に投げて」「ローカルモデルでやって」、単発回転の「サブエージェント回転」「毎タスク compact」「圧縮ステートで引き継ぐ」「肥大したサブエージェントを切り替え」、環境診断の「--check」「事前チェック」「preflight」でも使用する。単発のドキュメント作成、レビューのみ、リリースのみの指示では使わない。
+description: "anytime-markdown で「実装して」「直して」「リファクタして」「変更して」「追加して」「開発サイクル」「提案から実装まで」「一気通貫」「/anytime-dev-cycle」と指示された時に使用。単発委譲（「Codex にやらせて」「Codex に委任」「codex exec で実装」「ollama に投げて」「ローカルモデルでやって」）、サブエージェント回転（「サブエージェント回転」「毎タスク compact」「圧縮ステートで引き継ぐ」）、環境診断（「--check」「事前チェック」「preflight」）も対象。ドキュメント作成のみ・レビューのみ・リリースのみでは使わない。"
 ---
 
 # anytime-dev-cycle — 開発基本スキル

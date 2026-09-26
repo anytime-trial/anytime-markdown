@@ -1,6 +1,6 @@
 ---
 name: anytime-build-webapp
-description: Web アプリ・フルスタック MVP を新規生成する時に使用する（「Web アプリを作って」「MVP を生成」「雛形を作って」「/anytime-build-webapp」）。対象は WSL + Dev Container 上の Next.js（T3 Stack）のみ。`--devcontainer` で Dev Container ファイル一式をスキル同梱テンプレから生成できる。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
+description: "Web アプリ・フルスタック MVP の新規生成（「Web アプリを作って」「MVP を生成」「雛形を作って」「/anytime-build-webapp」）。対象は WSL + Dev Container 上の Next.js（T3 Stack）のみ。`--devcontainer` で Dev Container 一式を生成、画面デザインは参考 URL または DESIGN.md 指定で適用。"
 # 本文の npm script・リポ相対パスは生成先リポジトリの文脈(check-skill-refs.mjs が照合を除外)
 externalRepoRefs: true
 ---
