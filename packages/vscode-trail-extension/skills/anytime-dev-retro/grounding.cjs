@@ -1044,4 +1044,77 @@ function detectSemanticWired() {
   }
 }
 
+// ── .mcp.json × activity.db: MCP サーバーの利用消失（mcpHealth） ────────────────────
+// 登録が消えても接続失敗はセッション冒頭の通知 1 回きりで記録に残らず、規約（Serena を
+// コード作業で起動する等）が形骸化したことに誰も気づかない（2026-08-19 の再構築後
+// 1 か月以上 Serena が未接続だった実測）。SessionStart フック（verify-settings-wiring.sh
+// 第 7 節）が「宣言・承認・前回接続」を見るのに対し、ここは「編集はしているのに呼出が無い」
+// 利用の消失を 30 日窓で測る。判定（silent30d の新規出現＝悪化）は SKILL.md §2 が行う。
+{
+  try {
+    // activity.db は全ワークスペースを取込むため（codex-ingest-all-workspaces）、呼出は
+    // このワークスペース配下（cwd 前方一致）に絞る。worktree からの実行は TRAIL_WORKSPACE_PATH で
+    // 本体パスを指定する（mcp-trail と同じ変数名）。
+    const WS = process.env.TRAIL_WORKSPACE_PATH || process.cwd();
+    const mcpJson = path.join(WS, '.mcp.json');
+    if (!fs.existsSync(mcpJson)) {
+      snapshot.mcpHealth = null; // .mcp.json 不在は測定不能（0 サーバーと区別する）
+    } else {
+      const declaredAll = Object.keys(JSON.parse(fs.readFileSync(mcpJson, 'utf-8')).mcpServers ?? {});
+      // 意図的な無効化（.claude/settings*.json の disabledMcpjsonServers）は「消失」に数えない
+      const disabled = new Set();
+      for (const f of ['settings.json', 'settings.local.json']) {
+        const sp = path.join(WS, '.claude', f);
+        if (!fs.existsSync(sp)) continue;
+        try {
+          for (const s of JSON.parse(fs.readFileSync(sp, 'utf-8')).disabledMcpjsonServers ?? []) disabled.add(s);
+        } catch (e) {
+          snapshot.errors.push(`mcpHealth: ${f} parse failed: ${e.message}`);
+        }
+      }
+      const declared = declaredAll.filter((s) => !disabled.has(s));
+      const { db, error } = open('activity.db');
+      if (error) snapshot.errors.push(error);
+      // LIKE は前絞り。Bash コマンド本文に "mcp__serena__" が書かれただけの行を除くため
+      // json_each でツール名そのものを突合する（tool_calls は JSON 配列）
+      const callsFor = (srv, from, to) =>
+        num(
+          q(db, `SELECT COUNT(*) n FROM activity_messages
+                 WHERE type = 'assistant' AND tool_calls LIKE ? AND cwd LIKE ?
+                   AND timestamp >= datetime('now', ?) AND timestamp < datetime('now', ?)
+                   AND EXISTS (SELECT 1 FROM json_each(activity_messages.tool_calls)
+                               WHERE json_valid(activity_messages.tool_calls)
+                                 AND json_extract(value, '$.name') LIKE ?)`,
+            [`%mcp__${srv}__%`, `${WS}%`, from, to, `mcp__${srv}__%`]),
+          'n',
+        );
+      const editTurns30d = num(
+        q(db, `SELECT COUNT(*) n FROM activity_messages
+               WHERE type = 'assistant' AND is_sidechain = 0 AND cwd LIKE ?
+                 AND (tool_calls LIKE '%"name":"Edit"%' OR tool_calls LIKE '%"name":"Write"%')
+                 AND timestamp >= datetime('now','-30 days')`, [`${WS}%`]),
+        'n',
+      );
+      const servers = declared.map((name) => ({
+        name,
+        calls30d: callsFor(name, '-30 days', '+1 day'),
+        prev30: callsFor(name, '-60 days', '-30 days'),
+      }));
+      if (db) db.close();
+      snapshot.mcpHealth = {
+        workspace: WS,
+        declared: declaredAll.length,
+        disabled: [...disabled],
+        editTurns30d: error ? null : editTurns30d,
+        servers: error ? null : servers,
+        // 編集があるのに 30 日呼出ゼロ＝登録消失か規約の形骸化。前 30 日に呼出があれば「消えた」側
+        silent30d: error ? null : servers.filter((s) => s.calls30d === 0 && editTurns30d > 0).map((s) => s.name),
+        vanished30d: error ? null : servers.filter((s) => s.calls30d === 0 && s.prev30 > 0).map((s) => s.name),
+      };
+    }
+  } catch (e) {
+    snapshot.errors.push(`mcpHealth scan failed: ${e.message}`);
+  }
+}
+
 process.stdout.write(JSON.stringify(snapshot, null, 2) + '\n');
