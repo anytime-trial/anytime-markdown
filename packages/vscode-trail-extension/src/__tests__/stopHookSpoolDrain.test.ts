@@ -57,7 +57,7 @@ describe('stopHookSpoolDrain', () => {
     fetchMock.mockResolvedValue({ ok: true });
 
     const ingested = await drainStopHookSpoolOnce({
-      getWorkspacePath: () => repo,
+      getWorkspacePaths: () => [repo],
       getPort: () => 19841,
     });
 
@@ -88,7 +88,7 @@ describe('stopHookSpoolDrain', () => {
     fetchMock.mockResolvedValue({ ok: true });
 
     const ingested = await drainStopHookSpoolOnce({
-      getWorkspacePath: () => repo,
+      getWorkspacePaths: () => [repo],
       getPort: () => 19841,
     });
 
@@ -106,7 +106,7 @@ describe('stopHookSpoolDrain', () => {
     fetchMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false });
 
     const ingested = await drainStopHookSpoolOnce({
-      getWorkspacePath: () => repo,
+      getWorkspacePaths: () => [repo],
       getPort: () => 19841,
     });
 
@@ -121,7 +121,7 @@ describe('stopHookSpoolDrain', () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
 
     const ingested = await drainStopHookSpoolOnce({
-      getWorkspacePath: () => repo,
+      getWorkspacePaths: () => [repo],
       getPort: () => 19841,
     });
 
@@ -134,7 +134,7 @@ describe('stopHookSpoolDrain', () => {
     const plain = mkdtempSync(join(tmpdir(), 'stop-hook-drain-plain-'));
     try {
       const ingested = await drainStopHookSpoolOnce({
-        getWorkspacePath: () => plain,
+        getWorkspacePaths: () => [plain],
         getPort: () => 19841,
       });
       expect(ingested).toBe(0);
@@ -146,10 +146,45 @@ describe('stopHookSpoolDrain', () => {
 
   it('is a no-op when the spool is empty (no fetch)', async () => {
     const ingested = await drainStopHookSpoolOnce({
-      getWorkspacePath: () => repo,
+      getWorkspacePaths: () => [repo],
       getPort: () => 19841,
     });
     expect(ingested).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  // リグレッション: anytimeTrail.workspace.path が存在しないディレクトリを指し、
+  // フックが書く spool（workspaceFolders 側の git-common-dir）が 29 日間 drain されなかった
+  // （2026-08-29〜09-26 実測・T-32）。設定値が解決できなくても他の候補ルートは drain する。
+  it('drains the spool of every resolvable root even when the configured path does not exist', async () => {
+    appendStopHookSpool(airspaceDir, flightReview('sess-orphaned'));
+    fetchMock.mockResolvedValue({ ok: true });
+    const warnings: string[] = [];
+
+    const ingested = await drainStopHookSpoolOnce({
+      getWorkspacePaths: () => ['/nonexistent/anytime-trade-tmp', repo],
+      getPort: () => 19841,
+      warn: (m) => warnings.push(m),
+    });
+
+    expect(ingested).toBe(1);
+    expect(existsSync(stopHookSpoolPath(airspaceDir))).toBe(false);
+    expect(warnings.some((w) => w.includes('/nonexistent/anytime-trade-tmp'))).toBe(true);
+  });
+
+  it('drains each git-common-dir once when several roots share it (worktrees)', async () => {
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--allow-empty', '-q', '-m', 'init'], { cwd: repo });
+    const wt = join(repo, '.wt');
+    execFileSync('git', ['worktree', 'add', '-q', wt, '-b', 'wt'], { cwd: repo });
+    appendStopHookSpool(airspaceDir, flightReview('sess-shared'));
+    fetchMock.mockResolvedValue({ ok: true });
+
+    const ingested = await drainStopHookSpoolOnce({
+      getWorkspacePaths: () => [repo, wt],
+      getPort: () => 19841,
+    });
+
+    expect(ingested).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
 });
