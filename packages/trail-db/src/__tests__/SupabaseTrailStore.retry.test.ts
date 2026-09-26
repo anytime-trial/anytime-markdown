@@ -7,22 +7,26 @@ jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn() }));
 
 type UpsertResponse = { error: { message: string; code?: string | null } | null };
 
+type Call = { table: string; rowCount: number; filter?: string };
+
 /** upsert / delete 呼び出しごとに、キューに積んだ応答を順に返す fake Supabase client。 */
-function fakeClient(responses: UpsertResponse[]): { client: unknown; calls: { table: string; rowCount: number }[] } {
-  const calls: { table: string; rowCount: number }[] = [];
+function fakeClient(responses: UpsertResponse[]): { client: unknown; calls: Call[] } {
+  const calls: Call[] = [];
   const respond = (): Promise<UpsertResponse> => Promise.resolve(responses.shift() ?? { error: null });
   const client = {
     from: (table: string) => ({
+      // deleteAllPaged のページ取得。常に空ページを返し、ページング削除は即終了させる。
+      select: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
       upsert: (payload: unknown[]) => {
         calls.push({ table, rowCount: Array.isArray(payload) ? payload.length : 1 });
         return respond();
       },
       delete: () => {
-        const filter = (): Promise<UpsertResponse> => {
-          calls.push({ table, rowCount: 0 });
+        const filter = (op: string) => (column: string, bound: unknown): Promise<UpsertResponse> => {
+          calls.push({ table, rowCount: 0, filter: `${column} ${op} ${String(bound)}` });
           return respond();
         };
-        return { gte: filter, gt: filter };
+        return { gte: filter('>='), gt: filter('>') };
       },
     }),
   };
@@ -33,7 +37,7 @@ const HTML_ERROR_PAGE = '<!DOCTYPE html>\n<html><body>502 Bad Gateway</body></ht
 
 function makeStore(responses: UpsertResponse[]): {
   store: SupabaseTrailStore;
-  calls: { table: string; rowCount: number }[];
+  calls: Call[];
 } {
   const { client, calls } = fakeClient(responses);
   (createClient as jest.Mock).mockReturnValue(client);
@@ -187,5 +191,49 @@ describe('SupabaseTrailStore の洗い替えクリア', () => {
 
     await expect(store.upsertReleaseCoverage(rows)).resolves.toBeUndefined();
     expect(calls).toHaveLength(2);
+  });
+
+  it.each([
+    ['unsafeClearRepos', [['trail_repos', 'repo_id > 0']]],
+    ['unsafeClearCurrentGraphs', [['trail_current_graphs', 'repo_id >= 0']]],
+    ['unsafeClearReleaseGraphs', [['trail_release_graphs', 'release_id >= 0']]],
+    ['unsafeClearCurrentFileAnalysis', [['trail_current_file_analysis', 'repo_id >= 0']]],
+    ['unsafeClearCurrentFunctionAnalysis', [['trail_current_function_analysis', 'repo_id >= 0']]],
+    ['unsafeClearCurrentCodeGraphs', [
+      ['trail_current_code_graph_communities', 'repo_id >= 0'],
+      ['trail_current_code_graphs', 'repo_id >= 0'],
+    ]],
+    ['unsafeClearReleaseCodeGraphs', [
+      ['trail_release_code_graph_communities', 'release_id >= 0'],
+      ['trail_release_code_graphs', 'release_id >= 0'],
+    ]],
+  ] as const)('%s は対象テーブルを全行削除する', async (method, expected) => {
+    const { store, calls } = makeStore([]);
+    await store.connect();
+
+    await store[method]();
+
+    expect(calls.map((c) => [c.table, c.filter])).toEqual(expected);
+  });
+
+  it('unsafeClearAll は範囲削除のテーブルも再試行経由で消す', async () => {
+    const { store, calls } = makeStore([{ error: SCHEMA_CACHE_ERROR }]);
+    await store.connect();
+
+    await expect(store.unsafeClearAll()).resolves.toBeUndefined();
+    expect(calls.map((c) => [c.table, c.filter])).toEqual([
+      ['trail_daily_counts', 'date >= 0000-01-01'],
+      ['trail_daily_counts', 'date >= 0000-01-01'],
+      ['trail_current_file_analysis', 'repo_id >= 0'],
+      ['trail_current_function_analysis', 'repo_id >= 0'],
+    ]);
+  });
+
+  it('unsafeClearRepos は sentinel (repo_id=0) を残す条件で消し、恒久エラーは throw する', async () => {
+    const { store, calls } = makeStore([{ error: { message: 'permission denied', code: '42501' } }]);
+    await store.connect();
+
+    await expect(store.unsafeClearRepos()).rejects.toThrow(/trail_repos.*42501/);
+    expect(calls).toEqual([{ table: 'trail_repos', rowCount: 0, filter: 'repo_id > 0' }]);
   });
 });
