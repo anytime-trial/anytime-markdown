@@ -73,6 +73,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 委任成績(モデル別) `delegation.byModel`（実行系/モデル別の 採用/差し戻し/abstain） | docs(plan) | 特定モデルの差し戻し率の上昇 |
 | 見積り予実 `delegation.estimates.referenceClass`（カテゴリ×モデル別の 実測中央値・誤差比中央値） | docs(plan) | n≥5 の組で誤差比中央値が 2.0 超 or 0.5 未満（系統的な過小/過大見積り） |
 | 再発シグナル `recurrence.danglingClusters` / `recurrence.uncoveredBugFiles` | memory dir + memory | 新規クラスタ出現 / 増加 |
+| 記録経路の鮮度 `flightRecord.staleDays` / `reviews30d.measurable` | memory(flight record) | `measurable: false`（最終記録が 7 日超前・または記録ゼロ）。**このとき `reviews30d.*` の 4 指標は測定不能として扱いデルタ比較から除外する**（記録経路の停止で指標が静かに 0 へ落ち、改善や悪化に見える。2026-08-29〜09-26 の 29 日間欠落・T-32。grounding は `errors` にも積む） |
 | 未達成率 `flightRecord.reviews30d.unachievedSharePct`（自己/手動評価済みに占める partial+unachieved・30 日窓） | memory(flight record) | 上昇 |
 | 手戻り平均 `flightRecord.reviews30d.avgReworkCount`（30 日窓） | memory(flight record) | 上昇 |
 | ツール失敗率 `flightRecord.reviews30d.toolFailureRatePct`（30 日窓） | memory(flight record) | 上昇 |
