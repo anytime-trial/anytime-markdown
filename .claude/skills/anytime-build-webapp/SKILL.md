@@ -1,6 +1,6 @@
 ---
 name: anytime-build-webapp
-description: Web アプリ・フルスタック MVP を新規生成する時に使用する（「Web アプリを作って」「MVP を生成」「雛形を作って」「/anytime-build-webapp」）。対象は WSL + Dev Container 上の Next.js（T3 Stack）のみ。`--devcontainer` で Dev Container ファイル一式をスキル同梱テンプレから生成できる。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
+description: "Web アプリ・フルスタック MVP の新規生成（「Web アプリを作って」「MVP を生成」「雛形を作って」「/anytime-build-webapp」）。対象は WSL + Dev Container 上の Next.js（T3 Stack）のみ。`--devcontainer` で Dev Container 一式を生成、画面デザインは参考 URL または DESIGN.md 指定で適用。"
 # 本文の npm script・リポ相対パスは生成先リポジトリの文脈(check-skill-refs.mjs が照合を除外)
 externalRepoRefs: true
 ---
@@ -282,7 +282,7 @@ Q4（デザイン参照源）/ CLI 引数の値で分岐する。詳細は `DESI
 2. 1 タスクごとに、プランへ書いた検証手段を実行する。通過したらプランファイルの
    チェックボックスを `[x]` へ更新してから次のタスクへ進む
 3. 検証が失敗したら、同じ手を繰り返さず原因を調べて方針を変える。次のいずれかを
-   観測したら中断してユーザーへ報告する（`~/.claude/rules/bugfix-workflow.md`「無進捗の検知」）
+   観測したら中断してユーザーへ報告する（`~/.claude/docs/bugfix-workflow.md`「無進捗の検知」）
    - 同一ファイルを 3 回以上読み直して編集も検証もしていない
    - 編集の往復が 2 巡した（直す → 戻す → また直す）
    - 失敗テスト数・エラー件数が 3 ターン以上変化しない

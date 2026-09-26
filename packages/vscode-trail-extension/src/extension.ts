@@ -1042,9 +1042,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Emergency spool drain (Phase 5 S2): フック検知イベント（ループ検知・自動 Kill Switch）を
 	// spool から activity_emergency_log へ定期取込する
+	// drain 対象は設定値だけでなく workspaceFolders と lep.json の gitRoots も含める。設定値が
+	// 存在しないパスを指すと、フックの書き先（workspaceFolders 側の git-common-dir）が 29 日間
+	// drain されず Flight Record が欠落した（2026-08-29〜09-26・T-32）。
+	const getSpoolDrainRoots = (): (string | undefined)[] => [
+		getEffectiveWorkspacePath(),
+		...(vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath),
+		...lepConfig.sources.gitRoots,
+	];
 	context.subscriptions.push(
 		startEmergencySpoolDrain({
-			getWorkspacePath: getEffectiveWorkspacePath,
+			getWorkspacePaths: getSpoolDrainRoots,
 			getPort: () =>
 				vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
 		}),
@@ -1054,7 +1062,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// spool から既存 API へ定期取込する（旧 curl 直接 POST はデーモン停止中の記録を全損した）
 	context.subscriptions.push(
 		startStopHookSpoolDrain({
-			getWorkspacePath: getEffectiveWorkspacePath,
+			getWorkspacePaths: getSpoolDrainRoots,
 			getPort: () =>
 				vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
 		}),

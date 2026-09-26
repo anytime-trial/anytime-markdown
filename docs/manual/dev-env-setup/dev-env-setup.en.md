@@ -169,7 +169,7 @@ The container mounts the host's `~/.ssh`, so keys and tokens are configured on t
     > [!NOTE]
     > The anytime-build-webapp preflight check requires `ssh -T git@github.com` to exit with code 1. Seeing the message above means you are ready.
 
-3. **Personal Access Token (GH_TOKEN)** (for the gh CLI and the GitHub MCP server)
+3. **Personal Access Token (GH_TOKEN)** (for the gh CLI. Automatic registration of the GitHub MCP server was dropped on 2026-09-26: zero calls in two months, and the gh CLI covers it)
 
     Issue a token at GitHub Settings > Developer settings > Personal access tokens (for classic tokens, scope `repo`). Export it in your WSL shell init file.
 
@@ -242,7 +242,7 @@ A successful login creates `~/.claude/` on the host. Mounting this directory int
     | --- | --- |
     | `~/.ssh` mount | SSH authentication for cloning `anytime-lab` from inside the container |
     | `~/.claude` mount | Shares Claude Code login state, settings, and skills with the container |
-    | `containerEnv.GH_TOKEN` | Propagates the host's `GH_TOKEN` into the container (gh CLI / GitHub MCP) |
+    | `containerEnv.GH_TOKEN` | Propagates the host's `GH_TOKEN` into the container (gh CLI) |
     | `customizations.vscode.extensions` | Auto-installs the three anytime extensions (step 7) |
     | `forwardPorts: [3000]` | Lets the host browser reach the generated app's dev server |
 

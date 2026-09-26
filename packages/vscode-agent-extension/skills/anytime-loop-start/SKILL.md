@@ -1,6 +1,6 @@
 ---
 name: anytime-loop-start
-description: チケット駆動の自動実行 1 tick とループ開始。「/anytime-loop-start」「チケットループ」「ticket loop」「ループ開始」「チケットを自動実行」の指示、または cron からの定期発火で使用する。起動した tick 自身が次回以降の発火を cron へ自己確保するため /loop は不要（停止は anytime-loop-stop）。.tickets/ 配下の Markdown チケット（1 チケット=1 ファイル・YAML フロントマター）を走査し、担当が agent かつワークスペースが自分と一致するチケットを 1 件選定して着手宣言→別セッションへの委譲起動→状態遷移コミット・push までを行う。チケット本文の作業は tick セッション内では実施せず、子セッション（headless Claude Code）へ委譲する。人への質問・確認・承認はチャットでなくチケット（Comments + 担当を user へ返却）で管理する。
+description: "チケット駆動の自動実行 1 tick とループ開始。「/anytime-loop-start」「チケットループ」「ticket loop」「ループ開始」「チケットを自動実行」、または cron からの定期発火で使用。.tickets/ の Markdown チケットから担当 agent かつ自ワークスペースの 1 件を選定し、着手宣言→子セッション（headless Claude Code）への委譲→状態遷移コミット・push まで行う。tick 自身が次回発火を cron へ自己確保するため /loop 不要（停止は anytime-loop-stop）。人への質問・承認はチケット（Comments + 担当を user へ返却）で管理する。"
 ---
 
 # anytime-loop-start — チケット駆動自動実行（1 tick・ループ開始）

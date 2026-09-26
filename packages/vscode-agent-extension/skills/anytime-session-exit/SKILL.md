@@ -1,11 +1,11 @@
 ---
 name: anytime-session-exit
-description: セッションの作業を締めて完了報告を書く時、タスクの完了・部分完了・未達を報告する時、「デブリーフ」「debrief」「振り返りブロック」の指示があった時に使用する。最終応答に構造化デブリーフブロック（達成度・未解決事項・次回の懸念点）を出力し、Trail の運航後レビュー（caravan_flight_reviews）へ自己評価として取り込ませる。
+description: "セッションの作業を締めて完了報告を書く時、完了・部分完了・未達を報告する時、「デブリーフ」「debrief」「振り返りブロック」の指示で使用。最終応答に構造化デブリーフ（達成度・未解決事項・次回の懸念点）を出力し、Trail の運航後レビュー（caravan_flight_reviews）へ取り込ませる。"
 ---
 
 # anytime-session-exit — セッション終了時の構造化自己評価
 
-更新日: 2026-08-05
+更新日: 2026-09-26
 
 ## Overview
 
@@ -24,6 +24,10 @@ Anytime Trail は Stop フック経由でセッションの transcript を集計
 | `outcome` | `"achieved"` / `"partial"` / `"unachieved"` | このセッションの主タスクの達成度。達成 = 依頼された成果が検証込みで完了。部分達成 = 一部完了・残タスクあり。未達成 = 主タスクが完了していない |
 | `unresolvedItems` | 文字列配列（省略可） | 未解決事項・残タスク（各 500 文字以内） |
 | `nextConcerns` | 文字列配列（省略可） | 次回セッションへの懸念点・注意事項（各 500 文字以内） |
+
+## 指示の close（Flight Record）
+
+デブリーフを出す前に、このセッションが属する指示が完了していれば mcp-trail `record_instruction({ mode: "close", instruction_id })` で閉じる（instruction_id はセッション冒頭の宣言で得たもの。不明なら `list_open_instructions` で探す）。開始は SessionStart フックが促すが終了を促す機構は無く、1 セッションで完了した作業が open のまま残り続けた（2026-09-26 時点で 7 日超 open が 37 件・T-32）。継続予定の指示は閉じない。
 
 ## ルール
 

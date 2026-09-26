@@ -486,6 +486,23 @@ function detectSemanticWired() {
                FROM caravan_flight_reviews WHERE ended_at >= datetime('now','-${WINDOW_DAYS} days')`),
     ) ?? {};
     const total = agg.total ?? 0;
+    const FLIGHT_RECORD_STALE_DAYS = 7;
+    // 記録経路の鮮度。Stop フック spool の drain が止まると 30 日窓の全指標が静かに 0 へ落ちる
+    // （2026-08-29〜09-26 に 29 日間欠落・T-32）。最終記録からの経過日数を出し、
+    // FLIGHT_RECORD_STALE_DAYS 超（または記録ゼロ）なら reviews30d.measurable=false を立て、
+    // 併せて errors へ積む（沈黙させない。SKILL.md §2 はこの窓の指標をデルタ比較から除外する）。
+    const last = one(
+      q(frDb, `SELECT MAX(ended_at) lastReviewAt,
+                 CAST(julianday('now') - julianday(MAX(ended_at)) AS INTEGER) staleDays
+               FROM caravan_flight_reviews`),
+    ) ?? {};
+    const staleDays = last.staleDays ?? null;
+    const measurable = staleDays !== null && staleDays <= FLIGHT_RECORD_STALE_DAYS;
+    if (!measurable) {
+      snapshot.errors.push(
+        `flightRecord: caravan_flight_reviews の最終記録が ${staleDays === null ? '無い' : staleDays + ' 日前'}（閾値 ${FLIGHT_RECORD_STALE_DAYS} 日）。記録経路（Stop フック spool → 拡張 drain）の停止を疑い、reviews30d はデルタ比較から除外する`,
+      );
+    }
     const instr = one(
       q(frDb, `SELECT
                  SUM(CASE WHEN started_at >= datetime('now','-${WINDOW_DAYS} days') THEN 1 ELSE 0 END) started30d,
@@ -535,7 +552,12 @@ function detectSemanticWired() {
       // 移行未完了（both）のとき trail 側に残っている行数。null は残存なし
       residualTrail,
       windowDays: WINDOW_DAYS,
+      // 最終記録の時刻と経過日数（null は記録ゼロ）。staleDays > 7 は記録経路の停止を疑う
+      lastReviewAt: last.lastReviewAt ?? null,
+      staleDays,
       reviews30d: {
+        // false = 記録経路が止まっている疑い（staleDays > 7 または記録ゼロ）。値は残すが比較に使わない
+        measurable,
         total,
         outcomes,
         // 自己評価カバレッジ: machine のまま(unknown 固定)の行は成否を語れないため、
@@ -1041,6 +1063,80 @@ function detectSemanticWired() {
       : { memoryDir, memoryCount: null, feedbackMemoryCount: null, danglingClusters: null, uncoveredBugFiles: null };
   } catch (e) {
     snapshot.errors.push(`recurrence scan failed: ${e.message}`);
+  }
+}
+
+// ── .mcp.json × activity.db: MCP サーバーの利用消失（mcpHealth） ────────────────────
+// 登録が消えても接続失敗はセッション冒頭の通知 1 回きりで記録に残らず、規約（Serena を
+// コード作業で起動する等）が形骸化したことに誰も気づかない（2026-08-19 の再構築後
+// 1 か月以上 Serena が未接続だった実測）。SessionStart フック（verify-settings-wiring.sh
+// 第 7 節）が「宣言・承認・前回接続」を見るのに対し、ここは「編集はしているのに呼出が無い」
+// 利用の消失を 30 日窓で測る。判定（silent30d の新規出現＝悪化）は SKILL.md §2 が行う。
+{
+  try {
+    // activity.db は全ワークスペースを取込むため（codex-ingest-all-workspaces）、呼出は
+    // このワークスペース配下（cwd が WS そのものか WS/ 配下。単純な前方一致だと
+    // /anytime-markdown-other のような兄弟ディレクトリも拾う）に絞る。worktree からの実行は TRAIL_WORKSPACE_PATH で
+    // 本体パスを指定する（mcp-trail と同じ変数名）。
+    const WS = process.env.TRAIL_WORKSPACE_PATH || process.cwd();
+    const mcpJson = path.join(WS, '.mcp.json');
+    if (!fs.existsSync(mcpJson)) {
+      snapshot.mcpHealth = null; // .mcp.json 不在は測定不能（0 サーバーと区別する）
+    } else {
+      const declaredAll = Object.keys(JSON.parse(fs.readFileSync(mcpJson, 'utf-8')).mcpServers ?? {});
+      // 意図的な無効化（.claude/settings*.json の disabledMcpjsonServers）は「消失」に数えない
+      const disabled = new Set();
+      for (const f of ['settings.json', 'settings.local.json']) {
+        const sp = path.join(WS, '.claude', f);
+        if (!fs.existsSync(sp)) continue;
+        try {
+          for (const s of JSON.parse(fs.readFileSync(sp, 'utf-8')).disabledMcpjsonServers ?? []) disabled.add(s);
+        } catch (e) {
+          snapshot.errors.push(`mcpHealth: ${f} parse failed: ${e.message}`);
+        }
+      }
+      const declared = declaredAll.filter((s) => !disabled.has(s));
+      const { db, error } = open('activity.db');
+      if (error) snapshot.errors.push(error);
+      // LIKE は前絞り。Bash コマンド本文に "mcp__serena__" が書かれただけの行を除くため
+      // json_each でツール名そのものを突合する（tool_calls は JSON 配列）
+      const callsFor = (srv, from, to) =>
+        num(
+          q(db, `SELECT COUNT(*) n FROM activity_messages
+                 WHERE type = 'assistant' AND tool_calls LIKE ? AND (cwd = ? OR cwd LIKE ?)
+                   AND timestamp >= datetime('now', ?) AND timestamp < datetime('now', ?)
+                   AND EXISTS (SELECT 1 FROM json_each(activity_messages.tool_calls)
+                               WHERE json_valid(activity_messages.tool_calls)
+                                 AND json_extract(value, '$.name') LIKE ?)`,
+            [`%mcp__${srv}__%`, WS, `${WS}/%`, from, to, `mcp__${srv}__%`]),
+          'n',
+        );
+      const editTurns30d = num(
+        q(db, `SELECT COUNT(*) n FROM activity_messages
+               WHERE type = 'assistant' AND is_sidechain = 0 AND (cwd = ? OR cwd LIKE ?)
+                 AND (tool_calls LIKE '%"name":"Edit"%' OR tool_calls LIKE '%"name":"Write"%')
+                 AND timestamp >= datetime('now','-30 days')`, [WS, `${WS}/%`]),
+        'n',
+      );
+      const servers = declared.map((name) => ({
+        name,
+        calls30d: callsFor(name, '-30 days', '+1 day'),
+        prev30: callsFor(name, '-60 days', '-30 days'),
+      }));
+      if (db) db.close();
+      snapshot.mcpHealth = {
+        workspace: WS,
+        declared: declaredAll.length,
+        disabled: [...disabled],
+        editTurns30d: error ? null : editTurns30d,
+        servers: error ? null : servers,
+        // 編集があるのに 30 日呼出ゼロ＝登録消失か規約の形骸化。前 30 日に呼出があれば「消えた」側
+        silent30d: error ? null : servers.filter((s) => s.calls30d === 0 && editTurns30d > 0).map((s) => s.name),
+        vanished30d: error ? null : servers.filter((s) => s.calls30d === 0 && s.prev30 > 0).map((s) => s.name),
+      };
+    }
+  } catch (e) {
+    snapshot.errors.push(`mcpHealth scan failed: ${e.message}`);
   }
 }
 

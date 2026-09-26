@@ -1,6 +1,6 @@
 ---
 name: anytime-reverse-spec
-description: "anytime-reverse-codegraph の出口として、Trail DB のコードグラフコミュニティ・データ永続化スキーマ（SQL DDL / 各種 ORM）・外部 I/F（REST / GraphQL / gRPC / tRPC / MCP / CLI / Webhook 等）・画面定義（Next.js / React Router / Vue Router / VS Code WebView 等）から基本設計書一式（システム概要 / 機能一覧 / 機能詳細 / データモデル / 外部 I/F / 画面仕様 / データフロー / 用語集）を自動生成する。任意のリポジトリ・任意の DB / I/F / 画面フレームワークに適用可能（outputDir / repoRoot / schemaGlobs / interfaceGlobs / screenGlobs オプションで対象を指定）。「基本設計書を生成」「basic-design を実行」「リバース設計書を作成」などの指示で使用する。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「デザインシステムを解析」「デザイントークンを抜き出して」「UI/UX を評価して」「ユーザビリティ評価レポート」「アクセシビリティを診断して」「/anytime-ux-archeologist」（旧スキル名）の指示では外形リバースモード（旧 anytime-ux-archeologist を統合。ソース非アクセスの稼働中 Web アプリからブラウザ巡回・Computed Style 抽出・スクリーンショット解析で DESIGN.md / ux-concept.md / ux-report.md を抽出。手順は references/ux-archeologist.ja.md）を使用する。CSS/Tailwind 設定やスクリーンショットが手元にある場合は design-md、暗黙知の明文化は anytime-dev-retro の doctrine 抽出モードを使う。"
+description: "Trail DB のコードグラフ・DB スキーマ・外部 I/F・画面定義から基本設計書一式を自動生成する（「基本設計書を生成」「basic-design」「リバース設計書」）。任意リポジトリ対応（outputDir / repoRoot / schemaGlobs / interfaceGlobs / screenGlobs）。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「ユーザビリティ評価」「アクセシビリティを診断」「/anytime-ux-archeologist」は外形リバースモード（references/ux-archeologist.ja.md）。手元の CSS/スクリーンショットからは design-md、暗黙知の明文化は anytime-dev-retro。"
 trigger: /anytime-reverse-spec
 ---
 

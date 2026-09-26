@@ -1,7 +1,7 @@
 ---
 name: anytime-doc-authoring
 effort: low
-description: <docsRoot> 配下のドキュメントを新規作成・執筆する時に、type（spec/tech/test/manual/proposal/plan/review/report）ごとの記載内容（何を書くか）・フォルダ構成・索引 index.[lang].md の自動生成運用を定義する。設計書（spec）の書き方・component spec の 2 ファイル分離・E2E シナリオ表・技術解説記事（tech。「技術記事を書いて」「ブログ記事を作成」「解説記事を書いて」等）の構成テンプレート・執筆ガイドライン・文体・生成ワークフロー・試験設計書（「試験設計書」「テスト設計書」「テストケースを設計」「テスト観点で洗い出し」「テスト計画」「QA 設計」等。7 ペルソナ観点・技法・自動化判定）・要件定義書（「要件定義書を作成」「要件定義」「要件をまとめて」「要件書」「requirements」等。テンプレートは references/requirements-template.ja.md）・実装後テスト設計（「実装後にどのテストを書くか」「実装後テスト」「テスト内容の決め方」「機能パリティ照合」「移行漏れ」「検知ギャップ」「verifier-first」等。旧 anytime-impl-test-design。手順は references/impl-test-design.ja.md）・プランファイルの「変更対象ファイル」節・索引再生成が必要な時に使用する。全 type 共通の文章規範（文体・段落構成・論証の厳密さ・LLM 口調の排除・冗長排除・見出し・読者への誠実さ。「推敲して」「文章を整えて」「文章規範」等）は references/writing-standards.ja.md に従い、読み物寄りの type（tech の解説記事・manual の解説部・proposal / report の論述部）の緩急設計（「読みにくい」「単調」「読み進める気がしない」「緩急をつけて」「リズム」等）は references/cognitive-rhythm.ja.md を併用する。構文・フロントマター・整形は anytime-markdown-output、既存設計書の読み方・辿り方・低トークン検索は anytime-markdown-usage を使う。
+description: "<docsRoot> 配下のドキュメントを新規作成・執筆する時の type 別記載内容（spec/tech/test/manual/proposal/plan/review/report）・フォルダ構成・索引 index.[lang].md 運用。設計書・component spec・E2E シナリオ表・技術記事（「技術記事」「ブログ記事」「解説記事」）・試験設計書（「テスト設計書」「テストケースを設計」「QA 設計」）・要件定義書（「要件定義」「要件書」「requirements」）・実装後テスト設計（「実装後テスト」「機能パリティ照合」「verifier-first」）・文章規範（「推敲して」「文章を整えて」）・緩急設計（「読みにくい」「緩急をつけて」）で使用する。構文・整形は anytime-markdown-output、既存設計書の検索は anytime-markdown-usage。"
 ---
 
 # ドキュメント記載内容ガイド（anytime-doc-authoring）
@@ -442,3 +442,11 @@ ISO/IEC 25010 品質特性（機能適切性・性能効率性・互換性・使
 - **書き換え/移行タスクは機能パリティ照合を必須にする**: 旧実装の出口インベントリ（5 観点）を作り、文字列リテラル grep で「定義あり」でなく「配線あり」まで照合する。スナップショット可能な出口は golden master で自動固定する。
 - **検証器を先に検証する（verifier-first）**: 新設したテスト・golden master・照合手段は、正しい実装で pass / 現実的な退行 1 件注入で fail することを実測してから信じる。リトマスは「この変更にバグが入ったら、これらのテストは落ちるか」。
 - 実装前の純粋関数は global `~/.claude/CLAUDE.md`「実装時」の TDD 規約（実装前にユニットテストを作成）が担い、本章はそれが届かない出口（配線 / mount / 型 / i18n）を実装後に補完する。
+
+## 指示の明確さ（clarity）の評価
+
+global CLAUDE.md「応答」から移設（2026-09-26。設計書・プランの作成時にだけ要るため本スキルへ）。
+
+- 設計書（spec）・実行計画（plan）ファイルを作成した際は、元となった指示の明確さを 1〜100 で評価し、その理由とともにチャットで通知する。
+- 同じ値を当該ファイルの frontmatter `clarity` フィールドに記載する。
+- 評価の観点: 何を作るかが一意に定まるか（What）、受け入れ条件が観測可能か、スコープ境界が書かれているか。低い場合は不足論点を列挙し、What 承認の前に確認する。

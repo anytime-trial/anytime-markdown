@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.20.2] - 2026-09-26
+
+### Changed
+
+- Bundled skills updated. `anytime-session-exit` now closes the Flight Record instruction (`record_instruction` close) when wrapping up a session, the `anytime-dev-cycle` delegation calibration table was recalibrated, and skill descriptions were shortened to reduce startup context.
+
 ## [1.20.1] - 2026-09-23
 
 ### Changed

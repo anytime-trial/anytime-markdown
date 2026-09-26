@@ -1,6 +1,6 @@
 ---
 name: anytime-reverse-codegraph
-description: "Trail DB に保存済みのコードグラフ・コミュニティに対し、AI で name / summary を付与し、各コミュニティに属する C4 要素の role（primary / secondary / dependency）を判定して mappings_json に保存する後処理スキル。将来的にソースコードから設計書まで生成するリバースエンジニアリングパイプラインに発展させる。コードグラフ生成自体は VS Code 拡張 (Anytime Trail) 側で完了している前提。"
+description: "Trail DB 保存済みのコードグラフ・コミュニティに AI で name / summary を付与し、各コミュニティの C4 要素の role（primary / secondary / dependency）を判定して mappings_json に保存する後処理。コードグラフ生成は Anytime Trail 拡張側で完了している前提。"
 trigger: /anytime-reverse-codegraph
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: anytime-coding-conventions
 effort: low
-description: anytime-markdown の TypeScript コードを実装・修正・レビューする際の暗黙規約（doctrine 昇格分）。エラー処理の fail-open / fail-closed の使い分け・状態ファイルの atomic write・kind discriminated union・readonly id 判別子・MCP ツールの zod スキーマ・テストの mkdtempSync 隔離を定義。エラー処理/ゲート/スプールを書く時、状態ファイル・設定ファイルへ永続化する時、判定結果やアダプタの型を設計する時、MCP ツールを追加する時、一時リソースを使うテストを書く時、コードレビュー時に使用する。
+description: "anytime-markdown の TypeScript を実装・修正・レビューする際の暗黙規約（doctrine 昇格分）: fail-open / fail-closed の使い分け・状態ファイルの atomic write・kind discriminated union・readonly id 判別子・MCP ツールの zod スキーマ・テストの mkdtempSync 隔離。エラー処理/ゲート/スプール、状態・設定ファイルの永続化、判定結果やアダプタの型設計、MCP ツール追加、一時リソースを使うテスト、コードレビュー時に使用。"
 ---
 
 # anytime-markdown コーディング規約（doctrine 昇格分）

@@ -51,7 +51,7 @@ git pull origin develop     # 最新化
 | **extension pack 系** | `publish-extension-pack` / `pack-v<x>` | `packages/vscode-extension-pack` | メタパッケージ |
 | **web-app 系** | （Marketplace 公開なし。master push で Netlify 自動デプロイ） | `packages/web-app` | タグなし。`markdown-*` / `graph-core` の変更を取り込む |
 | **cms 系** | （Marketplace 公開なし。CI test のみ） | `packages/cms-core`, `packages/mcp-cms` | — |
-| **cms-remote 系** | `deploy-mcp-cms-remote.yml`（Cloudflare Workers） | `packages/mcp-cms-remote` | `deploy-cms-remote` スキル参照 |
+| **cms-remote 系** | `deploy-mcp-cms-remote.yml`（Cloudflare Workers） | `packages/mcp-cms-remote` | `.claude/skills-archive/deploy-cms-remote/SKILL.md`（退避済み・パス指定で Read） スキル参照 |
 
 > [!NOTE]
 > per-platform 系（trail / database）の VSIX（各 4 種）は CI（`ci.yml` の `build-trail` / `build-database` matrix → `publish-trail` / `publish-database`）が自動生成・自動公開する。旧 `build-anytime-database.yml` は `ci.yml` に統合済み。darwin ターゲットは現在ビルドしていない。

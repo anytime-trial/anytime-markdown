@@ -172,7 +172,7 @@ code --install-extension ms-vscode-remote.remote-containers
    > [!NOTE]
    > anytime-build-webapp の起動前チェックは `ssh -T git@github.com` の終了コードが 1 であることを確認する。上記メッセージが出ていれば準備完了である。
 
-3. **Personal Access Token（GH_TOKEN）の設定**（gh CLI・GitHub MCP サーバー用）
+3. **Personal Access Token（GH_TOKEN）の設定**（gh CLI 用。GitHub MCP サーバーの自動登録は 2026-09-26 に廃止した — 2 か月間呼出ゼロで gh CLI が代替する）
 
    GitHub の Settings &gt; Developer settings &gt; Personal access tokens でトークンを発行する（classic の場合はスコープ `repo`）。WSL のシェル初期化ファイルにエクスポートする。
 
@@ -245,7 +245,7 @@ claude    # 初回起動でログイン（サブスクリプションまたは A
    | --- | --- |
    | `~/.ssh` マウント | コンテナ内から SSH で `anytime-lab` をクローンするための認証 |
    | `~/.claude` マウント | Claude Code のログイン状態・設定・スキルをコンテナと共有 |
-   | `containerEnv.GH_TOKEN` | ホストの `GH_TOKEN` をコンテナへ伝播（gh CLI / GitHub MCP 用） |
+   | `containerEnv.GH_TOKEN` | ホストの `GH_TOKEN` をコンテナへ伝播（gh CLI 用） |
    | `customizations.vscode.extensions` | anytime 拡張 3 種の自動インストール（手順 7） |
    | `forwardPorts: [3000]` | 生成アプリの dev サーバーをホストブラウザから閲覧 |
 
@@ -436,7 +436,7 @@ Trail のローカルデータ（セッション・トークン消費等）を S
 }
 ```
 
-`serviceRoleKey` は RLS を迂回できる強権限キーであり、共有リポジトリ・スクリーンショット・ログへ露出させない。スキーマの変更・同期方式は `supabase-schema-sync` スキル（wash-away 同期・`001_schema.sql` 直接編集）に従う。
+`serviceRoleKey` は RLS を迂回できる強権限キーであり、共有リポジトリ・スクリーンショット・ログへ露出させない。スキーマの変更・同期方式は `supabase-schema-sync` スキル（`.claude/skills-archive/` に退避、パス指定で Read。wash-away 同期・`001_schema.sql` 直接編集）に従う。
 
 ## トラブルシューティング
 

@@ -1,6 +1,6 @@
 ---
 name: resolve-issues
-description: GitHub Issues、Security/Dependabot Alerts、Code Scanning (CodeQL)、SonarCloud Issues、SonarCloud Security Hotspots、TypeScript/Lint警告を収集・トリアージ・自動修正する。「issueを解決して」「SonarQubeの課題を直して」「Security Hotspotを確認して」「セキュリティアラートを確認して」「CodeQLの課題を確認して」「警告を修正して」「resolve issues」などの指示、または `/loop` からの定期呼び出しで使用する。
+description: "GitHub Issues・Dependabot / Code Scanning（CodeQL）・SonarCloud Issues / Security Hotspots・TypeScript / Lint 警告を収集・トリアージ・自動修正する。「issue を解決して」「SonarQube の課題を直して」「Security Hotspot を確認して」「セキュリティアラートを確認して」「CodeQL の課題を確認して」「警告を修正して」「resolve issues」、または /loop からの定期呼び出しで使用。"
 ---
 
 # Issue 自動解決
@@ -263,7 +263,7 @@ bash .claude/skills/resolve-issues/scripts/format-report.sh \
 > [!IMPORTANT]
 > **本スキルの実行自体がローカル `develop` へのマージの承認を意味する**。マージ可否をユーザーに確認しない。
 
-0. マージ前に `pr-review-toolkit:code-reviewer` subagent でレビューし、検出した error/warn を対処してからマージする（`~/.claude/rules/pre-merge-review.md` 準拠。ドキュメントのみの変更の場合は省略可）。
+0. マージ前に `pr-review-toolkit:code-reviewer` subagent でレビューし、検出した error/warn を対処してからマージする（`~/.claude/docs/pre-merge-review.md` 準拠。ドキュメントのみの変更の場合は省略可）。
 
 1. 作業ブランチをローカル `develop` に `--no-ff` マージする。マージ前に 3 点確認（`git branch --show-current` / `git status` / `git diff --cached`）を行い、想定外の差分があれば中断する。
 

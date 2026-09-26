@@ -5,7 +5,8 @@
     "mcp-graph",
     "mcp-cms",
     "mcp-trail",
-    "mcp-markdown"
+    "mcp-markdown",
+    "serena"
   ],
   "permissions": {
     "allow": [

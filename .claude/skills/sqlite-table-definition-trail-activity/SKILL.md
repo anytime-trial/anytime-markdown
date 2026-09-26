@@ -1,7 +1,7 @@
 ---
 name: sqlite-table-definition-trail-activity
 effort: low
-description: anytime-markdown（activity.db / trail-activity）固有の SQLite テーブル定義の補足。スキーマ配置パス・マイグレーションスクリプト規約・本番 DB 運用を定義する。汎用 SQLite 規約（STRICT / CHECK / FK ON DELETE / 12-step migration）は global スキル `sqlite-table-definition` に集約。trail-activity のテーブル・制約・インデックス・マイグレーションを追加/変更する時に使用する。
+description: "anytime-markdown（activity.db / trail-activity）固有の SQLite テーブル定義の補足（スキーマ配置パス・マイグレーションスクリプト規約・本番 DB 運用）。trail-activity のテーブル・制約・インデックス・マイグレーションを追加/変更する時に使用。汎用規約は global スキル sqlite-table-definition。"
 ---
 
 # SQLite テーブル定義（trail-activity 固有補足）
@@ -32,5 +32,5 @@ STRICT・CHECK・FK ON DELETE・timestamp GLOB・インデックス命名・12-s
 ## 関連
 
 - global `sqlite-table-definition` — 汎用 SQLite テーブル定義ルール（本スキルの前提）。詳細は同スキルの `references/`（`migration-12step.md` / `antipatterns.md` / `query-design-sqljs.md`）
-- `supabase-schema-sync` — Supabase 側のスキーマ運用・洗い替え同期（本スキルとは方針が異なる）
+- `supabase-schema-sync`（`.claude/skills-archive/` に退避。パス指定で Read）— Supabase 側のスキーマ運用・洗い替え同期（本スキルとは方針が異なる）
 - global スキル `code-review-checklist` `references/datetime.md`（§14）— 日時データの UTC 統一
