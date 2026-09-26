@@ -21,7 +21,7 @@ Why not: オーナーを `themes.json` 側に持たせない。`themes.json` は
 | `hooks-automation` | `~/.claude/settings-fragments/*.settings.json` / `packages/vscode-agent-extension/skills/anytime-dev-audit/SKILL.md` |
 | `sandbox-permission` | `~/.claude/CLAUDE.md`「セキュリティ・変更制限」節 / `packages/vscode-agent-extension/skills/anytime-loop-start/SKILL.md`（子セッションの権限） |
 | `security` | `~/.claude/rules/untrusted-content.md` / `.github/workflows/ci.yml`（audit ゲート） / `packages/vscode-agent-extension/skills/anytime-dev-audit/SKILL.md` |
-| `review-quality` | `~/.claude/rules/pre-merge-review.md` / `~/.claude/skills/code-review-checklist/SKILL.md` |
+| `review-quality` | `~/.claude/docs/pre-merge-review.md` / `~/.claude/skills/code-review-checklist/SKILL.md` |
 | `testing` | `~/.claude/CLAUDE.md`「実装時」節 |
 | `git-workflow` | `~/.claude/rules/git-workflow.md` |
 | `ci-devops` | `.github/workflows/*.yml` |

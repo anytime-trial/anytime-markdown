@@ -263,7 +263,7 @@ bash .claude/skills/resolve-issues/scripts/format-report.sh \
 > [!IMPORTANT]
 > **本スキルの実行自体がローカル `develop` へのマージの承認を意味する**。マージ可否をユーザーに確認しない。
 
-0. マージ前に `pr-review-toolkit:code-reviewer` subagent でレビューし、検出した error/warn を対処してからマージする（`~/.claude/rules/pre-merge-review.md` 準拠。ドキュメントのみの変更の場合は省略可）。
+0. マージ前に `pr-review-toolkit:code-reviewer` subagent でレビューし、検出した error/warn を対処してからマージする（`~/.claude/docs/pre-merge-review.md` 準拠。ドキュメントのみの変更の場合は省略可）。
 
 1. 作業ブランチをローカル `develop` に `--no-ff` マージする。マージ前に 3 点確認（`git branch --show-current` / `git status` / `git diff --cached`）を行い、想定外の差分があれば中断する。
 
