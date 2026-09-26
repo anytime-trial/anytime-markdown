@@ -436,7 +436,7 @@ Trail のローカルデータ（セッション・トークン消費等）を S
 }
 ```
 
-`serviceRoleKey` は RLS を迂回できる強権限キーであり、共有リポジトリ・スクリーンショット・ログへ露出させない。スキーマの変更・同期方式は `supabase-schema-sync` スキル（wash-away 同期・`001_schema.sql` 直接編集）に従う。
+`serviceRoleKey` は RLS を迂回できる強権限キーであり、共有リポジトリ・スクリーンショット・ログへ露出させない。スキーマの変更・同期方式は `supabase-schema-sync` スキル（`.claude/skills-archive/` に退避、パス指定で Read。wash-away 同期・`001_schema.sql` 直接編集）に従う。
 
 ## トラブルシューティング
 

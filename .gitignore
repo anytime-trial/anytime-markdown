@@ -14,6 +14,7 @@ packages/web-app/anytime-trial-*.json
 .claude/*
 !.claude/rules/
 !.claude/docs/
+!.claude/skills-archive/
 !.claude/skills/
 # チーム共有の Claude Code 設定（MCP 有効化・permissions の基本形）。
 # 個人差分は settings.local.json 側に置き、そちらは .claude/* の除外に任せる。

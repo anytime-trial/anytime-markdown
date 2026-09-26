@@ -51,7 +51,7 @@
 - マージ前レビュー: `~/.claude/docs/pre-merge-review.md`、レビュー観点: `~/.claude/skills/code-review-checklist/SKILL.md`
 - 外部取得コンテンツ: `~/.claude/rules/untrusted-content.md`
 - 委譲契約 6 点・中断規則: `packages/vscode-agent-extension/skills/anytime-dev-cycle/references/delegation.md` / `stopping-rules-playbook.md`
-- 作業別のプロジェクト規約: `.claude/skills/<name>/SKILL.md`（UI: `screen-design`、i18n: `i18n-naming`、ProseMirror: `prosemirror-conventions`、SQLite: `sqlite-table-definition-trail-activity`、Supabase: `supabase-schema-sync`、vanilla UI: `vanilla-ui-conventions`、レビュー書式: `anytime-trail-review`、リリース: `production-release`）。ドキュメント執筆は `packages/vscode-markdown-extension/skills/` の `anytime-doc-authoring` / `anytime-markdown-output` / `anytime-markdown-usage`。
+- 作業別のプロジェクト規約: `.claude/skills/<name>/SKILL.md`（UI: `screen-design`、i18n: `i18n-naming`、ProseMirror: `prosemirror-conventions`、SQLite: `sqlite-table-definition-trail-activity`、Supabase: `supabase-schema-sync`、vanilla UI: `vanilla-ui-conventions`、レビュー書式: `anytime-trail-review`、リリース: `production-release`）。90 日発火ゼロの `prosemirror-conventions` / `supabase-schema-sync` / `deploy-cms-remote` / `weekly-research` / `daily-research` は `.claude/skills-archive/<name>/SKILL.md` に退避してあり自動発火しない。該当作業ではパス指定で Read する。ドキュメント執筆は `packages/vscode-markdown-extension/skills/` の `anytime-doc-authoring` / `anytime-markdown-output` / `anytime-markdown-usage`。
 
 ### 応答・報告
 
