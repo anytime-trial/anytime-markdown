@@ -1053,7 +1053,8 @@ function detectSemanticWired() {
 {
   try {
     // activity.db は全ワークスペースを取込むため（codex-ingest-all-workspaces）、呼出は
-    // このワークスペース配下（cwd 前方一致）に絞る。worktree からの実行は TRAIL_WORKSPACE_PATH で
+    // このワークスペース配下（cwd が WS そのものか WS/ 配下。単純な前方一致だと
+    // /anytime-markdown-other のような兄弟ディレクトリも拾う）に絞る。worktree からの実行は TRAIL_WORKSPACE_PATH で
     // 本体パスを指定する（mcp-trail と同じ変数名）。
     const WS = process.env.TRAIL_WORKSPACE_PATH || process.cwd();
     const mcpJson = path.join(WS, '.mcp.json');
@@ -1080,19 +1081,19 @@ function detectSemanticWired() {
       const callsFor = (srv, from, to) =>
         num(
           q(db, `SELECT COUNT(*) n FROM activity_messages
-                 WHERE type = 'assistant' AND tool_calls LIKE ? AND cwd LIKE ?
+                 WHERE type = 'assistant' AND tool_calls LIKE ? AND (cwd = ? OR cwd LIKE ?)
                    AND timestamp >= datetime('now', ?) AND timestamp < datetime('now', ?)
                    AND EXISTS (SELECT 1 FROM json_each(activity_messages.tool_calls)
                                WHERE json_valid(activity_messages.tool_calls)
                                  AND json_extract(value, '$.name') LIKE ?)`,
-            [`%mcp__${srv}__%`, `${WS}%`, from, to, `mcp__${srv}__%`]),
+            [`%mcp__${srv}__%`, WS, `${WS}/%`, from, to, `mcp__${srv}__%`]),
           'n',
         );
       const editTurns30d = num(
         q(db, `SELECT COUNT(*) n FROM activity_messages
-               WHERE type = 'assistant' AND is_sidechain = 0 AND cwd LIKE ?
+               WHERE type = 'assistant' AND is_sidechain = 0 AND (cwd = ? OR cwd LIKE ?)
                  AND (tool_calls LIKE '%"name":"Edit"%' OR tool_calls LIKE '%"name":"Write"%')
-                 AND timestamp >= datetime('now','-30 days')`, [`${WS}%`]),
+                 AND timestamp >= datetime('now','-30 days')`, [WS, `${WS}/%`]),
         'n',
       );
       const servers = declared.map((name) => ({
