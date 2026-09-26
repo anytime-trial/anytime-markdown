@@ -486,6 +486,23 @@ function detectSemanticWired() {
                FROM caravan_flight_reviews WHERE ended_at >= datetime('now','-${WINDOW_DAYS} days')`),
     ) ?? {};
     const total = agg.total ?? 0;
+    const FLIGHT_RECORD_STALE_DAYS = 7;
+    // 記録経路の鮮度。Stop フック spool の drain が止まると 30 日窓の全指標が静かに 0 へ落ちる
+    // （2026-08-29〜09-26 に 29 日間欠落・T-32）。最終記録からの経過日数を出し、
+    // FLIGHT_RECORD_STALE_DAYS 超（または記録ゼロ）なら reviews30d.measurable=false を立て、
+    // 併せて errors へ積む（沈黙させない。SKILL.md §2 はこの窓の指標をデルタ比較から除外する）。
+    const last = one(
+      q(frDb, `SELECT MAX(ended_at) lastReviewAt,
+                 CAST(julianday('now') - julianday(MAX(ended_at)) AS INTEGER) staleDays
+               FROM caravan_flight_reviews`),
+    ) ?? {};
+    const staleDays = last.staleDays ?? null;
+    const measurable = staleDays !== null && staleDays <= FLIGHT_RECORD_STALE_DAYS;
+    if (!measurable) {
+      snapshot.errors.push(
+        `flightRecord: caravan_flight_reviews の最終記録が ${staleDays === null ? '無い' : staleDays + ' 日前'}（閾値 ${FLIGHT_RECORD_STALE_DAYS} 日）。記録経路（Stop フック spool → 拡張 drain）の停止を疑い、reviews30d はデルタ比較から除外する`,
+      );
+    }
     const instr = one(
       q(frDb, `SELECT
                  SUM(CASE WHEN started_at >= datetime('now','-${WINDOW_DAYS} days') THEN 1 ELSE 0 END) started30d,
@@ -535,7 +552,12 @@ function detectSemanticWired() {
       // 移行未完了（both）のとき trail 側に残っている行数。null は残存なし
       residualTrail,
       windowDays: WINDOW_DAYS,
+      // 最終記録の時刻と経過日数（null は記録ゼロ）。staleDays > 7 は記録経路の停止を疑う
+      lastReviewAt: last.lastReviewAt ?? null,
+      staleDays,
       reviews30d: {
+        // false = 記録経路が止まっている疑い（staleDays > 7 または記録ゼロ）。値は残すが比較に使わない
+        measurable,
         total,
         outcomes,
         // 自己評価カバレッジ: machine のまま(unknown 固定)の行は成否を語れないため、

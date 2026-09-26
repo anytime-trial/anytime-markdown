@@ -45,7 +45,7 @@ describe('emergencySpoolDrain', () => {
     appendEmergencySpool(airspaceDir, { ...event('second'), event: 'kill_switch_on' });
     fetchMock.mockResolvedValue({ ok: true });
 
-    const ingested = await drainOnce({ getWorkspacePath: () => repo, getPort: () => 19841 });
+    const ingested = await drainOnce({ getWorkspacePaths: () => [repo], getPort: () => 19841 });
 
     expect(ingested).toBe(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -64,7 +64,7 @@ describe('emergencySpoolDrain', () => {
     appendEmergencySpool(airspaceDir, event('fails'));
     fetchMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false });
 
-    const ingested = await drainOnce({ getWorkspacePath: () => repo, getPort: () => 19841 });
+    const ingested = await drainOnce({ getWorkspacePaths: () => [repo], getPort: () => 19841 });
 
     expect(ingested).toBe(1);
     const remaining = drainEmergencySpool(emergencySpoolPath(airspaceDir));
@@ -75,7 +75,7 @@ describe('emergencySpoolDrain', () => {
     appendEmergencySpool(airspaceDir, event('down'));
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    const ingested = await drainOnce({ getWorkspacePath: () => repo, getPort: () => 19841 });
+    const ingested = await drainOnce({ getWorkspacePaths: () => [repo], getPort: () => 19841 });
 
     expect(ingested).toBe(0);
     const remaining = drainEmergencySpool(emergencySpoolPath(airspaceDir));
@@ -85,7 +85,7 @@ describe('emergencySpoolDrain', () => {
   it('is a no-op outside a git repository', async () => {
     const plain = mkdtempSync(join(tmpdir(), 'spool-drain-plain-'));
     try {
-      const ingested = await drainOnce({ getWorkspacePath: () => plain, getPort: () => 19841 });
+      const ingested = await drainOnce({ getWorkspacePaths: () => [plain], getPort: () => 19841 });
       expect(ingested).toBe(0);
       expect(fetchMock).not.toHaveBeenCalled();
     } finally {
@@ -94,13 +94,13 @@ describe('emergencySpoolDrain', () => {
   });
 
   it('is a no-op when no workspace is open', async () => {
-    const ingested = await drainOnce({ getWorkspacePath: () => undefined, getPort: () => 19841 });
+    const ingested = await drainOnce({ getWorkspacePaths: () => [undefined], getPort: () => 19841 });
     expect(ingested).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('is a no-op when the spool is empty (no fetch)', async () => {
-    const ingested = await drainOnce({ getWorkspacePath: () => repo, getPort: () => 19841 });
+    const ingested = await drainOnce({ getWorkspacePaths: () => [repo], getPort: () => 19841 });
     expect(ingested).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
