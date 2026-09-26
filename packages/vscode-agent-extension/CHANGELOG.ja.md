@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.20.2] - 2026-09-26
+
+### 変更
+
+- 同梱スキルを更新した。`anytime-session-exit` の締め手順で Flight Record の指示を閉じる（`record_instruction` close）ようにし、`anytime-dev-cycle` の委任較正表を再較正し、起動時文脈を減らすためスキル description を短くした。
+
 ## [1.20.1] - 2026-09-23
 
 ### 変更

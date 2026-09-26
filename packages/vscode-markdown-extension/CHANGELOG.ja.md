@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.24.3] - 2026-09-26
+
+### 変更
+
+- 同梱スキルを更新した。退避したスキルが持っていた clarity 評価を `anytime-doc-authoring` へ移し、起動時文脈を減らすためスキル description を短くした（`anytime-markdown-output` / `anytime-markdown-usage` / `anytime-reverse-spec`）。
+
 ## [1.24.2] - 2026-09-23
 
 ### セキュリティ

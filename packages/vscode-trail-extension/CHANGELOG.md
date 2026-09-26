@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-26
+
+### Added
+
+- The bundled `anytime-dev-retro` skill measures MCP server usage loss (`mcpHealth`): calls per server over the last and previous 30 days, servers silent despite editing turns, and servers that vanished. It also reports when Flight Record was last written and treats review metrics as unmeasurable when that is more than 7 days ago.
+
+### Fixed
+
+- The stop-hook and emergency spool drains now drain every monitored git root (the configured workspace path, workspace folders and `lep.json` git roots, de-duplicated by git common dir). Previously a workspace path pointing at a missing directory made the drain return 0 silently, leaving hook spool lines unconsumed and Flight Record entries missing. Paths that cannot be resolved are warned about once.
+
+### Trail Core (trail-db)
+
+- Supabase sync retries PostgREST connection errors (`PGRST0xx`, e.g. PGRST002) instead of treating them as permanent, and full-clear deletes no longer ignore errors before upserting.
+
 ## [1.5.4] - 2026-09-23
 
 ### Changed
