@@ -66,6 +66,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | cc>15 関数数 `hotspotOver15` と `hotspots` top | trail | 上昇 / 新規高 cc 関数 |
 | SHORTCUT 技術負債 `techDebt.shortcutMarkers` / `techDebt.noTriggerMarkers` | source | 上昇 / no-trigger 増 |
 | スキル健全性 `skillHealth.brokenRefs` / `staleOver90` / `unused30d` | source+trail | 上昇 |
+| MCP 利用消失 `mcpHealth.silent30d`（編集はあるのに 30 日呼出ゼロ）/ `vanished30d`（前 30 日には呼出があった） | source+trail | 新規出現（`null` は `.mcp.json` 不在＝測定不能。`disabled` に入るサーバーは意図的な無効化で対象外） |
 | スキル発火変化 `skillHealth.usageWindows`（2 窓比較）× `skillHealth.manifestVersions` | source+trail | 版数バンプ（改訂）後に n30 が prev30 比で半減・ゼロ化 |
 | 委譲率（量） `delegation.delegationRatePct`（委譲 ÷（委譲＋見送り）・`declinedByExclusion` に除外 ID 別内訳） | docs(plan) | 低下（安いモデルへ流す仕事の総量が減っている。記録 0 件は `null`＝測定不能） |
 | 委任成績 `delegation.byVersion`（雛形版数別の 採用/差し戻し/abstain） | docs(plan) | 差し戻し率の上昇 |
@@ -121,7 +122,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - frontmatter（`title` / `date` / `type: report` / `lang: ja` / `author` / `excerpt`）
 - **サマリ**: 前回比で悪化/改善した上位シグナルを 3〜5 行。
 - **デルタ表**: メトリクス / 前回 / 今回 / 変化（↑↓→・新規）。**変化があった行を上に**。
-- **現在の主要シグナル**: hotspot top・drift 種別内訳・コスト内訳・SHORTCUT 技術負債（総数 / no-trigger 内訳・top ファイル）・スキル健全性（総数 / 参照切れ / 90 日超 stale / 30 日未使用・利用 top）など現状値。
+- **現在の主要シグナル**: hotspot top・drift 種別内訳・コスト内訳・SHORTCUT 技術負債（総数 / no-trigger 内訳・top ファイル）・スキル健全性（総数 / 参照切れ / 90 日超 stale / 30 日未使用・利用 top）・MCP 利用状況（`mcpHealth.servers` のサーバー別 30 日呼出と前 30 日比。`silent30d` / `vanished30d` は登録消失か規約の形骸化の兆候で、SessionStart フック `verify-settings-wiring.sh` 第 7 節の「宣言・承認・前回接続」チェックと対で読む）など現状値。
 - **観点昇格候補**（`quality.checklistNoneClusters`）: checklist_ref='none'（global スキル `code-review-checklist` のどの章にも該当しない指摘）のカテゴリ×パッケージ束で 2 件以上のクラスタを**毎回列挙**する（2 回再発ルールの機械化。global CLAUDE.md「メモリ運用」の横断制約昇格と同じ閾値）。各クラスタは「チェックリストへの観点追加候補」で、§4 の閾値を満たしたら提案＋チケットへ昇格する（§4.1）。条文化はチケットの What 承認後に手動で行い、条文には出典 finding_id をインライン記載する（自動編集しない）。クラスタゼロ・列未マイグレーション（null）もその旨を明記する（沈黙させない）。
 - **条文効果**（`quality.checklistByRef30d`）: 前回レトロ以降に条文化・改訂した章があれば、その章の 30 日窓指摘件数の前回比を明記する（減少＝条文が効いている / 横ばい以上＝§4 メタ還流の観測 1 回目）。
 - **コスト詳細**（`grounding.token-budget.cjs` 出力。集計レベルの cost glance を超える深掘り）: モデル別コスト内訳 `byModel`（model / sessions / cost / cacheRead。Opus 比率を強調）・コスト上位セッション `topSessions`（session / cost / messageCount / peakContextTokens / compactCount / gitBranch / hygieneFlag）・セッション衛生 `hygiene`（expensiveNoCompact 等）・週次トレンド `trend.weekly`。狙いは RC2（Opus メインの超長大セッションが `/clear`・`/compact` なしで継続し `cache_read` が「文脈サイズ×ターン数」で二乗膨張する）の継続監視。
@@ -160,6 +161,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **衛生行動の減衰**: `hygiene.windows` で `avgSubAgents` または `avgCompacts` が `prior30to60d` → `prior7to30d` → `last7d` と単調に低下し、かつ `avgMessages` が横ばい（最大窓比 ±20% 以内）。セッションが小さくなった結果ではなく畳む行動が消えたことを意味する。件数が 20 未満の窓を含む場合は判定しない（少数標本）。
 - `techDebt.noTriggerMarkers` が前回比 +5 以上、または `techDebt.noTriggerSharePct` が 50% 超（昇格経路なき簡略化が支配的）。
 - `skillHealth.brokenRefs` が 1 以上（参照切れの放置）、または `staleOver90` が前回比増かつ `unused30d` が総数の過半（棚卸し要否の判断材料）。
+- **MCP サーバーの利用消失**: `mcpHealth.vanished30d` に前回スナップショットに無いサーバーが出現（登録が消えた・承認が外れた・起動コマンドが消えた、のいずれか。2026-08-19 の devcontainer 再構築で user スコープの Serena 登録が消え 1 か月以上気づかれなかった実測）→ 登録経路の復旧と、規約（そのサーバーを前提とする CLAUDE.md の条項）を残すか外すかの判断を提案する。`silent30d` に 2 回連続で残るサーバーは、規約が形骸化しているとみなし条項の削除候補にする。
 - **スキル改訂が効いていない**: 前回スナップショットと比べ `manifestVersions` の版数が上がったスキルの発火（`usageWindows.n30`）が prev30 比で半減以下、または同梱スキルが 30 日発火ゼロのまま → description / 本文の改訂候補として提案（発火記録は `messages.skill` の名前空間付き・旧名記録を含むため、末尾名で突合して誤判定を避ける）。
 - **委任テンプレの成績悪化**: `delegation.byVersion` の現行版数の差し戻し率が前回比 +20pt 以上または 50% 超 → `references/delegation.md`（anytime-dev-cycle）の契約書式改訂候補として提案。記録件数が 5 件未満の版は判定しない（少数標本の偽シグナル抑制）。
 - **委譲先の成績悪化（モデル別）**: `delegation.byModel` の特定モデル／実行系の差し戻し率が 50% 超（記録 5 件以上）→ そのモデルへの委譲を減らす／`anytime-dev-cycle` §1 委譲先選択・§3.1 モデル表の見直しを提案する。
