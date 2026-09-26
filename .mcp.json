@@ -43,6 +43,22 @@
       "command": "npx",
       "args": ["tsx", "packages/mcp-diagram/src/stdio.ts"],
       "cwd": "/anytime-markdown"
+    },
+    "serena": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide-assistant",
+        "--open-web-dashboard",
+        "false",
+        "--project",
+        "/anytime-markdown"
+      ],
+      "cwd": "/anytime-markdown"
     }
   }
 }
