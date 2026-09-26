@@ -45,20 +45,11 @@
       "cwd": "/anytime-markdown"
     },
     "serena": {
-      "command": "uvx",
+      "command": "sh",
       "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide-assistant",
-        "--open-web-dashboard",
-        "false",
-        "--project",
-        "/anytime-markdown"
-      ],
-      "cwd": "/anytime-markdown"
+        "-c",
+        "exec uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context ide-assistant --open-web-dashboard false --project \"$PWD\""
+      ]
     }
   }
 }
