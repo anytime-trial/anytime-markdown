@@ -5,7 +5,7 @@
  * 実ブラウザ到達コストが高い部品（Chip はフィルタ設定時のみ表示）について、
  * 旧 .gv-* CSS の定数値がアダプタ出力へ反映されていることを固定する。
  */
-import { button, chip, divider } from '../ui/uiCoreAdapters';
+import { button, chip, divider, tooltip } from '../ui/uiCoreAdapters';
 
 describe('chip（旧 .gv-chip / .gv-chip--small）', () => {
   test('small: 高さ 20 / padding 0 6 / radius 12 / font 0.6875rem / action-selected 背景', () => {
@@ -57,5 +57,43 @@ describe('divider（旧 .gv-divider）', () => {
   test('既定 margin 4px 0 を維持し、呼び元 style が優先される', () => {
     expect(divider().style.margin).toBe('4px 0px');
     expect(divider({ style: { margin: '8px 0' } }).style.margin).toBe('8px 0px');
+  });
+});
+
+describe('tooltip（アイコンボタンの aria-label 補完）', () => {
+  it('aria-label の無いアイコンボタンに title を aria-label として付ける', () => {
+    const btn = document.createElement('button');
+    document.body.appendChild(btn);
+    const h = tooltip(btn, 'Undo (Ctrl+Z)');
+    expect(btn.getAttribute('aria-label')).toBe('Undo (Ctrl+Z)');
+    h.destroy();
+    btn.remove();
+  });
+
+  it('ラッパー要素が対象でも内側のアイコンボタンへ付ける', () => {
+    const wrapper = document.createElement('span');
+    const btn = document.createElement('button');
+    wrapper.appendChild(btn);
+    document.body.appendChild(wrapper);
+    const h = tooltip(wrapper, 'Redo (Ctrl+Y)');
+    expect(btn.getAttribute('aria-label')).toBe('Redo (Ctrl+Y)');
+    h.destroy();
+    wrapper.remove();
+  });
+
+  it('既に aria-label か可視テキストを持つボタンは変えない', () => {
+    const labeled = document.createElement('button');
+    labeled.setAttribute('aria-label', 'Pan');
+    const textual = document.createElement('button');
+    textual.textContent = 'Apply';
+    document.body.append(labeled, textual);
+    const h1 = tooltip(labeled, 'Pan (Space)');
+    const h2 = tooltip(textual, 'Apply changes');
+    expect(labeled.getAttribute('aria-label')).toBe('Pan');
+    expect(textual.hasAttribute('aria-label')).toBe(false);
+    h1.destroy();
+    h2.destroy();
+    labeled.remove();
+    textual.remove();
   });
 });

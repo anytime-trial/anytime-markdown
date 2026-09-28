@@ -247,6 +247,13 @@ export interface TooltipHandle {
  * （= gv の top-6px と同じ隙間）。
  */
 export function tooltip(target: HTMLElement, title: string): TooltipHandle {
+  // ツールチップは hover でしか読めないため、対象（またはラッパー内）のアイコンボタンに
+  // アクセシブル・ネームが無ければ title を aria-label として補う（design.md 11.1・axe button-name）。
+  // 既に aria-label か可視テキストを持つボタンには触らない。
+  const btn = target instanceof HTMLButtonElement ? target : target.querySelector('button');
+  if (btn && !btn.hasAttribute('aria-label') && !btn.hasAttribute('aria-labelledby') && !(btn.textContent ?? '').trim()) {
+    btn.setAttribute('aria-label', title);
+  }
   const t = createTooltip({ reference: target, title, placement: 'top' });
   t.el.style.cssText +=
     'background:rgba(97,97,97,0.92);color:#fff;border-radius:4px;font-weight:500;max-width:300px;z-index:1500;';

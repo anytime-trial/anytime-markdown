@@ -483,6 +483,7 @@
     "plantumlSampleMenu": "PlantUML sample menu",
     "view": "View",
     "sourceEditor": "Markdown source editor",
+    "richEditor": "Markdown editor",
     "editorToolbar": "Editor toolbar",
     "arrowMessage": "Arrow message",
     "participantName": "Participant name",
