@@ -298,7 +298,7 @@ excerpt: "提案の要約。200文字以内。何を・なぜ提案するかを 
 
 - `author` のバージョンは `claude --version` で取得する
 - `category` は任意（例: `refactoring` / `tech-selection` / `incident-prevention` / `feature`）
-- 設計判断を含む提案では、`clarity`（指示の明確さ 1〜100）を frontmatter に追記し、チャットでも評価と理由を通知する（global `CLAUDE.md` ルール）
+- 設計判断を含む提案では、`clarity`（指示の明確さ 1〜100）を frontmatter に追記し、チャットでも評価と理由を通知する（`anytime-doc-authoring`「指示の明確さ（clarity）の評価」に従う）
 
 
 ## 5. テンプレート
@@ -330,7 +330,7 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 6. `anytime-markdown-output` スキル §10（出力後の検証）で検証する。**`~/.claude/scripts/validate-markdown.sh` は実在しない**（2026-08-14 実測）。出力先で手段が分かれる
     - 出力先が `<docsRoot>`（既定の proposal 出力先）の場合、`format_markdown` は **MCP ルート外で `Access denied: path outside root directory` になり使えない**（同日実測）。frontmatter 必須キー（`title` / `date` / `type: proposal` / `lang` / `author` / `excerpt`）の実在を確認し、同スキル §10.2〜10.3 の意味判断チェックリストを手動で適用する
     - 出力先が MCP ルート（`/anytime-markdown`）配下の場合のみ `mcp__mcp-markdown__format_markdown(path, mode="fix")` を実行し、返り値の `warnings` に対応する
-7. 設計判断を含む場合は `clarity` 評価（1〜100）と理由をチャットで通知し、frontmatter にも記載する
+7. 設計判断を含む場合は `clarity` 評価（1〜100）と理由をチャットで通知し、frontmatter にも記載する（評価基準は `anytime-doc-authoring`）
 
 
 ### 7.1 根拠の解決検査
