@@ -1,6 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { handleListInstructionJudgments, ListInstructionJudgmentsInputSchema } from './tools/listInstructionJudgments';
+import {
+  handleRecordPlanSnapshot,
+  handleVerifyPlanSnapshot,
+  RecordPlanSnapshotInputSchema,
+  VerifyPlanSnapshotInputSchema,
+} from './tools/planSnapshot';
 
 import { analyzeCurrentCodeWithProgress } from './client.js';
 import { probeServerAlive } from './probe.js';
@@ -366,6 +372,30 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     },
     async (args) => {
       const result = await handleListInstructionJudgments(args);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'record_plan_snapshot',
+    {
+      description: 'Record a fingerprint of every heading section of a plan markdown file (sha256 per section) linked to this session\'s Flight Record instruction. Call it when you start executing a plan; before each task call verify_plan_snapshot and, if the human edited the plan since, stop and re-confirm the changed sections instead of continuing.',
+      inputSchema: { ...RecordPlanSnapshotInputSchema.shape },
+    },
+    async (args) => {
+      const result = await handleRecordPlanSnapshot(args);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'verify_plan_snapshot',
+    {
+      description: 'Compare the current plan markdown file with its latest recorded snapshot and return the sections the human changed / removed / added since (heading line + occurrence). recorded=false means no snapshot exists yet (distinct from an empty diff). Read-only.',
+      inputSchema: { ...VerifyPlanSnapshotInputSchema.shape },
+    },
+    async (args) => {
+      const result = await handleVerifyPlanSnapshot(args);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     },
   );

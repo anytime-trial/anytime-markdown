@@ -951,3 +951,21 @@ export const CREATE_VERIFICATION_RUN_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON activity_verification_runs(package, code_state_hash)`,
   `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON activity_verification_runs(started_at)`,
 ];
+
+// プラン指紋（共用 UI 優先 3・FR-11/12）: 着手時にプランファイルの見出し節ごとのハッシュを
+// 記録し、着手前の照合で人間の改変（changed / removed / added）を検知する。
+// 1 行 = 1 回の記録（sections_json に [{ heading, occurrence, hash }] を持つ）。
+// instruction_id は caravan_instruction_sessions からセッション経由で解決し、未宣言は NULL。
+// FK は張らない（判断記録と同じく、宣言・取込のラグに耐える）。
+export const CREATE_PLAN_SNAPSHOTS = `CREATE TABLE IF NOT EXISTS caravan_plan_snapshots (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  instruction_id TEXT,
+  plan_path TEXT NOT NULL,
+  sections_json TEXT NOT NULL CHECK (json_valid(sections_json)),
+  recorded_at TEXT NOT NULL CHECK (recorded_at GLOB ${TS_GLOB_MS} OR recorded_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_PLAN_SNAPSHOT_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_plan_snapshots_plan_recorded ON caravan_plan_snapshots(plan_path, recorded_at)`,
+];
