@@ -1,5 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { handleListInstructionJudgments, ListInstructionJudgmentsInputSchema } from './tools/listInstructionJudgments';
+import {
+  handleRecordPlanSnapshot,
+  handleVerifyPlanSnapshot,
+  RecordPlanSnapshotInputSchema,
+  VerifyPlanSnapshotInputSchema,
+} from './tools/planSnapshot';
 
 import { analyzeCurrentCodeWithProgress } from './client.js';
 import { probeServerAlive } from './probe.js';
@@ -332,7 +339,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_doctrine_judgment',
-    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths, severity or operation_kind makes the verdict escalate (fail-closed), so always declare all three. Also declare underspecified_points (DCT-14): the points the human\'s instruction does not determine. Leaving it empty is a positive claim that the instruction alone fixes the outcome, and a non-empty array escalates — an approval whose content you had to invent is not delegable no matter how well grounded it is. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always escalate — declare them via operation_kind so the gate enforces it rather than relying on prose. Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation. When the gate escalates with underspecified_instruction, ask the human the declared points, record their answers via resolve_underspecified_points, then re-record this judgment — points with recorded answers no longer escalate (DCT-19).', inputSchema: {
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths, severity or operation_kind makes the verdict escalate (fail-closed), so always declare all three. Also declare underspecified_points (DCT-14): the points the human\'s instruction does not determine. Leaving it empty is a positive claim that the instruction alone fixes the outcome, and a non-empty array escalates — an approval whose content you had to invent is not delegable no matter how well grounded it is. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always escalate — declare them via operation_kind so the gate enforces it rather than relying on prose. Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation. When the gate escalates with underspecified_instruction, ask the human the declared points, record their answers via resolve_underspecified_points, then re-record this judgment — points with recorded answers no longer escalate (DCT-19). The session must have declared its Flight Record instruction (record_instruction) first: a judgment from an undeclared session escalates with instruction_unknown and is never delegable, because there is no origin instruction to check the action scope against. For an always-irreversible tool call declare tool_name and action_scope so the per-instruction audit (list_instruction_judgments) shows what was about to be executed.', inputSchema: {
       session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
       subject: RecordDoctrineJudgmentInputSchema.shape.subject,
       judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
@@ -342,6 +349,8 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       severity: RecordDoctrineJudgmentInputSchema.shape.severity,
       operation_kind: RecordDoctrineJudgmentInputSchema.shape.operation_kind,
       underspecified_points: RecordDoctrineJudgmentInputSchema.shape.underspecified_points,
+      tool_name: RecordDoctrineJudgmentInputSchema.shape.tool_name,
+      action_scope: RecordDoctrineJudgmentInputSchema.shape.action_scope,
       judged_at: RecordDoctrineJudgmentInputSchema.shape.judged_at,
       workspacePath: RecordDoctrineJudgmentInputSchema.shape.workspacePath,
     }, },
@@ -354,6 +363,42 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   // -------------------------------------------------------------------------
   //  Flight Record: 指示（instruction）の宣言
   // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'list_instruction_judgments',
+    {
+      description: 'Return grounding judgments belonging to one Flight Record instruction in chronological order (subject / tool_name / action_scope / gate_verdict / human_decision / delegated_at). Lets humans audit whether MCP tool calls at the always stage stayed within the original instruction scope (DCT-13). Read-only.',
+      inputSchema: { ...ListInstructionJudgmentsInputSchema.shape },
+    },
+    async (args) => {
+      const result = await handleListInstructionJudgments(args);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'record_plan_snapshot',
+    {
+      description: 'Record a fingerprint of every heading section of a plan markdown file (sha256 per section) linked to this session\'s Flight Record instruction. Call it when you start executing a plan; before each task call verify_plan_snapshot and, if the human edited the plan since, stop and re-confirm the changed sections instead of continuing.',
+      inputSchema: { ...RecordPlanSnapshotInputSchema.shape },
+    },
+    async (args) => {
+      const result = await handleRecordPlanSnapshot(args);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'verify_plan_snapshot',
+    {
+      description: 'Compare the current plan markdown file with its latest recorded snapshot and return the sections the human changed / removed / added since (heading line + occurrence). recorded=false means no snapshot exists yet (distinct from an empty diff). Read-only.',
+      inputSchema: { ...VerifyPlanSnapshotInputSchema.shape },
+    },
+    async (args) => {
+      const result = await handleVerifyPlanSnapshot(args);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    },
+  );
 
   server.registerTool(
     'list_open_instructions',

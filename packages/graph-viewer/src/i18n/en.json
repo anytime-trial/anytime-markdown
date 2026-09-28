@@ -1,5 +1,6 @@
 {
   "Graph": {
+    "canvasLabel": "Graph canvas",
     "pageTitle": "Graph Editor",
     "select": "Select",
     "rect": "Rectangle",
@@ -112,6 +113,7 @@
     "emptyCanvasTitle": "Canvas is empty",
     "emptyCanvasHint": "Select a shape from the toolbar and drag to create",
     "settings": "Settings",
+    "close": "Close",
     "themeMode": "Theme",
     "language": "Language"
   }

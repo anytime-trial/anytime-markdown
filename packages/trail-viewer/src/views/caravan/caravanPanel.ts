@@ -18,6 +18,7 @@ import type { TrailThemeTokens } from '../../theme/designTokens';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { CaravanReader } from '../../data/readers/CaravanReader';
 import { mountPipelineRunsPanel } from './pipelineRunsPanel';
+import { setBusyState } from '@anytime-markdown/ui-core';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,6 +57,9 @@ export function mountCaravanPanel(
 
   // --- Loading / noDb placeholders ------------------------------------------
   const loadingEl = document.createElement('div');
+  // design.md 11.3: 読込表示は role=status、親（root）の aria-busy / data-state は render() で同期する
+  loadingEl.setAttribute('role', 'status');
+  loadingEl.setAttribute('aria-live', 'polite');
   loadingEl.style.cssText =
     'flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;';
 
@@ -114,6 +118,7 @@ export function mountCaravanPanel(
   // --- Root render -----------------------------------------------------------
   function render(): void {
     root.replaceChildren();
+    setBusyState(root, dbExists === null ? 'loading' : 'idle');
 
     if (dbExists === null) {
       // still probing

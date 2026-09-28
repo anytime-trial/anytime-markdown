@@ -100,6 +100,7 @@ import { buildFileHandlers } from "./chrome/fileHandlers";
 import { createFileStatusSync } from "./chrome/fileStatusSync";
 import { createLiveUpdate } from "./chrome/liveUpdate";
 import { installNotifierSeams } from "./chrome/notifierSeams";
+import { installAgentEdits, type AgentEditController, type AgentEditTarget } from "./chrome/agentEdits";
 import { installSectionLocks } from "./chrome/sectionLocks";
 import { installSidebarPanels } from "./chrome/sidebarPanels";
 import { installSideToolbar } from "./chrome/sideToolbar";
@@ -319,6 +320,8 @@ export type VanillaMarkdownEditorUpdatePatch = Partial<
 export interface VanillaMarkdownEditorHandle {
   readonly editor: Editor;
   readonly root: HTMLElement;
+  setAgentEdits(targets: AgentEditTarget[]): void;
+  clearAgentEdits(): void;
   /**
    * live props の反映（React の再 render 相当）。`initialContent` / `codeBlockExtension` /
    * `gridRows` / `gridCols` / `locale` / `defaultSourceMode` 等の生成時オプションは対象外で、
@@ -695,6 +698,7 @@ export function mountVanillaMarkdownEditor(
   });
 
   // installChrome 内で確定する live patch 適用関数（handle.update から呼ぶ）。
+  let agentEdits: AgentEditController | null = null;
   let applyLivePatch: ((patch: VanillaMarkdownEditorUpdatePatch) => void) | null = null;
 
   const host = createVanillaEditorHost({
@@ -964,6 +968,9 @@ export function mountVanillaMarkdownEditor(
         saveContent: (produce) => saveContent(produce),
       });
       disposers.push(() => sectionLocks.dispose());
+      const agentEditController = installAgentEdits({ editor });
+      agentEdits = agentEditController;
+      disposers.push(() => agentEditController.dispose());
 
       // === sidebar パネル（Outline / Comment）の toggle マウント ===============
       const sidebarPanels = installSidebarPanels({
@@ -975,6 +982,8 @@ export function mountVanillaMarkdownEditor(
         isCommentOpen: () => modeState.commentOpen === true,
         isNoteGraphOpen: () => modeState.noteGraphOpen === true,
         noteGraphSlot: () => current.noteGraph,
+        getAgentEdits: () => agentEditController.getUi(),
+        onAcknowledgeAgentEdit: (headingIndex) => agentEditController.acknowledge(headingIndex),
         getSectionLocks: () => sectionLocks.getUi(),
         onToggleSectionLock: (headingIndex) => sectionLocks.toggle(headingIndex),
         canToggleSectionLock: () => !readonlyNow() && modeState.reviewMode !== true,
@@ -1296,7 +1305,14 @@ export function mountVanillaMarkdownEditor(
         saveContent: (md) => saveContent(() => md, false),
         setHeadingMenu: (menu) => menuPopovers.openHeading(menu),
       });
-      editor.setOptions({ editorProps: domHandlers });
+      // 本文（role="textbox"）にアクセシブル・ネームを付ける（design.md 11.1・axe aria-input-field-name）。
+      // setOptions は editorProps を丸ごと置き換えるため attributes をここで束ねる。
+      editor.setOptions({
+        editorProps: {
+          ...domHandlers,
+          attributes: { "aria-label": t("richEditor") },
+        },
+      });
       disposers.push(() => {
         editorPlainRef.current = null;
       });
@@ -1457,6 +1473,8 @@ export function mountVanillaMarkdownEditor(
   return {
     editor: host.editor,
     root,
+    setAgentEdits: (targets) => agentEdits?.set(targets),
+    clearAgentEdits: () => agentEdits?.clear(),
     update(patch: VanillaMarkdownEditorUpdatePatch): void {
       // current へ反映（SettingsPanel 等は open 時に current を読む）
       Object.assign(current, patch);

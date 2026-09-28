@@ -27,6 +27,7 @@ function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {
     severity: 'low',
     operationKind: 'code_change',
     underspecifiedPoints: [],
+    instructionDeclared: true,
     odd: ODD,
     ...overrides,
   };
@@ -51,6 +52,23 @@ describe('evaluateCoverageGate', () => {
   ] as const)('%s は他の条件を満たしても always_human_operation で escalate', (kind) => {
     // パスに現れない操作種別。targetPaths の判定を通っても代行させない
     const result = evaluateCoverageGate(input({ operationKind: kind }));
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['always_human_operation'] });
+  });
+
+  it('instructionDeclared が未指定なら instruction_unknown で escalate（fail-closed）', () => {
+    const result = evaluateCoverageGate(input({ instructionDeclared: undefined }));
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['instruction_unknown'] });
+  });
+
+  it('instructionDeclared=false は severity_high より先に instruction_unknown を返す', () => {
+    const result = evaluateCoverageGate(input({ instructionDeclared: false, severity: 'high' }));
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['instruction_unknown'] });
+  });
+
+  it('always_human_operation は instruction_unknown より先に判定される', () => {
+    const result = evaluateCoverageGate(
+      input({ instructionDeclared: false, operationKind: 'remote_push' }),
+    );
     expect(result).toEqual({ verdict: 'escalate', reasons: ['always_human_operation'] });
   });
 

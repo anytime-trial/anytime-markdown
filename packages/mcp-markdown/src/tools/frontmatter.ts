@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs/promises';
+import { appendAgentEdit } from '../utils/agentEditLedger';
 import { randomUUID } from 'node:crypto';
 import matter from 'gray-matter';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
@@ -95,5 +96,11 @@ export async function updateFrontmatter(
   const tmp = `${filePath}.tmp-${randomUUID()}`;
   await fs.writeFile(tmp, next, 'utf-8');
   await fs.rename(tmp, filePath);
+  await appendAgentEdit(rootDir, {
+    at: new Date().toISOString(),
+    path: input.path,
+    tool: 'update_frontmatter',
+    heading: null,
+  });
   return { path: input.path, setKeys, removedKeys, createdFrontmatter: !hadFrontmatter };
 }

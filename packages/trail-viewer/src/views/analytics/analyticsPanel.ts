@@ -33,6 +33,7 @@ interface CommitCategoryContextValue {
 import { mountOverviewCards } from './panels/overviewCards';
 import { mountToolUsageChart } from './charts/toolUsageChart';
 import { mountCombinedChartsSection } from './panels/combinedChartsSection';
+import { setBusyState } from '@anytime-markdown/ui-core';
 
 // ---------------------------------------------------------------------------
 // Props contract
@@ -144,6 +145,9 @@ export function mountAnalyticsPanel(
 
   // Loading placeholder element (shown when analytics is null)
   const loadingEl = document.createElement('div');
+  // design.md 11.3: 読込表示は role=status、親（root）の aria-busy / data-state は描画時に同期する
+  loadingEl.setAttribute('role', 'status');
+  loadingEl.setAttribute('aria-live', 'polite');
   loadingEl.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;';
   const loadingText = document.createElement('span');
   loadingText.style.cssText = 'font-size:0.875rem;color:var(--am-color-text-secondary);';
@@ -260,6 +264,7 @@ export function mountAnalyticsPanel(
     currentProps = p;
     applyScrollbarStyle(p);
 
+    setBusyState(root, p.analytics ? 'idle' : 'loading');
     if (!p.analytics) {
       // Show loading state
       if (subMountsAttached) {

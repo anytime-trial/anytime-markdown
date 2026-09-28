@@ -178,6 +178,13 @@ describe("createCommentPanel", () => {
     handle.destroy();
   });
 
+  it("他者のコメント本文は信頼境界属性 data-untrusted-content を持つ（design.md 11 章）", () => {
+    const { handle, root } = mount({}, [comment({ text: "first comment" })]);
+    const body = root.querySelector("[data-am-comment-body]");
+    expect(body?.getAttribute("data-untrusted-content")).toBe("true");
+    handle.destroy();
+  });
+
   it("ヘッダーカウントは未解決/総数を反映する", () => {
     const { handle, root } = mount({}, [
       comment({ id: "a", resolved: false }),

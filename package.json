@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.24.3",
+  "version": "1.25.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -13,6 +13,8 @@
     "plan:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/plan プラン ja",
     "test:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/test 試験設計書 ja",
     "manual:index": "tsx scripts/gen-spec-index.mjs docs/manual マニュアル ja",
+    "docs:format": "tsx scripts/format-docs.mjs",
+    "docs:format:check": "tsx scripts/format-docs.mjs --check",
     "check-skills": "node scripts/check-bundled-skills.mjs && node scripts/check-skill-refs.mjs && node scripts/check-skill-manifest-bump.mjs && node scripts/check-skill-inventory.mjs && node scripts/check-shortcut-markers.mjs && node scripts/check-test-collection.mjs && npm run test:scripts",
     "accept:farm": "node scripts/acceptance/farm.mjs",
     "test:scripts": "node --test scripts/*.test.mjs scripts/acceptance/*.test.mjs scripts/export-viewer-dist/*.test.mjs",
@@ -124,6 +126,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",
+    "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-sonarjs": "4.1.0",

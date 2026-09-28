@@ -125,7 +125,7 @@ export function createNodeView(
   t: DiagramT,
   callbacks: NodeCallbacks,
 ): NodeView {
-  const root = el(doc, 'div', { className: 'anytime-diagram-node', attrs: { 'data-person': name } });
+  const root = el(doc, 'div', { className: 'anytime-diagram-node', attrs: { 'data-person': name, role: 'group', 'aria-label': name, 'data-testid': 'diagram-node-card' } });
 
   /**
    * 四角以外の輪郭を描く層。**中身より先に入れて後ろへ敷く**（DOM 順が重ね順になる）。
@@ -359,7 +359,7 @@ export function createNodeView(
    */
   const connectPoint = el(doc, 'button', {
     className: 'anytime-diagram-connect anytime-diagram-hidden',
-    attrs: { type: 'button', 'aria-label': `${t('connectFrom')}: ${name}`, title: t('connectFrom') },
+    attrs: { type: 'button', 'aria-label': `${t('connectFrom')}: ${name}`, title: t('connectFrom'), 'data-testid': 'diagram-node-connectpoint' },
   });
   connectPoint.addEventListener('pointerdown', (event) => {
     event.stopPropagation();

@@ -8,6 +8,7 @@ import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCita
 import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
 import { resolveOddConfig } from '../doctrine/oddRoots';
 import { readFileTyped } from '../doctrine/readFile';
+import { findInstructionIdForSession } from '../sqlite/instructions';
 import {
   ensureAndMigrateDoctrineJudgments,
   fetchResolvedPoints,
@@ -63,6 +64,20 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     .describe(
       'Points the human\'s instruction does NOT determine, declared BEFORE asking (DCT-14). Declare here anything you are about to invent on the human\'s behalf (an unstated design fork, an unhandled case, a scope boundary the prompt is silent on). Omitting the field is undecidable and escalates (underspecified_unknown), exactly like omitting severity or operation_kind — pass [] explicitly to claim that the instruction alone fixes the outcome. A non-empty array also escalates: what to build is not yet determined, so no amount of doctrine grounding makes it delegable. Re-recording can add points but never remove them: a declaration that drops previously declared points is corrected to the union (additive-only ratchet, DCT-19)',
     ),
+  tool_name: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'MCP tool the approval covers when the operation is an always-irreversible tool call (e.g. upload_doc, delete_doc, create_ticket, analyze_release_code). Stored for the per-instruction audit trail (list_instruction_judgments)',
+    ),
+  action_scope: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'One line stating what will be done to which target (the action-scope statement checked against the origin instruction). Stored alongside tool_name',
+    ),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
   workspacePath: workspacePathParam,
 });
@@ -73,6 +88,8 @@ export interface RecordDoctrineJudgmentResult extends DoctrineJudgmentRecordResu
   readonly citations: ReadonlyArray<ResolvedCitation>;
   /** カバレッジゲートの判定。D2 では delegable + approve が代行の根拠になる */
   readonly gate: CoverageGateResult;
+  /** セッションが宣言した Flight Record の指示 ID。未宣言は null（ゲートは instruction_unknown） */
+  readonly instructionId: string | null;
 }
 
 /** 判断記録は router (HTTP-first) を経由しない。better-sqlite3 のファイル直書きは
@@ -115,8 +132,12 @@ export async function handleRecordDoctrineJudgment(
       { sessionId: input.session_id, subject: input.subject },
       input.underspecified_points,
     );
+    // FR-04/05: セッション → 指示の解決。宣言が無ければゲートが instruction_unknown で
+    // escalate し、列には NULL を残す（宣言の不在そのものを監査可能にする）
+    const instructionId = findInstructionIdForSession(opened.db, input.session_id);
     const gate = evaluateCoverageGate({
       coverage: input.coverage,
+      instructionDeclared: instructionId !== null,
       citations: resolved,
       targetPaths: input.target_paths,
       severity: input.severity,
@@ -138,10 +159,13 @@ export async function handleRecordDoctrineJudgment(
       gate,
       // 列は NOT NULL。未申告はゲートが escalate 済みなので、保存側は空配列へ落とす
       underspecifiedPoints: input.underspecified_points ?? [],
+      instructionId,
+      toolName: input.tool_name ?? null,
+      actionScope: input.action_scope ?? null,
       ...(input.judged_at === undefined ? {} : { judgedAt: input.judged_at }),
     });
     opened.save();
-    return { ...result, citations: resolved, gate };
+    return { ...result, citations: resolved, gate, instructionId };
   } finally {
     opened.close();
   }

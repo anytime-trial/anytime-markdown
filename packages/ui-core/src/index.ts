@@ -10,6 +10,7 @@
  */
 
 // --- 共通 helper / hook の素関数版 ---
+export { setBusyState, clearBusyState, type BusyState } from "./busyState";
 export {
   appendContent,
   applyStyle,

@@ -396,6 +396,16 @@ describe('mountChatPane', () => {
 // ---------------------------------------------------------------------------
 
 describe('createMessageBubble', () => {
+  it('本文コンテナは信頼境界属性 data-untrusted-content を持つ（design.md 11 章）', () => {
+    const { el } = createMessageBubble({
+      message: { role: 'assistant', content: 'hi', citations: [] },
+      sources: [],
+    });
+    const wrap = el.querySelector('[data-untrusted-content="true"]');
+    expect(wrap).toBeTruthy();
+    expect(wrap?.textContent).toContain('hi');
+  });
+
   it('user メッセージは justify-content:flex-end', () => {
     const { el } = createMessageBubble({
       message: { role: 'user', content: 'hello', citations: [] },

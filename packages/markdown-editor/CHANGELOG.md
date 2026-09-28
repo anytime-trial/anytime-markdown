@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-28
+
+### Added
+
+- `agentEditPlugin` highlights sections rewritten by AI. When the host passes a list of headings (line text plus occurrence) via `setAgentEdits`, the top-level nodes of those sections get `data-am-agent-edit="recent"` and the heading is followed by a 🤖 marker. Editing the section (host-driven external reloads excluded) or pressing the confirm button in the outline clears that section only. Editing is never blocked, keeping the role separate from section-lock. The colour is the new token `--am-color-agent-main`. Targets are held by heading identity (level, normalised text, occurrence) and resolved on every render.
+- `markdown-rich-editor`: the wrapper handle and the Web Component (`<anytime-markdown-editor>`) forward `setAgentEdits` / `clearAgentEdits`.
+
+### Security
+
+- Content written by others or fetched from outside (tweet embeds, OGP cards, other people's comments) carries the trust-boundary attribute `data-untrusted-content`. Existing sanitising is unchanged.
+
+### Fixed
+
+- The editor body `role="textbox"` has an aria-label (i18n `richEditor`), clearing the axe `aria-input-field-name` violation.
+
 ## [1.24.1] - 2026-09-22
 
 ### Changed

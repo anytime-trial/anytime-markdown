@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { appendAgentEdit } from '../utils/agentEditLedger';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 import { assertNoLockViolation } from '../utils/sectionLockGuard';
 import { selectHeadingTarget } from '../utils/headingTarget';
@@ -95,6 +96,14 @@ function collectContentWarnings(heading: string, newContent: string): string[] {
   return warnings;
 }
 
+/** content 先頭側の最初の ATX 見出し行（`#` 付き・末尾空白除去）。無ければ null。 */
+export function extractFirstHeadingLine(content: string): string | null {
+  for (const line of content.split('\n')) {
+    if (/^#{1,6}\s+\S/.test(line)) return line.trimEnd();
+  }
+  return null;
+}
+
 export async function updateSection(
   input: UpdateSectionInput,
   rootDir: string,
@@ -106,6 +115,14 @@ export async function updateSection(
   const updated = updateSectionInText(content, input.heading, input.content, input.occurrence);
   assertNoLockViolation(content, updated, input.path);
   await fs.writeFile(filePath, updated, 'utf-8');
+  await appendAgentEdit(rootDir, {
+    at: new Date().toISOString(),
+    path: input.path,
+    tool: 'update_section',
+    // 見出し行ごと書き換えた場合、台帳には文書に残る新しい見出しを記録する（レビュー指摘 #4）
+    heading: extractFirstHeadingLine(input.content) ?? input.heading,
+    ...(input.occurrence !== undefined ? { occurrence: input.occurrence } : {}),
+  });
   return {
     path: input.path,
     heading: input.heading,

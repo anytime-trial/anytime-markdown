@@ -129,7 +129,7 @@ function placements(state: CellAdderState): readonly GridCell[] {
 }
 
 function createButton(doc: Document, cell: GridCell, callbacks: CellAdderCallbacks): HTMLButtonElement {
-  const button = el(doc, 'button', { attrs: { type: 'button' } });
+  const button = el(doc, 'button', { attrs: { type: 'button', 'data-testid': 'diagram-canvas-cell-add' } });
   // 字ではなく線画で描く（記号の文字は字形を持たない環境で豆腐になる）。
   button.appendChild(createIcon(doc, 'addElement', 18));
   button.addEventListener('click', () => callbacks.onAddElement(cell));

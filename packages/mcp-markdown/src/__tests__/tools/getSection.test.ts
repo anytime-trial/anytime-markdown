@@ -126,3 +126,28 @@ describe('getSection', () => {
     expect(result).toBe('## A\n\nShort\n');
   });
 });
+
+describe('section trust and ranges', () => {
+  it('returns inclusive absolute ranges and unchanged text', async () => {
+    const { getSectionRangeFromText } = await import('../../tools/getSection');
+    const doc = '# T\n## A\nbody\n\n## B\nend\n';
+    expect(getSectionRangeFromText(doc, '## A')).toEqual({ text: '## A\nbody\n', startLine: 2, endLine: 4 });
+    expect(getSectionRangeFromText(doc, '## B')).toEqual({ text: '## B\nend\n', startLine: 5, endLine: 7 });
+    expect(getSectionRangeFromText(doc, '## Missing')).toBeNull();
+  });
+
+  it('clips trust to the selected section and preserves truncation', async () => {
+    const { getSectionWithTrust } = await import('../../tools/getSection');
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'section-trust-'));
+    try {
+      await fs.writeFile(path.join(dir, 'doc.md'), '---\ntrust: external\n---\n# T\nhttps://outside\n## A\nhttps://inside\n<!-- comments\nnote\n-->');
+      const input = { path: 'doc.md', heading: '## A', maxChars: 7 };
+      const result = await getSectionWithTrust(input, dir);
+      expect(result.text).toBe(await getSection(input, dir));
+      expect(result.trust).toEqual({ boundary: 'external', untrustedSegments: [
+        { kind: 'embed', startLine: 7, endLine: 7 },
+        { kind: 'comment', startLine: 8, endLine: 10 },
+      ] });
+    } finally { await fs.rm(dir, { recursive: true, force: true }); }
+  });
+});

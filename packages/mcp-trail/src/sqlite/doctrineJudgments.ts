@@ -2,7 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
 import {
+  ALTER_DOCTRINE_JUDGMENTS_ADD_ACTION_SCOPE,
   ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT,
+  ALTER_DOCTRINE_JUDGMENTS_ADD_INSTRUCTION_ID,
+  ALTER_DOCTRINE_JUDGMENTS_ADD_TOOL_NAME,
   ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
@@ -30,6 +33,15 @@ export interface DoctrineJudgmentInput {
    * 「この指示だけで結論は一意に定まる」という宣言として記録される。
    */
   readonly underspecifiedPoints?: ReadonlyArray<string>;
+  /**
+   * 行動範囲検証（FR-04）: 判断が属する Flight Record の指示 ID。呼び出し側がセッションから
+   * 解決して渡す。未宣言は null（列も NULL。「宣言が無かった」事実を保存する）。
+   */
+  readonly instructionId?: string | null;
+  /** 承認対象の MCP ツール名（always 段階の操作で申告。例: upload_doc）。 */
+  readonly toolName?: string | null;
+  /** 何をどこへ行うかの 1 行要約。 */
+  readonly actionScope?: string | null;
 }
 
 export interface DoctrineJudgmentRecordResult {
@@ -141,6 +153,10 @@ const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string
     name: 'underspecified_points_json',
     ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   },
+  // 行動範囲検証（共用 UI 優先 3・FR-04）。純追加・NULL 許容
+  { name: 'instruction_id', ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_INSTRUCTION_ID },
+  { name: 'tool_name', ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_TOOL_NAME },
+  { name: 'action_scope', ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_ACTION_SCOPE },
 ];
 
 export function ensureDoctrineJudgmentsTable(db: Database): void {
@@ -426,8 +442,9 @@ export function recordDoctrineJudgmentDirect(
     `INSERT INTO caravan_doctrine_judgments (
        session_id, subject, agent_judgment, coverage, citations_json,
        citation_count, resolved_count, gate_verdict, gate_reasons_json,
-       underspecified_points_json, judged_at, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       underspecified_points_json, instruction_id, tool_name, action_scope,
+       judged_at, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(session_id, subject) DO UPDATE SET
        agent_judgment = excluded.agent_judgment,
        coverage = excluded.coverage,
@@ -449,6 +466,9 @@ export function recordDoctrineJudgmentDirect(
          THEN underspecified_points_json
          ELSE excluded.underspecified_points_json
        END,
+       instruction_id = excluded.instruction_id,
+       tool_name = excluded.tool_name,
+       action_scope = excluded.action_scope,
        judged_at = excluded.judged_at,
        human_decision = NULL,
        decided_at = NULL,
@@ -465,6 +485,9 @@ export function recordDoctrineJudgmentDirect(
     input.gate === undefined ? null : input.gate.verdict,
     input.gate === undefined ? null : JSON.stringify(input.gate.reasons),
     JSON.stringify(mergedPoints ?? []),
+    input.instructionId ?? null,
+    input.toolName ?? null,
+    input.actionScope ?? null,
     judgedAt,
     now,
     now,
@@ -506,6 +529,7 @@ interface JudgmentLookupRow {
   readonly human_decision: HumanDecision | null;
   readonly delegated_at: string | null;
   readonly underspecified_points_json: string;
+  readonly instruction_id: string | null;
 }
 
 /**
@@ -516,7 +540,7 @@ function findJudgmentRow(
   db: Database,
   key: { readonly id?: number; readonly sessionId?: string; readonly subject?: string },
 ): JudgmentLookupRow {
-  const columns = `id, agent_judgment, gate_verdict, human_decision, delegated_at, underspecified_points_json`;
+  const columns = `id, agent_judgment, gate_verdict, human_decision, delegated_at, underspecified_points_json, instruction_id`;
   let row: JudgmentLookupRow | undefined;
   let keyLabel: string;
   if (key.id !== undefined) {
@@ -571,6 +595,13 @@ export function recordDelegatedApprovalDirect(
   }
   if (row.human_decision !== null) {
     throw new Error('cannot delegate: human decision already recorded for this judgment');
+  }
+  if (row.instruction_id === null) {
+    // FR-05 の移行期バックストップ: 列追加前に delegable で記録された判断は
+    // instruction_unknown を通っていない。宣言の無い判断は代行させない（レビュー指摘 #2）
+    throw new Error(
+      'cannot delegate: judgment is not linked to a Flight Record instruction (re-record after record_instruction)',
+    );
   }
   if (row.delegated_at !== null) {
     // 最初の記録が勝つ。再呼び出しを例外にせず no-op にするのは、記録の再送 (通信断後の
@@ -719,6 +750,9 @@ export function fetchResolvedPoints(
  * レコードを落とさず parseError へ落とす (1 件の破損で提示物全体を失わせない)。
  */
 export interface DoctrineJudgmentView {
+  readonly instructionId: string | null;
+  readonly toolName: string | null;
+  readonly actionScope: string | null;
   readonly id: number;
   readonly sessionId: string;
   readonly subject: string;
@@ -787,7 +821,27 @@ export function listDoctrineJudgmentsBySession(
   db: Database,
   sessionId: string,
 ): DoctrineJudgmentView[] {
+  return listDoctrineJudgments(db, 'session_id', sessionId);
+}
+
+/** Read instruction judgments without creating or migrating tables. */
+export function listDoctrineJudgmentsByInstruction(
+  db: Database,
+  instructionId: string,
+): DoctrineJudgmentView[] {
+  return listDoctrineJudgments(db, 'instruction_id', instructionId);
+}
+
+function listDoctrineJudgments(
+  db: Database,
+  filterColumn: 'session_id' | 'instruction_id',
+  filterValue: string,
+): DoctrineJudgmentView[] {
   const columns = tableColumns(db, 'caravan_doctrine_judgments');
+  if (!columns.has(filterColumn)) return [];
+  const metadataExpr = ['instruction_id', 'tool_name', 'action_scope']
+    .map(column => columns.has(column) ? column : `NULL AS ${column}`)
+    .join(', ');
   if (columns.size === 0) {
     return [];
   }
@@ -805,12 +859,15 @@ export function listDoctrineJudgmentsBySession(
     .prepare(
       `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
               ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at,
-              ${delegatedAtExpr}, ${underspecifiedExpr}
+              ${delegatedAtExpr}, ${underspecifiedExpr}, ${metadataExpr}
          FROM caravan_doctrine_judgments
-        WHERE session_id = ?
+        WHERE ${filterColumn} = ?
         ORDER BY judged_at ASC, id ASC`,
     )
-    .all(sessionId) as Array<{
+    .all(filterValue) as Array<{
+    instruction_id: string | null;
+    tool_name: string | null;
+    action_scope: string | null;
     id: number;
     session_id: string;
     subject: string;
@@ -855,6 +912,9 @@ export function listDoctrineJudgmentsBySession(
       (e): e is string => e !== null,
     );
     return {
+      instructionId: row.instruction_id,
+      toolName: row.tool_name,
+      actionScope: row.action_scope,
       id: row.id,
       sessionId: row.session_id,
       subject: row.subject,

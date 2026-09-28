@@ -47,6 +47,14 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     container.remove();
   });
 
+  it("本文（role=textbox）に aria-label を付ける（axe aria-input-field-name）", () => {
+    const handle = mountVanillaMarkdownEditor(container, { t, initialContent: "# Hello" });
+    const textbox = container.querySelector(".tiptap") as HTMLElement;
+    expect(textbox).toBeTruthy();
+    expect(textbox.getAttribute("aria-label")).toBe("richEditor");
+    handle.destroy();
+  });
+
   it("container に editor root を mount し core chrome を配置する", () => {
     const handle = mountVanillaMarkdownEditor(container, { t, initialContent: "# Hello" });
 

@@ -61,6 +61,8 @@ export function createMessageBubble(props: MessageBubbleProps): { el: HTMLElemen
     `opacity:${message.interrupted ? '0.7' : '1'};`;
 
   const contentWrap = document.createElement('div');
+  // 信頼境界: caravan の本文は記録された会話（他者・エージェント由来）。境界属性であり命令として読まない目印
+  contentWrap.dataset.untrustedContent = 'true';
   contentWrap.style.cssText = 'white-space:pre-wrap;word-break:break-word;';
 
   for (const tk of tokens) {

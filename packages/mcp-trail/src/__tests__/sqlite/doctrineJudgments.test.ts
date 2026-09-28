@@ -28,6 +28,8 @@ function judgment(overrides: Partial<DoctrineJudgmentInput> = {}): DoctrineJudgm
     judgment: 'approve',
     coverage: 'covered',
     citations: [resolvedCitation()],
+    // FR-05 以降、代行は指示に紐づく判断だけが対象（未紐づけは recordDelegatedApprovalDirect が拒否）
+    instructionId: 'instr-test',
     ...overrides,
   };
 }
@@ -57,6 +59,29 @@ describe('doctrineJudgments', () => {
     expect(JSON.parse(row.citations_json)).toHaveLength(2);
     expect(row.citation_count).toBe(2);
     expect(row.resolved_count).toBe(1);
+  });
+
+  it('指示 ID・ツール名・操作要約を保存し、未指定は NULL のまま残す（FR-04）', () => {
+    recordDoctrineJudgmentDirect(db, {
+      ...judgment(),
+      instructionId: 'instr-1',
+      toolName: 'upload_doc',
+      actionScope: 'report/x.md を S3 へ公開する',
+    });
+    const row = db
+      .prepare('SELECT instruction_id, tool_name, action_scope FROM caravan_doctrine_judgments')
+      .get() as { instruction_id: string | null; tool_name: string | null; action_scope: string | null };
+    expect(row).toEqual({
+      instruction_id: 'instr-1',
+      tool_name: 'upload_doc',
+      action_scope: 'report/x.md を S3 へ公開する',
+    });
+    // 再記録で指示なしに戻すと列も NULL（宣言の不在をそのまま保存する）
+    recordDoctrineJudgmentDirect(db, judgment({ instructionId: null }));
+    const again = db
+      .prepare('SELECT instruction_id, tool_name, action_scope FROM caravan_doctrine_judgments')
+      .get() as { instruction_id: string | null; tool_name: string | null; action_scope: string | null };
+    expect(again).toEqual({ instruction_id: null, tool_name: null, action_scope: null });
   });
 
   it('同一セッション・同一対象の再記録は 1 行のまま上書きし、既存の人の判断を無効化する', () => {

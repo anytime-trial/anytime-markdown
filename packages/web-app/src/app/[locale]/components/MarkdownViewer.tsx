@@ -42,7 +42,12 @@ const ViewerLoading = () => {
   const staticHtml = useContext(StaticBodyContext);
   if (staticHtml) return <StaticMarkdownHtml html={staticHtml} />;
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <Box
+      sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}
+      role="status"
+      aria-busy="true"
+      data-state="loading"
+    >
       <CircularProgress aria-label="Loading viewer" />
     </Box>
   );
@@ -155,7 +160,12 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   if (loading) {
     if (staticHtml) return <StaticMarkdownHtml html={staticHtml} />;
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight }} role="status">
+      <Box
+        sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight }}
+        role="status"
+        aria-busy="true"
+        data-state="loading"
+      >
         <CircularProgress aria-label="Loading" />
       </Box>
     );
@@ -168,7 +178,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
     const severity = staticHtml ? 'warning' : 'error';
     return (
       <>
-        <Box sx={{ px: 3, py: 4 }}>
+        <Box sx={{ px: 3, py: 4 }} data-state="error">
           <Alert
             severity={severity}
             action={
@@ -190,10 +200,13 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
 
   return (
     <StaticBodyContext.Provider value={staticHtml ?? null}>
-    <Box sx={{ minHeight, overflow: 'hidden' }}>
+    {/* data-state: design.md 11.3 の状態属性。信頼境界属性は本文ノード側に付ける（untrustedContent） */}
+    <Box sx={{ minHeight, overflow: 'hidden' }} data-state="idle">
       <EmbedProvidersBoundary>
       {/* 脱React G4: bottomOffset は vanilla 未対応（fixedEditorHeight で代替）。 */}
+      {/* S3 本文は他者が書き換えられる領域なので、本文ノードへ data-untrusted-content を付ける（境界属性。サニタイズの代替ではない） */}
       <EditorComponent
+        untrustedContent
         key={editorKeyRef.current}
         t={vanillaT}
         locale={locale}

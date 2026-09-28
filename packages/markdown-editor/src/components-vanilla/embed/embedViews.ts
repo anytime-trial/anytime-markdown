@@ -444,6 +444,8 @@ export function createTwitterView(
 
     // card variant: サニタイズ済み HTML を埋め込む
     const tweetContainer = document.createElement("div");
+    // 信頼境界: 外部 oEmbed の本文（境界属性。sanitizeTweetHtml の代替ではない）
+    tweetContainer.dataset.untrustedContent = "true";
     tweetContainer.style.width = widthOverride ?? "100%";
     tweetContainer.style.maxWidth = widthOverride ?? "720px";
     tweetContainer.innerHTML = sanitizeTweetHtml(data.html);
@@ -490,6 +492,8 @@ export function createOgpCardView(
   const writeBaseline = onBaselineWrite ?? noopWrite;
 
   const container = document.createElement("div");
+  // 信頼境界: OGP の title / description は外部サイト由来（境界属性。textContent 描画のため XSS 対策としては不要）
+  container.dataset.untrustedContent = "true";
 
   // ローディングスケルトン
   const cardWidthStyle: Partial<CSSStyleDeclaration> =

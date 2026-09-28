@@ -152,6 +152,18 @@ describe('mountAnalyticsPanel', () => {
     expect(container.textContent).toContain('analytics.loadingAnalytics');
   });
 
+  it('root の aria-busy / data-state が analytics の有無と同期する（design.md 11.3）', () => {
+    const container = document.createElement('div');
+    const handle = mountAnalyticsPanel(container, makeProps({ analytics: undefined }));
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute('aria-busy')).toBe('true');
+    expect(root.dataset['state']).toBe('loading');
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    handle.update(makeProps({ analytics: minimalAnalytics }));
+    expect(root.hasAttribute('aria-busy')).toBe(false);
+    expect(root.dataset['state']).toBe('idle');
+  });
+
   it('destroy removes root element and does not throw', () => {
     const container = document.createElement('div');
     const handle = mountAnalyticsPanel(container, makeProps());

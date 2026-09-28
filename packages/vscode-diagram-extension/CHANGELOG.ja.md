@@ -1,5 +1,11 @@
 # 変更履歴
 
+## [0.5.0] - 2026-09-28
+
+### 追加
+
+- 図のラベルと識別子を design.md 11 章に揃えた。ビューポートの aria-label に文書タイトルを含め（タイトル変更に追従）、人物カードを role=group ＋人物名の aria-label にした。viewport / edges / minimap / node-card / connectpoint / midpoint / linelabel / edge-marriage / edge-descent / gutter / cell-add / groupdialog 行に `data-testid` を付与した。
+
 ## [0.4.0] - 2026-09-23
 
 ### 追加

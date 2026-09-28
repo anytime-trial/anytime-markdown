@@ -256,7 +256,7 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
           />
         )}
         {!needsAuth && loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }} role="status" aria-busy="true" data-state="loading">
             <CircularProgress />
           </Box>
         )}

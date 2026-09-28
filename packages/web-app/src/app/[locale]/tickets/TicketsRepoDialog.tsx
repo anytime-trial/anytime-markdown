@@ -114,7 +114,10 @@ export default function TicketsRepoDialog({ open, onClose, onSelect }: Readonly<
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{t('repo.select')}</DialogTitle>
-      <DialogContent>
+      <DialogContent
+        aria-busy={loading ? 'true' : undefined}
+        data-state={error ? 'error' : loading ? 'loading' : 'idle'}
+      >
         {needsConnect && (
           <Stack spacing={2} alignItems="flex-start">
             <Alert severity="info">{t('repo.empty')}</Alert>

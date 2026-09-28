@@ -62,6 +62,8 @@ export function LazyPromptMarkdownPreview({
     return (
         <div
             className="prompt-markdown-preview"
+            // 信頼境界: セッションプロンプトは他者・エージェント由来の本文（境界属性。サニタイズの代替ではない）
+            data-untrusted-content="true"
             style={{
                 height,
                 overflow: 'auto',

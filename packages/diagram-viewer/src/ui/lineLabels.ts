@@ -78,7 +78,7 @@ export function createLineLabelView(
    */
   const input = el(doc, 'input', {
     className: 'anytime-diagram-linelabel-input anytime-diagram-hidden',
-    attrs: { type: 'text' },
+    attrs: { type: 'text', 'data-testid': 'diagram-linelabel-input' },
   });
   /** いま打っている線。`null` なら打っていない。二重の確定を 1 度に絞るために覚える。 */
   let editing: DiagramAnchor | null = null;

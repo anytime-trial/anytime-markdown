@@ -34,6 +34,8 @@ export class ChartView {
   ) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("[anytime-chart] 2D context unavailable");
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", "Chart");
     this.ctx = ctx;
     this.mode = opts.theme ?? "light";
     this.palette = opts.palette ?? "blue";
@@ -48,6 +50,7 @@ export class ChartView {
 
   setSpec(spec: ChartSpec): void {
     this.spec = spec;
+    this.canvas.setAttribute("aria-label", spec.title ? `Chart: ${spec.title}` : "Chart");
     this.selectedIndex = null; // データ更新で選択をリセット
     this.draw();
   }

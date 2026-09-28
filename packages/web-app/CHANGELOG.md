@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-09-28
+
+### Added
+
+- Accessibility gates in the development cycle. eslint-plugin-jsx-a11y runs on `**/*.tsx`, and an E2E test scans 13 main pages with @axe-core/playwright for WCAG 2.x A/AA and ratchets against `e2e/a11y-baseline.json` (only increases fail; `A11Y_UPDATE_BASELINE=1` shrinks the baseline and `A11Y_BASELINE_SEED=1` adds new pages).
+
+### Changed
+
+- The 92 pre-existing axe violations in the baseline are down to 0. The press vermilion and grey were adjusted to a contrast of at least 5.2:1 (hue preserved), the MarkdownGuide topic links use the MUI Link colours, and the editor body and the graph-viewer icon buttons have aria-labels.
+- Loading state is synchronised through data-state / aria-busy (MarkdownViewer / EditBody / GitHubRepoBrowser / TicketsRepoDialog / editor loading).
+- The graph canvas has role=img and an aria-label.
+
+### Security
+
+- Content written by others or fetched from outside (SSR HTML of S3 articles and the body of the interactive viewer) carries the trust-boundary attribute `data-untrusted-content`. The boundary covers the content node only, not first-party UI such as the toolbar.
+
 ## [0.54.1] - 2026-09-23
 
 ### Security

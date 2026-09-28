@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-09-28
+
+### Changed
+
+- Rebuilt with the updated chart-core. The chart canvas now has role=img and an aria-label that includes the chart title.
+
 ## [0.8.3] - 2026-08-03
 
 ### Changed

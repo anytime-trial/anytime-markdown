@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-28
+
+### Added
+
+- When a document is reloaded after an external change, the extension now consults the AI edit ledger (`.anytime/markdown/agent-edits.jsonl` in an ancestor directory) and hands the sections rewritten by AI to the editor for highlighting. Entries for the same document written after the document was opened (or after the previous check) are folded by heading and occurrence. Without a readable ledger the change is treated as a plain external change, never claimed as an AI edit.
+
+### Changed
+
+- Bundled skills updated. The out-of-root procedure in `anytime-markdown-output` now uses `npm run docs:format` (a CLI with the same formatting rules and Section Lock guard as the MCP tool) instead of visual checks.
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- Sections rewritten by AI are highlighted. Headings passed by the host via `setAgentEdits` get `data-am-agent-edit="recent"` on the section and a 🤖 marker after the heading. Editing the section, or pressing the confirm button in the outline, clears that section only. Editing is never blocked. Targets are identified by heading identity (level, normalised text, occurrence), so adding or removing headings above does not move the highlight to another section.
+- Content written by others or fetched from outside (tweet embeds, OGP cards, other people's comments) now carries the trust-boundary attribute `data-untrusted-content`.
+- The editor body `role="textbox"` has an aria-label, clearing an axe accessibility violation.
+
+### MCP Server (mcp-markdown)
+
+- Read tools (`get_section` / `search_docs` / `search_sections`) return boundary information in `structuredContent.trust` (boundary: workspace / external / unknown, and untrustedSegments clipped to the section's line range). The text content is unchanged.
+- Write tools (`update_section` / `update_frontmatter` / `format_markdown` fix) append their execution to the AI edit ledger `agent-edits.jsonl`. A failed append never fails an already successful document write.
+
 ## [1.24.3] - 2026-09-26
 
 ### Changed

@@ -25,10 +25,12 @@ import { buildMarkdownEditorUrl, parseGitHubMarkdownBlobUrl } from '../../../lib
 import { createWebComponentMount } from './markdownWebComponentMount';
 
 const mountMarkdownView = createWebComponentMount('anytime-markdown-view');
+const mountUntrustedMarkdownView = createWebComponentMount('anytime-markdown-view', { untrustedContent: true });
 
-export default function VanillaMarkdownView(
-  props: Readonly<Omit<VanillaMarkdownEditorMountProps, 'mount'>>,
-) {
+export default function VanillaMarkdownView({
+  untrustedContent = false,
+  ...props
+}: Readonly<Omit<VanillaMarkdownEditorMountProps, 'mount'> & { untrustedContent?: boolean }>) {
   // capture 段で横取りする: エディタ内部（ProseMirror）のリンク処理より先に判定し、
   // 対象なら preventDefault + stopPropagation で既定遷移と内部処理の双方を抑止する。
   const handleClickCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -45,7 +47,7 @@ export default function VanillaMarkdownView(
   return (
     // display:contents でレイアウトに影響させずクリック委譲だけを担う
     <div style={{ display: 'contents' }} onClickCapture={handleClickCapture}>
-      <VanillaMarkdownEditorMount mount={mountMarkdownView} {...props} />
+      <VanillaMarkdownEditorMount mount={untrustedContent ? mountUntrustedMarkdownView : mountMarkdownView} {...props} />
     </div>
   );
 }

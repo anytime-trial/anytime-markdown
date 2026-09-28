@@ -356,6 +356,24 @@ export function continueInstructionDirect(
   return { instructionId: input.instructionId, sequence, summary: row.summary };
 }
 
+/**
+ * セッションが宣言した指示 ID を返す（行動範囲検証・FR-04）。未宣言・台帳未作成は null。
+ *
+ * ensure（CREATE TABLE）を呼ばない: 判断記録の途中で呼ばれるため、台帳の不在を
+ * 「宣言なし」に縮退させる（readonly 接続でも安全）。新名のみを見る — 旧名（instruction_sessions）
+ * は書込 3 ツールの ensure が改名済みで、判断記録も書込経路なので到達時には改名されている。
+ */
+export function findInstructionIdForSession(db: Database, sessionId: string): string | null {
+  const exists = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'caravan_instruction_sessions'`)
+    .get() as { name: string } | undefined;
+  if (exists === undefined) return null;
+  const row = db
+    .prepare('SELECT instruction_id FROM caravan_instruction_sessions WHERE session_id = ?')
+    .get(sessionId) as { instruction_id: string } | undefined;
+  return row?.instruction_id ?? null;
+}
+
 export function closeInstructionDirect(db: Database, instructionId: string): { instructionId: string; closedAt: string } {
   ensureTables(db);
   const closedAt = new Date().toISOString();

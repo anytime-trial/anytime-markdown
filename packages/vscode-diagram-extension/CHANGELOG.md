@@ -1,5 +1,11 @@
 # Change Log
 
+## [0.5.0] - 2026-09-28
+
+### Added
+
+- Labels and identifiers follow chapter 11 of design.md. The viewport aria-label includes the document title (and follows title changes), and person cards are role=group with the person's name as aria-label. `data-testid` attributes were added to viewport / edges / minimap / node-card / connectpoint / midpoint / linelabel / edge-marriage / edge-descent / gutter / cell-add / groupdialog rows.
+
 ## [0.4.0] - 2026-09-23
 
 ### Added

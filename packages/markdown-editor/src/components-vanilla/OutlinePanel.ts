@@ -38,6 +38,7 @@ import {
   svgIcon,
 } from "@anytime-markdown/ui-core";
 import { OUTLINE_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
+import { AGENT_EDIT_REFRESH_META } from "../extensions/agentEditPlugin";
 import { SECTION_LOCK_REFRESH_META } from "../extensions/sectionLockPlugin";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
 import { extractHeadings } from "../types";
@@ -182,6 +183,8 @@ export interface CreateOutlinePanelOptions {
    * 確定セクションロックの UI 状態（Phase 5 S4）。都度評価の getter で受ける
    * （frontmatter 変更に追従。静的キャプチャ禁止の規約と同じ原則）。
    */
+  getAgentEdits?: () => ReadonlyArray<{ headingIndex: number }>;
+  onAcknowledgeAgentEdit?: (headingIndex: number) => void;
   getSectionLocks?: () => ReadonlyArray<{ headingIndex: number; tampered: boolean }>;
   /** heading-only index のロック / 解除トグル。 */
   onToggleSectionLock?: (headingIndex: number) => void;
@@ -616,6 +619,25 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     }
   };
 
+  const appendAgentEditButton = (row: HTMLElement, h: HeadingItem): void => {
+    const headingIndex = h.headingIndex ?? -1;
+    if (!opts.getAgentEdits?.().some(entry => entry.headingIndex === headingIndex)) return;
+    const label = t("outlineAgentEditAcknowledge");
+    const button = createIconButton({
+      size: "compact",
+      ariaLabel: label,
+      children: "🤖",
+      onClick: event => {
+        event.stopPropagation();
+        opts.onAcknowledgeAgentEdit?.(headingIndex);
+      },
+    });
+    button.el.dataset.amOutlineAgentEdit = "recent";
+    button.el.title = label;
+    listHandles.push(button);
+    row.appendChild(button.el);
+  };
+
   /** 削除ボタンを hover 群（moveBtns）へ追加する。onOutlineDelete 未指定なら何もしない。 */
   const appendDeleteButton = (moveBtns: HTMLElement, h: HeadingItem): void => {
     const onOutlineDelete = opts.onOutlineDelete;
@@ -667,7 +689,10 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     // （vanilla-ui-conventions §3。S4 受入で顕在化した既存の潜在バグ）。
     moveBtns.style.cssText = "display:flex;flex-shrink:0;";
     // 確定セクションロック（Phase 5 S4）: ロック中は常時表示、未ロックは hover 群に置く。
-    if (isHeading) appendSectionLockButton({ row, moveBtns }, h);
+    if (isHeading) {
+      appendSectionLockButton({ row, moveBtns }, h);
+      appendAgentEditButton(row, h);
+    }
     appendDeleteButton(moveBtns, h);
     row.appendChild(moveBtns);
 
@@ -788,7 +813,8 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     // 確定セクションロックの切替（frontmatter 変更）は見出しを変えないため、
     // シグネチャガードを素通りしてロックボタンの表示が古いまま固着する。
     // refresh meta を明示トリガとして扱う（Phase 5 S4）。
-    if (payload?.transaction?.getMeta?.(SECTION_LOCK_REFRESH_META) === true) {
+    if (payload?.transaction?.getMeta?.(SECTION_LOCK_REFRESH_META) === true
+      || payload?.transaction?.getMeta?.(AGENT_EDIT_REFRESH_META) === true) {
       refresh();
       return;
     }
@@ -881,6 +907,7 @@ function ensureOutlineStyles(): void {
     ".am-outline-resize-handle::after{content:'';width:2px;height:32px;border-radius:4px;" +
     "background-color:var(--am-color-divider);}" +
     // 確定セクションロック（Phase 5 S4）: 状態は data 属性 + シート側で表現（inline style 禁止）
+    "[data-am-outline-agent-edit]{color:var(--am-color-agent-main, #1F6FEB);flex-shrink:0;}" +
     "[data-am-outline-lock='locked']{color:#E8A012;}" +
     "[data-am-outline-lock='tampered']{color:#DA3633;outline:1px dashed #DA3633;}" +
     "[data-am-outline-lock='unlocked']{color:var(--am-color-text-secondary);}" +

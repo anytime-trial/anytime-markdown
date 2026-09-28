@@ -82,7 +82,7 @@ export interface MinimapView {
 
 export function createMinimapView(doc: Document, t: DiagramT, callbacks: MinimapCallbacks): MinimapView {
   const root = el(doc, 'div', { className: 'anytime-diagram-minimap', attrs: { role: 'group' } });
-  const map = svg(doc, 'svg', { class: 'anytime-diagram-minimap-map', role: 'img' });
+  const map = svg(doc, 'svg', { class: 'anytime-diagram-minimap-map', role: 'img', 'data-testid': 'diagram-minimap-canvas' });
   /** 図そのものの広がり。余白（レターボックス）と地続きに見えないよう、薄く敷いて境を示す。 */
   const surfaceRect = svg(doc, 'rect', { class: 'minimap-surface' });
   const linesPath = svg(doc, 'path', { class: 'minimap-lines' });
