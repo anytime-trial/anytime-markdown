@@ -52,6 +52,8 @@ export function createWebComponentMount(
         return el.root!;
       },
       update: (patch) => el.update(patch),
+      setAgentEdits: (targets) => el.setAgentEdits(targets),
+      clearAgentEdits: () => el.clearAgentEdits(),
       destroy: () => el.remove(),
     };
   };

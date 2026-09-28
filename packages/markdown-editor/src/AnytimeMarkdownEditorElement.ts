@@ -135,6 +135,15 @@ export class AnytimeMarkdownEditorElement extends HTMLElementBase {
     this.handle?.update(patch);
   }
 
+  /** AI 編集の識別表示（共用 UI 優先 3）: handle へ委譲。未 mount なら何もしない。 */
+  setAgentEdits(targets: Parameters<VanillaMarkdownEditorHandle["setAgentEdits"]>[0]): void {
+    this.handle?.setAgentEdits(targets);
+  }
+
+  clearAgentEdits(): void {
+    this.handle?.clearAgentEdits();
+  }
+
   /** mount 済み editor インスタンス（handle adapter 用）。未 mount なら null。 */
   get editor(): EditorInstance | null {
     return this.handle?.editor ?? null;

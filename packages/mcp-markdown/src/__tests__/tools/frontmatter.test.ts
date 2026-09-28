@@ -87,3 +87,20 @@ describe('frontmatter tools', () => {
     await expect(getFrontmatter({ path: 'a.txt' }, tmpDir)).rejects.toThrow('File type not allowed');
   });
 });
+
+import { parseAgentEditLedger, resolveAgentEditLedgerPath } from '../../utils/agentEditLedger';
+
+describe('updateFrontmatter agent edit ledger', () => {
+  it('records one entry on success and none after lock rejection', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'fm-ledger-'));
+    try {
+      await fs.writeFile(path.join(dir, 'a.md'), DOC);
+      await updateFrontmatter({ path: './a.md', set: { status: 'published' } }, dir);
+      expect((await getFrontmatter({ path: 'a.md' }, dir)).status).toBe('published');
+      const ledger = await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8');
+      expect(parseAgentEditLedger(ledger)).toEqual([{ at: expect.any(String), path: './a.md', tool: 'update_frontmatter', heading: null }]);
+      await expect(updateFrontmatter({ path: 'a.md', removeKeys: ['lockedSections'] }, dir)).rejects.toThrow(/[Ss]ection lock/);
+      expect(await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8')).toBe(ledger);
+    } finally { await fs.rm(dir, { recursive: true, force: true }); }
+  });
+});

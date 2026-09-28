@@ -84,4 +84,15 @@ describe('mcp-markdown integration', () => {
     expect(updated).toContain('Keep');
   });
 
+  it('returns section trust through MCP without an output schema', async () => {
+    const doc = '# T\n## A\nbody\n<!-- comments\nnote\n-->';
+    await fs.writeFile(path.join(tmpDir, 'trust.md'), doc);
+    const result = await client.callTool({ name: 'get_section', arguments: { path: 'trust.md', heading: '## A' } });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toEqual({ trust: { boundary: 'workspace', untrustedSegments: [
+      { kind: 'comment', startLine: 4, endLine: 6 },
+    ] } });
+    expect((result.content as Array<{ type: string; text: string }>)[0].text).toBe(doc.split('\n').slice(1).join('\n'));
+  });
+
 });

@@ -84,6 +84,8 @@ const GATE_REASON_LABELS: Readonly<Record<GateReason, string>> = {
   operation_kind_unknown: '操作種別の申告がなく判定できない',
   always_human_operation:
     '常に人の承認が要る操作である（パッケージ追加・破壊的操作・push・リリース・永続データ書込）',
+  instruction_unknown:
+    'セッションが Flight Record の指示を宣言しておらず、行動範囲を照合する元指示がない',
   severity_unknown: '重大度の申告がなく判定できない',
   severity_high: '高重大度の変更である',
   doctrine_conflict: '複数の条項が矛盾する判断を与える',

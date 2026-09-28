@@ -479,7 +479,11 @@ function pushLiveUpdate(): void {
 
 // --- メッセージ配線 ---
 
-function handleSetContent(message: { content: string; compareContent?: string }): void {
+function handleSetContent(message: {
+  content: string;
+  compareContent?: string;
+  agentEdits?: Array<{ heading: string; occurrence?: number }>;
+}): void {
   const isInitial = !state.ready;
   currentContent = message.content;
   if (isInitial) {
@@ -490,6 +494,10 @@ function handleSetContent(message: { content: string; compareContent?: string })
     renderApp();
   } else {
     dispatchCustomEvent('vscode-set-content', message.content);
+    // 外部変更のうち mcp-markdown 経由の書込（AI 編集台帳）は、本文適用後に識別表示へ渡す
+    if (Array.isArray(message.agentEdits) && message.agentEdits.length > 0) {
+      editorHandle?.setAgentEdits(message.agentEdits);
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { appendAgentEdit } from '../utils/agentEditLedger';
 import { formatMarkdown as engineFormat, type FormatWarning } from '@anytime-markdown/markdown-engine';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 import { assertNoLockViolation } from '../utils/sectionLockGuard';
@@ -40,6 +41,12 @@ export async function formatMarkdownTool(
   if (mode === 'fix' && wouldChange) {
     assertNoLockViolation(original, result, input.path);
     await fs.writeFile(filePath, result, 'utf-8');
+    await appendAgentEdit(rootDir, {
+      at: new Date().toISOString(),
+      path: input.path,
+      tool: 'format_markdown',
+      heading: null,
+    });
   }
 
   return {

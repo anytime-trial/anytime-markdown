@@ -14,6 +14,12 @@ import {
   type LinkedMdToken,
 } from '../utils/linkedMdFs';
 import { ClaudeLockTracker } from '../claude/ClaudeLockTracker';
+import {
+  findAgentEditLedger,
+  parseAgentEditLedger,
+  selectAgentEditTargets,
+  type AgentEditTarget,
+} from '../utils/agentEditLedger';
 import { MarkdownLogger } from '../utils/MarkdownLogger';
 
 /** Claude editing=false 観測からロック解除を確定するまでの遅延 (ms)。 */
@@ -274,6 +280,28 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider, 
       }
     });
 
+    // AI 編集台帳（mcp-markdown の agent-edits.jsonl）の照合。開いた時刻より後の
+    // mcp-markdown 経由の書込を、再読込時に識別表示の対象として webview へ渡す（共用 UI 優先 3）
+    let agentEditsSince = new Date().toISOString();
+    const collectAgentEdits = (): AgentEditTarget[] => {
+      try {
+        const ledger = findAgentEditLedger(document.uri.fsPath, (candidate) => fs.existsSync(candidate));
+        if (ledger === null) { return []; }
+        const entries = parseAgentEditLedger(fs.readFileSync(ledger.ledgerPath, 'utf8'));
+        const selected = selectAgentEditTargets(entries, {
+          rootDir: ledger.rootDir,
+          documentFsPath: document.uri.fsPath,
+          since: agentEditsSince,
+        });
+        if (selected.latestAt !== null) { agentEditsSince = selected.latestAt; }
+        return selected.targets;
+      } catch (err) {
+        // 台帳の障害で外部変更の反映を止めない
+        MarkdownLogger.error(`collectAgentEdits: failed to read ledger for ${document.uri.fsPath}`, err);
+        return [];
+      }
+    };
+
     // 外部変更検知（Claude Code、git 操作、他のエディタなど）
     let notificationVisible = false;
     let autoReload = this.autoReloadEnabled;
@@ -283,7 +311,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider, 
       // 自動再読み込みモード: 通知なしで即座にコンテンツを更新
       if (autoReload) {
         webviewPanel.webview.postMessage({ type: 'setBaseUri', baseUri });
-        webviewPanel.webview.postMessage({ type: 'setContent', content });
+        webviewPanel.webview.postMessage({ type: 'setContent', content, agentEdits: collectAgentEdits() });
         return;
       }
       if (notificationVisible) { return; }
@@ -296,7 +324,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider, 
         notificationVisible = false;
         if (selection === '再読込' && !disposed) {
           webviewPanel.webview.postMessage({ type: 'setBaseUri', baseUri });
-          webviewPanel.webview.postMessage({ type: 'setContent', content });
+          webviewPanel.webview.postMessage({ type: 'setContent', content, agentEdits: collectAgentEdits() });
         }
       });
     };
