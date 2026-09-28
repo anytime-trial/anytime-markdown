@@ -74,7 +74,7 @@ Claude のセッションの外にある実行系へ作業を渡すときの共�
 - **abstain**: 実行系が正規の中断（§2.1）で返した。
 - `雛形vN` は本ファイル冒頭の現行版数を書く（記録時点の契約書式を固定するため）。
 - `[model]` は委譲を実行したモデル／実行系（例: `[codex]`・`[qwen3:8b]`）を角括弧で記す。結果行では**任意**で、`anytime-dev-retro` が版数別に加えモデル別（`delegation.byModel`）でも集計し、委譲先の役割分担（§1）の見直し材料にする。省略した旧書式も後方互換で有効（モデル未指定は `(unspecified)` に集計）。見積り・実測行ではペアリングキーのため**必須**。
-- `[EN]` は見送り行の除外条件 ID（`SKILL.md` §3 の E1〜E5）。**見送り行は現時点で `grounding.cjs` の集計対象ではない**（2026-08-18 時点。集計配線は次のふりかえりで判断する）。それまでの委譲率は本行の grep と Trail DB の `codex exec` 起動数を突合して測る。
+- `[EN]` は見送り行の除外条件 ID（`SKILL.md` §3 の E1〜E5）。見送り行は `anytime-dev-retro` の `grounding.cjs` が集計し、`delegation.delegationRatePct`（委譲 / (委譲 + 見送り)）と `declinedByExclusion` になる。
 
 ### 2.3. 較正表（見積りの初期値）
 
