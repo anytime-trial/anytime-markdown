@@ -74,6 +74,18 @@ describe('mountCaravanPanel', () => {
     expect(c.querySelector('[role="tablist"]')).toBeNull();
   });
 
+  it('probe 中は root に aria-busy / data-state=loading が付き、確定後に外れる（design.md 11.3）', async () => {
+    const c = document.createElement('div');
+    mountCaravanPanel(c, baseProps({ probeDbExists: async () => false }));
+    const root = c.firstElementChild as HTMLElement;
+    expect(root.getAttribute('aria-busy')).toBe('true');
+    expect(root.dataset['state']).toBe('loading');
+    expect(c.querySelector('[role="status"]')).not.toBeNull();
+    await flush();
+    expect(root.hasAttribute('aria-busy')).toBe(false);
+    expect(root.dataset['state']).toBe('idle');
+  });
+
   it('probe が false を返したら noDb メッセージを表示する', async () => {
     const c = document.createElement('div');
     mountCaravanPanel(c, baseProps());

@@ -206,14 +206,14 @@ describe('mountC4Viewer', () => {
       analysisProgress: { phase: 'Indexing...', percent: 42 },
     }));
     // Loading overlay is appended to root, check it exists
-    const dialogs = container.querySelectorAll('[role="dialog"][aria-label="Analysis in progress"]');
+    const dialogs = container.querySelectorAll('[role="status"][aria-label="Analysis in progress"]');
     expect(dialogs.length).toBeGreaterThan(0);
     handle.destroy();
   });
 
   it('no analysisProgress hides loading overlay', () => {
     const handle = mountC4Viewer(container, makeProps({ analysisProgress: null }));
-    const dialogs = container.querySelectorAll('[role="dialog"][aria-label="Analysis in progress"]');
+    const dialogs = container.querySelectorAll('[role="status"][aria-label="Analysis in progress"]');
     // Should exist but be hidden (display:none)
     for (const d of dialogs) {
       expect((d as HTMLElement).style.display).toBe('none');
@@ -326,12 +326,14 @@ describe('mountC4Viewer', () => {
     handle.destroy();
   });
 
-  it('dialog hosts are present in DOM', () => {
+  it('loading overlay is a status region and info panels are non-modal regions', () => {
     const handle = mountC4Viewer(container, makeProps());
     // dialogsHost should exist
-    const dialogs = container.querySelectorAll('[role="dialog"]');
-    // At minimum the loading dialog and the 3 mount dialogs (even if closed)
-    expect(dialogs.length).toBeGreaterThanOrEqual(1);
+    // 読込オーバーレイは role=status（aria-busy 付き）、情報パネル 4 つは非モーダルなので role=region。
+    // モーダルの 4 作法を持たない要素に role=dialog を名乗らせない（design.md 11.1）
+    expect(container.querySelector('[role="status"][aria-label="Analysis in progress"]')?.getAttribute('aria-busy')).toBe('true');
+    expect(container.querySelectorAll('[role="region"][aria-label]').length).toBeGreaterThanOrEqual(4);
+    expect(container.querySelector('[role="dialog"][aria-label="Activity Trend"]')).toBeNull();
     handle.destroy();
   });
 

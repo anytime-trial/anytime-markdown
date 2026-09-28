@@ -114,7 +114,10 @@ export default function TicketsRepoDialog({ open, onClose, onSelect }: Readonly<
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{t('repo.select')}</DialogTitle>
-      <DialogContent>
+      <DialogContent
+        aria-busy={loading ? 'true' : undefined}
+        data-state={error ? 'error' : loading ? 'loading' : 'idle'}
+      >
         {needsConnect && (
           <Stack spacing={2} alignItems="flex-start">
             <Alert severity="info">{t('repo.empty')}</Alert>
@@ -127,7 +130,7 @@ export default function TicketsRepoDialog({ open, onClose, onSelect }: Readonly<
           </Stack>
         )}
         {error && <Alert severity="error">{error}</Alert>}
-        {loading && <CircularProgress size={24} aria-label={t('common.loading')} />}
+        {loading && <CircularProgress size={24} role="status" aria-label={t('common.loading')} />}
         {!needsConnect && repos && (
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
