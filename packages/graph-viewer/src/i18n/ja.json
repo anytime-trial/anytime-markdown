@@ -113,6 +113,7 @@
     "emptyCanvasTitle": "キャンバスが空です",
     "emptyCanvasHint": "ツールバーから図形を選択してドラッグで作成",
     "settings": "設定",
+    "close": "閉じる",
     "themeMode": "テーマ",
     "language": "言語"
   }

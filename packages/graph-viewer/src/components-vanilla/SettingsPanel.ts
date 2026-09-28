@@ -77,6 +77,7 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   const closeBtn = iconButton({
     size: 'small',
     onClick: onClose,
+    ariaLabel: t('close'),
     children: closeIconEl,
   });
   closeBtn.style.color = colors.textSecondary;

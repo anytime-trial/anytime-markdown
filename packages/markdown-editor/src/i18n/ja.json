@@ -483,6 +483,7 @@
     "plantumlSampleMenu": "PlantUMLサンプルメニュー",
     "view": "表示",
     "sourceEditor": "マークダウンソースエディタ",
+    "richEditor": "マークダウンエディタ",
     "editorToolbar": "エディタツールバー",
     "arrowMessage": "矢印メッセージ",
     "participantName": "参加者名",

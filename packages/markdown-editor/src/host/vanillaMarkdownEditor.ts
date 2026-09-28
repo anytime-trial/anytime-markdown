@@ -1305,7 +1305,14 @@ export function mountVanillaMarkdownEditor(
         saveContent: (md) => saveContent(() => md, false),
         setHeadingMenu: (menu) => menuPopovers.openHeading(menu),
       });
-      editor.setOptions({ editorProps: domHandlers });
+      // 本文（role="textbox"）にアクセシブル・ネームを付ける（design.md 11.1・axe aria-input-field-name）。
+      // setOptions は editorProps を丸ごと置き換えるため attributes をここで束ねる。
+      editor.setOptions({
+        editorProps: {
+          ...domHandlers,
+          attributes: { "aria-label": t("richEditor") },
+        },
+      });
       disposers.push(() => {
         editorPlainRef.current = null;
       });

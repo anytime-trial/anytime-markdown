@@ -1,4 +1,4 @@
-import { Box, Container, Divider, Stack, Typography } from '@mui/material';
+import { Box, Container, Divider, Link as MuiLink, Stack, Typography } from '@mui/material';
 import { getTranslations } from 'next-intl/server';
 
 import { Link } from '../../../i18n/navigation';
@@ -92,7 +92,10 @@ export async function MarkdownGuide() {
             <Stack component="ul" spacing={1} sx={{ pl: 3, m: 0 }}>
               {TOPIC_SLUGS.map((slug) => (
                 <Box component="li" key={slug}>
-                  <Link href={topicPath(slug)}>{tTopics(`${slug}.linkLabel`)}</Link>
+                  {/* 素の <a> はブラウザ既定の #0000EE でダーク地とのコントラストが 2.01:1 になるため MUI Link の配色を通す */}
+                  <MuiLink component={Link} href={topicPath(slug)}>
+                    {tTopics(`${slug}.linkLabel`)}
+                  </MuiLink>
                 </Box>
               ))}
             </Stack>
