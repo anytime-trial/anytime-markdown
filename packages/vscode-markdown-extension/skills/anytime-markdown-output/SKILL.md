@@ -662,7 +662,7 @@ type 別の記載内容（component spec の外部仕様原則・spec/e2e 2 フ�
 > `format_markdown` が操作できるのは **MCP サーバーのルート配下の `.md` だけ**。ルートは `ANYTIME_MARKDOWN_ROOT`（未設定ならサーバーの `cwd`）で決まり、anytime-markdown では `/anytime-markdown` である。\
 > **`<docsRoot>` はルート外**で、呼ぶと `Access denied: path outside root directory` を返す（2026-08-14 実測）。設計書・提案・レポート・レビューの出力先は大半がここなので、**ルート外が既定だと考えて手順を選ぶ**。\
 > フォールバックだった `~/.claude/scripts/validate-markdown.sh` は**実在しない**（同日実測。実行すると `No such file or directory` で落ちる）。\
-> **ルート外のファイルの整形・検証手順**（2026-09-28 追加）: コードリポジトリ root で `npm run docs:format -- <path>...`（書き込み）または `npm run docs:format:check -- <path>...`（検出のみ。変更ありなら exit 1）を実行する。`scripts/format-docs.mjs` が MCP と同じ `formatMarkdown`（markdown-engine）を呼ぶため規則は同一で、ディレクトリを渡すと `*.md` を再帰処理する。返り値の `warn` 行は §10.3 の手動項目に対応する。\
+> **ルート外のファイルの整形・検証手順**（2026-09-28 追加）: コードリポジトリ root で `npm run docs:format -- <path>...`（書き込み）または `npm run docs:format:check -- <path>...`（検出のみ。変更ありなら exit 1）を実行する。`scripts/format-docs.mjs` は MCP と同じ `formatMarkdown`（markdown-engine）と同じ書込ガード（section-lock-core の前後比較。ロック節に触れる変更は書き込まず exit 1）を使うため、整形規則も書込の安全性も MCP 経由と同一で、ディレクトリを渡すと `*.md` を再帰処理する。返り値の `warn` 行は §10.3 の手動項目に対応する。\
 > そのうえで (1) フロントマターの必須キー（`title` / `date` / `type` / `lang` ＋ type 別の必須キー。§2.1）を目視確認し、(2) §10.2〜10.3 のチェックリストを手動で適用する。
 
 ### 10.2 構文・記法（意味判断・手動）
