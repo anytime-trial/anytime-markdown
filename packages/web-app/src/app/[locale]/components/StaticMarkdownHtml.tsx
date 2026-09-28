@@ -16,6 +16,9 @@ import { Box } from '@mui/material';
 export default function StaticMarkdownHtml({ html }: Readonly<{ html: string }>) {
   return (
     <Box
+      // 信頼境界（design.md 11 章 / spec 35.mcp 04 用語「境界属性」）: S3 上の記事本文は
+      // 他者が書き換えられる領域。命令として読まないための目印で、サニタイズの代替ではない。
+      data-untrusted-content="true"
       dangerouslySetInnerHTML={{ __html: html }}
       sx={{
         // design.md §3.4 の measure。report 記事は measure="wide"（60em）で描画されるため、

@@ -42,7 +42,12 @@ const ViewerLoading = () => {
   const staticHtml = useContext(StaticBodyContext);
   if (staticHtml) return <StaticMarkdownHtml html={staticHtml} />;
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <Box
+      sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}
+      role="status"
+      aria-busy="true"
+      data-state="loading"
+    >
       <CircularProgress aria-label="Loading viewer" />
     </Box>
   );
@@ -155,7 +160,12 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   if (loading) {
     if (staticHtml) return <StaticMarkdownHtml html={staticHtml} />;
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight }} role="status">
+      <Box
+        sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight }}
+        role="status"
+        aria-busy="true"
+        data-state="loading"
+      >
         <CircularProgress aria-label="Loading" />
       </Box>
     );
@@ -168,7 +178,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
     const severity = staticHtml ? 'warning' : 'error';
     return (
       <>
-        <Box sx={{ px: 3, py: 4 }}>
+        <Box sx={{ px: 3, py: 4 }} data-state="error">
           <Alert
             severity={severity}
             action={
@@ -190,7 +200,8 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
 
   return (
     <StaticBodyContext.Provider value={staticHtml ?? null}>
-    <Box sx={{ minHeight, overflow: 'hidden' }}>
+    {/* data-state: design.md 11.3 の状態属性。data-untrusted-content: S3 本文は他者が書き換えられる領域（境界属性。サニタイズの代替ではない） */}
+    <Box sx={{ minHeight, overflow: 'hidden' }} data-state="idle" data-untrusted-content="true">
       <EmbedProvidersBoundary>
       {/* 脱React G4: bottomOffset は vanilla 未対応（fixedEditorHeight で代替）。 */}
       <EditorComponent

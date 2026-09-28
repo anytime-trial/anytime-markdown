@@ -472,6 +472,8 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     } else {
       const body = document.createElement("p");
       body.dataset.amCommentBody = "";
+      // 信頼境界: 他者が書いたコメント本文（境界属性。textContent 描画のため XSS 対策としては不要）
+      body.dataset.untrustedContent = "true";
       body.style.cssText =
         "margin:0;margin-bottom:4px;font-size:0.875rem;line-height:1.43;letter-spacing:0.01071em;" +
         "cursor:text;min-height:1.4em;";
@@ -556,6 +558,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     cardBtn.appendChild(labelRow);
 
     const commentBody = document.createElement("p");
+    commentBody.dataset.untrustedContent = "true";
     commentBody.style.cssText = `margin:0;margin-bottom:4px;font-size:${COMMENT_BODY_FONT_SIZE};`;
     commentBody.textContent = a.comment ?? "";
     cardBtn.appendChild(commentBody);
