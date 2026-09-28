@@ -200,11 +200,13 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
 
   return (
     <StaticBodyContext.Provider value={staticHtml ?? null}>
-    {/* data-state: design.md 11.3 の状態属性。data-untrusted-content: S3 本文は他者が書き換えられる領域（境界属性。サニタイズの代替ではない） */}
-    <Box sx={{ minHeight, overflow: 'hidden' }} data-state="idle" data-untrusted-content="true">
+    {/* data-state: design.md 11.3 の状態属性。信頼境界属性は本文ノード側に付ける（untrustedContent） */}
+    <Box sx={{ minHeight, overflow: 'hidden' }} data-state="idle">
       <EmbedProvidersBoundary>
       {/* 脱React G4: bottomOffset は vanilla 未対応（fixedEditorHeight で代替）。 */}
+      {/* S3 本文は他者が書き換えられる領域なので、本文ノードへ data-untrusted-content を付ける（境界属性。サニタイズの代替ではない） */}
       <EditorComponent
+        untrustedContent
         key={editorKeyRef.current}
         t={vanillaT}
         locale={locale}

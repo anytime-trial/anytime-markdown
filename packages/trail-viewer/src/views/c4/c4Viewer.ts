@@ -171,6 +171,7 @@ import { fetchFunctionGraph } from '../../c4/hooks/fetchFunctionGraphApi';
 import type { FunctionGraphResponse } from '../../c4/hooks/fetchFunctionGraphApi';
 import type { ElementFunctionsResponse } from '../../c4/hooks/fetchElementFunctionsApi';
 import type { HotspotResponse } from '../../c4/hooks/fetchHotspotApi';
+import { setBusyState } from '@anytime-markdown/ui-core';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -638,7 +639,7 @@ export function mountC4Viewer(
   container.appendChild(root);
 
   // Loading overlay (for analysisProgress)
-  const loadingOverlay = el('div', `display:none;position:fixed;inset:0;z-index:1300;align-items:center;justify-content:center;background:${LOADING_OVERLAY_BG};backdrop-filter:blur(4px);`, { role: 'status', 'aria-label': 'Analysis in progress', 'aria-live': 'polite', 'aria-busy': 'true' });
+  const loadingOverlay = el('div', `display:none;position:fixed;inset:0;z-index:1300;align-items:center;justify-content:center;background:${LOADING_OVERLAY_BG};backdrop-filter:blur(4px);`, { role: 'status', 'aria-label': 'Analysis in progress', 'aria-live': 'polite' });
   root.appendChild(loadingOverlay);
 
   const loadingCard = el('div');
@@ -1730,6 +1731,9 @@ export function mountC4Viewer(
     root.style.height = props.containerHeight ?? '100vh';
 
     // Update loading overlay
+    // aria-busy はライブ領域（overlay）でなく本体に置く。ライブ領域に固定すると進捗更新の
+    // 読み上げが保留される（cross-review 2026-09-28 Codex 指摘）
+    setBusyState(body, props.analysisProgress ? 'loading' : 'idle');
     if (props.analysisProgress) {
       loadingOverlay.style.display = 'flex';
       loadingCard.style.cssText = `background:${colors.bgSecondary};border:1px solid ${colors.border};border-radius:8px;padding:24px 32px;min-width:360px;max-width:480px;text-align:center;`;

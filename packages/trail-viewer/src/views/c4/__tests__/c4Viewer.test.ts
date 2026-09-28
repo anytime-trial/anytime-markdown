@@ -208,6 +208,9 @@ describe('mountC4Viewer', () => {
     // Loading overlay is appended to root, check it exists
     const dialogs = container.querySelectorAll('[role="status"][aria-label="Analysis in progress"]');
     expect(dialogs.length).toBeGreaterThan(0);
+    // ライブ領域には aria-busy を固定しない（進捗更新の読み上げが保留されるため）。busy は本体側に置く
+    expect(dialogs[0].hasAttribute('aria-busy')).toBe(false);
+    expect(container.querySelector('[aria-busy="true"][data-state="loading"]')).not.toBeNull();
     handle.destroy();
   });
 
@@ -218,6 +221,7 @@ describe('mountC4Viewer', () => {
     for (const d of dialogs) {
       expect((d as HTMLElement).style.display).toBe('none');
     }
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull();
     handle.destroy();
   });
 
@@ -329,9 +333,9 @@ describe('mountC4Viewer', () => {
   it('loading overlay is a status region and info panels are non-modal regions', () => {
     const handle = mountC4Viewer(container, makeProps());
     // dialogsHost should exist
-    // 読込オーバーレイは role=status（aria-busy 付き）、情報パネル 4 つは非モーダルなので role=region。
+    // 読込オーバーレイは role=status、情報パネル 4 つは非モーダルなので role=region。
     // モーダルの 4 作法を持たない要素に role=dialog を名乗らせない（design.md 11.1）
-    expect(container.querySelector('[role="status"][aria-label="Analysis in progress"]')?.getAttribute('aria-busy')).toBe('true');
+    expect(container.querySelector('[role="status"][aria-label="Analysis in progress"]')).not.toBeNull();
     expect(container.querySelectorAll('[role="region"][aria-label]').length).toBeGreaterThanOrEqual(4);
     expect(container.querySelector('[role="dialog"][aria-label="Activity Trend"]')).toBeNull();
     handle.destroy();

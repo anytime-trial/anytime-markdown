@@ -76,7 +76,7 @@ describe('mountCaravanPanel', () => {
 
   it('probe 中は root に aria-busy / data-state=loading が付き、確定後に外れる（design.md 11.3）', async () => {
     const c = document.createElement('div');
-    mountCaravanPanel(c, baseProps({ probeDbExists: async () => false }));
+    mountCaravanPanel(c, baseProps()); // probe は jsdom で fetch に失敗し false へ確定する
     const root = c.firstElementChild as HTMLElement;
     expect(root.getAttribute('aria-busy')).toBe('true');
     expect(root.dataset['state']).toBe('loading');
