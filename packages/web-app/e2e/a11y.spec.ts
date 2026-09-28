@@ -7,7 +7,7 @@
  * - 基線を超えた違反（新規ルール・ノード数の増加）は失敗する。
  * - 減った分は `A11Y_UPDATE_BASELINE=1` で基線を縮めて記録する（縮む方向のみ）。
  * - 走査対象へページを足した時だけ `A11Y_BASELINE_SEED=1` で新ページの現状を取り込む。
- *   既存ページの許容を増やす入口は無い（手で書き換えない）。
+ *   既存ページ（違反 0 で空になったページも基線にキーが残る）の許容を増やす入口は無い（手で書き換えない）。
  *
  * 実行: `npm run e2e:a11y -w @anytime-markdown/web-app`
  */
@@ -57,8 +57,9 @@ function writeBaseline(baseline: A11yBaseline): void {
   writeFileSync(BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`);
 }
 
-// 走査 → 判定の順序を固定するため、同一ワーカーで直列に走らせる
-test.describe.configure({ mode: "serial" });
+// 走査 → 判定の順序を固定するため、同一ワーカーで直列に走らせる。
+// 1 テストの上限は可視待ち 15 秒＋読込待ち 10 秒＋走査の余裕を見て 60 秒（既定 30 秒では余裕が 5 秒しか無い）。
+test.describe.configure({ mode: "serial", timeout: 60_000 });
 
 test.describe("a11y (axe ratchet)", () => {
   const scans: A11yScanResult[] = [];

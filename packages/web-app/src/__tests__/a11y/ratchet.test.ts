@@ -37,21 +37,21 @@ describe("ratchetA11y", () => {
     ]);
   });
 
-  it("次の基線は現状と基線の小さい方を取り、0 件のルールと空ページを落とす", () => {
+  it("次の基線は現状と基線の小さい方を取り、0 件のルールを落とす。走査したページはキーを残す", () => {
     const baseline: A11yBaseline = { "/": { "color-contrast": 3, "image-alt": 1 }, "/old": { label: 1 } };
     const result = ratchetA11y(baseline, [
       scan("/", [["color-contrast", 2, "serious"], ["link-name", 5, "serious"]]),
       scan("/new", []),
     ]);
     // 回帰（link-name）は次の基線に取り込まない（基線を手で増やさない原則）
-    expect(result.nextBaseline).toEqual({ "/": { "color-contrast": 2 }, "/old": { label: 1 } });
+    expect(result.nextBaseline).toEqual({ "/": { "color-contrast": 2 }, "/old": { label: 1 }, "/new": {} });
   });
 
   it("走査しなかったページの基線はそのまま残す", () => {
     const baseline: A11yBaseline = { "/unscanned": { label: 2 } };
     const result = ratchetA11y(baseline, [scan("/", [])]);
     expect(result.ok).toBe(true);
-    expect(result.nextBaseline).toEqual({ "/unscanned": { label: 2 } });
+    expect(result.nextBaseline).toEqual({ "/unscanned": { label: 2 }, "/": {} });
   });
 
   it("ページとルールの出力順は安定している（ページ→ルール名の辞書順）", () => {
@@ -83,6 +83,15 @@ describe("seedBaselineForNewPages", () => {
       scan("/new", [["color-contrast", 2, "serious"], ["empty", 0, null]]),
       scan("/clean", []),
     ]);
-    expect(seeded).toEqual({ "/": { "image-alt": 1 }, "/new": { "color-contrast": 2 } });
+    expect(seeded).toEqual({ "/": { "image-alt": 1 }, "/new": { "color-contrast": 2 }, "/clean": {} });
+  });
+
+  it("違反 0 で空になった既知ページは、再び違反が入っても seed で許容を増やさない", () => {
+    // 一度クリーンになったページは nextBaseline で {} として残る（レビュー指摘 1）
+    const cleaned = ratchetA11y({ "/": { "image-alt": 1 } }, [scan("/", [])]).nextBaseline;
+    expect(cleaned).toEqual({ "/": {} });
+    const seeded = seedBaselineForNewPages(cleaned, [scan("/", [["image-alt", 3, "critical"]])]);
+    expect(seeded).toEqual({ "/": {} });
+    expect(ratchetA11y(seeded, [scan("/", [["image-alt", 3, "critical"]])]).ok).toBe(false);
   });
 });

@@ -45,7 +45,11 @@ export interface A11yRatchetResult {
   readonly ok: boolean;
   readonly regressions: readonly A11yRegression[];
   readonly improvements: readonly A11yImprovement[];
-  /** 改善分だけ縮めた基線。回帰と 0 件のルールは含まない */
+  /**
+   * 改善分だけ縮めた基線。回帰と 0 件のルールは含まない。
+   * 走査したページは違反 0 でもキー（空オブジェクト）を残す。キーの有無が「既知のページか」を
+   * 表し、seedBaselineForNewPages が既存ページを新ページとして取り込み直すのを防ぐ。
+   */
   readonly nextBaseline: A11yBaseline;
 }
 
@@ -60,9 +64,7 @@ export function ratchetA11y(baseline: A11yBaseline, scans: readonly A11yScanResu
   // 走査しなかったページの基線は判定できないので、そのまま引き継ぐ
   const scannedPages = new Set(scans.map((s) => s.page));
   for (const [page, rules] of Object.entries(baseline)) {
-    if (!scannedPages.has(page) && Object.keys(rules).length > 0) {
-      nextBaseline[page] = { ...rules };
-    }
+    if (!scannedPages.has(page)) nextBaseline[page] = { ...rules };
   }
 
   for (const scan of scans) {
@@ -89,7 +91,7 @@ export function ratchetA11y(baseline: A11yBaseline, scans: readonly A11yScanResu
         improvements.push({ page: scan.page, id, nodes: 0, allowed });
       }
     }
-    if (Object.keys(next).length > 0) nextBaseline[scan.page] = next;
+    nextBaseline[scan.page] = next;
   }
 
   regressions.sort(byKey);
@@ -114,7 +116,8 @@ export function formatRatchetReport(result: A11yRatchetResult): string {
 
 /**
  * 基線に無いページの現状を取り込む（走査対象へページを足した時の 1 回だけの初期化）。
- * 既存ページのエントリは増やさない。基線を手で増やさない原則の唯一の入口。
+ * 既存ページ（違反 0 で空オブジェクトになったページを含む）のエントリは増やさない。
+ * 基線を手で増やさない原則の唯一の入口。
  */
 export function seedBaselineForNewPages(baseline: A11yBaseline, scans: readonly A11yScanResult[]): A11yBaseline {
   const seeded: A11yBaseline = { ...baseline };
@@ -124,7 +127,7 @@ export function seedBaselineForNewPages(baseline: A11yBaseline, scans: readonly 
     for (const v of scan.violations) {
       if (v.nodes > 0) rules[v.id] = (rules[v.id] ?? 0) + v.nodes;
     }
-    if (Object.keys(rules).length > 0) seeded[scan.page] = rules;
+    seeded[scan.page] = rules;
   }
   return seeded;
 }
