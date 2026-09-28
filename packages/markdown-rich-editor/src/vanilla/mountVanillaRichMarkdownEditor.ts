@@ -72,6 +72,9 @@ export function mountVanillaRichMarkdownEditor(
       Object.assign(current, patch);
       handle.update(patch);
     },
+    // AI 編集の識別表示（共用 UI 優先 3）: 台帳照合の結果を内側のハンドルへそのまま渡す
+    setAgentEdits: (targets) => handle.setAgentEdits(targets),
+    clearAgentEdits: () => handle.clearAgentEdits(),
     destroy: () => handle.destroy(),
   };
 }
