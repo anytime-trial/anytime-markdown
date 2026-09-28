@@ -132,3 +132,43 @@ describe('updateSection', () => {
     expect(content).not.toContain('Second');
   });
 });
+
+import { parseAgentEditLedger, resolveAgentEditLedgerPath } from '../../utils/agentEditLedger';
+import { computeSectionHash, listSections, upsertLockedSection } from '@anytime-markdown/section-lock-core';
+
+describe('updateSection agent edit ledger', () => {
+  let dir: string;
+  beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'section-ledger-')); });
+  afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }); });
+  it('records exactly one entry with the input path, heading and occurrence', async () => {
+    await fs.writeFile(path.join(dir, 'a.md'), '## A\n\nFirst\n\n## A\n\nSecond\n');
+    const before = Date.now();
+    await updateSection({ path: './a.md', heading: '## A', content: '## A\n\nNew\n', occurrence: 2 }, dir);
+    const entries = parseAgentEditLedger(await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8'));
+    expect(entries).toEqual([{ at: expect.any(String), path: './a.md', tool: 'update_section', heading: '## A', occurrence: 2 }]);
+    expect(new Date(entries[0].at).toISOString()).toBe(entries[0].at);
+    expect(Date.parse(entries[0].at)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(entries[0].at)).toBeLessThanOrEqual(Date.now());
+  });
+  it('does not append after lock rejection and omits unspecified occurrence', async () => {
+    const doc = '## A\n\nLocked\n\n## B\n\nFree\n';
+    const section = listSections(doc)[0];
+    const locked = upsertLockedSection(doc, { path: section.path, occurrence: 1, hash: computeSectionHash(doc, section), lockedAt: '2026-09-28T00:00:00.000Z', lockedBy: 'tester' });
+    await fs.writeFile(path.join(dir, 'a.md'), locked);
+    await updateSection({ path: 'a.md', heading: '## B', content: '## B\n\nEdited\n' }, dir);
+    const ledger = await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8');
+    expect(parseAgentEditLedger(ledger)).toEqual([{ at: expect.any(String), path: 'a.md', tool: 'update_section', heading: '## B' }]);
+    await expect(updateSection({ path: 'a.md', heading: '## A', content: '## A\n\nChanged\n' }, dir)).rejects.toThrow(/[Ss]ection lock/);
+    expect(await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8')).toBe(ledger);
+  });
+  it('preserves a successful document write when the ledger fails', async () => {
+    await fs.writeFile(path.join(dir, 'a.md'), '## A\n\nOld\n');
+    await fs.writeFile(path.join(dir, '.anytime'), 'occupied');
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(updateSection({ path: 'a.md', heading: '## A', content: '## A\n\nNew\n' }, dir)).resolves.toBeDefined();
+      expect(await fs.readFile(path.join(dir, 'a.md'), 'utf8')).toContain('New');
+      expect(error).toHaveBeenCalledTimes(1);
+    } finally { error.mockRestore(); }
+  });
+});

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { appendAgentEdit } from '../utils/agentEditLedger';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 import { assertNoLockViolation } from '../utils/sectionLockGuard';
 import { selectHeadingTarget } from '../utils/headingTarget';
@@ -106,6 +107,13 @@ export async function updateSection(
   const updated = updateSectionInText(content, input.heading, input.content, input.occurrence);
   assertNoLockViolation(content, updated, input.path);
   await fs.writeFile(filePath, updated, 'utf-8');
+  await appendAgentEdit(rootDir, {
+    at: new Date().toISOString(),
+    path: input.path,
+    tool: 'update_section',
+    heading: input.heading,
+    ...(input.occurrence !== undefined ? { occurrence: input.occurrence } : {}),
+  });
   return {
     path: input.path,
     heading: input.heading,

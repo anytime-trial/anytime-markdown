@@ -69,3 +69,20 @@ describe('formatMarkdownTool', () => {
     await expect(formatMarkdownTool({ path: '../escape.md' }, '/tmp/root')).rejects.toThrow('Access denied');
   });
 });
+
+import { parseAgentEditLedger, resolveAgentEditLedgerPath } from '../../utils/agentEditLedger';
+
+describe('formatMarkdown agent edit ledger', () => {
+  it('appends only for a fix that writes changed content', async () => {
+    await withTmpFile('a.md', 'intro\n# Title\nbody\n', async (dir) => {
+      await formatMarkdownTool({ path: './a.md', mode: 'check' }, dir);
+      await expect(fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+      await formatMarkdownTool({ path: './a.md', mode: 'fix' }, dir);
+      const ledger = await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8');
+      expect(parseAgentEditLedger(ledger)).toEqual([{ at: expect.any(String), path: './a.md', tool: 'format_markdown', heading: null }]);
+      await formatMarkdownTool({ path: './a.md', mode: 'fix' }, dir);
+      await formatMarkdownTool({ path: './a.md', mode: 'check' }, dir);
+      expect(await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8')).toBe(ledger);
+    });
+  });
+});
