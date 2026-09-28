@@ -28,6 +28,8 @@ export interface SidebarPanelsOptions {
   readonly isNoteGraphOpen: () => boolean;
   /** ノート網スロットは live prop のため getter で受ける（未指定なら何もしない）。 */
   readonly noteGraphSlot: () => NoteGraphSlot | undefined;
+  readonly getAgentEdits?: () => ReadonlyArray<{ headingIndex: number }>;
+  readonly onAcknowledgeAgentEdit?: (headingIndex: number) => void;
   readonly getSectionLocks: () => SectionLockUiEntry[];
   readonly onToggleSectionLock: (headingIndex: number) => void;
   readonly canToggleSectionLock: () => boolean;
@@ -45,6 +47,7 @@ export function installSidebarPanels(options: SidebarPanelsOptions): SidebarPane
     editor, t, sidebarSlot, contentEl,
     isOutlineOpen, isCommentOpen, isNoteGraphOpen, noteGraphSlot,
     getSectionLocks, onToggleSectionLock, canToggleSectionLock,
+    getAgentEdits, onAcknowledgeAgentEdit,
   } = options;
 
   let outlinePanel: { el: HTMLElement; destroy: () => void } | null = null;
@@ -60,6 +63,8 @@ export function installSidebarPanels(options: SidebarPanelsOptions): SidebarPane
         editorHeight: contentEl.clientHeight || 600,
         onOutlineClick: (pos) => editor.chain().focus().setTextSelection(pos).run(),
         hideResize: true,
+        getAgentEdits,
+        onAcknowledgeAgentEdit,
         getSectionLocks,
         onToggleSectionLock,
         canToggleSectionLock,
