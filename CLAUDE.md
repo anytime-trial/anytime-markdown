@@ -65,3 +65,10 @@ What 承認が要る場面では、AskUserQuestion を出す前に mcp-trail `re
 
 - 実装・修正・リファクタ・一気通貫、Codex / ollama への委譲、サブエージェント回転は `anytime-dev-cycle` スキルを基本として実行する。
 - 初回またはスキル更新後は `node .claude/skills/anytime-dev-cycle/preflight.cjs` を先に実行する。
+
+<!-- anytime-agent:dev-cycle-guidance v1 -->
+## 開発基本スキル（anytime-agent 拡張が管理・手動編集しない）
+
+- 開発指示（実装・修正・リファクタ・一気通貫、Codex / ollama への委譲、サブエージェント回転）は `anytime-dev-cycle` スキル（`.claude/skills/anytime-dev-cycle/`）を基本として実行する。入口 3 モード・工程ルート・ゲートは同スキルを参照する。
+- 初回またはスキル更新後は、本編前にプリフライト（`node .claude/skills/anytime-dev-cycle/preflight.cjs`）を必ず実行する。
+<!-- /anytime-agent:dev-cycle-guidance -->
