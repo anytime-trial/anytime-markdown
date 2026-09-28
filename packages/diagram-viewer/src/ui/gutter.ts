@@ -114,7 +114,7 @@ function createButton(doc: Document, spec: Spec, callbacks: GutterCallbacks): HT
   const button = el(doc, 'button', {
     className: `anytime-diagram-gutter-icon is-${spec.axis} ${spec.kind === 'remove' ? 'is-remove' : 'is-insert'}`,
     text: spec.kind === 'insert' ? '＋' : '−',
-    attrs: { type: 'button' },
+    attrs: { type: 'button', 'data-testid': 'diagram-gutter-gridline' },
   });
   button.addEventListener('click', () => callbacks.onEditGridLine(spec.axis, spec.index, spec.kind));
   return button;

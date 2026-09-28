@@ -117,7 +117,7 @@ export function createGroupDialogView(
   const lendAxis = (index: number): AxisRow => {
     const existing = axes[index];
     if (existing !== undefined) return existing;
-    const axisRoot = el(doc, 'div', { className: 'anytime-diagram-groupaxis' });
+    const axisRoot = el(doc, 'div', { className: 'anytime-diagram-groupaxis', attrs: { 'data-testid': 'diagram-groupdialog-axis-row' } });
     const axisHead = el(doc, 'div', { className: 'anytime-diagram-groupaxis-head' });
     const name = el(doc, 'input', { attrs: { type: 'text' } });
     const label = el(doc, 'label', { className: 'anytime-diagram-groupaxis-pick' });
@@ -146,7 +146,7 @@ export function createGroupDialogView(
   const lendValue = (axis: AxisRow, index: number): ValueRow => {
     const existing = axis.rows[index];
     if (existing !== undefined) return existing;
-    const row = el(doc, 'div', { className: 'anytime-diagram-groupvalue' });
+    const row = el(doc, 'div', { className: 'anytime-diagram-groupvalue', attrs: { 'data-testid': 'diagram-groupdialog-value-row' } });
     const name = el(doc, 'input', { attrs: { type: 'text' } });
     const remove = el(doc, 'button', { text: '×', attrs: { type: 'button' } });
     row.append(name, remove);

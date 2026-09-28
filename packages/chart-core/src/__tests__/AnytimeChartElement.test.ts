@@ -61,4 +61,36 @@ describe("<anytime-chart>", () => {
     expect(el.getAttribute("aria-label")).toContain("売上");
     el.remove();
   });
+
+  it("主 canvas に role=img と既定ラベルを付与する", () => {
+    const el = new AnytimeChartElement();
+    document.body.appendChild(el);
+    try {
+      const canvas = el.shadowRoot!.querySelector('canvas')!;
+      expect(el.shadowRoot!.querySelectorAll('canvas')).toHaveLength(1);
+      expect(canvas.getAttribute('role')).toBe('img');
+      expect(canvas.getAttribute('aria-label')).toBe('Chart');
+      expect(canvas.getAttribute('aria-hidden')).not.toBe('true');
+    } finally {
+      el.remove();
+    }
+  });
+
+  it("主 canvas のラベルがタイトルの設定・変更・削除に追従する", () => {
+    const el = new AnytimeChartElement();
+    el.spec = spec;
+    document.body.appendChild(el);
+    try {
+      const canvas = el.shadowRoot!.querySelector('canvas')!;
+      expect(canvas.getAttribute('aria-label')).toBe('Chart: 売上推移');
+      el.spec = { ...spec, title: '利益推移' };
+      expect(canvas.getAttribute('aria-label')).toBe('Chart: 利益推移');
+      el.spec = { ...spec, title: undefined };
+      expect(canvas.getAttribute('aria-label')).toBe('Chart');
+      el.spec = { ...spec, title: '' };
+      expect(canvas.getAttribute('aria-label')).toBe('Chart');
+    } finally {
+      el.remove();
+    }
+  });
 });

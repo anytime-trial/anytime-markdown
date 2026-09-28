@@ -57,8 +57,8 @@ export function createEdgeView(
   callbacks: EdgeCallbacks,
 ): EdgeView {
   const root = svg(doc, 'g');
-  const marriage = svg(doc, 'path', { class: 'edge-spouse', tabindex: '0', role: 'button' });
-  const descent = svg(doc, 'path', { tabindex: '0', role: 'button' });
+  const marriage = svg(doc, 'path', { class: 'edge-spouse', tabindex: '0', role: 'button', 'data-testid': 'diagram-edge-marriage' });
+  const descent = svg(doc, 'path', { tabindex: '0', role: 'button', 'data-testid': 'diagram-edge-descent' });
   /** いま指している家族の番号。描くたびに差し替える（押下はこの値を読む）。 */
   let index = -1;
   for (const path of [marriage, descent]) {

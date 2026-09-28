@@ -34,6 +34,7 @@ import {
   resolveEdgesForRender,
 } from '@anytime-markdown/graph-core/engine';
 import type { GuideLine } from '@anytime-markdown/graph-core/engine';
+import { createGraphT } from '../i18n/createGraphT';
 
 // ── ローカル型（React.RefObject を使わない MutableRef 相当） ──
 
@@ -274,7 +275,8 @@ export function createGraphCanvas(opts: Readonly<GraphCanvasOpts>): GraphCanvasH
   // ── DOM 生成 ──
   const canvas = document.createElement('canvas');
   canvas.tabIndex = 0;
-  if (opts.ariaLabel) canvas.setAttribute('aria-label', opts.ariaLabel);
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', opts.ariaLabel || createGraphT('Graph')('canvasLabel'));
   canvas.setAttribute('aria-roledescription', 'graph canvas');
   canvas.style.cssText = 'display:block;width:100%;height:100%';
 

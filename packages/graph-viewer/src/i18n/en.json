@@ -1,5 +1,6 @@
 {
   "Graph": {
+    "canvasLabel": "Graph canvas",
     "pageTitle": "Graph Editor",
     "select": "Select",
     "rect": "Rectangle",
