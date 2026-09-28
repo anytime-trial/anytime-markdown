@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { detectTrust, clipSegments, type TrustInfo } from '../utils/trustBoundary';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 import { selectHeadingTarget } from '../utils/headingTarget';
 import { extractHeadingsFromText } from './getOutline';
@@ -20,11 +21,11 @@ export interface GetSectionInput {
  * of the same or higher level, or end of document.
  * Throws when the heading is ambiguous (duplicates without occurrence).
  */
-export function getSectionFromText(
+export function getSectionRangeFromText(
   markdown: string,
   heading: string,
   occurrence?: number,
-): string | null {
+): { text: string; startLine: number; endLine: number } | null {
   const headingMatch = /^(#{1,6})\s+(\S.*)?$/.exec(heading);
   if (!headingMatch) return null;
 
@@ -49,23 +50,34 @@ export function getSectionFromText(
 
   const endLineIdx = nextHeading ? nextHeading.line - 1 : lines.length;
 
-  return lines.slice(startLineIdx, endLineIdx).join('\n');
+  return { text: lines.slice(startLineIdx, endLineIdx).join('\n'), startLine: startLineIdx + 1, endLine: endLineIdx };
+}
+
+export function getSectionFromText(markdown: string, heading: string, occurrence?: number): string | null {
+  return getSectionRangeFromText(markdown, heading, occurrence)?.text ?? null;
 }
 
 export async function getSection(input: GetSectionInput, rootDir: string): Promise<string> {
+  return (await getSectionWithTrust(input, rootDir)).text;
+}
+
+export async function getSectionWithTrust(input: GetSectionInput, rootDir: string): Promise<{ text: string; trust: TrustInfo }> {
   validateFileExtension(input.path, ALLOWED_EXTENSIONS);
   const filePath = resolveSecurePath(rootDir, input.path);
   const content = await fs.readFile(filePath, 'utf-8');
-  const section = getSectionFromText(content, input.heading, input.occurrence);
-  if (section === null) {
+  const range = getSectionRangeFromText(content, input.heading, input.occurrence);
+  if (range === null) {
     throw new Error(`Heading not found: ${input.heading}`);
   }
+  const trust = detectTrust(content);
+  trust.untrustedSegments = clipSegments(trust.untrustedSegments, range.startLine, range.endLine);
+  let section = range.text;
   if (input.maxChars !== undefined && input.maxChars > 0) {
     // サロゲートペア（絵文字等）の中間で切らないよう書記素寄り（コードポイント単位）に切る。
     const chars = Array.from(section);
     if (chars.length > input.maxChars) {
-      return chars.slice(0, input.maxChars).join('') + '\n…(truncated)';
+      section = chars.slice(0, input.maxChars).join('') + '\n…(truncated)';
     }
   }
-  return section;
+  return { text: section, trust };
 }
