@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-28
+
+### Added
+
+- `caravan_doctrine_judgments` gains three action-scope columns (instruction_id / tool_name / action_scope, all nullable) together with the ALTER statements that add them to existing databases.
+- New table `caravan_plan_snapshots` with its index stores plan fingerprints (one row per recording; sections_json holds one hash per heading section).
+
 ## [1.6.0] - 2026-09-26
 
 ### Changed

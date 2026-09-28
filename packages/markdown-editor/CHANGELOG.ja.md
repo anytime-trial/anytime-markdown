@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-28
+
+### 追加
+
+- AI が書き換えた節を識別表示する `agentEditPlugin` を追加した。ホストが `setAgentEdits` で見出し（行テキスト＋出現順）の一覧を渡すと、該当節のトップレベルノードへ `data-am-agent-edit="recent"` を付け、見出し末尾に 🤖 を併記する。人間がその節を編集する（ホスト起点の外部変更反映は除外）か、アウトラインの確認ボタンを押すとその節だけ解除される。編集はブロックしない（section-lock と役割を分ける）。色は新トークン `--am-color-agent-main`。表示対象は見出しの同一性（レベル・正規化テキスト・出現順）で持ち、描画のたびに解決し直す。
+- `markdown-rich-editor`: ラッパーハンドルと Web Component（`<anytime-markdown-editor>`）にも `setAgentEdits` / `clearAgentEdits` を通した。
+
+### セキュリティ
+
+- 他者・外部由来の本文（tweet 埋め込み・OGP カード・他者コメント本文）に信頼境界属性 `data-untrusted-content` を付与した。既存のサニタイズは置き換えない。
+
+### 修正
+
+- 本文 `role="textbox"` に aria-label（i18n `richEditor`）を付け、axe の `aria-input-field-name` 違反を解消した。
+
 ## [1.24.1] - 2026-09-22
 
 ### 変更

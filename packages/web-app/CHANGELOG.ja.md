@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-09-28
+
+### 追加
+
+- a11y ゲートを開発サイクルへ組み込んだ。eslint-plugin-jsx-a11y の静的検査を `**/*.tsx` に配線し、E2E では @axe-core/playwright で主要 13 ページを WCAG 2.x A/AA で走査して `e2e/a11y-baseline.json` と ratchet で判定する（増加のみ禁止。`A11Y_UPDATE_BASELINE=1` で基線を縮め、`A11Y_BASELINE_SEED=1` で新ページを取り込む）。
+
+### 変更
+
+- axe 基線の既存違反 92 ノードを 0 にした。press の朱と薄墨をコントラスト 5.2:1 以上へ調整（色相は維持）、MarkdownGuide のトピック一覧のリンクを MUI Link の配色に通し、エディタ本文と graph-viewer のアイコンボタンに aria-label を付けた。
+- 読込状態を data-state / aria-busy で同期した（MarkdownViewer / EditBody / GitHubRepoBrowser / TicketsRepoDialog / エディタ読込）。
+- グラフの canvas に role=img と aria-label を付けた。
+
+### セキュリティ
+
+- 他者・外部由来の本文（S3 記事の SSR HTML と対話ビューアの本文）に信頼境界属性 `data-untrusted-content` を付与した。境界は本文ノードに限り、ツールバー等の一次者 UI を含めない。
+
 ## [0.54.1] - 2026-09-23
 
 ### セキュリティ

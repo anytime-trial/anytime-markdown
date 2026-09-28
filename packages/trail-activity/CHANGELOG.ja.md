@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-28
+
+### 追加
+
+- `caravan_doctrine_judgments` に行動範囲検証の 3 列（instruction_id / tool_name / action_scope。いずれも NULL 許容）と、既存 DB へ足す ALTER 文を追加した。
+- プラン指紋を保存する `caravan_plan_snapshots` テーブルとインデックスを追加した（1 行 = 1 回の記録。sections_json に見出し節ごとのハッシュを持つ）。
+
 ## [1.6.0] - 2026-09-26
 
 ### 変更

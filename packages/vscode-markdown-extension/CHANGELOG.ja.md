@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-28
+
+### 追加
+
+- 外部変更の再読込時に AI 編集台帳（文書の祖先ディレクトリの `.anytime/markdown/agent-edits.jsonl`）を照合し、AI が書き換えた節を編集器へ渡して識別表示するようにした。文書を開いた時刻（以後は前回照合の時刻）より後の同一文書のエントリを見出し＋出現順で畳む。台帳が無い・読めない場合は従来どおり外部変更としてだけ扱い、AI 編集と偽らない。
+
+### 変更
+
+- 同梱スキルを更新した。`anytime-markdown-output` のルート外ファイルの手順を、目視確認から `npm run docs:format`（MCP と同じ整形規則と Section Lock ガードを持つ CLI）へ差し替えた。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- AI が書き換えた節を識別表示する。ホストが `setAgentEdits` で渡した見出しの節に `data-am-agent-edit="recent"` を付け、見出し末尾に 🤖 を併記する。人間がその節を編集するか、アウトラインの確認ボタンを押すとその節だけ解除される。編集はブロックしない。表示対象は見出しの同一性（レベル・正規化テキスト・出現順）で持ち、上に見出しが増減しても別の節へ表示が移らない。
+- 他者・外部由来の本文（tweet 埋め込み・OGP カード・他者コメント本文）に信頼境界属性 `data-untrusted-content` を付与した。
+- 本文 `role="textbox"` に aria-label を付け、axe の a11y 違反を解消した。
+
+### MCP Server (mcp-markdown)
+
+- 読取ツール（`get_section` / `search_docs` / `search_sections`）の応答に境界情報 `structuredContent.trust`（boundary: workspace / external / unknown と、節の行範囲へクリップした untrustedSegments）を載せる。本文テキストは変えない。
+- 書込ツール（`update_section` / `update_frontmatter` / `format_markdown` の fix）の実施を AI 編集台帳 `agent-edits.jsonl` へ追記する。追記に失敗しても成功済みの文書書込は失敗にしない。
+
 ## [1.24.3] - 2026-09-26
 
 ### 変更

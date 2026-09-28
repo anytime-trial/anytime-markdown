@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-28
+
+### Trail Core (trail-activity / mcp-trail / trail-viewer)
+
+- mcp-trail: doctrine judgments (`record_doctrine_judgment`) are linked to the Flight Record instruction. `caravan_doctrine_judgments` gains instruction_id / tool_name / action_scope (existing databases are migrated by additive ALTER), and the coverage gate escalates sessions that never declared an instruction with `instruction_unknown`. `record_delegated_approval` rejects judgments without an instruction_id.
+- mcp-trail: `list_instruction_judgments` lists the judgments belonging to one instruction. It opens the database read-only and reports missing tables or columns in sourceErrors instead of failing.
+- mcp-trail: `record_plan_snapshot` / `verify_plan_snapshot` record and verify a plan fingerprint. At the start of work the sha256 of each heading section of the plan file is stored in `caravan_plan_snapshots`; verification before resuming returns the sections a human changed as changed / removed / added.
+- trail-viewer: loading state is synchronised through data-state / aria-busy and loading indicators carry role=status. The non-modal information panels in c4Viewer changed from role=dialog to region and the loading overlay to status. The caravan body and the session prompt Markdown preview carry the trust-boundary attribute `data-untrusted-content`.
+
 ## [1.6.0] - 2026-09-26
 
 ### Added

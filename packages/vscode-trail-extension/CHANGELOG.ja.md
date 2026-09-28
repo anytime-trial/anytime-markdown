@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-28
+
+### Trail Core (trail-activity / mcp-trail / trail-viewer)
+
+- mcp-trail: 接地判断（`record_doctrine_judgment`）を Flight Record の指示へ結び付けた。`caravan_doctrine_judgments` に instruction_id / tool_name / action_scope を追加し（既存 DB は ALTER で純追加）、指示未宣言のセッションはカバレッジゲートが `instruction_unknown` で escalate する。`record_delegated_approval` は instruction_id の無い判断を拒否する。
+- mcp-trail: 指示単位で接地判断を一覧する `list_instruction_judgments` を追加した。読み取り専用で開き、テーブル・列の不在は sourceErrors に載せて空で返す。
+- mcp-trail: プラン指紋を記録・照合する `record_plan_snapshot` / `verify_plan_snapshot` を追加した。着手時にプランファイルの見出し節ごとの sha256 を `caravan_plan_snapshots` へ記録し、着手前の照合で人間が書き換えた節を changed / removed / added で返す。
+- trail-viewer: 読込状態を data-state / aria-busy で同期し、読込表示に role=status を付けた。c4Viewer の非モーダル情報パネルは role=dialog から region へ、読込オーバーレイは status へ改めた。caravan 本文とセッションプロンプトの Markdown プレビューに信頼境界属性 `data-untrusted-content` を付与した。
+
 ## [1.6.0] - 2026-09-26
 
 ### 追加
