@@ -32,6 +32,9 @@ function judgmentView(overrides: Partial<DoctrineJudgmentView> = {}): DoctrineJu
     underspecifiedPoints: [],
     pointResolutions: [],
     parseError: null,
+    instructionId: null,
+    toolName: null,
+    actionScope: null,
     ...overrides,
   };
 }

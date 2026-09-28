@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { handleListInstructionJudgments, ListInstructionJudgmentsInputSchema } from './tools/listInstructionJudgments';
 
 import { analyzeCurrentCodeWithProgress } from './client.js';
 import { probeServerAlive } from './probe.js';
@@ -356,6 +357,18 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   // -------------------------------------------------------------------------
   //  Flight Record: 指示（instruction）の宣言
   // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'list_instruction_judgments',
+    {
+      description: 'Return grounding judgments belonging to one Flight Record instruction in chronological order (subject / tool_name / action_scope / gate_verdict / human_decision / delegated_at). Lets humans audit whether MCP tool calls at the always stage stayed within the original instruction scope (DCT-13). Read-only.',
+      inputSchema: { ...ListInstructionJudgmentsInputSchema.shape },
+    },
+    async (args) => {
+      const result = await handleListInstructionJudgments(args);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    },
+  );
 
   server.registerTool(
     'list_open_instructions',

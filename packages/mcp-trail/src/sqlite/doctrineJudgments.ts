@@ -742,6 +742,9 @@ export function fetchResolvedPoints(
  * レコードを落とさず parseError へ落とす (1 件の破損で提示物全体を失わせない)。
  */
 export interface DoctrineJudgmentView {
+  readonly instructionId: string | null;
+  readonly toolName: string | null;
+  readonly actionScope: string | null;
   readonly id: number;
   readonly sessionId: string;
   readonly subject: string;
@@ -810,7 +813,27 @@ export function listDoctrineJudgmentsBySession(
   db: Database,
   sessionId: string,
 ): DoctrineJudgmentView[] {
+  return listDoctrineJudgments(db, 'session_id', sessionId);
+}
+
+/** Read instruction judgments without creating or migrating tables. */
+export function listDoctrineJudgmentsByInstruction(
+  db: Database,
+  instructionId: string,
+): DoctrineJudgmentView[] {
+  return listDoctrineJudgments(db, 'instruction_id', instructionId);
+}
+
+function listDoctrineJudgments(
+  db: Database,
+  filterColumn: 'session_id' | 'instruction_id',
+  filterValue: string,
+): DoctrineJudgmentView[] {
   const columns = tableColumns(db, 'caravan_doctrine_judgments');
+  if (!columns.has(filterColumn)) return [];
+  const metadataExpr = ['instruction_id', 'tool_name', 'action_scope']
+    .map(column => columns.has(column) ? column : `NULL AS ${column}`)
+    .join(', ');
   if (columns.size === 0) {
     return [];
   }
@@ -828,12 +851,15 @@ export function listDoctrineJudgmentsBySession(
     .prepare(
       `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
               ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at,
-              ${delegatedAtExpr}, ${underspecifiedExpr}
+              ${delegatedAtExpr}, ${underspecifiedExpr}, ${metadataExpr}
          FROM caravan_doctrine_judgments
-        WHERE session_id = ?
+        WHERE ${filterColumn} = ?
         ORDER BY judged_at ASC, id ASC`,
     )
-    .all(sessionId) as Array<{
+    .all(filterValue) as Array<{
+    instruction_id: string | null;
+    tool_name: string | null;
+    action_scope: string | null;
     id: number;
     session_id: string;
     subject: string;
@@ -878,6 +904,9 @@ export function listDoctrineJudgmentsBySession(
       (e): e is string => e !== null,
     );
     return {
+      instructionId: row.instruction_id,
+      toolName: row.tool_name,
+      actionScope: row.action_scope,
       id: row.id,
       sessionId: row.session_id,
       subject: row.subject,
