@@ -61,11 +61,6 @@ What 承認が要る場面では、AskUserQuestion を出す前に mcp-trail `re
 
 `.claude/skills/` の規約系スキルは description のトリガに応じて参照する: `anytime-doc-authoring`（ドキュメント執筆）/ `i18n-naming`（i18n キー）/ `screen-design`（UI）/ `sqlite-table-definition-trail-activity`（activity.db のテーブル定義）/ `anytime-trail-review`（レビュー書式）/ `vanilla-ui-conventions`（markdown-editor）/ `production-release`（リリース）。90 日発火ゼロのスキル（`deploy-cms-remote` / `supabase-schema-sync` / `prosemirror-conventions` / `weekly-research` / `daily-research`）は `.claude/skills-archive/` に退避してあり自動発火しない。該当作業ではパス指定で Read する（起動時文脈の圧縮。2026-09-26）。
 
-## 開発基本スキル（anytime-agent 拡張が管理・手動編集しない）
-
-- 実装・修正・リファクタ・一気通貫、Codex / ollama への委譲、サブエージェント回転は `anytime-dev-cycle` スキルを基本として実行する。
-- 初回またはスキル更新後は `node .claude/skills/anytime-dev-cycle/preflight.cjs` を先に実行する。
-
 <!-- anytime-agent:dev-cycle-guidance v1 -->
 ## 開発基本スキル（anytime-agent 拡張が管理・手動編集しない）
 
