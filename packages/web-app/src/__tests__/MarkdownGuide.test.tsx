@@ -171,3 +171,70 @@ describe("MarkdownGuide", () => {
     expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
   });
 });
+
+/**
+ * サーバーコンポーネントが返す要素木の props が RSC の境界を越えられるか。
+ *
+ * MUI のコンポーネントはすべてクライアントコンポーネントなので、`MarkdownGuide` が
+ * それらへ渡す props は直列化できる値（プリミティブ・配列・素のオブジェクト・
+ * React 要素）に限られる。関数や forwardRef / memo のようなコンポーネント参照を
+ * 渡すと、jest の render は通るのに実行時は `Functions cannot be passed directly to
+ * Client Components` で `/markdown` が 500 になる（2026-09-28 のリリース検証で
+ * `<MuiLink component={Link}>` により実際に起きた）。
+ */
+const REACT_ELEMENT_TYPES = new Set([
+  Symbol.for("react.element"),
+  Symbol.for("react.transitional.element"),
+]);
+
+function collectNonSerializableProps(node: unknown, path: string, out: string[]): void {
+  if (Array.isArray(node)) {
+    node.forEach((child, i) => collectNonSerializableProps(child, `${path}[${i}]`, out));
+    return;
+  }
+  if (!React.isValidElement(node)) return;
+  const typeName =
+    typeof node.type === "string"
+      ? node.type
+      : ((node.type as { displayName?: string; name?: string }).displayName ??
+        (node.type as { name?: string }).name ??
+        "anonymous");
+  const props = node.props as Record<string, unknown>;
+  for (const [key, value] of Object.entries(props)) {
+    if (key === "children") continue;
+    if (!isSerializable(value)) out.push(`${path}<${typeName}>.${key}`);
+  }
+  collectNonSerializableProps(props.children, `${path}<${typeName}>`, out);
+}
+
+function isSerializable(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  const t = typeof value;
+  if (t === "string" || t === "number" || t === "boolean") return true;
+  if (t === "function") return false;
+  if (t !== "object") return false;
+  if (Array.isArray(value)) return value.every(isSerializable);
+  const tagged = value as { $$typeof?: symbol };
+  if (tagged.$$typeof !== undefined) {
+    // React 要素は可（その props は再帰で検査）。forwardRef / memo / lazy 等の
+    // コンポーネント参照は不可
+    if (!REACT_ELEMENT_TYPES.has(tagged.$$typeof)) return false;
+    const out: string[] = [];
+    collectNonSerializableProps(value, "", out);
+    return out.length === 0;
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return false;
+  return Object.values(value as Record<string, unknown>).every(isSerializable);
+}
+
+describe("MarkdownGuide (server → client boundary)", () => {
+  it("passes only serializable props to the client components it renders", async () => {
+    activeMessages = jaMessages;
+    activeTopics = topicJaMessages;
+    const element = await MarkdownGuide();
+    const violations: string[] = [];
+    collectNonSerializableProps(element, "", violations);
+    expect(violations).toEqual([]);
+  });
+});

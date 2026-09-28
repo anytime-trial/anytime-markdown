@@ -1,8 +1,8 @@
-import { Box, Container, Divider, Link as MuiLink, Stack, Typography } from '@mui/material';
+import { Box, Container, Divider, Stack, Typography } from '@mui/material';
 import { getTranslations } from 'next-intl/server';
 
-import { Link } from '../../../i18n/navigation';
 import { FaqJsonLd, type QandA } from './structuredData';
+import { TopicLink } from './TopicLink';
 import { TOPIC_SLUGS, topicPath } from './topics';
 
 /**
@@ -92,10 +92,9 @@ export async function MarkdownGuide() {
             <Stack component="ul" spacing={1} sx={{ pl: 3, m: 0 }}>
               {TOPIC_SLUGS.map((slug) => (
                 <Box component="li" key={slug}>
-                  {/* 素の <a> はブラウザ既定の #0000EE でダーク地とのコントラストが 2.01:1 になるため MUI Link の配色を通す */}
-                  <MuiLink component={Link} href={topicPath(slug)}>
-                    {tTopics(`${slug}.linkLabel`)}
-                  </MuiLink>
+                  {/* MUI Link の配色を通す（素の <a> はダーク地で 2.01:1）。サーバー → クライアント境界を
+                      越えるのは href と文字列だけにする（TopicLink 参照） */}
+                  <TopicLink href={topicPath(slug)}>{tTopics(`${slug}.linkLabel`)}</TopicLink>
                 </Box>
               ))}
             </Stack>
