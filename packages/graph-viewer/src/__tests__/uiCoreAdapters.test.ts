@@ -81,6 +81,18 @@ describe('tooltip（アイコンボタンの aria-label 補完）', () => {
     wrapper.remove();
   });
 
+  it('同じボタンへ呼び直すと、自分が付けた aria-label を新しい title へ更新する（動的ツールチップ）', () => {
+    const btn = document.createElement('button');
+    document.body.appendChild(btn);
+    const h1 = tooltip(btn, 'Auto layout: Force');
+    expect(btn.getAttribute('aria-label')).toBe('Auto layout: Force');
+    const h2 = tooltip(btn, 'Auto layout: Tree');
+    expect(btn.getAttribute('aria-label')).toBe('Auto layout: Tree');
+    h1.destroy();
+    h2.destroy();
+    btn.remove();
+  });
+
   it('既に aria-label か可視テキストを持つボタンは変えない', () => {
     const labeled = document.createElement('button');
     labeled.setAttribute('aria-label', 'Pan');

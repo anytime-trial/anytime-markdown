@@ -249,10 +249,17 @@ export interface TooltipHandle {
 export function tooltip(target: HTMLElement, title: string): TooltipHandle {
   // ツールチップは hover でしか読めないため、対象（またはラッパー内）のアイコンボタンに
   // アクセシブル・ネームが無ければ title を aria-label として補う（design.md 11.1・axe button-name）。
-  // 既に aria-label か可視テキストを持つボタンには触らない。
+  // 呼び出し側が付けた aria-label や可視テキストには触らない。自分が付けたラベル
+  // （data-gv-tooltip-label マーカー）は、同じボタンへ tooltip() が呼び直されたとき
+  // （ToolBar の updateAutoLayoutTooltip 等・文言が動的に変わる）に追従して更新する。
   const btn = target instanceof HTMLButtonElement ? target : target.querySelector('button');
-  if (btn && !btn.hasAttribute('aria-label') && !btn.hasAttribute('aria-labelledby') && !(btn.textContent ?? '').trim()) {
-    btn.setAttribute('aria-label', title);
+  if (btn) {
+    const ownLabel = btn.hasAttribute('data-gv-tooltip-label');
+    const unlabeled = !btn.hasAttribute('aria-label') && !btn.hasAttribute('aria-labelledby') && !(btn.textContent ?? '').trim();
+    if (ownLabel || unlabeled) {
+      btn.setAttribute('aria-label', title);
+      btn.setAttribute('data-gv-tooltip-label', '');
+    }
   }
   const t = createTooltip({ reference: target, title, placement: 'top' });
   t.el.style.cssText +=
