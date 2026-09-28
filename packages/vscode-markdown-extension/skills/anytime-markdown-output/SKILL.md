@@ -6,7 +6,7 @@ description: "<docsRoot>/ 配下の Markdown（spec/tech/test/manual/proposal/pl
 
 # Claude Code Markdown 出力仕様
 
-更新日: 2026-08-22
+更新日: 2026-09-28
 
 > type 別の記載内容（何を書くか）・索引 `index.[lang].md` 運用は `anytime-doc-authoring` スキル、既存設計書の読み方・低トークン検索は `anytime-markdown-usage` スキル（旧 `anytime-spec-lookup` を統合）を参照。本スキルは構文・フロントマター・整形（どう書くか）と、出力後の検証（§10。旧 `anytime-markdown-check` を統合）を扱う。
 
@@ -655,14 +655,15 @@ type 別の記載内容（component spec の外部仕様原則・spec/e2e 2 フ�
 
 見出し前後の空行（上1・下1）・箇条書き/テーブル/引用の前後空行・連続空行の圧縮（最大2）・インデントのタブ→4スペース・行末空白除去・テーブルセル内コードスパンのパイプエスケープは **`format_markdown` が決定論的に自動修正**する。手動で確認・修正しない。
 
-- [ ] mcp-markdown の `format_markdown(path, mode="fix")` を実行する（**MCP ルート配下のファイルのみ**。ルート外は下記の代替手順へ）
+- [ ] MCP ルート（`/anytime-markdown`）配下なら mcp-markdown の `format_markdown(path, mode="fix")`、ルート外（`<docsRoot>` 等）なら `npm run docs:format -- <path>` を実行する（同じ規則。下記参照）
 - [ ] 返り値の `warnings` を確認する（§10.3 の自動修正されない項目に対応）
 
 > [!IMPORTANT]
 > `format_markdown` が操作できるのは **MCP サーバーのルート配下の `.md` だけ**。ルートは `ANYTIME_MARKDOWN_ROOT`（未設定ならサーバーの `cwd`）で決まり、anytime-markdown では `/anytime-markdown` である。\
 > **`<docsRoot>` はルート外**で、呼ぶと `Access denied: path outside root directory` を返す（2026-08-14 実測）。設計書・提案・レポート・レビューの出力先は大半がここなので、**ルート外が既定だと考えて手順を選ぶ**。\
 > フォールバックだった `~/.claude/scripts/validate-markdown.sh` は**実在しない**（同日実測。実行すると `No such file or directory` で落ちる）。\
-> **ルート外のファイルの検証手順**: (1) フロントマターの必須キー（`title` / `date` / `type` / `lang` ＋ type 別の必須キー。§2.1）が揃っているか目視確認する、(2) §10.2〜10.3 のチェックリストを手動で適用する。機械的整形は適用されないため、見出し前後の空行・テーブル整形は書く時点で揃える。
+> **ルート外のファイルの整形・検証手順**（2026-09-28 追加）: コードリポジトリ root で `npm run docs:format -- <path>...`（書き込み）または `npm run docs:format:check -- <path>...`（検出のみ。変更ありなら exit 1）を実行する。`scripts/format-docs.mjs` が MCP と同じ `formatMarkdown`（markdown-engine）を呼ぶため規則は同一で、ディレクトリを渡すと `*.md` を再帰処理する。返り値の `warn` 行は §10.3 の手動項目に対応する。\
+> そのうえで (1) フロントマターの必須キー（`title` / `date` / `type` / `lang` ＋ type 別の必須キー。§2.1）を目視確認し、(2) §10.2〜10.3 のチェックリストを手動で適用する。
 
 ### 10.2 構文・記法（意味判断・手動）
 
