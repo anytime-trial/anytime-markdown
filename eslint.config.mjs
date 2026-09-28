@@ -1,6 +1,7 @@
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import nextPlugin from "@next/eslint-plugin-next";
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import sonarjs from "eslint-plugin-sonarjs";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 
@@ -55,6 +56,18 @@ export default tseslint.config(
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+  // アクセシビリティ（design.md 11 章「アクセシビリティと機械可読性」11.4 の静的検査層）。
+  // JSX の属性だけを見る。MUI 内部や vanilla DOM の問題は web-app の e2e/a11y.spec.ts（axe）が担う。
+  {
+    files: ["**/*.tsx"],
+    plugins: { "jsx-a11y": jsxA11y },
+    rules: {
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // ダイアログの初期フォーカスは design.md 11.1 の要件。MUI の TextField / Button 等
+      // （非 DOM 要素）の autoFocus prop は対象外にし、素の DOM 要素だけを検査する。
+      "jsx-a11y/no-autofocus": ["error", { ignoreNonDOM: true }],
     },
   },
   // Next.js recommended rules (web-app only)

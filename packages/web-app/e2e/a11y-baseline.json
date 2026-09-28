@@ -1,0 +1,12 @@
+{
+  "/": {
+    "color-contrast": 67
+  },
+  "/markdown": {
+    "aria-input-field-name": 1,
+    "color-contrast": 5
+  },
+  "/graph": {
+    "button-name": 14
+  }
+}
