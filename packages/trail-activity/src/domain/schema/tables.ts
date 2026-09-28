@@ -778,8 +778,21 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS caravan_doc
   -- 空 = 「この指示だけで結論は一意に定まる」と言い切った宣言。事後に原因を分類させると
   -- 測られる側が自分に有利な原因を選べるため、事前申告に倒して後から覆せなくする
   ${UNDERSPECIFIED_POINTS_COLUMN},
+  -- 行動範囲検証（共用 UI 優先 3・FR-04）: 判断が属する Flight Record の指示 ID（記録時に
+  -- caravan_instruction_sessions からセッション経由で解決。未宣言なら NULL）、承認対象の
+  -- MCP ツール名（always 段階の操作で申告）、何をどこへ行うかの 1 行要約。
+  -- いずれも NULL 許容: 指示未宣言はゲート側が instruction_unknown で escalate 済みで、
+  -- 列の NULL は「宣言が無かった」事実そのものを保存する
+  instruction_id TEXT,
+  tool_name TEXT,
+  action_scope TEXT,
   UNIQUE (session_id, subject)
 ) STRICT`;
+
+/** 既存 DB へ行動範囲検証の 3 列を足す ALTER（純追加・既存行は NULL のまま）。 */
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_INSTRUCTION_ID = `ALTER TABLE caravan_doctrine_judgments ADD COLUMN instruction_id TEXT`;
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_TOOL_NAME = `ALTER TABLE caravan_doctrine_judgments ADD COLUMN tool_name TEXT`;
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_ACTION_SCOPE = `ALTER TABLE caravan_doctrine_judgments ADD COLUMN action_scope TEXT`;
 
 /**
  * 既存 DB へ `delegated_at` を足す ALTER。CHECK 制約を CREATE 側と同一に保つため、

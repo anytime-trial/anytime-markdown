@@ -2,7 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
 import {
+  ALTER_DOCTRINE_JUDGMENTS_ADD_ACTION_SCOPE,
   ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT,
+  ALTER_DOCTRINE_JUDGMENTS_ADD_INSTRUCTION_ID,
+  ALTER_DOCTRINE_JUDGMENTS_ADD_TOOL_NAME,
   ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
@@ -30,6 +33,15 @@ export interface DoctrineJudgmentInput {
    * 「この指示だけで結論は一意に定まる」という宣言として記録される。
    */
   readonly underspecifiedPoints?: ReadonlyArray<string>;
+  /**
+   * 行動範囲検証（FR-04）: 判断が属する Flight Record の指示 ID。呼び出し側がセッションから
+   * 解決して渡す。未宣言は null（列も NULL。「宣言が無かった」事実を保存する）。
+   */
+  readonly instructionId?: string | null;
+  /** 承認対象の MCP ツール名（always 段階の操作で申告。例: upload_doc）。 */
+  readonly toolName?: string | null;
+  /** 何をどこへ行うかの 1 行要約。 */
+  readonly actionScope?: string | null;
 }
 
 export interface DoctrineJudgmentRecordResult {
@@ -141,6 +153,10 @@ const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string
     name: 'underspecified_points_json',
     ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   },
+  // 行動範囲検証（共用 UI 優先 3・FR-04）。純追加・NULL 許容
+  { name: 'instruction_id', ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_INSTRUCTION_ID },
+  { name: 'tool_name', ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_TOOL_NAME },
+  { name: 'action_scope', ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_ACTION_SCOPE },
 ];
 
 export function ensureDoctrineJudgmentsTable(db: Database): void {
@@ -426,8 +442,9 @@ export function recordDoctrineJudgmentDirect(
     `INSERT INTO caravan_doctrine_judgments (
        session_id, subject, agent_judgment, coverage, citations_json,
        citation_count, resolved_count, gate_verdict, gate_reasons_json,
-       underspecified_points_json, judged_at, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       underspecified_points_json, instruction_id, tool_name, action_scope,
+       judged_at, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(session_id, subject) DO UPDATE SET
        agent_judgment = excluded.agent_judgment,
        coverage = excluded.coverage,
@@ -449,6 +466,9 @@ export function recordDoctrineJudgmentDirect(
          THEN underspecified_points_json
          ELSE excluded.underspecified_points_json
        END,
+       instruction_id = excluded.instruction_id,
+       tool_name = excluded.tool_name,
+       action_scope = excluded.action_scope,
        judged_at = excluded.judged_at,
        human_decision = NULL,
        decided_at = NULL,
@@ -465,6 +485,9 @@ export function recordDoctrineJudgmentDirect(
     input.gate === undefined ? null : input.gate.verdict,
     input.gate === undefined ? null : JSON.stringify(input.gate.reasons),
     JSON.stringify(mergedPoints ?? []),
+    input.instructionId ?? null,
+    input.toolName ?? null,
+    input.actionScope ?? null,
     judgedAt,
     now,
     now,

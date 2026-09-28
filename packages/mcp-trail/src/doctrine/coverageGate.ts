@@ -16,6 +16,7 @@ export type GateReason =
   | 'restricted_area'
   | 'operation_kind_unknown'
   | 'always_human_operation'
+  | 'instruction_unknown'
   | 'severity_unknown'
   | 'severity_high'
   | 'doctrine_conflict'
@@ -42,6 +43,13 @@ export interface CoverageGateInput {
   readonly operationKind?: OperationKind | undefined;
   /** ODD Policy Registry の解決結果（Phase 7-A）。`invalid` は判定不能として escalate */
   readonly odd: OddResolution;
+  /**
+   * 判断を記録するセッションが Flight Record の指示（record_instruction）を宣言済みか
+   * （共用 UI 優先 3・FR-05「行動範囲検証」）。`true` 以外（false / 未指定）は
+   * `instruction_unknown` で escalate する。「何の指示の範囲内か」が無い判断は行動範囲を
+   * 検証できず、代行の前提を欠くため fail-closed に倒す。
+   */
+  readonly instructionDeclared?: boolean | undefined;
   /**
    * 指示から一意に定まらない論点の事前申告 (DCT-14)。非空は escalate。
    * **未指定は判定不能として escalate**（他 3 軸と同じ fail-closed）。空配列を
@@ -103,6 +111,11 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
   }
   if (ALWAYS_HUMAN_OPERATIONS.has(input.operationKind)) {
     return escalate('always_human_operation');
+  }
+  // FR-05: 指示未宣言のセッションの判断は代行しない。操作種別の直後・重大度の前に置く
+  // （絶対軸のうち「指示を宣言すれば解消できる」側で、severity_high より先に理由を残す）
+  if (input.instructionDeclared !== true) {
+    return escalate('instruction_unknown');
   }
   if (input.severity === undefined) {
     return escalate('severity_unknown');
