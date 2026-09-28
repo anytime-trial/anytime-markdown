@@ -1,6 +1,6 @@
 # ドクトリン接地判断と What 承認の代行（D2）— 手順書
 
-更新日: 2026-09-26（`CLAUDE.md` から移設。What 承認に入る時点で Read する。常時ロードしない）
+更新日: 2026-09-28（手順 6〜8 を追加。`CLAUDE.md` から移設。What 承認に入る時点で Read する。常時ロードしない）
 
 中間承認（What 承認）をドクトリンへ接地した判断へ段階移行する。2026-08-05 に人の承認で D2（低重大度・高可逆な What 承認の代行）へ昇格した（昇格時の実測: 母数 27 件・一致率 93.3%・引用解決率 97.1%・代行可能率 41.7%）。正本は `<docsRoot>/spec/31.trail/16.doctrine-judgment/doctrine-judgment.ja.md` と `<docsRoot>/spec/31.trail/18.coverage-gate/coverage-gate.ja.md`。
 
@@ -16,6 +16,9 @@
 3. **常に人へ聞く操作は `operation_kind` でゲートに申告する**（global `~/.claude/CLAUDE.md`「承認の対象」の例外項目）。`code_change` 以外（`dependency_change` / `destructive_git` / `remote_push` / `production_release` / `persistent_data_write`）はゲートが `always_human_operation` で必ず `escalate` する。これらを散文の遵守に頼らないのは、パッケージ追加・push・リリース・破壊的 git がパスに現れず `target_paths` では原理的に表現できないためである。ワークスペース内の設定・依存マニフェスト（`package.json` / `package-lock.json` / `.mcp.json` / `.claude/settings*` / `.git/` / `.github/`）はパスで表現できるので制限領域として `restricted_area` で escalate する。
 4. 記録失敗（TrailDataServer 未起動・DB 不在等）は承認フローを止めず、失敗した事実を応答に 1 行残す（silent skip 禁止）。**ただし代行の記録に失敗した場合は代行しない**（記録の無い代行は監査できないため、人へ聞く側へ倒す）。
 5. session_id は airspace クレームファイル（`.git/anytime/claims/`）の自セッション ID を使う。
+6. **指示の宣言が前提**（2026-09-28・共用 UI 優先 3）: `record_instruction` で指示を宣言していないセッションの判断は、ゲートが `instruction_unknown` で必ず `escalate` する（代行不成立）。判断行には解決した `instruction_id` が保存され、`record_delegated_approval` は指示に紐づかない判断を拒否する。
+7. **always 段階の MCP ツール**（`spec/35.mcp/04.tool-irreversibility` の分類表: `upload_doc` / `delete_doc` / `create_ticket` / tags 省略の `analyze_release_code` 等）を呼ぶ前は、`record_doctrine_judgment` に `tool_name` と `action_scope`（何をどこへ行うかの 1 行）を申告する。`operation_kind` は `persistent_data_write` 等の常時人へ聞く種別を申告する。人の承認後に実行し、事後の監査は `list_instruction_judgments` で指示単位に見る。
+8. **プランの照合**（任意・FR-11）: プランに沿って複数タスクを実行するときは着手時に `record_plan_snapshot` で節指紋を記録し、各タスクの前に `verify_plan_snapshot` で照合する。changed / removed / added があれば続行せず差分を提示して再確認する。
 
 ## 監視と差し戻し
 
