@@ -529,6 +529,7 @@ interface JudgmentLookupRow {
   readonly human_decision: HumanDecision | null;
   readonly delegated_at: string | null;
   readonly underspecified_points_json: string;
+  readonly instruction_id: string | null;
 }
 
 /**
@@ -539,7 +540,7 @@ function findJudgmentRow(
   db: Database,
   key: { readonly id?: number; readonly sessionId?: string; readonly subject?: string },
 ): JudgmentLookupRow {
-  const columns = `id, agent_judgment, gate_verdict, human_decision, delegated_at, underspecified_points_json`;
+  const columns = `id, agent_judgment, gate_verdict, human_decision, delegated_at, underspecified_points_json, instruction_id`;
   let row: JudgmentLookupRow | undefined;
   let keyLabel: string;
   if (key.id !== undefined) {
@@ -594,6 +595,13 @@ export function recordDelegatedApprovalDirect(
   }
   if (row.human_decision !== null) {
     throw new Error('cannot delegate: human decision already recorded for this judgment');
+  }
+  if (row.instruction_id === null) {
+    // FR-05 の移行期バックストップ: 列追加前に delegable で記録された判断は
+    // instruction_unknown を通っていない。宣言の無い判断は代行させない（レビュー指摘 #2）
+    throw new Error(
+      'cannot delegate: judgment is not linked to a Flight Record instruction (re-record after record_instruction)',
+    );
   }
   if (row.delegated_at !== null) {
     // 最初の記録が勝つ。再呼び出しを例外にせず no-op にするのは、記録の再送 (通信断後の

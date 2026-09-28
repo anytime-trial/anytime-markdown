@@ -28,6 +28,8 @@ function judgment(overrides: Partial<DoctrineJudgmentInput> = {}): DoctrineJudgm
     judgment: 'approve',
     coverage: 'covered',
     citations: [resolvedCitation()],
+    // FR-05 以降、代行は指示に紐づく判断だけが対象（未紐づけは recordDelegatedApprovalDirect が拒否）
+    instructionId: 'instr-test',
     ...overrides,
   };
 }
@@ -75,7 +77,7 @@ describe('doctrineJudgments', () => {
       action_scope: 'report/x.md を S3 へ公開する',
     });
     // 再記録で指示なしに戻すと列も NULL（宣言の不在をそのまま保存する）
-    recordDoctrineJudgmentDirect(db, judgment());
+    recordDoctrineJudgmentDirect(db, judgment({ instructionId: null }));
     const again = db
       .prepare('SELECT instruction_id, tool_name, action_scope FROM caravan_doctrine_judgments')
       .get() as { instruction_id: string | null; tool_name: string | null; action_scope: string | null };

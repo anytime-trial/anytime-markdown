@@ -54,13 +54,36 @@ it('resolves level and occurrence and ignores unresolved targets', () => {
 });
 it('reports each section once using original coordinates across multiple steps', () => {
   const onHumanEdit = jest.fn();
-  editor.registerPlugin(createAgentEditPlugin({ getUiState: () => [{ headingIndex: 1 }, { headingIndex: 2 }], onHumanEdit }));
+  const A = { level: 2, text: 'A', occurrence: 1 };
+  const B = { level: 2, text: 'B', occurrence: 1 };
+  editor.registerPlugin(createAgentEditPlugin({ getUiState: () => [A, B], onHumanEdit }));
   const tr = editor.state.tr;
   tr.insertText('long insertion', position('alpha'));
   tr.insertText('Y', tr.mapping.map(position('beta')));
   tr.insertText('Z', tr.mapping.map(position('alpha')));
   editor.view.dispatch(tr);
-  expect(onHumanEdit.mock.calls).toEqual([[1], [2]]);
+  expect(onHumanEdit.mock.calls).toEqual([[A], [B]]);
+});
+it('keeps the mark on the same section when a heading is inserted above (review #1)', () => {
+  const controller = installAgentEdits({ editor });
+  controller.set([{ heading: '## B' }]);
+  expect(controller.getUi()).toEqual([{ headingIndex: 2 }]);
+  // 人が上の節（A の本文末尾）に見出しを挿入する: B の index は 2 → 3 へずれる
+  editor.commands.insertContentAt(position('alpha') + 5, '<h2>Inserted</h2>');
+  expect(controller.getUi()).toEqual([{ headingIndex: 3 }]);
+  expect(decorated()).toEqual(['B', 'beta']);
+  // 外部変更の再読込で上に見出しが増えても同じ
+  setContentBypassingSectionLock(editor, content.replace('<h2>A</h2>', '<h2>New</h2><p>n</p><h2>A</h2>'));
+  expect(decorated()).toEqual(['B', 'beta']);
+  controller.dispose();
+});
+it('matches headings that contain inline markdown such as code spans (review #5)', () => {
+  editor.destroy();
+  editor = new Editor({ extensions: [StarterKit], content: '<h2><code>get_section</code> tool</h2><p>body</p>' });
+  const controller = installAgentEdits({ editor });
+  controller.set([{ heading: '## `get_section` tool' }]);
+  expect(decorated()).toEqual(['get_section tool', 'body']);
+  controller.dispose();
 });
 it('detects mark changes with empty step maps', () => {
   const controller = installAgentEdits({ editor });

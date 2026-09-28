@@ -1,6 +1,10 @@
 // 行動範囲検証（共用 UI 優先 3・FR-04/05）: 判断行の指示連結と、既存 DB への列追加。
 import BetterSqlite3, { type Database } from 'better-sqlite3';
-import { ensureDoctrineJudgmentsTable } from '../../sqlite/doctrineJudgments';
+import {
+  ensureDoctrineJudgmentsTable,
+  recordDelegatedApprovalDirect,
+  recordDoctrineJudgmentDirect,
+} from '../../sqlite/doctrineJudgments';
 import { findInstructionIdForSession, openInstructionDirect, continueInstructionDirect } from '../../sqlite/instructions';
 
 describe('doctrine judgments × instruction linkage', () => {
@@ -46,6 +50,25 @@ describe('doctrine judgments × instruction linkage', () => {
     expect(findInstructionIdForSession(db, 'session-x')).toBeNull();
     const tables = db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all();
     expect(tables).toEqual([]);
+  });
+
+  it('指示に紐づかない delegable 判断は代行を拒否し、紐づく判断は代行できる（レビュー #2）', () => {
+    ensureDoctrineJudgmentsTable(db);
+    const citation = {
+      docPath: '/docs/x.md', section: 's', quote: 'q', resolved: true, reason: 'ok', approval: 'canon',
+    } as const;
+    const gate = { verdict: 'delegable', reasons: [] } as const;
+    recordDoctrineJudgmentDirect(db, {
+      sessionId: 'legacy', subject: 'pre-migration', judgment: 'approve', coverage: 'covered', citations: [citation], gate,
+    });
+    expect(() => recordDelegatedApprovalDirect(db, { sessionId: 'legacy', subject: 'pre-migration' })).toThrow(
+      /not linked to a Flight Record instruction/,
+    );
+    recordDoctrineJudgmentDirect(db, {
+      sessionId: 'linked', subject: 'ok', judgment: 'approve', coverage: 'covered', citations: [citation], gate,
+      instructionId: 'i-1',
+    });
+    expect(recordDelegatedApprovalDirect(db, { sessionId: 'linked', subject: 'ok' }).alreadyDelegated).toBe(false);
   });
 
   it('宣言済みセッションは指示 ID を返し、未宣言セッションは null', () => {

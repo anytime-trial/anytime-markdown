@@ -1,13 +1,22 @@
 import type { Editor } from "@anytime-markdown/markdown-core";
 import {
-  AGENT_EDIT_REFRESH_META, agentEditKey, createAgentEditPlugin, ensureAgentEditStyles,
+  AGENT_EDIT_REFRESH_META,
+  agentEditEntryKey,
+  agentEditKey,
+  createAgentEditPlugin,
+  ensureAgentEditStyles,
+  normalizeHeadingText,
+  resolveAgentEditHeadingIndices,
   type AgentEditUiEntry,
 } from "../../extensions/agentEditPlugin";
 
+/** heading は "## A" のような見出し行（# 付き・markdown 可）。occurrence は同一見出しの 1 始まり。 */
 export interface AgentEditTarget { heading: string; occurrence?: number }
 export interface AgentEditController {
-  getUi: () => AgentEditUiEntry[];
+  /** OutlinePanel が都度参照する、現在の doc で解決した heading-only index の一覧。 */
+  getUi: () => Array<{ headingIndex: number }>;
   set: (targets: AgentEditTarget[]) => void;
+  /** heading-only index で指定した節の表示を解除する（アウトラインの確認ボタン）。 */
   acknowledge: (headingIndex: number) => void;
   clear: () => void;
   dispose: () => void;
@@ -24,48 +33,50 @@ export function installAgentEdits({ editor }: { editor: Editor }): AgentEditCont
     if (applying) { pendingRefresh = true; return; }
     editor.view.dispatch(editor.state.tr.setMeta(AGENT_EDIT_REFRESH_META, true));
   };
-  const acknowledge = (headingIndex: number): void => {
-    if (disposed || !ui.some(entry => entry.headingIndex === headingIndex)) return;
-    ui = ui.filter(entry => entry.headingIndex !== headingIndex);
+  const removeEntry = (entry: AgentEditUiEntry): void => {
+    const key = agentEditEntryKey(entry);
+    if (disposed || !ui.some((e) => agentEditEntryKey(e) === key)) return;
+    ui = ui.filter((e) => agentEditEntryKey(e) !== key);
     refresh();
   };
-  // Registration initializes decorations without dispatch during chrome construction (TDZ).
+  // 登録は installSectionLocks と同じく初期 dispatch なし（chrome 構築中の TDZ 事故を避ける）
   editor.registerPlugin(createAgentEditPlugin({
     getUiState: () => ui,
-    onHumanEdit: headingIndex => {
+    onHumanEdit: (entry) => {
       applying = true;
-      try { acknowledge(headingIndex); } finally { applying = false; }
+      try { removeEntry(entry); } finally { applying = false; }
     },
   }));
   const onTransaction = (): void => {
-    // apply runs before EditorView installs the new state: dispatch only after that completes.
+    // apply は EditorView が新 state を入れる前に走る。dispatch はその完了後に行う
     if (!pendingRefresh) return;
     pendingRefresh = false;
     refresh();
   };
   editor.on("transaction", onTransaction);
   return {
-    getUi: () => ui.map(entry => ({ ...entry })),
+    getUi: () => resolveAgentEditHeadingIndices(editor.state.doc, ui).map(({ headingIndex }) => ({ headingIndex })),
     set(targets) {
       if (disposed) return;
-      const headings: Array<{ level: number; text: string }> = [];
-      editor.state.doc.forEach(node => {
-        if (node.type.name === "heading") headings.push({ level: node.attrs.level, text: node.textContent });
-      });
-      const indices = new Set<number>();
+      const seen = new Set<string>();
+      const next: AgentEditUiEntry[] = [];
       for (const target of targets) {
         const match = /^(#{1,6})\s+(.*?)\s*$/.exec(target.heading);
         const occurrence = target.occurrence ?? 1;
         if (!match || !Number.isInteger(occurrence) || occurrence < 1) continue;
-        let count = 0;
-        const headingIndex = headings.findIndex(heading =>
-          heading.level === match[1].length && heading.text === match[2] && ++count === occurrence);
-        if (headingIndex >= 0) indices.add(headingIndex);
+        const entry: AgentEditUiEntry = { level: match[1].length, text: normalizeHeadingText(match[2]), occurrence };
+        const key = agentEditEntryKey(entry);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push(entry);
       }
-      ui = Array.from(indices, headingIndex => ({ headingIndex }));
+      ui = next;
       refresh();
     },
-    acknowledge,
+    acknowledge(headingIndex) {
+      const hit = resolveAgentEditHeadingIndices(editor.state.doc, ui).find((r) => r.headingIndex === headingIndex);
+      if (hit) removeEntry(hit.entry);
+    },
     clear() { if (!disposed) { ui = []; refresh(); } },
     dispose() {
       if (disposed) return;

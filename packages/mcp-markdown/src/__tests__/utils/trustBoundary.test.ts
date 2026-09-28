@@ -61,6 +61,23 @@ describe('resolveBoundaryForFile', () => {
     expect(await resolveBoundaryForFile(dir, 'b.markdown')).toBe('external');
   });
 
+  it('falls back to ANYTIME_MARKDOWN_DOC_ROOT when the hit path is not under rootDir (review #3)', async () => {
+    const docRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'trust-docroot-'));
+    const previous = process.env.ANYTIME_MARKDOWN_DOC_ROOT;
+    try {
+      await fs.writeFile(path.join(docRoot, 'ext.md'), '---\ntrust: external\n---');
+      process.env.ANYTIME_MARKDOWN_DOC_ROOT = docRoot;
+      expect(await resolveBoundaryForFile(dir, 'ext.md')).toBe('external');
+      expect(await resolveBoundaryForFile(dir, '../outside.md')).toBe('unknown');
+      delete process.env.ANYTIME_MARKDOWN_DOC_ROOT;
+      expect(await resolveBoundaryForFile(dir, 'ext.md')).toBe('unknown');
+    } finally {
+      if (previous === undefined) delete process.env.ANYTIME_MARKDOWN_DOC_ROOT;
+      else process.env.ANYTIME_MARKDOWN_DOC_ROOT = previous;
+      await fs.rm(docRoot, { recursive: true, force: true });
+    }
+  });
+
   it('returns unknown for missing, invalid, malformed and outside files', async () => {
     await fs.writeFile(path.join(dir, 'a.txt'), '# T');
     await fs.writeFile(path.join(dir, 'bad.md'), '---\n: bad: [\n---');

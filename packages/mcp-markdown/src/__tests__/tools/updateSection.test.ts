@@ -150,6 +150,12 @@ describe('updateSection agent edit ledger', () => {
     expect(Date.parse(entries[0].at)).toBeGreaterThanOrEqual(before);
     expect(Date.parse(entries[0].at)).toBeLessThanOrEqual(Date.now());
   });
+  it('records the heading actually written when the content renames it (review #4)', async () => {
+    await fs.writeFile(path.join(dir, 'a.md'), '## A\n\nOld\n');
+    await updateSection({ path: 'a.md', heading: '## A', content: '## A renamed\n\nNew\n' }, dir);
+    const entries = parseAgentEditLedger(await fs.readFile(resolveAgentEditLedgerPath(dir), 'utf8'));
+    expect(entries.map((e) => e.heading)).toEqual(['## A renamed']);
+  });
   it('does not append after lock rejection and omits unspecified occurrence', async () => {
     const doc = '## A\n\nLocked\n\n## B\n\nFree\n';
     const section = listSections(doc)[0];

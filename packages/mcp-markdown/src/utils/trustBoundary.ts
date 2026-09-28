@@ -71,7 +71,15 @@ export function clipSegments(segments: UntrustedSegment[], startLine: number, en
   });
 }
 
-export async function resolveBoundaryForFile(rootDir: string, relPath: string): Promise<TrustBoundary> {
+/**
+ * 検索ヒットのパスは catalog.db を ingest した文書ルート基準で、mcp-markdown の rootDir とは
+ * 別のことがある（`.mcp.json` の cwd が /anytime-markdown、文書ルートが docsRoot 等。
+ * レビュー指摘 #3）。rootDir で見つからなければ環境変数 ANYTIME_MARKDOWN_DOC_ROOT の
+ * ルートでも試す。どちらのルートでも rootDir 外への脱出は securePath が拒否する。
+ */
+export const DOC_ROOT_ENV = 'ANYTIME_MARKDOWN_DOC_ROOT';
+
+async function readBoundaryUnderRoot(rootDir: string, relPath: string): Promise<TrustBoundary | null> {
   try {
     validateFileExtension(relPath, ['.md', '.markdown']);
     const file = resolveSecurePath(rootDir, relPath);
@@ -79,6 +87,17 @@ export async function resolveBoundaryForFile(rootDir: string, relPath: string): 
     resolveSecurePath(realRoot, realFile);
     return detectTrust(await fs.readFile(realFile, 'utf-8')).boundary;
   } catch {
-    return 'unknown';
+    return null;
   }
+}
+
+export async function resolveBoundaryForFile(rootDir: string, relPath: string): Promise<TrustBoundary> {
+  const roots = [rootDir];
+  const docRoot = process.env[DOC_ROOT_ENV];
+  if (docRoot !== undefined && docRoot !== '' && docRoot !== rootDir) roots.push(docRoot);
+  for (const root of roots) {
+    const boundary = await readBoundaryUnderRoot(root, relPath);
+    if (boundary !== null) return boundary;
+  }
+  return 'unknown';
 }
