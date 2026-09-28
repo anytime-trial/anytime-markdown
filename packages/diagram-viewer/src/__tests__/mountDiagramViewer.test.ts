@@ -57,6 +57,49 @@ afterEach(() => {
 });
 
 describe('図の描画', () => {
+  it('ビューポートの読み上げ名を題名・言語の変更と同期し、空の題名では図種だけに戻す', () => {
+    const view = mount();
+    const viewport = container.querySelector('.anytime-diagram-viewport')!;
+    expect(viewport.getAttribute('role')).toBe('group');
+    expect(viewport.getAttribute('aria-label')).toBe('系図: 検査用の系図');
+    view.update({ document: { ...DOC, title: '別の系図' } });
+    expect(container.querySelector('.anytime-diagram-title')?.textContent).toBe('別の系図');
+    expect(viewport.getAttribute('aria-label')).toBe('系図: 別の系図');
+    view.update({ locale: 'en' });
+    expect(viewport.getAttribute('aria-label')).toBe('Genealogy chart: 別の系図');
+    view.update({ document: { ...DOC, title: '' } });
+    expect(viewport.getAttribute('aria-label')).toBe('Genealogy chart');
+    view.update({ locale: 'ja' });
+    expect(viewport.getAttribute('aria-label')).toBe('系図');
+  });
+
+  it('人物の札を人物名で読み上げるグループとして公開する', () => {
+    mount();
+    for (const node of container.querySelectorAll('.anytime-diagram-node')) {
+      expect(node.getAttribute('role')).toBe('group');
+      expect(node.getAttribute('aria-label')).toBe(node.getAttribute('data-person'));
+    }
+  });
+
+  it.each([
+    ['.anytime-diagram-viewport', 'diagram-canvas-viewport'],
+    ['.anytime-diagram-edges', 'diagram-canvas-edges'],
+    ['.anytime-diagram-minimap-map', 'diagram-minimap-canvas'],
+    ['.anytime-diagram-node', 'diagram-node-card'],
+    ['.anytime-diagram-connect', 'diagram-node-connectpoint'],
+    ['.anytime-diagram-midpoint', 'diagram-midpoint-handle'],
+    ['.anytime-diagram-linelabel-input', 'diagram-linelabel-input'],
+    ['.edge-spouse', 'diagram-edge-marriage'],
+    ['.edge-birth', 'diagram-edge-descent'],
+    ['.anytime-diagram-gutter button', 'diagram-gutter-gridline'],
+  ])('描画要素 %s に識別子 %s を付ける', (selector, testId) => {
+    mount({ editable: true, onSave: () => {} });
+    byLabel('編集に切り替える')!.click();
+    const elements = container.querySelectorAll(selector);
+    expect(elements.length).toBeGreaterThan(0);
+    for (const element of elements) expect(element.getAttribute('data-testid')).toBe(testId);
+  });
+
   it('人物を 1 人につき 1 つ描き、題名・導入文・注記をデータから出す', () => {
     mount();
     const nodes = container.querySelectorAll('.anytime-diagram-node');
@@ -573,6 +616,7 @@ describe('要素と接続線', () => {
     expect(adders()).toHaveLength(0);
     byLabel('編集に切り替える')!.click();
     expect(adders().length).toBeGreaterThan(0);
+    for (const button of adders()) expect(button.getAttribute('data-testid')).toBe('diagram-canvas-cell-add');
   });
 
   it('＋ を押すと要素が 1 つ増え、そのまま名札を書き換えられる', () => {
@@ -604,6 +648,11 @@ describe('要素と接続線', () => {
     expect(view.getDraft()!.nodes).toEqual(['新しい札']);
     expect(Object.keys(view.getDraft()!.layout.placements)).toEqual(['新しい札']);
     expect(container.querySelector('.anytime-diagram-node[data-person="新しい札"]')).not.toBeNull();
+    const renamed = container.querySelector('.anytime-diagram-node[data-person="新しい札"]')!;
+    expect(renamed.getAttribute('role')).toBe('group');
+    expect(renamed.getAttribute('aria-label')).toBe('新しい札');
+    expect(renamed.getAttribute('data-testid')).toBe('diagram-node-card');
+    expect(container.querySelector('.anytime-diagram-node[aria-label="要素 1"]')).toBeNull();
   });
 
   it('すでに在る名前へは書き換えず、理由を出す', () => {
@@ -1633,6 +1682,12 @@ describe('群の語彙をダイアログから編集する', () => {
     expect(axisName().value).toBe('巻');
     expect([...dialog().querySelectorAll<HTMLInputElement>('.anytime-diagram-groupvalue > input')]
       .map((input) => input.value)).toEqual(['上巻', '中巻']);
+    for (const axis of dialog().querySelectorAll('.anytime-diagram-groupaxis')) {
+      expect(axis.getAttribute('data-testid')).toBe('diagram-groupdialog-axis-row');
+    }
+    for (const value of dialog().querySelectorAll('.anytime-diagram-groupvalue')) {
+      expect(value.getAttribute('data-testid')).toBe('diagram-groupdialog-value-row');
+    }
   });
 
   it('軸の名前を書き換えても、家族の持つ値は指し先を失わない', () => {

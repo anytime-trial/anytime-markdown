@@ -83,6 +83,7 @@ export function createSkeleton(opts: CreateSkeletonOptions = {}): {
   ensureKeyframes();
 
   const el = document.createElement("span");
+  el.setAttribute("aria-hidden", "true");
 
   const applyClass = (variant: SkeletonVariant, extra: string | undefined): void => {
     el.className = [ROOT_CLASS, VARIANT_CLASS[variant], extra].filter(Boolean).join(" ");

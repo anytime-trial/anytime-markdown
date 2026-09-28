@@ -12,7 +12,7 @@
  *   - 描画は cooccurrence-viewer に委ね、本パネルはツールバーと取得状態だけを持つ。
  *   - 色はテーマトークンから取り、要素側へインラインで置かない（ダーク / ライト両対応）。
  */
-import { createSelect } from '@anytime-markdown/ui-core';
+import { createSelect, setBusyState } from '@anytime-markdown/ui-core';
 import {
   createInlineLayoutWorker,
   mountCooccurrenceViewer,
@@ -758,6 +758,8 @@ export function mountKnowledgeGraphPanel(
       empty: 'knowledgeGraph.empty',
     };
     const key = statusKey[loadState];
+    // design.md 11.3: root の aria-busy / data-state を loadState と同期する
+    setBusyState(root, loadState === 'loading' ? 'loading' : loadState === 'failed' ? 'error' : 'idle');
     if (entityNotFound && loadState === 'ready') {
       // 実体不在の告知は図を維持したまま出す（設計書 §3.6。0 件表示と区別する）
       statusEl.hidden = false;

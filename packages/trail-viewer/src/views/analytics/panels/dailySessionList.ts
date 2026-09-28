@@ -7,7 +7,7 @@ import type {
 } from '../../../domain/parser/types';
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { sessionCost } from '../../../domain/analytics/calculators';
-import { createTooltip, createSpinner } from '@anytime-markdown/ui-core';
+import { createTooltip, createSpinner, setBusyState } from '@anytime-markdown/ui-core';
 import { agentBrandColors } from '../../../theme/designTokens';
 import { applyThinScrollbar } from '../../../theme/thinScrollbar';
 import { buildDaySession } from '../../../components/analytics/helpers';
@@ -498,6 +498,7 @@ export function mountDailySessionList(
     ].join(';');
     applyThinScrollbar(leftBox);
     contentRow.appendChild(leftBox);
+    setBusyState(leftBox, p.sessionsLoading ? 'loading' : 'idle');
 
     if (p.sessionsLoading) {
       const loadingEl = document.createElement('div');
@@ -568,6 +569,8 @@ export function mountDailySessionList(
       if (selectedSession) {
         if (timelineLoading) {
           const timelineLoaderEl = document.createElement('div');
+          timelineLoaderEl.setAttribute('role', 'status');
+          setBusyState(timelineLoaderEl, 'loading');
           timelineLoaderEl.style.cssText = [
             `background-color:${p.cardSx.bgcolor}`,
             `border:${p.cardSx.border}`,

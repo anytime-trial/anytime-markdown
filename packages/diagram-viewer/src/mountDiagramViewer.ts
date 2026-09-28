@@ -217,13 +217,13 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
   const root = el(doc, 'div', { className: DIAGRAM_ROOT_CLASS });
   const viewport = el(doc, 'div', {
     className: 'anytime-diagram-viewport',
-    attrs: { tabindex: '0', role: 'group' },
+    attrs: { tabindex: '0', role: 'group', 'data-testid': 'diagram-canvas-viewport' },
   });
   const surface = el(doc, 'div', { className: 'anytime-diagram-surface' });
   const gridSvg = svg(doc, 'svg', { class: 'anytime-diagram-grid', 'aria-hidden': 'true' });
   const gridPath = svg(doc, 'path');
   gridSvg.appendChild(gridPath);
-  const edgesSvg = svg(doc, 'svg', { class: 'anytime-diagram-edges' });
+  const edgesSvg = svg(doc, 'svg', { class: 'anytime-diagram-edges', 'data-testid': 'diagram-canvas-edges' });
   /**
    * 手で引いた線の層。家族の線とは**別の `<svg>`** に分ける。
    *
@@ -1486,7 +1486,6 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
     const editing = draft !== null;
     const picked = new Set(chosen());
 
-    viewport.setAttribute('aria-label', tr('chartLabel'));
     edgesSvg.setAttribute('aria-label', tr('selectLine'));
     surface.style.width = `${model.surface.width}px`;
     surface.style.height = `${model.surface.height}px`;
@@ -1620,6 +1619,9 @@ export function mountDiagramViewer(container: HTMLElement, options: DiagramViewe
       逃がし先を決め、広がった側の切れ目が札の下に入ったまま押せなくなる（編集へ入った直後の
       1 描画で実測）。
     */
+    viewport.setAttribute('aria-label', model.source.title
+      ? `${tr('chartLabel')}: ${model.source.title}`
+      : tr('chartLabel'));
     chrome.update({
       document: model.source,
       names: model.chart.nodes.map((node) => node.name),

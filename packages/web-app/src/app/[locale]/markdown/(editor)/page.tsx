@@ -29,7 +29,12 @@ import { useNoteGraphSlot } from '../useNoteGraphSlot';
 function EditorLoading() {
   const t = useTranslations('Common');
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <Box
+      sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}
+      role="status"
+      aria-busy="true"
+      data-state="loading"
+    >
       <CircularProgress aria-label={t('loadingEditor')} />
     </Box>
   );

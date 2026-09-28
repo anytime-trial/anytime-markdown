@@ -171,6 +171,7 @@ import { fetchFunctionGraph } from '../../c4/hooks/fetchFunctionGraphApi';
 import type { FunctionGraphResponse } from '../../c4/hooks/fetchFunctionGraphApi';
 import type { ElementFunctionsResponse } from '../../c4/hooks/fetchElementFunctionsApi';
 import type { HotspotResponse } from '../../c4/hooks/fetchHotspotApi';
+import { setBusyState } from '@anytime-markdown/ui-core';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -638,7 +639,7 @@ export function mountC4Viewer(
   container.appendChild(root);
 
   // Loading overlay (for analysisProgress)
-  const loadingOverlay = el('div', `display:none;position:fixed;inset:0;z-index:1300;align-items:center;justify-content:center;background:${LOADING_OVERLAY_BG};backdrop-filter:blur(4px);`, { role: 'dialog', 'aria-label': 'Analysis in progress', 'aria-live': 'polite' });
+  const loadingOverlay = el('div', `display:none;position:fixed;inset:0;z-index:1300;align-items:center;justify-content:center;background:${LOADING_OVERLAY_BG};backdrop-filter:blur(4px);`, { role: 'status', 'aria-label': 'Analysis in progress', 'aria-live': 'polite' });
   root.appendChild(loadingOverlay);
 
   const loadingCard = el('div');
@@ -808,7 +809,7 @@ export function mountC4Viewer(
   controlsBox.appendChild(multiAgentBadge);
 
   // Activity trend panel
-  const trendPanel = el('div', `display:none;position:absolute;bottom:8px;left:260px;width:320px;max-width:${TREND_CHART_POPUP_MAX_WIDTH}px;border-radius:8px;backdrop-filter:blur(10px);overflow:hidden;box-shadow:${POPUP_SHADOW};transition:width 150ms;`, { role: 'dialog', 'aria-label': 'Activity Trend' });
+  const trendPanel = el('div', `display:none;position:absolute;bottom:8px;left:260px;width:320px;max-width:${TREND_CHART_POPUP_MAX_WIDTH}px;border-radius:8px;backdrop-filter:blur(10px);overflow:hidden;box-shadow:${POPUP_SHADOW};transition:width 150ms;`, { role: 'region', 'aria-label': 'Activity Trend' });
   graphCanvasArea.appendChild(trendPanel);
 
   // Context menu
@@ -820,15 +821,15 @@ export function mountC4Viewer(
   ctxMenuEl.addEventListener('mousedown', (e) => e.stopPropagation());
 
   // Selected element info panel (right side)
-  const elemInfoPanel = el('div', `display:none;position:absolute;top:8px;right:8px;width:${SELECTED_ELEMENT_DETAILS_WIDTH}px;max-height:calc(100% - 20px);overflow:auto;z-index:10;border-radius:8px;backdrop-filter:blur(10px);box-shadow:${POPUP_SHADOW};padding:10px 12px;`, { role: 'dialog', 'aria-label': 'Selected C4 element details' });
+  const elemInfoPanel = el('div', `display:none;position:absolute;top:8px;right:8px;width:${SELECTED_ELEMENT_DETAILS_WIDTH}px;max-height:calc(100% - 20px);overflow:auto;z-index:10;border-radius:8px;backdrop-filter:blur(10px);box-shadow:${POPUP_SHADOW};padding:10px 12px;`, { role: 'region', 'aria-label': 'Selected C4 element details' });
   graphCanvasArea.appendChild(elemInfoPanel);
 
   // Multi-select info panel (right side)
-  const multiSelectPanel = el('div', `display:none;position:absolute;top:8px;right:8px;width:${SELECTED_ELEMENT_DETAILS_WIDTH}px;max-height:calc(100% - 20px);overflow:auto;z-index:10;border-radius:8px;backdrop-filter:blur(10px);box-shadow:${POPUP_SHADOW};padding:10px 12px;`, { role: 'dialog', 'aria-label': 'Multiple C4 elements selected' });
+  const multiSelectPanel = el('div', `display:none;position:absolute;top:8px;right:8px;width:${SELECTED_ELEMENT_DETAILS_WIDTH}px;max-height:calc(100% - 20px);overflow:auto;z-index:10;border-radius:8px;backdrop-filter:blur(10px);box-shadow:${POPUP_SHADOW};padding:10px 12px;`, { role: 'region', 'aria-label': 'Multiple C4 elements selected' });
   graphCanvasArea.appendChild(multiSelectPanel);
 
   // Community info panel (right side)
-  const communityInfoPanel = el('div', `display:none;position:absolute;top:8px;right:8px;width:${SELECTED_ELEMENT_DETAILS_WIDTH}px;max-height:calc(100% - 20px);overflow:auto;z-index:10;border-radius:8px;backdrop-filter:blur(10px);box-shadow:${POPUP_SHADOW};padding:10px 12px;`, { role: 'dialog', 'aria-label': 'Selected community details' });
+  const communityInfoPanel = el('div', `display:none;position:absolute;top:8px;right:8px;width:${SELECTED_ELEMENT_DETAILS_WIDTH}px;max-height:calc(100% - 20px);overflow:auto;z-index:10;border-radius:8px;backdrop-filter:blur(10px);box-shadow:${POPUP_SHADOW};padding:10px 12px;`, { role: 'region', 'aria-label': 'Selected community details' });
   graphCanvasArea.appendChild(communityInfoPanel);
 
   // Resizable popup host (matrix/scatter/graph - simplified to fixed position)
@@ -1730,6 +1731,9 @@ export function mountC4Viewer(
     root.style.height = props.containerHeight ?? '100vh';
 
     // Update loading overlay
+    // aria-busy はライブ領域（overlay）でなく本体に置く。ライブ領域に固定すると進捗更新の
+    // 読み上げが保留される（cross-review 2026-09-28 Codex 指摘）
+    setBusyState(body, props.analysisProgress ? 'loading' : 'idle');
     if (props.analysisProgress) {
       loadingOverlay.style.display = 'flex';
       loadingCard.style.cssText = `background:${colors.bgSecondary};border:1px solid ${colors.border};border-radius:8px;padding:24px 32px;min-width:360px;max-width:480px;text-align:center;`;

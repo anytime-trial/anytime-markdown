@@ -7,7 +7,7 @@
  * Data fetching (useCodeGraph, useTemporalCoupling) stays in the thin React
  * wrapper (.tsx); this view receives resolved data and callbacks as props.
  */
-import { createButton, createSelect, createTextField } from '@anytime-markdown/ui-core';
+import { createButton, createSelect, createTextField, setBusyState } from '@anytime-markdown/ui-core';
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import {
@@ -1201,6 +1201,8 @@ export function mountCodeGraphPanel(
       detailPane.replaceChildren();
     }
 
+    // design.md 11.3: canvasPane の aria-busy / data-state を graphState と同期する
+    setBusyState(canvasPane, state.status === 'loading' ? 'loading' : state.status === 'error' ? 'error' : 'idle');
     if (state.status === 'loading') {
       showPlaceholder(
         '<div style="display:flex;align-items:center;gap:12px;">' +

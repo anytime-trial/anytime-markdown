@@ -78,6 +78,8 @@ export function createSpinner(opts: CreateSpinnerOptions = {}): {
   const { size = 40, color = "primary", className, ariaLabel } = opts;
 
   const el = document.createElement("span");
+  // role は MUI CircularProgress と同じ progressbar（React 版 ui/Spinner.tsx と同一）。
+  // 読込領域の role="status" と親の aria-busy は呼び出し側が持つ（design.md 11.3）。
   el.setAttribute("role", "progressbar");
   if (ariaLabel !== undefined) el.setAttribute("aria-label", ariaLabel);
 

@@ -1,5 +1,6 @@
 {
   "Graph": {
+    "canvasLabel": "グラフキャンバス",
     "pageTitle": "グラフエディタ",
     "select": "選択",
     "rect": "矩形",

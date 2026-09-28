@@ -29,10 +29,14 @@ import { createWebImportProvider } from '../../../lib/webImportProvider';
 import { createWebComponentMount } from './markdownWebComponentMount';
 
 const mountRichWebComponent = createWebComponentMount('anytime-markdown-rich-editor');
+const mountRichUntrustedWebComponent = createWebComponentMount('anytime-markdown-rich-editor', {
+  untrustedContent: true,
+});
 
-export default function VanillaRichMarkdownEditor(
-  props: Readonly<Omit<VanillaMarkdownEditorMountProps, 'mount'>>,
-) {
+export default function VanillaRichMarkdownEditor({
+  untrustedContent = false,
+  ...props
+}: Readonly<Omit<VanillaMarkdownEditorMountProps, 'mount'> & { untrustedContent?: boolean }>) {
   const webImportProvider = useMemo(() => createWebImportProvider(), []);
 
   useEffect(() => {
@@ -45,5 +49,10 @@ export default function VanillaRichMarkdownEditor(
     };
   }, [webImportProvider]);
 
-  return <VanillaMarkdownEditorMount mount={mountRichWebComponent} {...props} />;
+  return (
+    <VanillaMarkdownEditorMount
+      mount={untrustedContent ? mountRichUntrustedWebComponent : mountRichWebComponent}
+      {...props}
+    />
+  );
 }

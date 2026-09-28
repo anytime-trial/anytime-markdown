@@ -95,7 +95,7 @@ export function createMidpointView(
     if (existing !== undefined) return existing;
     const button = el(doc, 'button', {
       className: 'anytime-diagram-midpoint',
-      attrs: { type: 'button' },
+      attrs: { type: 'button', 'data-testid': 'diagram-midpoint-handle' },
     });
     const held = { button, anchor: null as DiagramAnchor | null };
     button.addEventListener('pointerdown', (event) => {
