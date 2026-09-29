@@ -23,7 +23,7 @@
 
 - docsRoot の値を `CLAUDE.md` の `- docsRoot:` 行に置く理由: スキル本文へ docs リポジトリの絶対パスを書かないため。`anytime-dev-cycle` の preflight.cjs はこの行を自動解決する（`--docs-root` 指定時はそちらを優先）。
 - ticketsRoot: VS Code の Anytime Tickets 拡張がこのリポジトリを指す。`anytime-loop-start` スキルと `tickets-core` の `TICKETS_DIR = '.tickets'` はワークスペース相対の記述だが、実際の設定先は別リポジトリ。
-- shadcn/ui フォールバックを web-app に適用しない理由: 本プロジェクトは `<docsRoot>/spec/10.web-app/design.md` を正本に持つ。
+- shadcn/ui フォールバックを web-app に適用しない理由: 本プロジェクトは `<docsRoot>/spec/10.web-app/design-system.ja.md` を正本に持つ。
 - Trail DB のパス解決: `lep.json` 自体の位置は `anytimeTrail.lep.configPath`。旧 `anytimeTrail.database.storagePath` は廃止。旧名 DB（trail.db / memory-core.db / doc-core.db）が残る環境は owner の初回 open 時に自動リネームされる。
 - `activity_current_code_graphs.graph_json` の丸読みを禁じる理由: 約 43 万トークン。影響範囲は `get_code_dependencies` を使う。
 - `search_caravan_book` の採択根拠と観測計画: `<docsRoot>/proposal/20260809-knowledge-graph-utilization.ja.md`（2026-08-09 配線）。

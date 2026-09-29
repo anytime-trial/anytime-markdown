@@ -5,7 +5,7 @@
 // 使い方: node scripts/extract-design-tokens.mjs > tokens.json
 //         （Node 24 の型除去で .ts を直接 import する。ビルド不要）
 //
-// 抽出元は design.md（spec/10.web-app）冒頭「実装参照」のコード側:
+// 抽出元は design-system.ja.md（spec/10.web-app）冒頭「実装参照」のコード側:
 //   packages/markdown-editor/src/constants/{colors,themePresets,dimensions}.ts
 //   packages/web-app/src/app/[locale]/providers.tsx（MUI テーマ。直書き色だけを数える）
 import { readFileSync } from "node:fs";
