@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.25.2] - 2026-09-29
+
+### Fixed
+
+- Headings in the `professional` preset were rendered in monospace. The heading font now comes from each preset's `displayFont` for every preset, and the CSS fallback for `--editor-heading-font-family` is `inherit` (the body font) instead of `monospace`. The `handwritten` preset keeps its previous heading stack (`"Nunito", "Klee One", sans-serif`).
+
+### Security
+
+- Updated `markdown-it` to 14.3.2 (GHSA-253c-mchw-3w2r: quadratic paths with `linkify: true` could block the event loop on large input).
+
 ## [1.25.0] - 2026-09-28
 
 ### Added
@@ -43,7 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - `markdown-rich-editor`: added tests that pin the full-width preview contract. Every member of `FULL_WIDTH_PREVIEW_LANGUAGES` is checked against `classifyCodeBlock`, and the container's `display: flex` / `flexDirection: column` are asserted. The language list lives in two places, so a rename or a typo in one of them would have reintroduced the collapse without failing type checks or tests.
-
 
 ## [1.23.3] - 2026-09-21
 

@@ -395,7 +395,7 @@ async function main() {
     try {
       const { collectVrtArtifacts, resolveDocsRoot, runVlmJudge } = await import("./vlm-judge.mjs");
       const docsRoot = resolveDocsRoot(ROOT);
-      const rubricPath = docsRoot ? path.join(docsRoot, "spec/10.web-app/design.md") : null;
+      const rubricPath = docsRoot ? path.join(docsRoot, "spec/10.web-app/design-system.ja.md") : null;
       const artifacts = collectVrtArtifacts(path.join(WEB_APP_DIR, "test-results"));
       const judge = await runVlmJudge({ rubricPath, artifacts });
       fs.writeFileSync(path.join(WEB_APP_DIR, "test-results/vlm-judge.json"), `${JSON.stringify(judge, null, 2)}\n`);

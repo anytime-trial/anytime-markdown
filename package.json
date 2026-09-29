@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.25.1",
+  "version": "1.25.2",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -106,7 +106,7 @@
     "brace-expansion": "1.1.18",
     "ignore": "7.0.5",
     "ws": "8.21.0",
-    "markdown-it": "14.2.0",
+    "markdown-it": "14.3.2",
     "linkify-it": "5.0.2",
     "dompurify": "3.4.13",
     "sharp": "0.35.4",

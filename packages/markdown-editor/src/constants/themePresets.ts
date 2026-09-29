@@ -37,7 +37,9 @@ export const THEME_PRESETS = {
   handwritten: {
     label: "Handwritten",
     fontFamily: '"Nunito", "Klee One", "Helvetica", "Arial", sans-serif',
-    displayFont: '"Nunito", "Klee One", Georgia, "Times New Roman", serif',
+    // 本文と同じ総称ファミリにそろえる。Google Fonts を読まない VS Code webview で
+    // 見出しだけが serif に落ちないようにするため。
+    displayFont: '"Nunito", "Klee One", sans-serif',
     borderRadius: { sm: 12, md: 20, lg: 28 },
     easing: {
       enter: "cubic-bezier(0.34, 1.56, 0.64, 1)",

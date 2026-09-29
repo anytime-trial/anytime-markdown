@@ -6,7 +6,7 @@ description: "anytime-markdown で「実装して」「直して」「リファ�
 
 # anytime-dev-cycle — 開発基本スキル
 
-更新日: 2026-09-23
+更新日: 2026-09-29
 
 本体は入口判定・工程ルート・ゲートだけを持つ。提案、仕様、計画、実装、レビュー、回転、委譲の詳細手順は各スキルまたは `references/` へ委譲し、ここへ複製しない。
 
@@ -166,22 +166,35 @@ abstain 出口は `references/stopping-rules-playbook.md` 共通。abstained 返
 
 **(2) 初期割当（モデル × effort）**
 
-| 作業 | 実行先 | effort | 根拠 |
-| --- | --- | --- | --- |
-| ファイル検索・Grep・ログ解析・整形確認 | **haiku**（`Explore` に `model: haiku`） | —（effort 非対応） | 出力が検証可能な大量処理 |
-| 複数ファイル横断の読み取り調査 | **sonnet**（`Explore`） | `low` | 調査系の effort 曲線はほぼ平坦（`low` で 1〜3pt 減・コスト 1/3〜1/2） |
-| 定型実装（対象・完了条件・検証が確定） | **Codex**（§3 の既定）/ sonnet | `medium` | 差し戻し率 5% 台で健全。Sonnet 5.5 は `medium` 起点 |
-| バグ原因調査 | sonnet → 原因不明なら opus | `medium` → `high` | 探索ループ。再委任は一段昇格（下記） |
-| コードレビュー | sonnet。高重大度は opus / Codex の別系統で二重化 | `medium` | 同一基盤モデルは欠陥を共有する |
-| チャット・要約・分類・ドキュメント整形 | sonnet | `low` | 曲線平坦。`low` で思考を省く |
-| 設計判断・アーキテクチャ・曖昧な要求 | メイン（委譲しない） | `medium` → `high` | 推論上限の作業。effort 1 段ごとに改善が続く |
-| 長期自律実行（多段・自己検証つき） | **fable**（メインで実施。委譲先にしない） | `high` | fable の強みは旧世代が解けなかった領域。委譲先としてはメイン既定モデルに対する優位が無い |
+| 作業 | 実行先 | Codex へ渡す場合のモデル | effort | 根拠 |
+| --- | --- | --- | --- | --- |
+| ファイル検索・Grep・ログ解析・整形確認 | **haiku**（`Explore` に `model: haiku`） | `gpt-6-luna`（通常は Codex へ出さない） | —（effort 非対応） | 出力が検証可能な大量処理 |
+| 複数ファイル横断の読み取り調査 | **sonnet**（`Explore`） | `gpt-6-sol` | `low` | 調査系の effort 曲線はほぼ平坦（`low` で 1〜3pt 減・コスト 1/3〜1/2） |
+| 定型実装（対象・完了条件・検証が確定） | **Codex**（§3 の既定）/ sonnet | `gpt-6-sol` | `medium` | 差し戻し率 5% 台で健全。Sonnet 5.5 は `medium` 起点 |
+| アルゴリズム実装（較正表カテゴリ `アルゴリズム実装`。複数モジュールにまたがり設計判断を伴う実装も含める） | **Codex** / opus | `gpt-6-astra` | `medium` | 用途基準: 手順が既知でも設計判断と推論量を伴うため上位段（opus 相当）。較正表の値は n=1 の仮置き（`references/delegation.md` §2.3）で割当の根拠にしない |
+| バグ原因調査 | sonnet → 原因不明なら opus | `gpt-6-sol` → `gpt-6-astra` | `medium` → `high` | 探索ループ。再委任は一段昇格（下記） |
+| コードレビュー | sonnet。高重大度は opus / Codex の別系統で二重化 | `gpt-6-sol`。高重大度は `gpt-6-astra` | `medium` | 同一基盤モデルは欠陥を共有する |
+| チャット・要約・分類・ドキュメント整形 | sonnet | `gpt-6-sol`（通常は Codex へ出さない） | `low` | 曲線平坦。`low` で思考を省く |
+| 設計判断・アーキテクチャ・曖昧な要求 | メイン（委譲しない） | —（委譲しない） | `medium` → `high` | 推論上限の作業。effort 1 段ごとに改善が続く |
+| 長期自律実行（多段・自己検証つき） | **fable**（メインで実施。委譲先にしない） | —（委譲しない） | `high` | fable の強みは旧世代が解けなかった領域。委譲先としてはメイン既定モデルに対する優位が無い |
 
-**effort の指定経路**: メインは `/effort`。サブエージェントは `Agent` 呼び出しに effort 引数が無いため、`.claude/agents/<name>.md` の `effort:` frontmatter でのみ指定できる（定義の無い汎用型はセッションの effort を継承する。表の effort を効かせたい作業種別は定義ファイルを置く）。Codex は `codex exec -c model_reasoning_effort=<level>`（省略時は `~/.codex/config.toml` の値）。
+**Codex の相当モデル**: 上表の「Codex へ渡す場合のモデル」は、Claude 側で同じ作業に割り当てる段と同じ能力段の Codex モデルである。段の対応は次のとおり。
+
+| Claude の段 | Codex モデル（slug） | 対応の根拠（`~/.codex/models_cache.json` の説明文。2026-09-29 取得） |
+| --- | --- | --- |
+| haiku | `gpt-6-luna` | Fast and affordable model for easier tasks |
+| sonnet | `gpt-6-sol` | Workhorse model for coding and everyday work |
+| opus | `gpt-6-astra` | Frontier intelligence for the most demanding work |
+
+- 対応はベンダーが示す段の位置づけに基づく仮置きで、ベンチマークで突き合わせたものではない。委譲結果行を `[codex:<slug>]` で記録し（`references/delegation.md` §2.2）、`anytime-dev-retro` のモデル別集計で差し戻し率が Claude 側の同じ段から外れたら対応表を見直す。
+- **Codex へ委譲するときは `-m <slug>` を必ず付ける**。`~/.codex/config.toml` の既定モデルに任せない（既定が変わると委譲先が知らないうちに入れ替わり、記録上も区別できなくなるため）。
+- 委譲前に slug が `~/.codex/models_cache.json` の `models[].slug` に在ることを確かめる。無い（廃止・改名）ときは近い段のモデルへ黙って差し替えず、対応表の更新をユーザーへ提案してから委譲する。
+
+**effort の指定経路**: メインは `/effort`。サブエージェントは `Agent` 呼び出しに effort 引数が無いため、`.claude/agents/<name>.md` の `effort:` frontmatter でのみ指定できる（定義の無い汎用型はセッションの effort を継承する。表の effort を効かせたい作業種別は定義ファイルを置く）。Codex は `codex exec -m <slug> -c model_reasoning_effort=<level>` で、モデルと effort の両方を毎回明示する（省略すると `~/.codex/config.toml` の既定値で走る）。
 
 **(3) 失敗のみ昇格**: 検証手段（テスト・型・ビルド）がある委譲は表の effort の 1 段下で実行し、失敗時のみ表の effort、次に一段上のモデルで再委任する（Anthropic 実測: `low` 全件 → 失敗のみ既定 effort で、合格率同等・コスト約半分）。検証手段が無い作業には適用しない（失敗を検出できないため表の effort から始める）。
 
-**再委任時のモデル昇格**: 能力不足が疑われる差し戻し・abstain の再委任は、同条件・同モデルで繰り返さず（playbook「委譲先の異常」）、effort を 1 段上げる → haiku → sonnet →（opus / Codex / メイン自作）の順に 1 段ずつ昇格して行う。昇格しても失敗したらユーザーへエスカレーションする。昇格判断の材料は委譲結果行の `[model]` 記録（`references/delegation.md` §2.2）。逆に、初回選択を安易に安いモデルへ倒す免罪符にはしない（初回は上表の用途基準で選ぶ）。
+**再委任時のモデル昇格**: 能力不足が疑われる差し戻し・abstain の再委任は、同条件・同モデルで繰り返さず（playbook「委譲先の異常」）、effort を 1 段上げる → haiku → sonnet →（opus / Codex / メイン自作）の順に 1 段ずつ昇格して行う。Codex 内でも同じく effort を上げた後に `gpt-6-luna` → `gpt-6-sol` → `gpt-6-astra` と段を上げ、`gpt-6-astra` で失敗したら Claude 側（opus / メイン自作）へ移す。昇格しても失敗したらユーザーへエスカレーションする。昇格判断の材料は委譲結果行の `[model]` 記録（`references/delegation.md` §2.2）。逆に、初回選択を安易に安いモデルへ倒す免罪符にはしない（初回は上表の用途基準で選ぶ）。
 
 **継続（`SendMessage`）はモデル指定を運べない**。ツールスキーマに `model` が無く、継続以降は親モデル（メイン既定＝高コスト側）で走る。安いモデルを明示したサブエージェントは継続せず fresh 回転で回す。回転ループは `shouldRotate` へ `delegatedModel` / `parentModel` を渡せば、系統が食い違う場合に閾値と無関係で回転を選ぶ（`references/agent-rotation.md`「コスト注意」）。
 

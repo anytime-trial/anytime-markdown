@@ -1,7 +1,7 @@
 /**
  * 思考法ダイアグラム（anytime-graph フェンス）用のテーマ対応カラーパレット。
  *
- * 値は Anytime Markdown デザインシステム（`/Shared/anytime-markdown-docs/spec/12.design/design.md`）
+ * 値は Anytime Markdown デザインシステム（`/Shared/anytime-markdown-docs/spec/10.web-app/design-system.ja.md`）
  * の「2.2 ダークモード」「2.3 ライトモード（水墨画）」トークンから導出している。
  * 図種プリセットはこのパレット経由で色を解決し、ダーク/ライト両モードで読めるようにする。
  */

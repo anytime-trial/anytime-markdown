@@ -67,33 +67,51 @@ export function findMissingBumps(changedByPackage, manifests, skillExists = () =
   return violations;
 }
 
-function git(args) {
-  return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf-8' });
+function git(args, cwd = repoRoot) {
+  return execFileSync('git', args, { cwd, encoding: 'utf-8' });
 }
 
 /** base ref が解決できるか。shallow clone や base 未 fetch の環境では false。 */
-function canResolve(ref) {
+function canResolve(ref, cwd = repoRoot) {
   try {
-    git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
+    git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], cwd);
     return true;
   } catch {
     return false;
   }
 }
 
-function readManifestAt(ref, pkg) {
+function readManifestAt(ref, pkg, cwd = repoRoot) {
   const rel = `packages/${pkg}/skills/${MANIFEST}`;
   if (ref === null) {
-    const abs = join(repoRoot, rel);
+    const abs = join(cwd, rel);
     if (!existsSync(abs)) return null;
     return JSON.parse(readFileSync(abs, 'utf-8'));
   }
   try {
-    return JSON.parse(git(['show', `${ref}:${rel}`]));
+    return JSON.parse(git(['show', `${ref}:${rel}`], cwd));
   } catch {
     // base 時点で manifest が無い = 版数ゲート導入コミット。全スキルが新規登録なので違反にしない。
     return {};
   }
+}
+
+/**
+ * base と作業ツリー(HEAD 時点の manifest)を比べ、版数バンプ漏れを返す。
+ */
+export function checkManifestBump({ base, cwd = repoRoot }) {
+  // 三点 diff(マージベース起点)は使わない。develop→master を squash マージする運用ではマージベースが
+  // 前々回リリースに留まり、リリース済みの変更を base 先端の版数と比べて誤検知する。
+  const changed = git(['diff', '--name-only', base, 'HEAD'], cwd).split('\n').filter(Boolean);
+  const changedByPackage = collectChangedSkills(changed);
+  const manifests = new Map();
+  for (const pkg of changedByPackage.keys()) {
+    const head = readManifestAt(null, pkg, cwd);
+    if (head === null) continue; // manifest 未導入の拡張
+    manifests.set(pkg, { base: readManifestAt(base, pkg, cwd) ?? {}, head });
+  }
+  const skillExists = (pkg, skill) => existsSync(join(cwd, 'packages', pkg, 'skills', skill));
+  return { changedByPackage, violations: findMissingBumps(changedByPackage, manifests, skillExists) };
 }
 
 function main() {
@@ -103,22 +121,11 @@ function main() {
     return;
   }
 
-  const changed = git(['diff', '--name-only', `${base}...HEAD`]).split('\n').filter(Boolean);
-  const changedByPackage = collectChangedSkills(changed);
+  const { changedByPackage, violations } = checkManifestBump({ base });
   if (changedByPackage.size === 0) {
     console.log('[check-skill-manifest-bump] 同梱スキルの変更なし');
     return;
   }
-
-  const manifests = new Map();
-  for (const pkg of changedByPackage.keys()) {
-    const head = readManifestAt(null, pkg);
-    if (head === null) continue; // manifest 未導入の拡張
-    manifests.set(pkg, { base: readManifestAt(base, pkg) ?? {}, head });
-  }
-
-  const skillExists = (pkg, skill) => existsSync(join(repoRoot, 'packages', pkg, 'skills', skill));
-  const violations = findMissingBumps(changedByPackage, manifests, skillExists);
   const checked = [...changedByPackage].map(([pkg, s]) => `${pkg}(${s.size})`).join(', ');
   console.log(`[check-skill-manifest-bump] base=${base} / 変更のあった同梱スキル: ${checked}`);
 

@@ -3,7 +3,7 @@
  *
  * CSS Modules を使わない理由: 消費側バンドラに css-loader を要求しないため。
  * テーマは web-app が `documentElement.dataset.theme` に設定する `data-theme` 属性へ追従し、
- * トークン値はデザインシステム（spec/10.web-app/design.md §2.2/§2.3）から導出する。
+ * トークン値はデザインシステム（spec/10.web-app/design-system.ja.md §2.2/§2.3）から導出する。
  */
 
 import { ensureStyle } from "@anytime-markdown/ui-core/dom";

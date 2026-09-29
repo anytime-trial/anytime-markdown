@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { collectChangedSkills, findMissingBumps } from './check-skill-manifest-bump.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+import { checkManifestBump, collectChangedSkills, findMissingBumps } from './check-skill-manifest-bump.mjs';
 
 test('collectChangedSkills: 同梱スキル配下の変更だけを拡張ごとに集める', () => {
   const changed = [
@@ -100,4 +105,45 @@ test('findMissingBumps: manifest 未導入の拡張は対象外', () => {
     'packages/vscode-markdown-extension/skills/anytime-mermaid/SKILL.md',
   ]);
   assert.deepEqual(findMissingBumps(changed, new Map()), []);
+});
+
+test('checkManifestBump: squash マージ済みの変更をマージベース起点で再検出しない', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-bump-'));
+  try {
+    const g = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf-8' });
+    const write = (rel, body) => {
+      mkdirSync(dirname(join(dir, rel)), { recursive: true });
+      writeFileSync(join(dir, rel), body);
+    };
+    const skillDir = 'packages/vscode-agent-extension/skills';
+    g('init', '-q', '-b', 'master');
+    g('config', 'user.email', 't@example.com');
+    g('config', 'user.name', 't');
+    write(`${skillDir}/manifest.json`, '{"s": 1}');
+    write(`${skillDir}/s/SKILL.md`, 'v1');
+    g('add', '.');
+    g('commit', '-qm', 'A');
+    g('switch', '-qc', 'develop');
+    write(`${skillDir}/manifest.json`, '{"s": 2}');
+    write(`${skillDir}/s/SKILL.md`, 'v2');
+    g('commit', '-qam', 'B');
+    // master へは squash マージ（develop の履歴は master に入らない）
+    g('switch', '-q', 'master');
+    g('merge', '-q', '--squash', 'develop');
+    g('commit', '-qm', 'C (squash)');
+    g('switch', '-q', 'develop');
+
+    assert.deepEqual(checkManifestBump({ base: 'master', cwd: dir }).violations, []);
+
+    // 以降の変更で版数を上げ忘れたら検出する
+    write(`${skillDir}/s/SKILL.md`, 'v3');
+    g('commit', '-qam', 'D');
+    const { violations } = checkManifestBump({ base: 'master', cwd: dir });
+    assert.deepEqual(
+      violations.map((v) => [v.skill, v.base, v.head]),
+      [['s', 2, 2]],
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

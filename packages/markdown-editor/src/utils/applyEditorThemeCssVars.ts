@@ -75,6 +75,8 @@ const SYSTEM_FONTS = [
   "Roboto",
 ];
 
+// handwritten 以外では削除する変数群。全プリセットで設定する変数
+// （--editor-content-font-family / --editor-heading-font-family）は入れない。
 const HANDWRITTEN_VARS = [
   "--editor-heading-hatch",
   "--editor-heading-radius-h1",
@@ -84,7 +86,6 @@ const HANDWRITTEN_VARS = [
   "--editor-heading-border-h1",
   "--editor-heading-border-h2",
   "--editor-heading-border-h3",
-  "--editor-heading-font-family",
   "--editor-admonition-radius",
   "--editor-admonition-bg-note",
   "--editor-admonition-bg-tip",
@@ -157,6 +158,9 @@ export function applyEditorThemeCssVars(
   const isDark = themeMode === "dark";
 
   root.style.setProperty("--editor-content-font-family", preset.fontFamily);
+  // 見出し書体はプリセットの displayFont が唯一の出所。handwritten 専用の変数として
+  // 扱うと、他のプリセットで変数が消えて CSS 側のフォールバックへ落ちる。
+  root.style.setProperty("--editor-heading-font-family", preset.displayFont);
 
   // chrome（ツールバー / ドロワー / メニュー / ダイアログ）が参照する `--am-*` トークン群。
   // 単独利用（WC 自給）でも再利用できるよう applyChromeTokens に切り出している。
@@ -168,10 +172,6 @@ export function applyEditorThemeCssVars(
     root.style.setProperty(
       "--editor-heading-hatch",
       `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${lineColor} 4px, ${lineColor} 5px), ${baseColor}`,
-    );
-    root.style.setProperty(
-      "--editor-heading-font-family",
-      '"Nunito", "Klee One", sans-serif',
     );
 
     const borders = isDark ? HEADING_BORDER_DARK : headingBorderLight;
