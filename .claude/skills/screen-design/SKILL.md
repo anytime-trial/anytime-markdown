@@ -23,7 +23,7 @@ UI / 画面コンポーネントの新規実装・修正時は、プロジェク
 
 | プロジェクト | デザインシステム仕様書 |
 | --- | --- |
-| anytime-markdown | `<docsRoot>/spec/10.web-app/design-system.ja.md` |
+| anytime-markdown | 意図と規約: `<docsRoot>/spec/10.web-app/design-system.ja.md`／トークン値: リポジトリ直下の `DESIGN.md`（コードから抽出。値は仕様書に写さない） |
 
 > プロジェクトに対応する仕様書がない場合、または上記表に未掲載のプロジェクトでは、まずプロジェクトの `CLAUDE.md` を確認する。\
 > それでも仕様書が見つからない場合は、ユーザーにデザイン指針を確認する。
