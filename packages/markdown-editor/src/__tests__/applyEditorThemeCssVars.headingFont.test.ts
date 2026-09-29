@@ -27,6 +27,5 @@ describe("applyEditorThemeCssVars の見出し書体", () => {
     applyEditorThemeCssVars({ presetName: "professional", themeMode: "dark", loadGoogleFonts: false });
 
     expect(headingFont()).toBe(THEME_PRESETS.professional.displayFont);
-    expect(headingFont()).not.toContain("monospace");
   });
 });

@@ -75,6 +75,8 @@ const SYSTEM_FONTS = [
   "Roboto",
 ];
 
+// handwritten 以外では削除する変数群。全プリセットで設定する変数
+// （--editor-content-font-family / --editor-heading-font-family）は入れない。
 const HANDWRITTEN_VARS = [
   "--editor-heading-hatch",
   "--editor-heading-radius-h1",

@@ -48,22 +48,22 @@ colors:
   admonition-caution: "#da3633"
 typography:
   headline-h1:
-    fontFamily: '"Nunito", "Klee One", Georgia, "Times New Roman", serif'
+    fontFamily: '"Nunito", "Klee One", sans-serif'
     fontSize: 2em
     fontWeight: 700
     letterSpacing: -0.01em
   headline-h2:
-    fontFamily: '"Nunito", "Klee One", Georgia, "Times New Roman", serif'
+    fontFamily: '"Nunito", "Klee One", sans-serif'
     fontSize: 1.5em
     fontWeight: 700
     letterSpacing: -0.01em
   headline-h3:
-    fontFamily: '"Nunito", "Klee One", Georgia, "Times New Roman", serif'
+    fontFamily: '"Nunito", "Klee One", sans-serif'
     fontSize: 1.25em
     fontWeight: 700
     letterSpacing: -0.01em
   headline-h4:
-    fontFamily: '"Nunito", "Klee One", Georgia, "Times New Roman", serif'
+    fontFamily: '"Nunito", "Klee One", sans-serif'
     fontSize: 1.1em
     fontWeight: 700
     letterSpacing: -0.01em
@@ -283,7 +283,7 @@ Markdown を読み書きするノートブックの温かさを目指す。広�
 ## Typography
 
 - **本文（エディタ）:** プリセットの本文書体で 17px・行間 1.6（`editorSettings.ts` の `DEFAULT_SETTINGS`）。handwritten は `"Nunito", "Klee One", "Helvetica", "Arial", sans-serif`、professional は `"Roboto", "Helvetica", "Arial", sans-serif`。
-- **見出し（エディタ）:** 本文に対する em 指定で h1 2em / h2 1.5em / h3 1.25em / h4 1.1em、いずれも太さ 700・字間 -0.01em（`editorContentCss.ts`）。幅 600px 以下では h1〜h3 を 1.6em / 1.3em / 1.15em に縮める。本文の大きさと行間はユーザー設定で変わる（CSS の未設定時フォールバックは 16px / 1.7）。見出し書体はプリセットの `displayFont`（`themePresets.ts`）で、handwritten は `"Nunito", "Klee One", Georgia, "Times New Roman", serif`、professional は `"Playfair Display", Georgia, "Times New Roman", serif`。
+- **見出し（エディタ）:** 本文に対する em 指定で h1 2em / h2 1.5em / h3 1.25em / h4 1.1em、いずれも太さ 700・字間 -0.01em（`editorContentCss.ts`）。幅 600px 以下では h1〜h3 を 1.6em / 1.3em / 1.15em に縮める。本文の大きさと行間はユーザー設定で変わる（CSS の未設定時フォールバックは 16px / 1.7）。見出し書体はプリセットの `displayFont`（`themePresets.ts`）で、handwritten は `"Nunito", "Klee One", sans-serif`、professional は `"Playfair Display", Georgia, "Times New Roman", serif`。
 - **UI（chrome）:** MUI テーマの書体 `"Roboto", "Helvetica", "Arial", sans-serif` はプリセットに依存しない。メニュー・ステータスバー 0.875rem、コンテキストメニュー・アウトライン・コメント本文 0.8125rem、チップ・小ボタン・キャプション 0.75rem、バッジ・検索カウンター 0.625rem、ツールチップ 12px（`dimensions.ts`）。
 
 ## Layout
