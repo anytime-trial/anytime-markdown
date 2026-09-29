@@ -27,7 +27,7 @@
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/ui-core": "*",
     "lowlight": "3.3.0",
-    "markdown-it": "14.2.0"
+    "markdown-it": "14.3.2"
   },
   "peerDependencies": {
     "dompurify": "^3.0.0",
