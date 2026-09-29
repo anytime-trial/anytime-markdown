@@ -113,7 +113,7 @@ export function applyChromeColorTokens(
 }
 
 /**
- * 寸法・モーション系トークン（モード非依存・spec/12.design 準拠）を root へ適用する。
+ * 寸法・モーション系トークン（モード非依存・spec/10.web-app/design-system.ja.md 準拠）を root へ適用する。
  *
  * Next.js のグローバル CSS import 制約を避けるため CSS ファイルではなく JS で注入する。
  */

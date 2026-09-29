@@ -1,7 +1,7 @@
 /**
  * Design tokens from Anytime Trial design system.
  * Supports dark / light mode via `getTokens(isDark)`.
- * @see /Shared/anytime-markdown-docs/spec/12.design/design.md
+ * @see /Shared/anytime-markdown-docs/spec/10.web-app/design-system.ja.md
  */
 
 // ---------------------------------------------------------------------------
