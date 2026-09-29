@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-29
+
+### Added
+
+- The bundled `anytime-dev-retro` skill (manifest 31 → 32) measures the effect of model × effort choices in its cost analysis: adoption rate per model and effort level (`delegation.effectiveness.byModelEffort`, abstentions excluded from the denominator), measured output tokens per adopted delegation including retried attempts (`cpat`), the per-model cost tail over the last 30 days (`tail.byModel`, one fragment per model × session, so its unit differs from the session totals in `topSessions`), and the median / p90 / top-10 % share / maximum of session costs (new pure module `costTail.cjs`). Effort is read only from a `— effort=<level>` suffix at the end of a delegation result line, so `effort=` inside the reasoning text is ignored. SKILL.md gains the effort sweep procedure and the promotion thresholds. Existing output keys are unchanged.
+
+### Changed
+
+- Bundled skill `anytime-trail-review` (manifest 8 → 9): the statement that subagents read neither CLAUDE.md nor skills was corrected to match measured behaviour (CLAUDE.md and rules are inherited, skill bodies and conversation context are not).
+
 ## [1.7.0] - 2026-09-28
 
 ### Trail Core (trail-activity / mcp-trail / trail-viewer)

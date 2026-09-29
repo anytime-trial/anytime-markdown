@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.20.3] - 2026-09-29
+
+### 変更
+
+- 同梱スキルを更新した（`anytime-dev-cycle` 28 → 30、`anytime-dev-audit` 12 → 13、`anytime-analysis` 18 → 19、`anytime-cross-review` 9 → 10、`anytime-loop-start` 19 → 20、`anytime-loop-stop` 1 → 2）。
+  - `anytime-dev-cycle` §3.1 にモデル × effort の決定手順を組み込んだ。判断順は (1) 4 軸分類 → (2) 初期割当表（モデル × effort） → (3) 検証手段があれば低 effort で実行し失敗のみ昇格 → (4) `anytime-dev-retro` の受動 Eval で較正。effort の指定経路（`/effort`・agents 定義の `effort:` frontmatter・`codex -c model_reasoning_effort`）と、Trail が effort を記録しない間は委譲結果行に `— effort=<level>` を併記する運用を明記した。バグ修正手順の「2 案提示」を CLAUDE.md / AGENTS.md の「提示せずベストプラクティス案で実装」に揃え、fable 行の「Opus 5」固定を外し、`references/delegation.md` の見送り行の扱いを `grounding.cjs` の実装に合わせた。
+  - `anytime-dev-audit` §1.3 を、自前の 7 観点表から global CLAUDE.md を含む範囲での `/claude-api prompt-audit` 起動へ置き換えた。同スキルが無い実行系向けに旧 7 観点を縮退経路として残した。
+  - `anytime-loop-stop` の生存判定を `kill -0` 単独から `anytime-loop-start` と同じ判定式へ揃えた。
+  - `anytime-analysis` / `anytime-cross-review` / `anytime-loop-start` の不在パス・移設済み参照・不在メモリ wikilink を是正した（prompt-audit High 指摘）。
+
 ## [1.20.2] - 2026-09-26
 
 ### 変更

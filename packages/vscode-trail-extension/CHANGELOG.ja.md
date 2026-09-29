@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-29
+
+### 追加
+
+- 同梱スキル `anytime-dev-retro`（manifest 31 → 32）のコスト分析に、モデル × effort の選択の効果測定を追加した。モデル × effort 別の採用率（`delegation.effectiveness.byModelEffort`。abstain は分母外）、採用 1 件あたりの実測出力トークン（`cpat`。差し戻し試行の実測も分子に含むリトライ込み原価）、30 日窓のモデル別コストの尾（`tail.byModel`。(model, session) 単位の断片で、`topSessions` のセッション総額とは単位が異なる）、セッションコストの中央値 / p90 / 上位 10% 占有 / 最大（新規の純粋関数モジュール `costTail.cjs`）を出す。effort は委譲結果行の行末 `— effort=<level>` だけから拾い、理由文中の `effort=` は拾わない。SKILL.md に effort sweep の手順と昇格閾値を足した。既存の出力キーは変えていない。
+
+### 変更
+
+- 同梱スキル `anytime-trail-review`（manifest 8 → 9）: サブエージェントが CLAUDE.md もスキルも読まないとしていた記述を実測（CLAUDE.md と rules は継承し、スキル本文と会話文脈は継承しない）に合わせて直した。
+
 ## [1.7.0] - 2026-09-28
 
 ### Trail Core (trail-activity / mcp-trail / trail-viewer)

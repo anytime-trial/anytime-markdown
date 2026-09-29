@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.20.3] - 2026-09-29
+
+### Changed
+
+- Bundled skills updated (`anytime-dev-cycle` 28 → 30, `anytime-dev-audit` 12 → 13, `anytime-analysis` 18 → 19, `anytime-cross-review` 9 → 10, `anytime-loop-start` 19 → 20, `anytime-loop-stop` 1 → 2).
+  - `anytime-dev-cycle` §3.1 gains the model × effort decision procedure: classify the task on four axes, take the initial model × effort assignment, run at low effort when a verification means exists and escalate only on failure, then calibrate with the passive eval in `anytime-dev-retro`. It names the effort channels (`/effort`, the `effort:` frontmatter of agent definitions, `codex -c model_reasoning_effort`) and, until Trail records effort itself, asks delegation result lines to carry `— effort=<level>`. The bug-fix steps no longer present two options and follow the best-practice default of CLAUDE.md / AGENTS.md, the fixed "Opus 5" in the fable row was removed, and `references/delegation.md` now matches how `grounding.cjs` counts skipped rows.
+  - `anytime-dev-audit` §1.3 runs `/claude-api prompt-audit` over the prompt set including the global CLAUDE.md instead of maintaining its own seven-point table; the old table stays as a fallback for runtimes without that skill.
+  - `anytime-loop-stop` uses the same liveness test as `anytime-loop-start` instead of `kill -0` alone.
+  - Non-existent paths, moved references and missing memory wikilinks were corrected in `anytime-analysis`, `anytime-cross-review` and `anytime-loop-start` (prompt-audit High findings).
+
 ## [1.20.2] - 2026-09-26
 
 ### Changed
