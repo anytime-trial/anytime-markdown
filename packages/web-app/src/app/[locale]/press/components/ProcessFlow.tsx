@@ -10,6 +10,8 @@ interface ProcessStep {
 interface ProcessLoop {
   titleKey: string;
   scaleKey: string;
+  /** ループを実行する Claude Code スキル名。固有名のため翻訳しない */
+  skill?: string;
   steps: readonly ProcessStep[];
   /** ループの出口注記。ループ B は次工程へ直進するだけなので持たない */
   returnKey?: string;
@@ -21,6 +23,7 @@ const LOOPS: readonly ProcessLoop[] = [
   {
     titleKey: 'loopATitle',
     scaleKey: 'loopAScale',
+    skill: 'anytime-dev-cycle',
     steps: [
       { key: 'loopA1' },
       { key: 'loopA2', human: true },
@@ -39,6 +42,7 @@ const LOOPS: readonly ProcessLoop[] = [
   {
     titleKey: 'loopCTitle',
     scaleKey: 'loopCScale',
+    skill: 'anytime-dev-retro',
     steps: [{ key: 'loopC1' }, { key: 'loopC2', human: true }],
     returnKey: 'loopCReturn',
     edgeKey: 'edgeBC',
@@ -69,6 +73,12 @@ export function ProcessFlow() {
               <span className={styles.processLoopTitle}>{t(loop.titleKey)}</span>
               <span className={styles.processLoopScale}>{t(loop.scaleKey)}</span>
             </header>
+            {loop.skill ? (
+              <p className={styles.processLoopSkill}>
+                {t('skillLabel')}
+                <code>{loop.skill}</code>
+              </p>
+            ) : null}
             <ol className={styles.processSteps}>
               {loop.steps.map((step, idx) => (
                 <li
