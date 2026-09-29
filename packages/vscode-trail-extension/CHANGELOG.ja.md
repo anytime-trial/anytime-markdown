@@ -20,6 +20,13 @@
 
 - 同梱スキル `anytime-dev-retro`（manifest 32 → 33）で、チケットを使わないワークスペースに誤警報が出ていたのを直した。スキル本文が `anytimeAgent.tickets.directory` の既定値を `/Shared/anytime-ticket` と記載していたが実装の既定値は空文字で、未設定のワークスペースでふりかえりを実行すると提案書を `unfiled` と記録し、起票経路の確保を次アクションの最優先に置いていた。チケット運用の判定を 1 箇所（§4.1）へ寄せ、worktree 実行時は本体ワークスペースのルートを起点に解決し、`anytime-loop-start` が未配備でも `tickets.directory` に値があればその値を使う。解決できない場合は起票と滞留点検をスキップし、確認先の起点パスを併記した「対象外」の 1 行だけを出す。その提案書には `ticketStatus: "not-used"` を付け、`unfiled` は起票を試みて失敗した場合に限る。
 
+### Trail Core (trail-db / trail-server)
+
+- Codex セッションを全ワークスペースから取り込むようにした。Codex の rollout だけが git ルートの前方一致で絞り込まれ、他ワークスペースで走ったセッションが Trail に残らなかった（同じマシンの Claude Code セッションは入っていた）。絞り込みを 2 つの取込経路（LEP の `JsonlIngester` と、refresh・analyze-all が使う legacy の `TrailDatabase`）の両方から外した。
+- Codex セッションの repo 帰属を、rollout の `session_meta` に記録された `cwd` から決める。導出は Claude Code セッションと同じ規則（git ルートまで遡り、`.worktrees/<name>` を親へ畳む）を使う。ドライブレターや UNC 接頭辞を持つ Windows のパスは正規化する。`cwd` を読めない rollout には主リポジトリ名ではなく `codex-unknown` を割り当て、他プロジェクトの会話を自リポジトリのものとして数えない。該当件数はログに出す。
+- 既存の Codex 行は、DB オープン時の in-app migration `backfillCodexRepoNameFromCwd_v3` が 1 回だけ振り直す。rollout ファイルを読めない行は書き換えずに保持する。`scripts/migrate-codex-repo-name.mts` は同じ是正を手動で適用する経路（`--dry-run`・書き込み前バックアップ・同じ冪等キー）。
+- `session_meta` の読み取りを rollout の先頭 1MiB に制限し、短読みにも対応した。従来はファイル全体を読んでいた。
+
 ## [1.7.0] - 2026-09-28
 
 ### Trail Core (trail-activity / mcp-trail / trail-viewer)
