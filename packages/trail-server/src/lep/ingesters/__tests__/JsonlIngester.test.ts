@@ -87,43 +87,63 @@ describe('JsonlIngester', () => {
     expect(events).toEqual([]);
   });
 
-  it('emits Codex sessions filtered by gitRoot when set', async () => {
+  it('emits Codex sessions from every workspace, deriving repoName from cwd', async () => {
     const codexDir = tmpDir('codex');
-    const sid = '22222222-2222-2222-2222-222222222222';
-    const rolloutFile = path.join(codexDir, `rollout-2026-05-19-${sid}.jsonl`);
-    fs.writeFileSync(
-      rolloutFile,
-      JSON.stringify({
-        type: 'session_meta',
-        payload: { cwd: '/work/anytime-markdown' },
-      }) + '\n',
+    const writeRollout = (sid: string, cwd: string | null): void => {
+      fs.writeFileSync(
+        path.join(codexDir, `rollout-2026-05-19-${sid}.jsonl`),
+        cwd === null
+          ? '{}\n'
+          : JSON.stringify({ type: 'session_meta', payload: { cwd } }) + '\n',
+      );
+    };
+    const inside = '22222222-2222-2222-2222-222222222222';
+    const outside = '22222222-2222-2222-2222-222222222223';
+    const unknown = '22222222-2222-2222-2222-222222222224';
+    writeRollout(inside, '/work/anytime-markdown/.worktrees/foo');
+    writeRollout(outside, '/other/repo');
+    writeRollout(unknown, null);
+
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: path.join(codexDir, 'no-claude'),
+      codexSessionsDir: codexDir,
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+
+    // 他ワークスペースも捨てない (ワークスペース絞り込みの撤廃)。repo 帰属は cwd から決まる。
+    expect(events).toHaveLength(3);
+    const byId = new Map(
+      events.flatMap((e) =>
+        e.kind === 'jsonl_session_discovered' ? [[e.sessionId, e] as const] : [],
+      ),
     );
-
-    const ingesterMatched = new JsonlIngester({
-      claudeProjectsDir: path.join(codexDir, 'no-claude'),
-      codexSessionsDir: codexDir,
-      gitRoot: '/work/anytime-markdown',
-      repoName: 'anytime-markdown',
-    });
-    const matched = makeBus();
-    await ingesterMatched.onRunEnd(makeCtx(matched.bus));
-    expect(matched.events).toHaveLength(1);
-    if (matched.events[0].kind === 'jsonl_session_discovered') {
-      expect(matched.events[0].source).toBe('codex');
-      expect(matched.events[0].repoName).toBe('anytime-markdown');
-    }
-
-    const ingesterMismatched = new JsonlIngester({
-      claudeProjectsDir: path.join(codexDir, 'no-claude'),
-      codexSessionsDir: codexDir,
-      gitRoot: '/work/other-repo',
-    });
-    const mismatched = makeBus();
-    await ingesterMismatched.onRunEnd(makeCtx(mismatched.bus));
-    expect(mismatched.events).toEqual([]);
+    expect(byId.get(inside)?.repoName).toBe('anytime-markdown');
+    expect(byId.get(outside)?.repoName).toBe('repo');
+    expect(byId.get(unknown)?.repoName).toBe('codex-unknown');
+    for (const e of byId.values()) expect(e.source).toBe('codex');
   });
 
-  it('emits all Codex sessions when no gitRoot is set', async () => {
+  it('does not fold a sibling sharing the primary repository prefix', async () => {
+    const codexDir = tmpDir('codex-sibling');
+    const sid = '55555555-5555-5555-5555-555555555555';
+    fs.writeFileSync(
+      path.join(codexDir, `rollout-${sid}.jsonl`),
+      JSON.stringify({ type: 'session_meta', payload: { cwd: '/work/anytime-markdown-2' } }) + '\n',
+    );
+    const ingester = new JsonlIngester({
+      claudeProjectsDir: path.join(codexDir, 'no-claude'),
+      codexSessionsDir: codexDir,
+    });
+    const { bus, events } = makeBus();
+    await ingester.onRunEnd(makeCtx(bus));
+    expect(events).toHaveLength(1);
+    if (events[0].kind === 'jsonl_session_discovered') {
+      expect(events[0].repoName).toBe('anytime-markdown-2');
+    }
+  });
+
+  it('emits a Codex session even when the rollout has no session_meta', async () => {
     const codexDir = tmpDir('codex-all');
     const sid = '33333333-3333-3333-3333-333333333333';
     const rolloutFile = path.join(codexDir, `rollout-${sid}.jsonl`);
@@ -261,20 +281,19 @@ describe('JsonlIngester', () => {
     const ingester = new JsonlIngester({
       claudeProjectsDir: path.join(codexDir2, 'no-claude'),
       codexSessionsDir: codexDir2,
-      gitRoot: '/work/anytime-markdown', // forces readCodexSessionCwd call
     });
     const { bus, events } = makeBus();
     await ingester.onRunEnd(makeCtx(bus));
-    // readFileSync on a directory throws → readCodexSessionCwd returns null → filtered out
+    // rollout- 名のディレクトリはファイルではないので、そもそも収集されない。
     expect(events).toEqual([]);
   });
 
-  it('readCodexSessionCwd returns null when no session_meta line found', async () => {
+  it('emits with the unknown repo name when cwd is not a string', async () => {
     // lines 229, 237: cwd non-string / end of file without session_meta
     const codexDir = tmpDir('codex-no-meta');
     const sid = '77777777-7777-7777-7777-777777777777';
     const rolloutFile = path.join(codexDir, `rollout-${sid}.jsonl`);
-    // Lines that are not session_meta: should return null and skip when gitRoot set
+    // session_meta が無い / cwd が文字列でない rollout
     fs.writeFileSync(
       rolloutFile,
       [
@@ -286,15 +305,17 @@ describe('JsonlIngester', () => {
     const ingester = new JsonlIngester({
       claudeProjectsDir: path.join(codexDir, 'no-claude'),
       codexSessionsDir: codexDir,
-      gitRoot: '/work/anytime-markdown',
     });
     const { bus, events } = makeBus();
     await ingester.onRunEnd(makeCtx(bus));
-    // cwd is not a string -> readCodexSessionCwd returns null -> filtered out
-    expect(events).toEqual([]);
+    // cwd が読めなくても捨てず、判別可能な repo_name を付けて emit する。
+    expect(events).toHaveLength(1);
+    if (events[0].kind === 'jsonl_session_discovered') {
+      expect(events[0].repoName).toBe('codex-unknown');
+    }
   });
 
-  it('readCodexSessionCwd skips invalid JSON lines and returns null', async () => {
+  it('emits with the unknown repo name when every line is invalid JSON', async () => {
     // line 229: JSON.parse throws -> continue
     const codexDir = tmpDir('codex-badjson');
     const sid = '88888888-8888-8888-8888-888888888888';
@@ -304,12 +325,14 @@ describe('JsonlIngester', () => {
     const ingester = new JsonlIngester({
       claudeProjectsDir: path.join(codexDir, 'no-claude'),
       codexSessionsDir: codexDir,
-      gitRoot: '/work/anytime-markdown',
     });
     const { bus, events } = makeBus();
     await ingester.onRunEnd(makeCtx(bus));
-    // No session_meta found -> filtered out when gitRoot set
-    expect(events).toEqual([]);
+    // session_meta が無くても捨てず、判別可能な repo_name を付けて emit する。
+    expect(events).toHaveLength(1);
+    if (events[0].kind === 'jsonl_session_discovered') {
+      expect(events[0].repoName).toBe('codex-unknown');
+    }
   });
 
   it('exposes tier=1 and emits jsonl_session_discovered', () => {
