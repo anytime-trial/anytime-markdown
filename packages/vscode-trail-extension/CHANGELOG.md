@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - Bundled skill `anytime-trail-review` (manifest 8 → 9): the statement that subagents read neither CLAUDE.md nor skills was corrected to match measured behaviour (CLAUDE.md and rules are inherited, skill bodies and conversation context are not).
 
+### Fixed
+
+- The bundled `anytime-dev-retro` skill (manifest 32 → 33) no longer raises a false alarm in workspaces that do not use tickets. SKILL.md stated `/Shared/anytime-ticket` as the default of `anytimeAgent.tickets.directory` while the actual default is empty, so a retrospective there recorded proposals as `unfiled` and put securing a filing route at the top of the next actions. The ticket decision now lives in one place (§4.1): it resolves from the main workspace root when run inside a worktree, uses `tickets.directory` whenever it has a value even if `anytime-loop-start` is not deployed, and otherwise skips filing and the stall check with a single "out of scope" line that names the path it checked. Such proposals carry `ticketStatus: "not-used"`; `unfiled` is limited to a filing attempt that failed.
+
 ## [1.7.0] - 2026-09-28
 
 ### Trail Core (trail-activity / mcp-trail / trail-viewer)

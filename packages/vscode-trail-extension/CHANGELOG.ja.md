@@ -16,6 +16,10 @@
 
 - 同梱スキル `anytime-trail-review`（manifest 8 → 9）: サブエージェントが CLAUDE.md もスキルも読まないとしていた記述を実測（CLAUDE.md と rules は継承し、スキル本文と会話文脈は継承しない）に合わせて直した。
 
+### 修正
+
+- 同梱スキル `anytime-dev-retro`（manifest 32 → 33）で、チケットを使わないワークスペースに誤警報が出ていたのを直した。スキル本文が `anytimeAgent.tickets.directory` の既定値を `/Shared/anytime-ticket` と記載していたが実装の既定値は空文字で、未設定のワークスペースでふりかえりを実行すると提案書を `unfiled` と記録し、起票経路の確保を次アクションの最優先に置いていた。チケット運用の判定を 1 箇所（§4.1）へ寄せ、worktree 実行時は本体ワークスペースのルートを起点に解決し、`anytime-loop-start` が未配備でも `tickets.directory` に値があればその値を使う。解決できない場合は起票と滞留点検をスキップし、確認先の起点パスを併記した「対象外」の 1 行だけを出す。その提案書には `ticketStatus: "not-used"` を付け、`unfiled` は起票を試みて失敗した場合に限る。
+
 ## [1.7.0] - 2026-09-28
 
 ### Trail Core (trail-activity / mcp-trail / trail-viewer)
