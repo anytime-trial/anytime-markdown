@@ -39,8 +39,6 @@ colors:
   info-dark: "#42a5f5"
   code-surface: "#EBE8DF"
   code-surface-dark: "#161B22"
-  heading-surface: "#DDD9CE"
-  heading-surface-dark: "#1A202C"
   heading-link: "#1F1E1C"
   heading-link-dark: "#63B3ED"
   admonition-note: "#1f6feb"
@@ -100,6 +98,8 @@ rounded:
   sm-professional: 4px
   md-professional: 8px
   lg-professional: 12px
+  chrome-sm: 12px
+  chrome-md: 8px
 spacing:
   3xs: 4px
   xxs: 8px
@@ -123,13 +123,13 @@ components:
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.on-surface}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
   card-dark:
     backgroundColor: "{colors.surface-dark}"
     textColor: "{colors.on-surface-dark}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.md}"
   card-professional:
-    rounded: "{rounded.lg-professional}"
+    rounded: "{rounded.md-professional}"
   caption:
     textColor: "{colors.on-surface-variant}"
     typography: "{typography.label-md}"
@@ -150,6 +150,8 @@ components:
     backgroundColor: "{colors.primary-strong-dark}"
   button-primary-professional:
     rounded: "{rounded.md-professional}"
+  button-chrome:
+    rounded: "{rounded.chrome-md}"
   button-cta:
     backgroundColor: "{colors.secondary}"
     textColor: "{colors.on-secondary}"
@@ -176,12 +178,8 @@ components:
     typography: "{typography.ui-sm}"
   badge:
     typography: "{typography.label-sm}"
-    rounded: "{rounded.sm}"
-  badge-professional:
-    rounded: "{rounded.sm-professional}"
   tooltip:
     typography: "{typography.tooltip}"
-    rounded: "{rounded.sm}"
   alert-error:
     textColor: "{colors.error}"
   alert-error-dark:
@@ -205,13 +203,11 @@ components:
     backgroundColor: "{colors.code-surface-dark}"
     textColor: "{colors.editor-text-dark}"
   heading-h1:
-    backgroundColor: "{colors.heading-surface}"
+    typography: "{typography.headline-h1}"
+  heading-number:
     textColor: "{colors.heading-link}"
-    typography: "{typography.headline-h1}"
-  heading-h1-dark:
-    backgroundColor: "{colors.heading-surface-dark}"
+  heading-number-dark:
     textColor: "{colors.heading-link-dark}"
-    typography: "{typography.headline-h1}"
   heading-h2:
     typography: "{typography.headline-h2}"
   heading-h3:
@@ -253,13 +249,13 @@ Markdown を読み書きするノートブックの温かさを目指す。広�
 - **エディタ本文 (#1F1E1C) / (#E2E8F0):** `editor-text`。ユーザー設定で上書きできる。
 - **細墨線 / 白 12%:** `divider`。ホバー背景は `hover`、選択背景は `selected`（いずれも半透明）。
 - **状態色:** `error` 焦墨 (#6B2A20) / (#f44336)、`warning` 藍墨 (#4A5A6B) / 紫苑 (#9B7BD8)、`success` 松葉墨 (#4B5A3E) / (#66bb6a)、`info` 青墨 (#3D4A52) / (#42a5f5)。warning はアンバーと色相を分けるためオレンジ系を使わない。
-- **エディタ面:** コードブロック `code-surface` (#EBE8DF) / (#161B22)、見出し背景 `heading-surface` (#DDD9CE) / (#1A202C)、見出しリンク `heading-link` (#1F1E1C) / (#63B3ED)。
+- **エディタ面:** コードブロック `code-surface` (#EBE8DF) / (#161B22)、見出し番号と h1 左罫線の `heading-link` (#1F1E1C) / (#63B3ED)。見出しの文字色は本文（`editor-text`）を継承する。定数 `DEFAULT_*_HEADING_BG` は再公開されているだけで使われていないため、トークンに置いていない。
 - **Admonition（GitHub 準拠・モード共通）:** note (#1f6feb)、tip (#238636)、important (#8957e5)、warning (#d29922)、caution (#da3633)。
 
 ## Typography
 
 - **本文（エディタ）:** プリセットの本文書体で 17px・行間 1.6（`editorSettings.ts` の `DEFAULT_SETTINGS`）。handwritten は `"Nunito", "Klee One", "Helvetica", "Arial", sans-serif`、professional は `"Roboto", "Helvetica", "Arial", sans-serif`。
-- **見出し（エディタ）:** 本文に対する em 指定で h1 2em / h2 1.5em / h3 1.25em / h4 1.1em、いずれも太さ 700・字間 -0.01em（`editorContentCss.ts`）。handwritten の見出し書体は `"Nunito", "Klee One", sans-serif`（`applyEditorThemeCssVars.ts`）。professional の見出し書体は正本と実装が食い違っているため、トークンに置いていない。
+- **見出し（エディタ）:** 本文に対する em 指定で h1 2em / h2 1.5em / h3 1.25em / h4 1.1em、いずれも太さ 700・字間 -0.01em（`editorContentCss.ts`）。幅 600px 以下では h1〜h3 を 1.6em / 1.3em / 1.15em に縮める。本文の大きさと行間はユーザー設定で変わる（CSS の未設定時フォールバックは 16px / 1.7）。handwritten の見出し書体は `"Nunito", "Klee One", sans-serif`（`applyEditorThemeCssVars.ts`）。professional の見出し書体は正本と実装が食い違っているため、トークンに置いていない。
 - **UI（chrome）:** MUI テーマの書体 `"Roboto", "Helvetica", "Arial", sans-serif` はプリセットに依存しない。メニュー・ステータスバー 0.875rem、コンテキストメニュー・アウトライン・コメント本文 0.8125rem、チップ・小ボタン・キャプション 0.75rem、バッジ・検索カウンター 0.625rem、ツールチップ 12px（`dimensions.ts`）。
 
 ## Layout
@@ -268,20 +264,25 @@ Markdown を読み書きするノートブックの温かさを目指す。広�
 
 ## Elevation & Depth
 
-面の段差は背景色の明度差で作る（`background` → `surface` → `code-surface` / `heading-surface`）。影の値は MUI 標準に任せており、本書ではトークン化していない。
+面の段差は背景色の明度差で作る（`background` → `surface` → `code-surface`）。影の値は MUI 標準に任せており、本書ではトークン化していない。
 
 ## Shapes
 
-角丸はプリセットで変わる。基本名が handwritten（sm 12px / md 20px / lg 28px）、`-professional` 接尾辞が professional（4 / 8 / 12px）。カードは `lg`、ボタンと入力は `md`、バッジとツールチップは `sm`。円形のボタンとアバターは 50%（`RADIUS_FULL`）。MUI テーマの `shape.borderRadius` はプリセットの `md` を使う。
+角丸は描画系統で 2 つに分かれる。
+
+- **MUI コンポーネント（web-app）:** テーマの `shape.borderRadius` にプリセットの `md` を渡すため、プリセットに追随する。基本名が handwritten（sm 12px / md 20px / lg 28px）、`-professional` 接尾辞が professional（4 / 8 / 12px）。ボタン・カード・入力はいずれも `md`。
+- **vanilla の chrome（ui-core のボタン・メニュー・ダイアログ等）:** プリセットに追随しない固定値 `chrome-sm` 12px / `chrome-md` 8px（`ui-core/src/chromeTokens.ts` の `--am-radius-*`）。
+
+`dimensions.ts` の `RADIUS_SM/MD/LG`（4 / 8 / 12px）と `RADIUS_FULL`（50%）はリポジトリ内で参照されていない。
 
 handwritten の見出しは四隅の異なる角丸（h1 `12px 8px 10px 6px` など）と斜線ハッチの背景で手書き感を出す。
 
 ## Components
 
-- ボタンは `button-primary`（操作）と `button-cta`（アンバー、画面の主要行動）の 2 系統。
+- ボタンは `button-primary`（操作）と `button-cta`（アンバー、画面の主要行動）の 2 系統。エディタ chrome のボタン（`button-chrome`）は角丸が固定。
 - 一覧のホバーと選択は `list-item-hover` / `list-item-selected` の半透明背景で示す。
 - 状態の通知は `alert-*` の色に加え、アイコンとラベルを必ず伴う（色だけで伝えない）。
-- コードブロックと見出しの面はエディタ専用色（`code-block`・`heading-h1`）を使う。
+- コードブロックの面はエディタ専用色（`code-block`）を使う。見出しの背景は handwritten が斜線ハッチ、professional が淡いグラデーションで、色トークンにはしていない。
 
 ## Do's and Don'ts
 

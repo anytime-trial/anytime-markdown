@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { buildDesignTokens, countLiteralColors } from "./extract-design-tokens.mjs";
+import { buildDesignTokens, countLiteralColors, extractFromRepo, TOKEN_MAPPING } from "./extract-design-tokens.mjs";
 
 const colors = {
   DEFAULT_LIGHT_BG: "#F2EFE8",
@@ -68,4 +69,38 @@ test("ソース中の直書き色を出現数つきで数える（大文字小�
     { value: "#000000", count: 1 },
     { value: "rgba(0,0,0,0.5)", count: 1 },
   ]);
+});
+
+test("実ソースを import して既定の TOKEN_MAPPING が全キー解決できる", async () => {
+  const tokens = await extractFromRepo();
+  for (const name of Object.keys(TOKEN_MAPPING.modes)) {
+    assert.equal(typeof tokens.light[name], "string", `light.${name}`);
+    assert.equal(typeof tokens.dark[name], "string", `dark.${name}`);
+  }
+});
+
+test("DESIGN.md の colors はすべて抽出値に実在する（再抽出忘れの検知）", async () => {
+  const tokens = await extractFromRepo();
+  const pool = new Set(
+    [...Object.values(tokens.light), ...Object.values(tokens.dark), ...tokens.other.map((o) => o.value), ...tokens.hardcoded.providersColors.map((c) => c.value)]
+      .map((v) => String(v).toLowerCase().replaceAll(/\s+/g, "")),
+  );
+  const md = readFileSync(new URL("../DESIGN.md", import.meta.url), "utf8");
+  const block = /^colors:\n((?: {2}.*\n)+)/m.exec(md)?.[1] ?? "";
+  const entries = [...block.matchAll(/^ {2}([\w-]+): "([^"]+)"$/gm)];
+  assert.ok(entries.length > 0, "colors ブロックを読めない");
+  for (const [, name, value] of entries) {
+    assert.ok(pool.has(value.toLowerCase().replaceAll(/\s+/g, "")), `${name} = ${value} が抽出元に無い`);
+  }
+});
+
+test("マッピング先が関数でも配列でもなければ名前つきで例外にする", () => {
+  assert.throws(
+    () => buildDesignTokens({ colors, presets, dimensions, mapping: { modes: { x: "ACCENT_COLOR" }, common: {} } }),
+    /ACCENT_COLOR/,
+  );
+});
+
+test("5〜7 桁の # 表記は色として数えない", () => {
+  assert.deepEqual(countLiteralColors("#abcde #1234567 #abc"), [{ value: "#abc", count: 1 }]);
 });

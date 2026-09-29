@@ -52,7 +52,7 @@ export const TOKEN_MAPPING = {
   },
 };
 
-const COLOR_RE = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g;
+const COLOR_RE = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b|rgba?\([^)]*\)/g;
 
 function normalizeColor(value) {
   return value.trim().toLowerCase().replaceAll(/\s+/g, "");
@@ -69,7 +69,9 @@ function pick(colors, name) {
 
 function resolveMode(colors, source, isDark) {
   if (Array.isArray(source)) return pick(colors, source[isDark ? 1 : 0]);
-  return pick(colors, source)(isDark);
+  const getter = pick(colors, source);
+  if (typeof getter !== "function") throw new Error(`${source} は (isDark) => string のゲッターではありません`);
+  return getter(isDark);
 }
 
 /** ソース文字列の直書き色（hex / rgb / rgba）を出現数の多い順に数える。 */
@@ -107,7 +109,8 @@ export function buildDesignTokens({ colors, presets, dimensions, mapping = TOKEN
   return { light, dark, other, hardcoded: { providersColors: countLiteralColors(providersSource) } };
 }
 
-async function main() {
+/** リポジトリの抽出元を読み込んで tokens.json 形式のオブジェクトを返す。 */
+export async function extractFromRepo() {
   const root = join(dirname(fileURLToPath(import.meta.url)), "..");
   const constants = join(root, "packages/markdown-editor/src/constants");
   const load = (file) => import(pathToFileURL(join(constants, file)).href);
@@ -117,7 +120,11 @@ async function main() {
     load("dimensions.ts"),
   ]);
   const providersSource = readFileSync(join(root, "packages/web-app/src/app/[locale]/providers.tsx"), "utf8");
-  const tokens = buildDesignTokens({ colors, presets, dimensions, providersSource });
+  return buildDesignTokens({ colors, presets, dimensions, providersSource });
+}
+
+async function main() {
+  const tokens = await extractFromRepo();
   process.stdout.write(`${JSON.stringify(tokens, null, 2)}\n`);
 }
 
