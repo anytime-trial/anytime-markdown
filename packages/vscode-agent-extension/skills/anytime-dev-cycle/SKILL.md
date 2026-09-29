@@ -171,7 +171,7 @@ abstain 出口は `references/stopping-rules-playbook.md` 共通。abstained 返
 | ファイル検索・Grep・ログ解析・整形確認 | **haiku**（`Explore` に `model: haiku`） | `gpt-6-luna`（通常は Codex へ出さない） | —（effort 非対応） | 出力が検証可能な大量処理 |
 | 複数ファイル横断の読み取り調査 | **sonnet**（`Explore`） | `gpt-6-sol` | `low` | 調査系の effort 曲線はほぼ平坦（`low` で 1〜3pt 減・コスト 1/3〜1/2） |
 | 定型実装（対象・完了条件・検証が確定） | **Codex**（§3 の既定）/ sonnet | `gpt-6-sol` | `medium` | 差し戻し率 5% 台で健全。Sonnet 5.5 は `medium` 起点 |
-| アルゴリズム実装・複数モジュールにまたがる実装 | **Codex** / opus | `gpt-6-astra` | `medium` | 較正表で out が定型実装の約 3 倍（`references/delegation.md` §2.3）。設計判断を含む分だけ上位段 |
+| アルゴリズム実装（較正表カテゴリ `アルゴリズム実装`。複数モジュールにまたがり設計判断を伴う実装も含める） | **Codex** / opus | `gpt-6-astra` | `medium` | 用途基準: 手順が既知でも設計判断と推論量を伴うため上位段（opus 相当）。較正表の値は n=1 の仮置き（`references/delegation.md` §2.3）で割当の根拠にしない |
 | バグ原因調査 | sonnet → 原因不明なら opus | `gpt-6-sol` → `gpt-6-astra` | `medium` → `high` | 探索ループ。再委任は一段昇格（下記） |
 | コードレビュー | sonnet。高重大度は opus / Codex の別系統で二重化 | `gpt-6-sol`。高重大度は `gpt-6-astra` | `medium` | 同一基盤モデルは欠陥を共有する |
 | チャット・要約・分類・ドキュメント整形 | sonnet | `gpt-6-sol`（通常は Codex へ出さない） | `low` | 曲線平坦。`low` で思考を省く |

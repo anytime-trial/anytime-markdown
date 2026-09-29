@@ -22,7 +22,7 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 
 - DB ingest はラグ（数十分〜Reload）を伴うため、**ゲート判定はその場の統合サマリで行う**。trail 記録は事後の因果追跡用。
 - Codex 実行は bwrap 不可環境のため `--dangerously-bypass-approvals-and-sandbox`（ラッパが付与）。レビューは read-only。
-- **Codex のモデルはラッパが `-m gpt-6-astra -c model_reasoning_effort=medium` を既定で付ける**。本スキルは高重大度の変更にだけ適用するため、`anytime-dev-cycle` SKILL.md §3.1「コードレビュー（高重大度）」の opus 相当段を使う（`~/.codex/config.toml` の既定モデルには任せない）。変えるときは `--model <slug>` / `--effort <level>` を渡す。実行したモデルは stderr の `codex model=... effort=...` に出る。
+- **Codex のモデルはラッパが `-m gpt-6-astra -c model_reasoning_effort=medium` を既定で付ける**。本スキルは高重大度の変更にだけ適用するため、`anytime-dev-cycle` SKILL.md §3.1「コードレビュー（高重大度）」の opus 相当段を使う（`~/.codex/config.toml` の既定モデルには任せない）。変えるときは `--model <slug>` / `--effort <level>`（`--model=<slug>` 形式も可）を渡す。実行したモデルは stderr の `codex model=... effort=...` に出る。
 - **worktree から起動するときはラッパを main の絶対パスで呼ぶ**（2026-08-08 実測）。`.claude/skills/` は git 追跡外（拡張が main チェックアウトへ配置する複製）なので worktree には存在せず、相対パスの起動は `MODULE_NOT_FOUND` で落ちる。
 
   ```bash

@@ -22,10 +22,12 @@ const DEFAULT_CODEX_EFFORT = 'medium';
  * (意図と違うモデルで silent にレビューされる事故を防ぐ)。
  */
 function resolveCodexOptions(argv) {
+  // `--model gpt-6-sol` と `--model=gpt-6-sol` の両形式を受理する。`=` 形式を無視すると既定モデルで silent に走るため。
   const pick = (flag, fallback) => {
+    const eq = argv.find((a) => a.startsWith(`${flag}=`));
     const i = argv.indexOf(flag);
-    if (i === -1) return fallback;
-    const v = argv[i + 1];
+    if (eq === undefined && i === -1) return fallback;
+    const v = eq !== undefined ? eq.slice(flag.length + 1) : argv[i + 1];
     if (!v || v.startsWith('--')) throw new Error(`${flag} requires a value`);
     return v;
   };

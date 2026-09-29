@@ -150,3 +150,11 @@ test('buildCodexArgs は -m と model_reasoning_effort を必ず付け、プロ�
     ['exec', '--dangerously-bypass-approvals-and-sandbox', '-m', 'gpt-6-astra', '-c', 'model_reasoning_effort=medium', '-'],
   );
 });
+
+test('resolveCodexOptions は --model=<slug> / --effort=<level> 形式も受理し、既定へ黙って戻さない', () => {
+  assert.deepStrictEqual(
+    cr.resolveCodexOptions(['--model=gpt-6-sol', '--effort=high']),
+    { model: 'gpt-6-sol', effort: 'high' },
+  );
+  assert.throws(() => cr.resolveCodexOptions(['--model=']), /--model/);
+});
