@@ -259,3 +259,67 @@ describe('grounding.cjs modelBehavior 集計', () => {
     expect(map['']).toBeUndefined();
   });
 });
+
+describe('grounding.cjs delegation effectiveness', () => {
+  test('モデル×effort の採用率とリトライ込み CpAT を集計する', () => {
+    const delegation = runGrounding((ws) => writeDocs(ws, [
+      '- 委譲結果: 雛形v2 [sonnet] 採用 — effort=low',
+      '- 委譲結果: 雛形v2 [sonnet] 差し戻し — 理由 effort=low',
+      '- 委譲結果: 雛形v2 [sonnet] abstain — effort=low',
+      '- 委譲結果: 雛形v3 [sonnet] 採用 — effort=high',
+      '- 委譲結果: 雛形v3 [sonnet] 採用',
+      '- 委譲結果: 雛形v3 [codex] abstain — effort=xhigh',
+      '- 委譲結果: 雛形v3 [codex] 差し戻し — effort=max',
+      '- 委譲結果: 雛形v3 採用 — effort=medium',
+      '- 委譲実測: [sonnet] out≈10k / wall≈1m',
+      '- 委譲実測: [sonnet] out≈3k / wall≈2m',
+      '- 委譲実測: [codex] out≈5k / wall≈2m',
+      '- 委譲実測: [actual-only] out≈2.5k / wall≈1m',
+      '- 委譲見送り: [E2] 小変更',
+    ]));
+    expect(delegation.effectiveness.byModelEffort).toEqual([
+      { model: 'sonnet', effort: 'low', 採用: 1, 差し戻し: 1, abstain: 1, acceptRatePct: 50 },
+      { model: 'sonnet', effort: 'high', 採用: 1, 差し戻し: 0, abstain: 0, acceptRatePct: 100 },
+      { model: 'sonnet', effort: '(unspecified)', 採用: 1, 差し戻し: 0, abstain: 0, acceptRatePct: 100 },
+      { model: 'codex', effort: 'xhigh', 採用: 0, 差し戻し: 0, abstain: 1, acceptRatePct: null },
+      { model: 'codex', effort: 'max', 採用: 0, 差し戻し: 1, abstain: 0, acceptRatePct: 0 },
+      { model: '(unspecified)', effort: 'medium', 採用: 1, 差し戻し: 0, abstain: 0, acceptRatePct: 100 },
+    ]);
+    expect(delegation.effectiveness.cpat).toEqual([
+      { model: 'sonnet', accepted: 3, results: 5, actuals: 2, sumActualOutK: 13, cpatOutK: 4.33 },
+      { model: 'codex', accepted: 0, results: 2, actuals: 1, sumActualOutK: 5, cpatOutK: null },
+      { model: '(unspecified)', accepted: 1, results: 1, actuals: 0, sumActualOutK: 0, cpatOutK: 0 },
+      { model: 'actual-only', accepted: 0, results: 0, actuals: 1, sumActualOutK: 2.5, cpatOutK: null },
+    ]);
+    expect(delegation).toMatchObject({
+      recorded: 8, declined: 1, delegationRatePct: 88.9,
+      byVersion: { v2: { 採用: 1, 差し戻し: 1, abstain: 1 }, v3: { 採用: 3, 差し戻し: 1, abstain: 1 } },
+      byModel: { sonnet: { 採用: 3, 差し戻し: 1, abstain: 1 }, codex: { 採用: 0, 差し戻し: 1, abstain: 1 }, '(unspecified)': { 採用: 1, 差し戻し: 0, abstain: 0 } },
+      estimates: { recorded: 0, actuals: 4, paired: 0, unpairedEstimates: 0, unpairedActuals: 4, referenceClass: [] },
+    });
+  });
+
+  test('採用率は小数1桁、未定義 effort は unspecified、別ファイルも合算', () => {
+    const delegation = runGrounding((ws) => {
+      writeDocs(ws, [
+        '- 委譲結果: 雛形v2 [sonnet] 採用 — effort=invalid',
+        '- 委譲結果: 雛形v2 [sonnet] 差し戻し',
+        '- 委譲実測: [sonnet] out≈1k / wall≈1m',
+      ]);
+      fs.writeFileSync(path.join(ws, 'docs', 'plan', 'q.md'), [
+        '- 委譲結果: 雛形v2 [sonnet] 差し戻し',
+        '- 委譲実測: [sonnet] out≈2k / wall≈1m',
+      ].join('\n'));
+    });
+    expect(delegation.effectiveness.byModelEffort).toEqual([
+      { model: 'sonnet', effort: '(unspecified)', 採用: 1, 差し戻し: 2, abstain: 0, acceptRatePct: 33.3 },
+    ]);
+    expect(delegation.effectiveness.cpat[0]).toMatchObject({ actuals: 2, sumActualOutK: 3, cpatOutK: 3 });
+  });
+
+  test('plan 不在は null、空 plan は空の集計', () => {
+    expect(runGrounding(() => {}).effectiveness).toBeNull();
+    expect(runGrounding((ws) => fs.mkdirSync(path.join(ws, 'docs'))).effectiveness).toBeNull();
+    expect(runGrounding((ws) => writeDocs(ws, [])).effectiveness).toEqual({ byModelEffort: [], cpat: [] });
+  });
+});

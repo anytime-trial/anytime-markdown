@@ -934,6 +934,8 @@ function detectSemanticWired() {
       const emptyTally = () => ({ 採用: 0, 差し戻し: 0, abstain: 0 });
       const byVersion = {};
       const byModel = {};
+      const effortGroups = new Map();
+      const costGroups = new Map();
       let recorded = 0;
       let declined = 0;
       const declinedByExclusion = {};
@@ -954,6 +956,10 @@ function detectSemanticWired() {
             byVersion[v][outcome] += 1;
             byModel[model] = byModel[model] ?? emptyTally();
             byModel[model][outcome] += 1;
+            const effort = /\beffort=(low|medium|high|xhigh|max)\b/.exec(line.slice(m[0].length))?.[1] ?? '(unspecified)';
+            const key = JSON.stringify([model, effort]);
+            if (!effortGroups.has(key)) effortGroups.set(key, { model, effort, ...emptyTally() });
+            effortGroups.get(key)[outcome] += 1;
             continue;
           }
           const dec = DECLINED_RE.exec(line);
@@ -973,6 +979,10 @@ function detectSemanticWired() {
           const act = ACTUAL_RE.exec(line);
           if (act) {
             actRecorded += 1;
+            if (!costGroups.has(act[1])) costGroups.set(act[1], { actuals: 0, sumActualOutK: 0 });
+            const cost = costGroups.get(act[1]);
+            cost.actuals += 1;
+            cost.sumActualOutK += Number(act[2]);
             const stack = pendingByModel[act[1]];
             const e = stack && stack.length ? stack.pop() : null;
             if (e) {
@@ -1019,10 +1029,26 @@ function detectSemanticWired() {
       // delegationRatePct: 委譲した / (委譲した + 見送った)。判断が 1 件も記録されて
       // いない場合は 0% でなく null(測定不能)。0% は「全部見送った」を意味してしまう。
       const decisions = recorded + declined;
+      const effectiveness = {
+        byModelEffort: [...effortGroups.values()].map((g) => ({
+          ...g,
+          acceptRatePct: g.採用 + g.差し戻し > 0 ? pct(g.採用, g.採用 + g.差し戻し) : null,
+        })),
+        cpat: [...new Set([...Object.keys(byModel), ...costGroups.keys()])].map((model) => {
+          const tally = byModel[model] ?? emptyTally();
+          const { actuals, sumActualOutK } = costGroups.get(model) ?? { actuals: 0, sumActualOutK: 0 };
+          return {
+            model, accepted: tally.採用,
+            results: tally.採用 + tally.差し戻し + tally.abstain,
+            actuals, sumActualOutK,
+            cpatOutK: tally.採用 > 0 ? round2(sumActualOutK / tally.採用) : null,
+          };
+        }),
+      };
       snapshot.delegation = {
         docsRoot, recorded, declined, declinedByExclusion,
         delegationRatePct: decisions > 0 ? pct(recorded, decisions) : null,
-        byVersion, byModel, estimates,
+        byVersion, byModel, estimates, effectiveness,
       };
     } else {
       // 測定不能を「委譲記録ゼロ」と誤読させないため、null / 空へ倒す経路は必ず理由を errors に残す。
@@ -1033,7 +1059,7 @@ function detectSemanticWired() {
       }
       snapshot.delegation = {
         docsRoot, recorded: null, declined: null, declinedByExclusion: null,
-        delegationRatePct: null, byVersion: null, byModel: null, estimates: null,
+        delegationRatePct: null, byVersion: null, byModel: null, estimates: null, effectiveness: null,
       };
     }
   } catch (e) {

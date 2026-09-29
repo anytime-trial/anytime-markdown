@@ -20,6 +20,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
 const path = require('node:path');
+const { tailStats } = require('./costTail.cjs');
 
 // 閾値(運用で調整可)。expensiveCostUsd を超える、または longSessionMsgs を超えるセッションを「重い」とみなす。
 const EXPENSIVE_COST_USD = 20;
@@ -73,6 +74,26 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
 {
   const { db, error } = open('activity.db');
   if (error) snapshot.errors.push(error);
+
+  const tailCosts = rows(q(db, `
+    SELECT sc.model, sc.session_id, SUM(sc.estimated_cost_usd) cost
+    FROM activity_session_costs sc JOIN activity_sessions s ON s.id = sc.session_id
+    WHERE s.start_time >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days')
+      AND s.start_time < strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+    GROUP BY sc.model, sc.session_id
+  `));
+  const costsByModel = new Map();
+  for (const row of tailCosts) {
+    if (!costsByModel.has(row.model)) costsByModel.set(row.model, []);
+    costsByModel.get(row.model).push(row.cost ?? 0);
+  }
+  snapshot.tail = {
+    windowDays: 30,
+    byModel: [...costsByModel].map(([model, costs]) => {
+      const { n, ...stats } = tailStats(costs);
+      return { model, sessions: n, ...stats };
+    }).sort((a, b) => b.sessions - a.sessions),
+  };
 
   // ── モデル別コスト(activity_session_costs が正準・estimated_cost_usd 算出済み) ──────────
   const byModel = rows(
