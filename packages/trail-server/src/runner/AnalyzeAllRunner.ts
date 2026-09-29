@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 
 import {
   BaseRunner,
@@ -427,11 +427,8 @@ export class AnalyzeAllRunner extends BaseRunner {
     const commitRoots = mergeUnique(gitRoots, opts.commitWatchRoots ?? []);
     const onPhase = opts.onImportPhase;
     const onProgress = opts.onImportProgress;
-    const fallbackRepoName = gitRoots[0] ? basename(gitRoots[0]) : undefined;
-    const primaryRepoName = opts.gitRoot ? basename(opts.gitRoot) : fallbackRepoName;
-
     // Layer 1 (sources)
-    const analyzers: Analyzer[] = [...this.buildIngesters(opts, gitRoots, primaryRepoName)];
+    const analyzers: Analyzer[] = [...this.buildIngesters(opts, gitRoots)];
 
     // Layer 2 (primary) の核 analyzer (toggle 不可)
     const sessionImporter = new SessionImporter({ trailDb, onProgress, onPhase });
@@ -526,15 +523,11 @@ export class AnalyzeAllRunner extends BaseRunner {
   }
 
   /** Layer 1 ingesters (sources) を生成する。GitHub PR source は opt-in。 */
-  private buildIngesters(
-    opts: AnalyzeAllRunnerOptions,
-    gitRoots: readonly string[],
-    primaryRepoName: string | undefined,
-  ): Analyzer[] {
+  private buildIngesters(opts: AnalyzeAllRunnerOptions, gitRoots: readonly string[]): Analyzer[] {
     const ingesters: Analyzer[] = [
+      // Codex セッションの repo 帰属は rollout の cwd から決まるため、ワークスペースを
+      // 特定する情報は渡さない (ワークスペースによる絞り込みをしない)。
       new JsonlIngester({
-        gitRoot: opts.gitRoot ?? gitRoots[0],
-        repoName: primaryRepoName,
         claudeProjectsDir: opts.claudeProjectsDir,
         codexSessionsDir: opts.codexSessionsDir,
       }),

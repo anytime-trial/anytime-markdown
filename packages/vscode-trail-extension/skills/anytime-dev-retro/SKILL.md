@@ -6,7 +6,7 @@ description: "開発のふりかえり。Trail の 3DB を横断分析し、前�
 
 # anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化＋doctrine 抽出）
 
-更新日: 2026-08-22（旧 `anytime-reverse-doctrine` を doctrine 抽出モードとして統合。どちらも実績・履歴から改善・規範を還流させるふりかえり系のため）
+更新日: 2026-09-29（チケットリポジトリの既定値の記述を削除し、チケットを使わない運用を `ticketStatus: "not-used"` として未起票と区別。2026-08-22 に旧 `anytime-reverse-doctrine` を doctrine 抽出モードとして統合）
 
 Trail が蓄積する 3 つのローカル DB を横断分析し、**前回からの変化（デルタ）に基づく**健全性レポートを出力する。変化が閾値を超えたシグナルだけ改善提案に昇格させ、提案書に加えてチケットを起票する（毎回同じ指摘を繰り返さないのが本スキルの肝）。
 
@@ -128,17 +128,20 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **条文効果**（`quality.checklistByRef30d`）: 前回レトロ以降に条文化・改訂した章があれば、その章の 30 日窓指摘件数の前回比を明記する（減少＝条文が効いている / 横ばい以上＝§4 メタ還流の観測 1 回目）。
 - **コスト詳細**（`grounding.token-budget.cjs` 出力。集計レベルの cost glance を超える深掘り）: モデル別コスト内訳 `byModel`（model / sessions / cost / cacheRead。Opus 比率を強調）・コスト上位セッション `topSessions`（session / cost / messageCount / peakContextTokens / compactCount / gitBranch / hygieneFlag）・セッション衛生 `hygiene`（expensiveNoCompact 等）・週次トレンド `trend.weekly`。狙いは RC2（Opus メインの超長大セッションが `/clear`・`/compact` なしで継続し `cache_read` が「文脈サイズ×ターン数」で二乗膨張する）の継続監視。
 - **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
+- **効果測定**（`delegation.effectiveness`・`tail`。`anytime-dev-cycle` §3.1 の割当表（モデル × effort）を改訂する材料）: (a) `effectiveness.byModelEffort` — 委譲結果行の `— effort=<level>` 併記から集計したモデル × effort 別の採用率（abstain は分母外。effort 未記載は `(unspecified)`）。(b) `effectiveness.cpat` — 採用 1 件あたりの実測出力トークン `cpatOutK`（同モデルの委譲実測行の合計 ÷ 採用数。差し戻し試行の実測も分子に入るリトライ込み原価。Claude 系と Codex は会計単位が違うため同一実行系内でのみ比較する）。(c) `tail.byModel` — 30 日窓で、各セッション内にそのモデルが負担したコスト断片（`(model, session)` 単位の合計。`topSessions` のセッション総額とは単位が異なる）の分布（中央値・p90・上位 10% 占有・最大）。平均でなく尾で読む: 請求を決めるのは難しい 1 割で、上位 10% 占有が高いモデルは「その尾に上位モデル・高 effort を充てているか」を問う。**effort sweep の手順**: 同一作業種別・同一モデルで effort だけ変えた委譲を別セッションで回し（effort 変更はプロンプトキャッシュを無効化するため同一セッションで混ぜない）、`byModelEffort` の採用率と `cpatOutK` を並べる。曲線が平坦（採用率同等で cpat が低い）なら低 effort を既定へ、急（採用率差が大きい）なら高 effort を維持する。割当が非ランダムのため因果は主張せず、n<5 の組は判定しない。
 - **再発シグナル**（`recurrence.danglingClusters` / `recurrence.uncoveredBugFiles`）: dangling target は全件を滞留サイクル数（初出 / 2 回目 / 3 回目以降）付きで列挙する。参照元が 3 件以上の target は `priority: high` 相当として扱う。
-- **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) **起票済みチケットの滞留点検**（下記）。(c) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
+- **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。`ticketStatus: "not-used"` の提案は未起票として再掲しない（チケットを使わない運用であり、採否は上記 3 状態の追跡だけで管理する）。チケットを使わない運用のワークスペースに残る `ticketStatus: "unfiled"` の提案書は再掲せず、`ticketStatus: "not-used"` へ書き換えて `ticketBlockedReason` を削除する（旧版の本文が未使用を起票失敗として記録した分の是正）。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) **起票済みチケットの滞留点検**（下記）。(c) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
 
     **起票済みチケットの滞留点検**: 提案が起票されるようになっても、チケットが `backlog` から動かなければシグナルは悪化し続ける（2026-08-19 実測: T-10 が 18 日・T-18 / T-19 が 14 日滞留する間に `review_unfixed` drift が 81 → 203 件へ増えた一方、完了した T-17 は平均 compact を 4.7 → 7.9 へ反転させた）。次を毎回行う。
 
-    - チケットリポジトリ（VS Code 設定 `anytimeAgent.tickets.directory`。既定 `/Shared/anytime-ticket`）の `.tickets/*.md` から、`status: backlog` かつ `creator: anytime-dev-retro` のチケットを**滞留日数付きで全件再掲**する。件数で丸めない。
+    - 最初に §4.1「チケット運用の判定」でチケットリポジトリを解決する。
+    - 解決できない場合は**チケットを使わない運用**であり、故障ではない。レポートには「起票済みチケットの滞留点検: 対象外（チケット未使用。確認先: `<起点パス>`）」と 1 行記載するだけにし、以降の手順は行わない。欠陥・警告・「次アクション候補」のいずれにも挙げない。
+    - 解決できた場合は、その `.tickets/*.md` から `status: backlog` かつ `creator: anytime-dev-retro` のチケットを**滞留日数付きで全件再掲**する。件数で丸めない。
     - 同一チケットが 2 回のレトロを跨いで `backlog` のままなら、「次アクション候補」の**先頭**（新規提案より上）に置く。
     - 滞留チケットの対象シグナルが同期間に**悪化していれば**その事実を併記する。悪化していない滞留は優先度を下げてよい（全件を警告で埋めるとレポートが読まれなくなる）。
     - 同一シグナルに対する新規提案は作らない（重複提案は滞留を増やすだけ）。
 
-    チケットリポジトリはワークスペース外にあり `lep.json` にパス定義が無いため、集計は grounding では行わずレポート作成時の手順として実施する。
+    チケットリポジトリの場所は `lep.json` に定義が無いため、集計は grounding では行わずレポート作成時の手順として実施する。
 - **Flight Record**（`flightRecord`・30 日窓）: outcome 分布（achieved/partial/unachieved/unknown）・自己評価カバレッジ・手戻り平均・ツール失敗率・滞留指示（openOver7d）と、指示単位コスト上位 `topInstructionsByCost30d`（caravan_instruction_sessions × trail.activity_session_costs の突合。セッション粒度のコスト分析を「1 指示にいくら掛かったか」の作業単位へ引き上げる）。`lessonCandidateReviews`（教訓候補を持つ振り返り）は再発シグナルの突合候補として件数を明記する。`source` が `trail(pre-migration)` の場合は移行未完了と明記する。
 - **具体化観点の候補**（`doctrineGap`）: `missedCount` が 1 件以上なら `missedSamples` を**毎回列挙**する（subject / promptShape / originPrompt）。各件は「着手前に聞けたはずの論点」で、§4 の閾値を満たしたら具体化観点への昇格提案＋チケットへ回す。`available: false`（DCT-14 未マイグレーション）・`missedCount` が 0 のときもその旨を明記する（沈黙させない）。`unreadableDeclarations` が 1 件以上なら申告率の解釈を保留する旨を添える。
 - **評価ケース層**（§4.2）: `grep -rhoE "EVAL-[0-9]+" packages/*/__tests__ | sort -u | wc -l` の件数と前回比、`test.failing`（昇格待ち）の件数。2 回連続で増分 0 なら §4.2 の抽出運用見直しを提案候補にする。
@@ -160,6 +163,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - `costWindow30d.opusCostSharePct`（30 日窓）が前回比 +5pt 以上、**かつ `costWindow30d.opusCostUsd` が前回比で増加**（AND 条件）。占有率だけが上がり絶対コストが横ばい・減少なら、分母縮小による見かけの上昇としてレポートに明記し、提案へ昇格させない。または `costWindow30d.cacheReadSharePct` が 99% 超で `costWindow30d.sessionsOver1000Msgs`（30 日窓）が増加。累積の `cost.*` では機械的に発火するため窓値で判定する。
 - **コスト詳細（セッション粒度・`grounding.token-budget.cjs`）**: `totals.opusCostSharePct` が 90% 超かつ前回比 +3pt 以上（Opus 偏重の進行）、または `trend.last7dCost` が `trend.prior7dCost` の +30% 以上（コスト急増）、または `hygiene.expensiveNoCompact` が前回比 +5 以上／高コストセッションの過半が compact 未使用、または `topSessions` に前回スナップショットに無い `hygieneFlag='expensive-no-compact'` の新規セッションが出現、または `totals.top15SessionsCostSharePct` が前回比 +5pt 以上（少数セッションへの集中）。提案の方向は RC2 の恒久/暫定対策（モデル委譲徹底・セッション衛生通知・retention）に紐付ける。
 - **衛生行動の減衰**: `hygiene.windows` で `avgSubAgents` または `avgCompacts` が `prior30to60d` → `prior7to30d` → `last7d` と単調に低下し、かつ `avgMessages` が横ばい（最大窓比 ±20% 以内）。セッションが小さくなった結果ではなく畳む行動が消えたことを意味する。件数が 20 未満の窓を含む場合は判定しない（少数標本）。
+- **効果測定（effort・CpAT・尾）**: `effectiveness.byModelEffort` で同一モデルの effort 上位が下位より採用率 +10pt 以上（各 n≥5）→ `anytime-dev-cycle` §3.1 の当該作業の effort を上げる提案。採用率同等（±5pt）で `cpatOutK` の低い effort がある → 既定 effort を下げる提案。`tail.byModel` で `top10PctShareCost` が 50% 超のモデル → `topSessions` で上位セッションを特定し、その作業種別（設計・長期自律実行か）が §3.1 表の割当と整合するかを提案に載せる。n<5 の組は判定しない。
 - `techDebt.noTriggerMarkers` が前回比 +5 以上、または `techDebt.noTriggerSharePct` が 50% 超（昇格経路なき簡略化が支配的）。
 - `skillHealth.brokenRefs` が 1 以上（参照切れの放置）、または `staleOver90` が前回比増かつ `unused30d` が総数の過半（棚卸し要否の判断材料）。
 - **MCP サーバーの利用消失**: `mcpHealth.vanished30d` に前回スナップショットに無いサーバーが出現（登録が消えた・承認が外れた・起動コマンドが消えた、のいずれか。2026-08-19 の devcontainer 再構築で user スコープの Serena 登録が消え 1 か月以上気づかれなかった実測）→ 登録経路の復旧と、規約（そのサーバーを前提とする CLAUDE.md の条項）を残すか外すかの判断を提案する。`silent30d` に 2 回連続で残るサーバーは、規約が形骸化しているとみなし条項の削除候補にする。
@@ -182,6 +186,21 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 
 ### 4.1 チケット起票（提案 1 件 = チケット 1 件）
 
+**チケット運用の判定**（起票の前に行う。§3「起票済みチケットの滞留点検」も本判定の結果に従う）: チケットリポジトリを `anytime-loop-start` スキル §0 の前提 1「チケットディレクトリ」の解決順で解決する（正本は同スキル。本スキルでは解決順を定義しない。設定に既定のパスは無い）。
+
+- git worktree 内で実行している場合は、worktree でなく本体ワークスペースのルートを起点に解決する（`.vscode/settings.json` は git 管理外で、worktree には存在しないことがある）。
+- `anytime-loop-start` スキルが配備されていないワークスペースでは、`.vscode/settings.json` の `anytimeAgent.tickets.directory` に値があればその値が指すリポジトリを使い、値が無ければ解決できない場合として扱う。
+- 解決できなかった場合は、確認した起点パスを §3 の「対象外」の行に併記する（誤判定を後から確認できるようにする）。
+
+解決できないワークスペースは**チケットを使わない運用**であり、故障ではない。その場合は次のとおり扱い、本節の以降の手順は行わない。
+
+- 起票をスキップする。`mcp__claude_ai_mcp-cms-remote__create_ticket` が使える環境でも呼び出さない（他ワークスペースのチケットリポジトリへ起票しない）。
+- 提案書 frontmatter に `ticketStatus: "not-used"` を書く。`ticketId` と `ticketBlockedReason` は書かない。
+- 提案の採否は提案書と次回レトロの追跡（§3「メタ機構の健全性」(a)）で管理する。
+- レポートに未起票の警告を出さず、起票経路の確保を「次アクション候補」に挙げない。
+
+チケットリポジトリを解決できた場合は、以下の手順で起票する。
+
 §4 で改善提案書を生成したら、提案 1 件につき `mcp__claude_ai_mcp-cms-remote__create_ticket` を 1 回呼び出してチケットリポジトリの `.tickets/` へ起票する（GitHub API 経由で直接コミットされるためローカル git 操作は不要）。
 
 - `title`: `改善提案: <提案テーマ>`
@@ -197,11 +216,11 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 起票の成否は提案書 frontmatter に必ず記録する。
 
 - 成功時: `ticketStatus: "filed"` と `ticketId: "T-N"`（例: `T-12`）を書く。
-- 不成立時: `ticketStatus: "unfiled"` と `ticketBlockedReason: "<1 行の理由>"` を書く。
+- 不成立時: `ticketStatus: "unfiled"` と `ticketBlockedReason: "<1 行の理由>"` を書く。`ticketStatus: "unfiled"` は起票を試みて失敗した場合だけに使い、チケットを使わない運用（`not-used`）には使わない。
 
-`mcp__claude_ai_mcp-cms-remote__create_ticket` が使えない環境では、フォールバックとして VS Code 設定 `anytimeAgent.tickets.directory`（ワークスペースの `.vscode/settings.json`。既定値は `/Shared/anytime-ticket`）が指すチケットリポジトリを解決し、その `.tickets/` 配下へ `anytime-loop-start` スキルと同じ YAML frontmatter + Markdown 本文のチケットを直接作成する。設定値がリポジトリルートを指す場合は直下の `.tickets/` を使い、`.tickets/` 自体を指す場合はそのディレクトリを使う。ファイル名は `T-<連番>-<英数スラッグ>.md` とし、既存 `T-*.md` の最大連番の次を使う。frontmatter には上記 `title` / `status` / `priority` / `assignee` / `workspace` / `creator` と `id` / `created_at` / `updated_at` を書き、本文には概要、起点シグナル、提案書パス、実装前に提案書本体を Read する指示を含める。
+`mcp__claude_ai_mcp-cms-remote__create_ticket` が使えない環境では、フォールバックとして冒頭の判定で解決したチケットリポジトリの `.tickets/` 配下へ `anytime-loop-start` スキルと同じ YAML frontmatter + Markdown 本文のチケットを直接作成する。ファイル名は `T-<連番>-<英数スラッグ>.md` とし、既存 `T-*.md` の最大連番の次を使う。frontmatter には上記 `title` / `status` / `priority` / `assignee` / `workspace` / `creator` と `id` / `created_at` / `updated_at` を書き、本文には概要、起点シグナル、提案書パス、実装前に提案書本体を Read する指示を含める。
 
-レスポンスまたはフォールバック作成で得たチケット ID（`T-N`）をレポート末尾「次アクション候補」に併記する。API 呼び出しに失敗した場合はリトライせずフォールバックを試す。チケットリポジトリを解決できない、または `.tickets/` へ作成できない場合にのみ「未起票（理由）」と記し、提案書 frontmatter を `ticketStatus: "unfiled"` にする。提案を生成しなかった週（閾値未超）はチケットも起票しない。
+レスポンスまたはフォールバック作成で得たチケット ID（`T-N`）をレポート末尾「次アクション候補」に併記する。API 呼び出しに失敗した場合はリトライせずフォールバックを試す。フォールバックでも `.tickets/` へ作成できない場合にのみ「未起票（理由）」と記し、提案書 frontmatter を `ticketStatus: "unfiled"` にする。提案を生成しなかった週（閾値未超）はチケットも起票しない。
 
 ### 4.2 失敗の 2 分類ルーティングと評価ケース層（EDD 翻案）
 

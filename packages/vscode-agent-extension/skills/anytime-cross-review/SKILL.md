@@ -14,7 +14,7 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 - 対象: 作業ブランチ → develop の diff（`<base>..HEAD`・既定 base=develop）。
 - 同梱ラッパ: `.claude/skills/anytime-cross-review/codex-review.cjs`（Codex review を headless 起動・read-only ガード付き）。**正本は `packages/vscode-agent-extension/skills/anytime-cross-review/`** で、`.claude/skills/` 配下は anytime-agent 拡張が配置する複製（git 追跡外・拡張を配り直すまで古いまま）。修正は正本へ入れる。
 - Codex CLI の起動作法・環境制約（bwrap 不可のため `--dangerously-bypass-approvals-and-sandbox` 必須）は `.claude/skills/anytime-dev-cycle/references/codex-cli.md` を参照する（委譲系と共通）。
-- 起動: `/anytime-cross-review [base]`、または `anytime-dev-cycle` 段6 が高重大度と判定したときの選択。global `~/.claude/rules/pre-merge-review.md`（全マージへの一律適用）への統合は本スキル対象外。
+- 起動: `/anytime-cross-review [base]`、または `anytime-dev-cycle` 段6 が高重大度と判定したときの選択。global `~/.claude/docs/pre-merge-review.md`（全マージへの一律適用）への統合は本スキル対象外。
 
 ## 手順
 

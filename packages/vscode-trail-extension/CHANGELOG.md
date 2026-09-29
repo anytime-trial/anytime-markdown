@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-29
+
+### Added
+
+- The bundled `anytime-dev-retro` skill (manifest 31 → 32) measures the effect of model × effort choices in its cost analysis: adoption rate per model and effort level (`delegation.effectiveness.byModelEffort`, abstentions excluded from the denominator), measured output tokens per adopted delegation including retried attempts (`cpat`), the per-model cost tail over the last 30 days (`tail.byModel`, one fragment per model × session, so its unit differs from the session totals in `topSessions`), and the median / p90 / top-10 % share / maximum of session costs (new pure module `costTail.cjs`). Effort is read only from a `— effort=<level>` suffix at the end of a delegation result line, so `effort=` inside the reasoning text is ignored. SKILL.md gains the effort sweep procedure and the promotion thresholds. Existing output keys are unchanged.
+
+### Changed
+
+- Bundled skill `anytime-trail-review` (manifest 8 → 9): the statement that subagents read neither CLAUDE.md nor skills was corrected to match measured behaviour (CLAUDE.md and rules are inherited, skill bodies and conversation context are not).
+
+### Fixed
+
+- The bundled `anytime-dev-retro` skill (manifest 32 → 33) no longer raises a false alarm in workspaces that do not use tickets. SKILL.md stated `/Shared/anytime-ticket` as the default of `anytimeAgent.tickets.directory` while the actual default is empty, so a retrospective there recorded proposals as `unfiled` and put securing a filing route at the top of the next actions. The ticket decision now lives in one place (§4.1): it resolves from the main workspace root when run inside a worktree, uses `tickets.directory` whenever it has a value even if `anytime-loop-start` is not deployed, and otherwise skips filing and the stall check with a single "out of scope" line that names the path it checked. Such proposals carry `ticketStatus: "not-used"`; `unfiled` is limited to a filing attempt that failed.
+
+### Trail Core (trail-db / trail-server)
+
+- Codex sessions are ingested from every workspace. Only Codex rollouts were filtered by a git-root prefix, so sessions run in other workspaces never reached Trail while Claude Code sessions from the same machine did. The filter was removed from both ingestion paths (the LEP `JsonlIngester` and the legacy `TrailDatabase` path used by refresh and analyze-all).
+- The repository of a Codex session is derived from the `cwd` recorded in the rollout's `session_meta`, using the same rule as Claude Code sessions (walk up to the git root and fold `.worktrees/<name>` into its parent). Windows paths with a drive letter or UNC prefix are normalised. A rollout whose `cwd` cannot be read is assigned `codex-unknown` instead of the primary repository, so conversations from other projects are not counted as this repository's; the number of such sessions is logged.
+- Existing Codex rows are reclassified once by the in-app migration `backfillCodexRepoNameFromCwd_v3` when the database is opened. Rows whose rollout file cannot be read are kept as they are. `scripts/migrate-codex-repo-name.mts` applies the same migration manually (with `--dry-run`, a backup before writing, and the same idempotency key).
+- Reading `session_meta` is limited to the first 1 MiB of a rollout and handles short reads, instead of reading whole files.
+
 ## [1.7.0] - 2026-09-28
 
 ### Trail Core (trail-activity / mcp-trail / trail-viewer)

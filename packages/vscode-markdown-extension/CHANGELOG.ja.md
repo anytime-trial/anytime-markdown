@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.25.1] - 2026-09-29
+
+### 変更
+
+- 同梱スキルを更新した（`anytime-doc-authoring` 18 → 19、`anytime-reverse-spec` 9 → 10）。`anytime-reverse-spec` の並行検知を `.git/anytime/claims` へ改め、削除済み `validate-markdown.sh` の注記を消し、ルート外ファイルの整形を `npm run docs:format` へ差し替えた。両スキルの不在パス・移設済み参照を是正した（prompt-audit High 指摘）。
+
 ## [1.25.0] - 2026-09-28
 
 ### 追加

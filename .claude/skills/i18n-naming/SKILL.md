@@ -17,9 +17,9 @@ anytime-markdown の i18n でキーを追加・変更する際の命名規則。
 | trail-viewer | `packages/trail-viewer/src/i18n/{types,ja,en}.ts` | ドット区切り階層キー（本ルール全面適用）。`types.ts` でインタフェース定義 |
 | graph-viewer | `packages/graph-viewer/src/i18n/{en,ja}.json` | フラット単一 namespace（`createGraphT.ts` で参照）。`types.ts` なし・ドット階層不可 |
 | spreadsheet-viewer | `packages/spreadsheet-viewer/src/i18n/{en,ja}.json` | フラット単一 namespace（`createSpreadsheetT.ts` で参照）。`types.ts` なし・ドット階層不可 |
-| markdown-editor | `packages/markdown-editor/src/i18n/{en,ja}.json` | フラット単一 namespace・**camelCase キー必須**（`createMarkdownT.ts` で参照）。`types.ts` なし・ドット階層不可（[[markdown-viewer-i18n-flat-key-constraint]]） |
+| markdown-editor | `packages/markdown-editor/src/i18n/{en,ja}.json` | フラット単一 namespace・**camelCase キー必須**（`createMarkdownT.ts` で参照）。`types.ts` なし・ドット階層不可 |
 | tickets-viewer | `packages/tickets-viewer/src/i18n/{ja,en}.ts` | next-intl 方式（web-app の `tickets` namespace として集約される）。ネストしたオブジェクトで `types.ts` なし。enum 値をキー末尾に取る value-driven キー（`status.up_next` / `workspace.anytime-markdown`）は値と一致させるため camelCase 規則の例外とする |
-| web-app | `packages/web-app/src/i18n/messages.ts` | next-intl 方式。`src/i18n/messages.ts` が `app/**/i18n/{en,ja}.json`（例: `app/press/i18n/`）を名前空間ごとに集約する単一の真実源。`en.ts`/`ja.ts` は存在しない |
+| web-app | `packages/web-app/src/i18n/messages.ts` | next-intl 方式。`src/i18n/messages.ts` が `app/**/i18n/{en,ja}.json`（例: `app/[locale]/press/i18n/`）を名前空間ごとに集約する単一の真実源。`en.ts`/`ja.ts` は存在しない |
 | VS Code NLS | `packages/<ext>/package.nls{,.ja}.json` (基本原則のみ参考) | table-driven（NLS 独自） |
 
 > [!IMPORTANT]

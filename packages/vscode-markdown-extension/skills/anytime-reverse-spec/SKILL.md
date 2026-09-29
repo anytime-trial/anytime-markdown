@@ -179,7 +179,7 @@ fi
 
 6. **並行セッション確認**
 
-`{repoRoot}/.vscode/claude-code-status-*.json` を Glob し、各ファイルの `timestamp` を確認。別セッションが ACTIVE（5 分以内）で `{outputDir}` を触っていれば中断。ステータスファイルが存在しない環境では本ガードをスキップする。
+`<git-common-dir>/anytime/claims/*.json` を確認し、自分以外の生存クレーム（`/proc/<pid>` 実在・`comm` が claude・非ゾンビ・`starttime` 一致）が `{outputDir}` を持つ worktree を保持していれば中断する（判定単位と台帳は project `CLAUDE.md`「並行セッション検知」）。台帳が無い環境では本ガードをスキップする。
 
 ## Phase 0: 入力ローダ
 
@@ -878,9 +878,6 @@ Phase 0-4 「テスト / Lint / CI 検出」「技術的負債検出」「静的
 
 ### 5-3: Markdown 検証
 
-> [!IMPORTANT]
-> 旧手順が指定していた `~/.claude/scripts/validate-markdown.sh` は**実在しない**（2026-08-14 実測。実行すると `No such file or directory` で落ちる）。下記の 2 経路に置き換えた。
-
 `{outputDir}` が mcp-markdown のルート（`ANYTIME_MARKDOWN_ROOT`。未設定ならサーバーの `cwd`。anytime-markdown では `/anytime-markdown`）の**配下にあるか外にあるか**で手段が分かれる。`{outputDir}` の既定は `lep.json` の `workspace.docsPath` で、docs リポジトリ等の別領域を指していることが多い（＝ルート外が既定と考える）。
 
 **ルート配下の場合**: 対象ファイルを列挙し、1 件ずつ `mcp__mcp-markdown__format_markdown(path, mode="fix")` を実行して返り値の `warnings` を集計する。
@@ -890,7 +887,7 @@ Phase 0-4 「テスト / Lint / CI 検出」「技術的負債検出」「静的
 find {outputDir} -name '*.ja.md' -not -path '*/_eval/*' -print
 ```
 
-**ルート外の場合**: `format_markdown` は `Access denied: path outside root directory` を返すため使えない。`anytime-markdown-output` スキル §10（出力後の検証）の手順で、(1) frontmatter 必須キーの実在、(2) §10.2〜10.3 の意味判断チェックリストを各ファイルへ適用する。
+**ルート外の場合**: `format_markdown` は `Access denied: path outside root directory` を返すため使えない。コードリポジトリ root で `npm run docs:format -- <path>` を実行し、返り値 `warn` は `anytime-markdown-output` スキル §10.3 の意味判断チェックリストで手動確認する（同 §10）。
 
 いずれの経路でも、`warnings` または手動確認で NG が出たファイルは 1 度だけ自動修正リトライ（フロントマター・空行・テーブル整形）。再度 NG なら該当ファイル名を提示して中断。
 

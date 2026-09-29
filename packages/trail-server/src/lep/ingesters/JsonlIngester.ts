@@ -7,6 +7,21 @@ import type {
   AnalyzerContext,
   AnalyzerEvent,
 } from '@anytime-markdown/trail-caravan-book';
+import {
+  CODEX_UNKNOWN_REPO_NAME,
+  readCodexSessionCwd,
+  resolveCodexRepoName,
+} from '@anytime-markdown/trail-db';
+
+/**
+ * 警告を出す。`CaravanLogger.warn` は任意実装なので、無い環境では `info` へ落とす。
+ * 実装が無いことを理由に警告そのものを消さない (silent catch と同じ穴になるため)。
+ */
+function warnOrInfo(logger: AnalyzerContext['logger'] | undefined, message: string): void {
+  if (!logger) return;
+  if (logger.warn) logger.warn(message);
+  else logger.info(message);
+}
 
 const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
@@ -17,10 +32,6 @@ const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 export type ImportedFilesProvider = (mainFile: string) => { fileSize: number; hasMessages: boolean; hasUsableCostData: boolean } | undefined;
 
 export interface JsonlIngesterOptions {
-  /** 主 git working tree (Codex セッションフィルタに使用)。省略時は Codex セッションも全件 emit */
-  readonly gitRoot?: string;
-  /** monitored repos (Codex 以外含む)。fallback repoName 解決に使用 */
-  readonly repoName?: string;
   /**
    * activity.db の既存 import 状態をルックアップする (省略可)。
    * Step 2a 時点で SessionImporter は未実装のため、未指定の場合は全件「未 import 扱い」で emit する。
@@ -68,7 +79,7 @@ export class JsonlIngester implements Analyzer {
   // 消費側 (tier-2 SessionImporter 等) は onRunStart (orchestrator Pass 1) で初期化済みのため、
   // ここで emit する jsonl_session_discovered を正しく処理できる。
   async onRunEnd(ctx: AnalyzerContext): Promise<void> {
-    const sessions = this.discoverSessions();
+    const sessions = this.discoverSessions(ctx.logger);
     let emitted = 0;
     for (const desc of sessions) {
       let fileSize = 0;
@@ -95,14 +106,14 @@ export class JsonlIngester implements Analyzer {
   }
 
   /** Internal: discover Claude Code + Codex sessions. */
-  discoverSessions(): readonly SessionDescriptor[] {
+  discoverSessions(logger?: AnalyzerContext['logger']): readonly SessionDescriptor[] {
     const claudeProjectsDir =
       this.opts.claudeProjectsDir ?? path.join(os.homedir(), '.claude', 'projects');
     const codexSessionsDir =
       this.opts.codexSessionsDir ?? path.join(os.homedir(), '.codex', 'sessions');
 
     const out: SessionDescriptor[] = [];
-    out.push(...this.discoverClaude(claudeProjectsDir), ...this.discoverCodex(codexSessionsDir));
+    out.push(...this.discoverClaude(claudeProjectsDir), ...this.discoverCodex(codexSessionsDir, logger));
     return out;
   }
 
@@ -127,29 +138,39 @@ export class JsonlIngester implements Analyzer {
     return out;
   }
 
-  private discoverCodex(codexSessionsDir: string): SessionDescriptor[] {
+  private discoverCodex(
+    codexSessionsDir: string,
+    logger?: AnalyzerContext['logger'],
+  ): SessionDescriptor[] {
     const out: SessionDescriptor[] = [];
     const files = collectRolloutJsonlFiles(codexSessionsDir);
+    let unknownRepoCount = 0;
     for (const filePath of files) {
       const sidMatch =
         /([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})\.jsonl$/i.exec(filePath);
       const sid = sidMatch?.[1] ?? path.basename(filePath, '.jsonl');
 
-      if (this.opts.gitRoot) {
-        const meta = readCodexSessionCwd(filePath);
-        if (!meta) continue;
-        const normalizedCwd = path.resolve(meta);
-        const normalizedGitRoot = path.resolve(this.opts.gitRoot);
-        if (!normalizedCwd.startsWith(normalizedGitRoot)) continue;
+      // ワークスペースによる絞り込みはしない (Claude Code 側の discoverClaude と対称)。
+      // cwd は捨てるためではなく repo_name を決めるために読む。
+      const cwdResult = readCodexSessionCwd(filePath);
+      if (cwdResult.kind === 'unreadable') {
+        warnOrInfo(
+          logger,
+          `[JsonlIngester] codex rollout を読めませんでした: ${filePath} (${cwdResult.error.message})`,
+        );
       }
+      const repoName = resolveCodexRepoName(cwdResult);
+      if (repoName === CODEX_UNKNOWN_REPO_NAME) unknownRepoCount++;
 
-      out.push({
-        sessionId: sid,
-        mainFile: filePath,
-        subagentFiles: [],
-        repoName: this.opts.repoName || 'codex',
-        source: 'codex',
-      });
+      out.push({ sessionId: sid, mainFile: filePath, subagentFiles: [], repoName, source: 'codex' });
+    }
+    // repo 帰属不明のセッションは workspaceScope: 'own' の完全一致から外れ、記憶取込から静かに
+    // 消える。件数を出しておかないと「記憶に会話が入らない」症状から原因側を辿れない。
+    if (unknownRepoCount > 0) {
+      warnOrInfo(
+        logger,
+        `[JsonlIngester] codex: discovered=${files.length}, repo_unknown=${unknownRepoCount}`,
+      );
     }
     return out;
   }
@@ -224,28 +245,4 @@ function collectRolloutJsonlFiles(rootDir: string): string[] {
     }
   }
   return results;
-}
-
-function readCodexSessionCwd(filePath: string): string | null {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let rec: unknown;
-      try {
-        rec = JSON.parse(trimmed);
-      } catch {
-        continue;
-      }
-      if (!rec || typeof rec !== 'object') continue;
-      const r = rec as { type?: unknown; payload?: unknown };
-      if (r.type !== 'session_meta' || !r.payload || typeof r.payload !== 'object') continue;
-      const cwd = (r.payload as Record<string, unknown>).cwd;
-      return typeof cwd === 'string' ? cwd : null;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }

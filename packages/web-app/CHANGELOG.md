@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-09-29
+
+### Changed
+
+- The development process diagram on the press page names the skill behind each loop: `anytime-dev-cycle` under loop A, `anytime-dev-retro` under loop C, and `production-release` on the production release step. Loop C was renamed from "Health and incidents" to "Retrospective", and the approval step in loop A now reads "Approve the requirements and specs (human)". The figure label follows the new names.
+
+### Fixed
+
+- The Anytime Agent icon in the development process section of the landing page matches the extension's current icon. The page kept pointing at the previous image after the extension icon was replaced. The image is served at 48 px, the size needed for a 24 px display at DPR 2.
+
+### Security
+
+- The overrides for `ip-address` (10.4.0 → 10.7.2) and `undici` (7.30.0, added) resolve the moderate advisories that failed the CI audit gate (GHSA-rpw4-54j3-4h4q, GHSA-2vr4-cq9g-pvrc, GHSA-3wwx-pv8p-q78v). Both are transitive dependencies: `ip-address` through `express-rate-limit`, `undici` through `wrangler` / `miniflare`. The low advisory in esbuild stays outside the gate.
+
 ## [0.55.0] - 2026-09-28
 
 ### Added

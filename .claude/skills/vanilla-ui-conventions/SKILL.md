@@ -43,7 +43,6 @@ vendored tiptap（`packages/markdown-core/core/src/Editor.ts`）の `update` イ
 
 - 基本スタイルも状態スタイルも**同じ注入スタイルシート**で表現し、詳細度（`[x]` < `[x][data-state]` < `:focus-within [x]`）で勝たせる。
 - 状態は `data-*` 属性のトグルで表し、見た目はシート側に書く。
-- 詳細は global メモリ [[vanilla-ui-no-inline-position-styles]] 参照。
 
 ## 4. モードフラグは静的キャプチャせず getter で都度評価する
 

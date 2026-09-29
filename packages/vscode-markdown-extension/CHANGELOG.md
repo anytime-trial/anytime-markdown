@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.25.1] - 2026-09-29
+
+### Changed
+
+- Bundled skills updated (`anytime-doc-authoring` 18 → 19, `anytime-reverse-spec` 9 → 10). `anytime-reverse-spec` now detects concurrent sessions through `.git/anytime/claims`, drops the note about the removed `validate-markdown.sh`, and formats files outside the workspace root with `npm run docs:format`. Non-existent paths and moved references were corrected in both skills (prompt-audit High findings).
+
 ## [1.25.0] - 2026-09-28
 
 ### Added

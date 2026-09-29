@@ -11,7 +11,7 @@ anytime-markdown / anytime-graph / anytime-trail / anytime-database / anytime-sh
 
 ## 実行モデル
 
-**本番リリースはメイン既定モデルで実施する。** 既定モデルはグローバル `~/.claude/CLAUDE.md`「トークン・コスト効率 > モデル階層化」が単一の正（本スキルにモデル名を直書きしない）。
+**本番リリースはメイン既定モデルで実施する。** 既定モデルはグローバル `~/.claude/CLAUDE.md`「トークン・コスト効率」が単一の正（本スキルにモデル名を直書きしない）。
 
 - 着手前に `/model` の表示が既定と一致するか確認する。高コストモデルへ切り替わっている場合は既定へ戻してから Step 1 に入る（リリース作業はコマンド実行と検証結果の突合が中心で、モデルを上げても検出力は変わらずコストだけが増える）。
 - ユーザーが明示的に別モデルを指定した場合はそれに従う。
@@ -107,14 +107,15 @@ git diff --name-only origin/master...HEAD -- packages/ | cut -d/ -f2 | sort | un
 
 **markdown 系の更新:**
 ```bash
-# 以下4つの package.json の version フィールドを手動で同一バージョンに更新
+# 以下 5 つの package.json の version フィールドを同一バージョンに更新（markdown-core は 0.0.0 固定で対象外）
 # - package.json (root)
-# - packages/markdown-core/package.json
 # - packages/mcp-markdown/package.json
+# - packages/markdown-editor/package.json
+# - packages/markdown-rich-editor/package.json
 # - packages/vscode-markdown-extension/package.json
 ```
 
-更新後、上記4ファイルのバージョンが統一されていることを確認。\
+更新後、上記 5 ファイルのバージョンが統一されていることを確認。\
 `packages/markdown-editor/src/version.ts` の `APP_VERSION` はルート package.json を動的参照するため手動更新不要。
 
 **graph 系の更新:**
@@ -264,7 +265,7 @@ critical / high の脆弱性がある場合は、該当パッケージを更新�
 ```bash
 # 5-1: 型チェック・lint・スキルゲート
 npx tsc --noEmit
-npm run lint  # 注: root の lint 実体は `eslint packages/markdown-editor/src packages/web-app/src` のみ。graph 系・trail 系・database 系等は lint 対象外
+npm run lint  # 注: root の lint 対象は root package.json の `lint` に列挙したパスのみ。他パッケージは各自の lint を回す
 npm run check-skills  # 同梱スキルの byte 一致 + 参照実在性 lint + SHORTCUT ゲート + scripts テスト。develop push の CI が回すのでローカルでも必須
 bash scripts/check-test-safety.sh --all  # 保護領域書込・new TrailDatabase 直呼びのゲート。develop push の CI が回すのでローカルでも必須（2026-07-17 リリースで CI 初検出の実績）
 
@@ -298,7 +299,7 @@ done
 
 **共有パッケージの波及先を確認する。** `vscode-common` のような共有パッケージを変更した場合、それを import する拡張は自身の `src` に差分が無くてもバンドル内容が変わる。バージョンを上げない系統はタグ既存で publish がスキップされ、修正がユーザーに届かない。`grep -rn "from '@anytime-markdown/vscode-common'" packages/*/src` で import シンボルまで見て、変更した API を実際に使う系統を bump 対象に含めること。
 
-- **lint エラー**がある場合は修正してから次のステップに進むこと（CI の `npm run lint` と同じチェック）。root の lint 実体は `eslint packages/markdown-editor/src packages/web-app/src` のみで、graph 系・trail 系・database 系等は lint 対象外。
+- **lint エラー**がある場合は修正してから次のステップに進むこと（CI の `npm run lint` と同じチェック）。root の lint 対象は root `package.json` の `lint` に列挙したパスのみで、他パッケージは各自の lint を回す。
 - **e2e テスト**が失敗した場合は修正してから次のステップに進むこと（PR 作成前の必須ゲート）。
 - **VR（ビジュアル回帰）が失敗したら、まず `--update-snapshots` を打たない。** 祖先要素の小数高さ（例: ボタン行 39.39px）による sub-pixel ずれだと、見た目は変わっていないのに複数スナップショットが落ちる。`origin/master` を worktree に出して同じ VR を走らせ（node_modules は main へ symlink）、master で pass するならローカル環境差ではなくコード起因。差分画像を読み、要素の `getBoundingClientRect()` の `top` が整数かを確認してから、ベースライン更新か実装修正かを決める。
 - **E2E カバレッジ**: `e2e:coverage` は Chromium のみで実行し、`coverage/coverage-final.json`（Istanbul 形式）を出力する。出力されたカバレッジファイルのファイル数をコンソールで確認する（`E2E coverage: N files →` のログ）。C4 モデルビューアでカバレッジを読み込み、対象ファイルのカバレッジ状況を視覚的に確認する。
@@ -319,7 +320,7 @@ done
 リリース対象に応じて VSIX を生成する:
 
 > [!IMPORTANT]
-> **CLI は `@vscode/vsce` を exact 固定で呼ぶ。別名の `vsce` を使わない。** `vsce` は 2.15.0 で凍結された非推奨パッケージで、2026-09-13 のリリースで publish 6 件が全て `Request timeout: /_apis/gallery` で落ちた（同時刻に Marketplace の extensionquery API は 0.3 秒で 200 を返しており、Marketplace 障害ではない）。版の単一の正は `ci.yml` / `daily-build.yml` の `env.VSCE_SPEC` で、`run:` 側は `npx "$VSCE_SPEC"` を参照する。同じ spec を `scripts/vscode-extension/build-*.sh`（8 本）と `scripts/acceptance/vsix-smoke.mjs` が `${VSCE_SPEC:-...}` の既定値として持つ。**版を上げるときはこの 4 系統を同時に動かす** — 取りこぼしても package / publish 自体はどちらの版でも通るため CI は緑のままで、同一リリース内に 2 つの版が混在したことを誰も検知できない。
+> **CLI は `@vscode/vsce` を exact 固定で呼ぶ。別名の `vsce` を使わない。** `vsce` は 2.15.0 で凍結された非推奨パッケージで、2026-09-13 のリリースで publish 6 件が全て `Request timeout: /_apis/gallery` で落ちた（同時刻に Marketplace の extensionquery API は 0.3 秒で 200 を返しており、Marketplace 障害ではない）。版の単一の正は `ci.yml` / `daily-build.yml` の `env.VSCE_SPEC` で、`run:` 側は `npx "${{ env.VSCE_SPEC }}"` を参照する（`$VSCE_SPEC` は Windows runner の PowerShell で未設定変数になり落ちる）。同じ spec を `scripts/vscode-extension/build-*.sh`（全本）と `scripts/acceptance/vsix-smoke.mjs` が `${VSCE_SPEC:-...}` の既定値として持つ。**版を上げるときはこの 4 系統を同時に動かす** — 取りこぼしても package / publish 自体はどちらの版でも通るため CI は緑のままで、同一リリース内に 2 つの版が混在したことを誰も検知できない。
 
 **markdown 系:**
 ```bash

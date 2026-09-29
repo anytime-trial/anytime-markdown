@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-09-29
+
+### 変更
+
+- press ページの開発プロセス図に、各ループを担うスキル名を記載した。ループ A の見出し下に `anytime-dev-cycle`、ループ C の見出し下に `anytime-dev-retro`、「本番リリース」工程に `production-release` を表示する。ループ C を「健全性・インシデント」から「ふりかえり」へ改名し、ループ A の承認工程を「要件書 / 設計書の承認（人）」へ改めた。図のラベルも新しい名称に追随する。
+
+### 修正
+
+- ランディングページの開発プロセス節の Anytime Agent アイコンを、拡張の現行アイコンへ揃えた。拡張側のアイコン差し替え後も旧画像を参照し続けていた。画像は 24px 表示の DPR 2 相当である 48px で配信する。
+
+### セキュリティ
+
+- overrides の `ip-address` を 10.4.0 から 10.7.2 へ更新し、`undici` 7.30.0 を追加して、CI の audit ゲートで検出された moderate 勧告（GHSA-rpw4-54j3-4h4q / GHSA-2vr4-cq9g-pvrc / GHSA-3wwx-pv8p-q78v）を解消した。どちらも間接依存で、`ip-address` は `express-rate-limit` 経由、`undici` は `wrangler` / `miniflare` 経由。low の esbuild は引き続きゲートに含めない。
+
 ## [0.55.0] - 2026-09-28
 
 ### 追加

@@ -42,7 +42,7 @@ const MARKDOWN_KEYS = ['md3', 'md1', 'md2'] as const;
 const AGENT_KEYS = ['agent1', 'agent2', 'agent3'] as const;
 /** プロセス節の 3 拡張。番号ではなく拡張機能アイコンを見出しに出す */
 const PROCESS_EXTS = [
-  { key: 'ext1', icon: '/images/anytime-agent-128.png' },
+  { key: 'ext1', icon: '/images/anytime-agent-48.png' },
   { key: 'ext2', icon: '/images/anytime-control-256.png' },
   { key: 'ext3', icon: '/images/camel_markdown.png' },
 ] as const;

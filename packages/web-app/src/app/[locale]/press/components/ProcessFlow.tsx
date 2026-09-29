@@ -5,11 +5,15 @@ import styles from '../press.module.css';
 interface ProcessStep {
   key: string;
   human?: boolean;
+  /** 工程を実行する Claude Code スキル名。固有名のため翻訳しない */
+  skill?: string;
 }
 
 interface ProcessLoop {
   titleKey: string;
   scaleKey: string;
+  /** ループを実行する Claude Code スキル名。固有名のため翻訳しない */
+  skill?: string;
   steps: readonly ProcessStep[];
   /** ループの出口注記。ループ B は次工程へ直進するだけなので持たない */
   returnKey?: string;
@@ -21,6 +25,7 @@ const LOOPS: readonly ProcessLoop[] = [
   {
     titleKey: 'loopATitle',
     scaleKey: 'loopAScale',
+    skill: 'anytime-dev-cycle',
     steps: [
       { key: 'loopA1' },
       { key: 'loopA2', human: true },
@@ -33,17 +38,27 @@ const LOOPS: readonly ProcessLoop[] = [
   {
     titleKey: 'loopBTitle',
     scaleKey: 'loopBScale',
-    steps: [{ key: 'loopB1', human: true }, { key: 'loopB2' }],
+    steps: [{ key: 'loopB1', human: true }, { key: 'loopB2', skill: 'production-release' }],
     edgeKey: 'edgeAB',
   },
   {
     titleKey: 'loopCTitle',
     scaleKey: 'loopCScale',
+    skill: 'anytime-dev-retro',
     steps: [{ key: 'loopC1' }, { key: 'loopC2', human: true }],
     returnKey: 'loopCReturn',
     edgeKey: 'edgeBC',
   },
 ] as const;
+
+function SkillTag({ label, skill }: Readonly<{ label: string; skill: string }>) {
+  return (
+    <span className={styles.processSkill}>
+      {label}
+      <code>{skill}</code>
+    </span>
+  );
+}
 
 function FlowArrow({ label }: Readonly<{ label?: string }>) {
   return (
@@ -69,6 +84,7 @@ export function ProcessFlow() {
               <span className={styles.processLoopTitle}>{t(loop.titleKey)}</span>
               <span className={styles.processLoopScale}>{t(loop.scaleKey)}</span>
             </header>
+            {loop.skill ? <SkillTag label={t('skillLabel')} skill={loop.skill} /> : null}
             <ol className={styles.processSteps}>
               {loop.steps.map((step, idx) => (
                 <li
@@ -81,6 +97,7 @@ export function ProcessFlow() {
                     </span>
                   ) : null}
                   {t(step.key)}
+                  {step.skill ? <SkillTag label={t('skillLabel')} skill={step.skill} /> : null}
                 </li>
               ))}
             </ol>
