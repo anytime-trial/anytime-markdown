@@ -521,11 +521,14 @@ describe('getCostOptimization', () => {
   });
 
   it('populates daily array with actual and skill entries (lines 9944-9954)', () => {
-    insertDailyCount(db, '2026-04-01', 'cost_actual', 'claude-opus-4', 10, 1.0);
-    insertDailyCount(db, '2026-04-01', 'cost_skill', 'claude-opus-4', 5, 0.5);
+    // daily は DATE('now', '-180 days') 以降に絞られるため、固定日付は時間経過で窓の外へ出る。
+    // 実行日から相対で窓内の日付を取る（3 日前: タイムゾーン補正の境界からも離れる）。
+    const day = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    insertDailyCount(db, day, 'cost_actual', 'claude-opus-4', 10, 1.0);
+    insertDailyCount(db, day, 'cost_skill', 'claude-opus-4', 5, 0.5);
     const result = db.getCostOptimization();
     expect(result.daily.length).toBeGreaterThanOrEqual(1);
-    const dayEntry = result.daily.find((d) => d.date === '2026-04-01');
+    const dayEntry = result.daily.find((d) => d.date === day);
     expect(dayEntry).toBeDefined();
     expect(dayEntry!.actualCost).toBeCloseTo(1.0, 2);
     expect(dayEntry!.skillCost).toBeCloseTo(0.5, 2);
