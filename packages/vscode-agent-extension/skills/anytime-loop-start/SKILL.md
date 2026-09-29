@@ -59,7 +59,7 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
      - **heartbeat の読み取り**: 委譲マーカーの `state` / `lastActivity` / `updatedAt`（手順 7 で配線する hooks が更新する。§3 のマーカー契約）を読み、報告へ含める。`updatedAt` が 10 分以上前で pid が生存している場合は「生存だが無活動」として報告する（hooks 不発・ハングの兆候）。マーカーに `state` が無い場合は heartbeat 未配線の子（旧形式）なので従来どおり扱う。
      - **同一チケットで 2 tick 連続して進捗が無い場合は、その観測内容を無進捗として報告する**（§5）。経過時間だけを見て「実行中」と報告し続けない。
    - **死亡**（未存在・ゾンビ）なら、子の終了痕跡とみなし、マーカーを削除したうえで手順 8 の委譲検証を行ってから通常の tick を続行する。**このとき子のログ（`/tmp/ticket-delegation-<チケット id>.log`）の末尾を読み、終了理由を tick 報告に含める**。子が権限拒否等でチケットへ一切書けずに死んだ場合、痕跡はこのログにしか残らないため（チケット側は無変更のまま）、読まないと「作業が宙に浮いている」としか報告できず原因が分からない。
-     - **上限到達の判別**（手順 7 の暴走上限）: ログに `Exceeded USD budget` があれば**予算上限**、マーカーの `startedAt` から死亡検知までが 90 分に達していれば**時間上限**（`timeout` の打ち切りはログに何も書かず、SIGTERM で SessionEnd hook が `state` を `done` に書き得るため `state` では判別しない）とみなし、tick 報告に「上限到達（予算 / 時間）」と明記する。手順 8 でチケットを人へ返却するとき、Comments に「中断: 暴走上限（予算 $30 / 90 分）に到達。Handoff Notes を確認のうえ、分割するか上限を見直して再割当」を 1 行追記する。同じ方針で自動再委譲しない（上限に当たった作業は分割か人の判断が要る）。
+     - **上限到達の判別**（手順 7 の暴走上限）: **ログの末尾数行だけ**を見る（子が本スキルや CHANGELOG を読んだ出力が中段に残り得るため、全文 grep で判別しない）。末尾に `Error: Exceeded USD budget` があれば**予算上限**、`timeout: sending signal TERM to command` があれば**時間上限**（`timeout --verbose` が打ち切り時に書く。経過時間やマーカーの `state` では判別しない — tick の検知は死亡から最大 20 分遅れ、SIGKILL 昇格時は SessionEnd hook が走らず `state` が `running` のまま残るため）。どちらも無ければ上限以外の終了として従来どおり扱う。ランチャーの `--output-format` や `timeout` のオプションを変えたら、この文字列判別も見直す。上限到達なら tick 報告に「上限到達（予算 / 時間）」と明記し、手順 8 でチケットを人へ返却するとき Comments に「中断: 暴走上限（予算 $30 / 90 分）に到達。Handoff Notes を確認のうえ、分割するか上限を見直して再割当」を 1 行追記する。同じ方針で自動再委譲しない（上限に当たった作業は分割か人の判断が要る）。
 2. **最新化と分岐の自己修復**: `git pull --ff-only`（この手順に来るのは委譲実行中でないとき＝作業ツリーを触ってよいときのみ）。失敗したら、終了する前に**分岐の残骸かどうかを判定する**（分岐を放置すると以後の tick が毎回ここで落ち、ループ全体が永久に停止するため）。
    1. `git rev-list --count --left-right @{u}...HEAD` で ahead / behind を数える。ahead が 0 なら分岐ではないので、何も変更せず報告して終了する（コンフリクト等）。
    2. ahead > 0 なら、ahead 側の各コミットの件名を `git log --format=%s @{u}..HEAD` で確認する。**すべてが着手宣言（`ticket: <id> start (in_progress)` 形式）**であり、**かつ下記 2-4 の作業ツリー確認を通過した**なら、それは過去 tick が push できずに残した再生成可能な状態更新でしかないので、`git reset --hard @{u}` で破棄して再同期し、tick を続行する。破棄したコミットの SHA と件名を tick 報告に含める。
@@ -115,7 +115,7 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
            "T-12" "$$" "$now" "$now" \
            > <ticketsRepo>/.git/ticket-delegations/T-12.json
          export TICKET_DELEGATION_MARKER=<ticketsRepo>/.git/ticket-delegations/T-12.json
-         exec timeout --kill-after=60 5400 claude -p --max-budget-usd 30 --permission-mode acceptEdits \
+         exec timeout --verbose --kill-after=60 5400 claude -p --max-budget-usd 30 --permission-mode acceptEdits \
            --add-dir <ticketsRepo> \
            --add-dir <docsRoot> \
            --settings /tmp/ticket-delegation-T-12.settings.json \
@@ -123,7 +123,7 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
            < /tmp/ticket-delegation-T-12.prompt.md
          ```
 
-         **暴走上限（必須・省略不可）**: 子 1 件あたり **API 換算 $30**（`--max-budget-usd 30`）と**壁時計 90 分**（`timeout 5400`、SIGTERM 後 60 秒で SIGKILL）で打ち切る。子は `setsid` で切り離され人の目が届かないため、上限が無いと 1 件の暴走が使用量枠を際限なく食う（2026-07 に OpenAI Codex の 1 プロンプトが子エージェント 826 個を起動して $78,000 を消費した事案が根拠）。$30 は直近 30 日の対話セッション中央値（$26.75）と子の実例（$8.36）から決めた（2026-09-29 Trail DB 実測）。サブスクリプションでも推定額で打ち切られることを実測済み（ただし判定はターン終了時なので 1 ターン分は超える）。上限到達時のログ痕跡は手順 1 の「死亡」を参照。値の見直しは運用 1 か月後に sdk-cli セッションの実測 p95 で行う。
+         **暴走上限（必須・省略不可）**: 子 1 件あたり **API 換算 $30**（`--max-budget-usd 30`）と**壁時計 90 分**（`timeout 5400`、SIGTERM 後 60 秒で SIGKILL）で打ち切る。SIGKILL への自動昇格は `anytime-loop-stop` の「SIGKILL は使わない」（人が判断する手動停止の規定）とは別経路で、上限到達時は人の判断を待たずに確実に止めることを優先する。昇格時は SessionEnd hook が走らずマーカーの `state` が `running` のまま残るので、手順 8 はこれを異常終了の傍証として扱ってよい（上限到達かどうかはログで判別する）。子は `setsid` で切り離され人の目が届かないため、上限が無いと 1 件の暴走が使用量枠を際限なく食う（2026-07 に OpenAI Codex の 1 プロンプトが子エージェント 826 個を起動して $78,000 を消費した事案が根拠）。$30 は直近 30 日の対話セッション中央値（$26.75）と子の実例（$8.36）から決めた（2026-09-29 Trail DB 実測）。サブスクリプションでも推定額で打ち切られることを実測済み（ただし判定はターン終了時なので 1 ターン分は超える）。上限到達時のログ痕跡は手順 1 の「死亡」を参照。値の見直しは運用 1 か月後に sdk-cli セッションの実測 p95 で行う。
 
          Why not `--restricted`: 最小権限の `--restricted`（Bash などコマンド実行系の組み込みツールを外す）は子セッションに使わない。子は完了時に `git commit` を実行する必要があり、Bash が無いと完了条件へ到達できない（2026-09-23 に `claude --help` で確認）。権限の絞り込みは `--allowedTools` で行う。
 
