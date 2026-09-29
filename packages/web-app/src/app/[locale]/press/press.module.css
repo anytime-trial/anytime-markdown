@@ -997,15 +997,15 @@
     white-space: nowrap;
 }
 
-.processLoopSkill {
-    margin: 0;
+.processSkill {
+    display: block;
     font-family: var(--font-mono);
     font-size: var(--fs-footnote);
     color: var(--ink-faded);
     letter-spacing: 0.04em;
 }
 
-.processLoopSkill code {
+.processSkill code {
     font-family: inherit;
     margin-inline-start: 0.5em;
     color: var(--ink);
@@ -1021,6 +1021,10 @@
 
 .processSteps li {
     position: relative;
+}
+
+.processSteps .processSkill {
+    margin-top: 4px;
 }
 
 .processSteps li + li {

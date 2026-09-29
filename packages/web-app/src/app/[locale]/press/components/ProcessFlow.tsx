@@ -5,6 +5,8 @@ import styles from '../press.module.css';
 interface ProcessStep {
   key: string;
   human?: boolean;
+  /** 工程を実行する Claude Code スキル名。固有名のため翻訳しない */
+  skill?: string;
 }
 
 interface ProcessLoop {
@@ -36,7 +38,7 @@ const LOOPS: readonly ProcessLoop[] = [
   {
     titleKey: 'loopBTitle',
     scaleKey: 'loopBScale',
-    steps: [{ key: 'loopB1', human: true }, { key: 'loopB2' }],
+    steps: [{ key: 'loopB1', human: true }, { key: 'loopB2', skill: 'production-release' }],
     edgeKey: 'edgeAB',
   },
   {
@@ -48,6 +50,15 @@ const LOOPS: readonly ProcessLoop[] = [
     edgeKey: 'edgeBC',
   },
 ] as const;
+
+function SkillTag({ label, skill }: Readonly<{ label: string; skill: string }>) {
+  return (
+    <span className={styles.processSkill}>
+      {label}
+      <code>{skill}</code>
+    </span>
+  );
+}
 
 function FlowArrow({ label }: Readonly<{ label?: string }>) {
   return (
@@ -73,12 +84,7 @@ export function ProcessFlow() {
               <span className={styles.processLoopTitle}>{t(loop.titleKey)}</span>
               <span className={styles.processLoopScale}>{t(loop.scaleKey)}</span>
             </header>
-            {loop.skill ? (
-              <p className={styles.processLoopSkill}>
-                {t('skillLabel')}
-                <code>{loop.skill}</code>
-              </p>
-            ) : null}
+            {loop.skill ? <SkillTag label={t('skillLabel')} skill={loop.skill} /> : null}
             <ol className={styles.processSteps}>
               {loop.steps.map((step, idx) => (
                 <li
@@ -91,6 +97,7 @@ export function ProcessFlow() {
                     </span>
                   ) : null}
                   {t(step.key)}
+                  {step.skill ? <SkillTag label={t('skillLabel')} skill={step.skill} /> : null}
                 </li>
               ))}
             </ol>
