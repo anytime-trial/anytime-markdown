@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+## [1.25.2] - 2026-09-29
+
+### 修正
+
+- `professional` プリセットの見出しが monospace で描画される不具合を修正した。見出し書体を全プリセットでプリセットの `displayFont` から設定し、`--editor-heading-font-family` の CSS フォールバックを `monospace` から `inherit`（本文書体）へ改めた。`handwritten` の見出しは従来どおり `"Nunito", "Klee One", sans-serif` を保つ。
+
+### セキュリティ
+
+- `markdown-it` を 14.3.2 へ更新した（GHSA-253c-mchw-3w2r: `linkify: true` の二次時間経路で大きな入力がイベントループを止める）。
+
 ## [1.25.0] - 2026-09-28
 
 ### 追加
@@ -43,7 +53,6 @@
 ### 変更
 
 - `markdown-rich-editor`: 全幅プレビューの契約をテストで固定した。`FULL_WIDTH_PREVIEW_LANGUAGES` の全要素が `classifyCodeBlock` で `regular` にならないことと、器の `display: flex` / `flexDirection: column` を検査する。言語名を 2 か所に分けて並べているため、改名・誤字で片方だけ取り残されると型検査もテストも通ったまま同じ潰れが再発する。
-
 
 ## [1.23.3] - 2026-09-21
 

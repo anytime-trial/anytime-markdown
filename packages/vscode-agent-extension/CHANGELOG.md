@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.20.4] - 2026-09-29
+
 ### Changed
 
 - `anytime-dev-cycle` now passes a task-appropriate model to every Codex delegation via `codex exec -m <slug>`. The §3.1 assignment table gains a "model when delegating to Codex" column, with a tier mapping to Claude (haiku ↔ `gpt-6-luna`, sonnet ↔ `gpt-6-sol`, opus ↔ `gpt-6-astra`) and an escalation order inside Codex. Delegation records are split into `[codex:<slug>]`, and the delegation contract template is bumped to v4.

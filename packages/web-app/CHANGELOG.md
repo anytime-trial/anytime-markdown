@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.56.1] - 2026-09-29
+
+### Fixed
+
+- Headings in the editor's `professional` preset were rendered in monospace (picks up markdown-editor 1.25.2).
+
+### Security
+
+- Updated `markdown-it` to 14.3.2 (GHSA-253c-mchw-3w2r: quadratic paths with `linkify: true` could block the event loop on large input).
+
 ## [0.56.0] - 2026-09-29
 
 ### Changed
@@ -72,7 +82,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 
 - Insight IDs no longer collide and merge unrelated insights. `insightId` was built with `title.replace(/[^a-z0-9]+/g, '-')`, which drops non-ASCII, so Japanese titles collapsed to their leading ASCII word: two different insights published on the same day both became `2026-04-26-claude-md` and `mergeEntries` folded them into one without a warning. Measured, 12 ids had swallowed 15 distinct titles, publishing entries whose title and summary described different facts. The merge key is now the full title — matching the condition `mergeEntries` and the README already declared ("same day, same title") — and the displayed id always carries a hash.
-
 
 ## [0.52.0] - 2026-09-21
 

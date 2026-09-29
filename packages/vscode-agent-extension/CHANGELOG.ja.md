@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.20.4] - 2026-09-29
+
 ### 変更
 
 - `anytime-dev-cycle` の Codex 委譲で、作業に応じたモデルを `codex exec -m <slug>` で毎回指定するようにした。§3.1 の初期割当表に「Codex へ渡す場合のモデル」列を加え、Claude の段との対応（haiku ↔ `gpt-6-luna`、sonnet ↔ `gpt-6-sol`、opus ↔ `gpt-6-astra`）と Codex 内の昇格順を定めた。委譲記録は `[codex:<slug>]` へ細分化し、委譲契約テンプレを v4 に上げた。

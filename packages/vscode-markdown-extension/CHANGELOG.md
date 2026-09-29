@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.25.2] - 2026-09-29
+
+### Editor Core (markdown-editor)
+
+- Fixed headings in the `professional` preset being rendered in monospace.
+- Updated `markdown-it` to 14.3.2 (GHSA-253c-mchw-3w2r).
+
 ## [1.25.1] - 2026-09-29
 
 ### Changed
@@ -81,7 +88,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Saving a fence that contains a hand-drawn connector no longer fails validation. The screen-shaped anchors are normalised through `validateDiagramDraft` in `diagram-core`, one place shared by the fence, `mcp-diagram` and web-app.
 - The edit dialog opens already in editing mode with a single "Apply" action, and connectors between two aligned elements bow clockwise instead of flattening into a straight line.
-
 
 ## [1.23.3] - 2026-09-21
 
