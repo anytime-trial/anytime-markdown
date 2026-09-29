@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### 変更
+
+- `anytime-dev-cycle` の Codex 委譲で、作業に応じたモデルを `codex exec -m <slug>` で毎回指定するようにした。§3.1 の初期割当表に「Codex へ渡す場合のモデル」列を加え、Claude の段との対応（haiku ↔ `gpt-6-luna`、sonnet ↔ `gpt-6-sol`、opus ↔ `gpt-6-astra`）と Codex 内の昇格順を定めた。委譲記録は `[codex:<slug>]` へ細分化し、委譲契約テンプレを v4 に上げた。
+- `anytime-cross-review` の `codex-review.cjs` が Codex を `-m gpt-6-astra -c model_reasoning_effort=medium`（高重大度レビュー向けの opus 相当段）で起動するようにした。`--model` / `--effort` で上書きでき、値が欠けた指定は exit 4 で止まる（degrade しない）。
+
 ## [1.20.3] - 2026-09-29
 
 ### 変更

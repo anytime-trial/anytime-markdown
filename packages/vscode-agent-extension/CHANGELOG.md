@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- `anytime-dev-cycle` now passes a task-appropriate model to every Codex delegation via `codex exec -m <slug>`. The §3.1 assignment table gains a "model when delegating to Codex" column, with a tier mapping to Claude (haiku ↔ `gpt-6-luna`, sonnet ↔ `gpt-6-sol`, opus ↔ `gpt-6-astra`) and an escalation order inside Codex. Delegation records are split into `[codex:<slug>]`, and the delegation contract template is bumped to v4.
+- `anytime-cross-review`'s `codex-review.cjs` now launches Codex with `-m gpt-6-astra -c model_reasoning_effort=medium` (the opus-equivalent tier for high-severity reviews). `--model` / `--effort` override it, and a flag with a missing value exits with code 4 instead of degrading.
+
 ## [1.20.3] - 2026-09-29
 
 ### Changed
