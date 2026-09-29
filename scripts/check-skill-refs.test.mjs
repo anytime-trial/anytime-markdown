@@ -10,10 +10,10 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 test('docPath を全角括弧・読点の手前で切り出す', () => {
   const { paths } = extractRefs(
-    '参照（/Shared/anytime-markdown-docs/spec/10.web-app/design.md）参照義務、以降',
+    '参照（/Shared/anytime-markdown-docs/spec/10.web-app/design-system.ja.md）参照義務、以降',
   );
   assert.deepEqual(paths, [
-    { kind: 'docPath', value: '/Shared/anytime-markdown-docs/spec/10.web-app/design.md', truncated: false },
+    { kind: 'docPath', value: '/Shared/anytime-markdown-docs/spec/10.web-app/design-system.ja.md', truncated: false },
   ]);
 });
 

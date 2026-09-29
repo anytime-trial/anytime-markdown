@@ -262,7 +262,7 @@ Markdown を読み書きするノートブックの温かさを目指す。広�
 
 - **アプリの既定はダーク**（`providers.tsx` の初期値 `dark`）。ダークは夜の作業向けの深いネイビー、ライトは和紙と墨の水墨画パレット。
 - 見た目のプリセットが 2 つある。既定は `handwritten`（丸い角と Nunito / Klee One の手書き調）、もう一方が `professional`（小さい角と Roboto）。
-- 本書はトークン集である。設計の意図・規約の正本は `spec/10.web-app/design.md`（anytime-markdown-docs）で、次の内容は本書に写さない: モーション（§5）、スクロールバー（§6）、ブランドマーク（§7）、アイコン（§8）、レイアウト規則（§9）、文章のトーンと禁則（§10）、アクセシビリティと識別子規約（§11）、本文の行長 measure（§3.4、ユーザー設定で切り替わる）、ランディング（Caravan Press）専用の書体（§3.1.1）。
+- 本書はトークン値の置き場である（値はコードから抽出する）。設計の意図・規約は `spec/10.web-app/design-system.ja.md`（anytime-markdown-docs）が持ち、そちらはトークン値を写さずに本書を参照する。次の内容は本書に写さない: モーション（§5）、スクロールバー（§6）、ブランドマーク（§7）、アイコン（§8）、レイアウト規則（§9）、文章のトーンと禁則（§10）、アクセシビリティと識別子規約（§11）、本文の行長 measure（§3.4、ユーザー設定で切り替わる）、ランディング（Caravan Press）専用の書体（§3.1.1）。
 - 値の抽出元は `packages/markdown-editor/src/constants/colors.ts` / `themePresets.ts` / `dimensions.ts` と `packages/web-app/src/app/[locale]/providers.tsx`。トークンを変えたら `node scripts/extract-design-tokens.mjs` で再抽出して照合する。
 
 ## Colors

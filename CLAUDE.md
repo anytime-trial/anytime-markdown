@@ -19,8 +19,8 @@
 
 ## Claude 固有のドキュメント参照
 
-- UI / 画面コンポーネントの実装・修正時は `<docsRoot>/spec/10.web-app/design.md` を Read してから着手する（`screen-design` スキル）。
-- design.md が対象としない UI（VS Code 拡張の webview 等）を新規に起こす場合のみ global スキル `shadcn-ui-fallback` を使う。design.md のトークンを流用する画面では常に design.md が優先し、2 系統を混在させない。
+- UI / 画面コンポーネントの実装・修正時は `<docsRoot>/spec/10.web-app/design-system.ja.md` を Read してから着手する（`screen-design` スキル）。
+- design-system.ja.md が対象としない UI（VS Code 拡張の webview 等）を新規に起こす場合のみ global スキル `shadcn-ui-fallback` を使う。design-system.ja.md のトークンを流用する画面では常に design-system.ja.md が優先し、2 系統を混在させない。
 - worktree とブランチ切替の詳細判断: `<docsRoot>/tech/branch/worktree-vs-branch.ja.md`。
 
 ## Trail DB
