@@ -6,7 +6,7 @@ description: "develop マージ前に Claude（pr-review-toolkit:code-reviewer s
 
 # anytime-cross-review — Claude × Codex 相互レビュー
 
-更新日: 2026-09-13
+更新日: 2026-09-29
 
 develop マージ前の品質ゲートを Claude と Codex の**二者独立レビュー＋相互検証**へ拡張する。設計は `<docsRoot>/plan/20260623-codex-cross-review-design.ja.md`。
 
@@ -22,6 +22,7 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 
 - DB ingest はラグ（数十分〜Reload）を伴うため、**ゲート判定はその場の統合サマリで行う**。trail 記録は事後の因果追跡用。
 - Codex 実行は bwrap 不可環境のため `--dangerously-bypass-approvals-and-sandbox`（ラッパが付与）。レビューは read-only。
+- **Codex のモデルはラッパが `-m gpt-6-astra -c model_reasoning_effort=medium` を既定で付ける**。本スキルは高重大度の変更にだけ適用するため、`anytime-dev-cycle` SKILL.md §3.1「コードレビュー（高重大度）」の opus 相当段を使う（`~/.codex/config.toml` の既定モデルには任せない）。変えるときは `--model <slug>` / `--effort <level>` を渡す。実行したモデルは stderr の `codex model=... effort=...` に出る。
 - **worktree から起動するときはラッパを main の絶対パスで呼ぶ**（2026-08-08 実測）。`.claude/skills/` は git 追跡外（拡張が main チェックアウトへ配置する複製）なので worktree には存在せず、相対パスの起動は `MODULE_NOT_FOUND` で落ちる。
 
   ```bash
@@ -40,9 +41,10 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 - **Claude**: `pr-review-toolkit:code-reviewer` subagent に diff レビューを依頼する（`anytime-trail-review` 出力。subagent session 経由で caravan_reviews に ingest され reviewer=`pr-review-toolkit:code-reviewer`）。
 - **Codex**: `node .claude/skills/anytime-cross-review/codex-review.cjs --base <base>` を実行する（**worktree からは §0 の絶対パス + `--cwd` 形式で起動する**）。
   - stdout = レビュー本文（`### N.` 形式・bold マーカー）、stderr に `findings=N maxSeverity=...`。
-  - exit 0 = 成功 / 2 = codex 失敗（非ゼロ終了・timeout）/ 3 = read-only 逸脱（codex がファイルを変更）。
+  - exit 0 = 成功 / 2 = codex 失敗（非ゼロ終了・timeout。廃止・改名された slug を渡した場合も含む）/ 3 = read-only 逸脱（codex がファイルを変更）/ 4 = 引数エラー（`--model` / `--effort` の値欠落）。
   - **exit 2 のみ degrade**: Claude 単独レビューで続行し、統合サマリに「Codex レビュー欠落（理由）」を明記（グレースフルデグラデーション）。
   - **exit 3 は中断**: read-only 逸脱は重大。続行せず `git status` で混入を確認し復元してから再開する（degrade 対象にしない）。
+  - **exit 4 は起動を直して再実行**: degrade 対象にしない。slug 起因の exit 2 は、stderr のエラー文を見て `~/.codex/models_cache.json` の `models[].slug` を確認し、近い段のモデルへ黙って差し替えず対応表の更新をユーザーへ提案する。
 
 ### 3. Round 2 — 相互検証（adversarial）
 

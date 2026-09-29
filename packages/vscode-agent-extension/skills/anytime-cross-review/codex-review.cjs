@@ -10,6 +10,34 @@ const START = '<<<CROSS-REVIEW-START>>>';
 const END = '<<<CROSS-REVIEW-END>>>';
 
 /**
+ * 既定の Codex モデル・effort。本スキルは高重大度の変更にだけ適用されるため、
+ * anytime-dev-cycle SKILL.md §3.1「コードレビュー（高重大度）」の opus 相当段を使う。
+ * config.toml の既定モデルに任せない(既定が変わると委譲先が黙って入れ替わるため)。
+ */
+const DEFAULT_CODEX_MODEL = 'gpt-6-astra';
+const DEFAULT_CODEX_EFFORT = 'medium';
+
+/**
+ * CLI 引数から --model / --effort を解決する。値の欠けた指定は既定へフォールバックせず throw する
+ * (意図と違うモデルで silent にレビューされる事故を防ぐ)。
+ */
+function resolveCodexOptions(argv) {
+  const pick = (flag, fallback) => {
+    const i = argv.indexOf(flag);
+    if (i === -1) return fallback;
+    const v = argv[i + 1];
+    if (!v || v.startsWith('--')) throw new Error(`${flag} requires a value`);
+    return v;
+  };
+  return { model: pick('--model', DEFAULT_CODEX_MODEL), effort: pick('--effort', DEFAULT_CODEX_EFFORT) };
+}
+
+/** codex exec の引数列。モデルと effort を毎回明示し、プロンプトは stdin('-')から渡す。 */
+function buildCodexArgs({ model, effort }) {
+  return ['exec', '--dangerously-bypass-approvals-and-sandbox', '-m', model, '-c', `model_reasoning_effort=${effort}`, '-'];
+}
+
+/**
  * Codex に渡すレビュー指示。anytime-trail-review を強制し read-only を明示する。
  * `codex exec review --base` は [PROMPT] と併用不可のため、`codex exec`(汎用)に
  * diff の取得方法を指示する形にする(プロンプト全制御のため)。
@@ -145,7 +173,10 @@ async function runReview(o) {
   return { ok: true, error: null, mutated: false, findingCount: findings.length, maxSeverity: maxSeverity(findings), section };
 }
 
-module.exports = { buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, detectMutation, runReview, START, END };
+module.exports = {
+  buildReviewPrompt, extractReviewSection, parseFindings, maxSeverity, detectMutation, runReview,
+  resolveCodexOptions, buildCodexArgs, DEFAULT_CODEX_MODEL, DEFAULT_CODEX_EFFORT, START, END,
+};
 
 if (require.main === module) {
   const { spawnSync } = require('node:child_process');
@@ -161,6 +192,15 @@ if (require.main === module) {
     info: (m) => process.stderr.write(`[${new Date().toISOString()}] [INFO] ${m}\n`),
     error: (m) => process.stderr.write(`[${new Date().toISOString()}] [ERROR] ${m}\n`),
   };
+  let codexOptions;
+  try {
+    codexOptions = resolveCodexOptions(args);
+  } catch (e) {
+    logger.error(e.message);
+    // 引数エラーは起動側の誤り。exit 2(degrade)にすると Codex 欠落のまま続行されるため別コードにする。
+    process.exit(4);
+  }
+  logger.info(`codex model=${codexOptions.model} effort=${codexOptions.effort}`);
   const CODEX_TIMEOUT_MS = Number(process.env.CROSS_REVIEW_TIMEOUT_MS) || 5 * 60 * 1000;
   // worktree fingerprint: file レベル変化(porcelain・新規/未追跡含む) + 追跡ファイルの内容差(git diff HEAD)。
   // 後者により実行前から dirty だったファイルへの上書きも検出できる(指摘#1)。
@@ -185,7 +225,7 @@ if (require.main === module) {
   const runCodex = ({ prompt }) => {
     // `codex exec review --base` は [PROMPT] と併用不可のため汎用 `codex exec` を使い、
     // diff の取得方法はプロンプト側で指示する。bwrap 不可環境ゆえ bypass。timeout で degrade 可能に(指摘#3)。
-    const r = spawnSync('codex', ['exec', '--dangerously-bypass-approvals-and-sandbox', '-'], {
+    const r = spawnSync('codex', buildCodexArgs(codexOptions), {
       cwd, input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: CODEX_TIMEOUT_MS,
     });
     if (r.error) {

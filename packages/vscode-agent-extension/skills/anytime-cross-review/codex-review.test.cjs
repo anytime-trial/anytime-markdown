@@ -126,3 +126,27 @@ test('runReview は空文字列 prompt を既定プロンプトへフォール�
   assert.match(r.error, /empty prompt/);
   assert.strictEqual(calls.length, 0);
 });
+
+test('resolveCodexOptions は未指定なら高重大度レビュー向けの gpt-6-astra / medium を返す', () => {
+  assert.deepStrictEqual(cr.resolveCodexOptions(['--base', 'develop']), { model: 'gpt-6-astra', effort: 'medium' });
+});
+
+test('resolveCodexOptions は --model / --effort で上書きできる', () => {
+  assert.deepStrictEqual(
+    cr.resolveCodexOptions(['--model', 'gpt-6-sol', '--effort', 'low']),
+    { model: 'gpt-6-sol', effort: 'low' },
+  );
+});
+
+test('resolveCodexOptions は値の欠けた --model / --effort を既定へフォールバックせず throw する', () => {
+  assert.throws(() => cr.resolveCodexOptions(['--model']), /--model/);
+  assert.throws(() => cr.resolveCodexOptions(['--model', '--verify']), /--model/);
+  assert.throws(() => cr.resolveCodexOptions(['--effort', '']), /--effort/);
+});
+
+test('buildCodexArgs は -m と model_reasoning_effort を必ず付け、プロンプトは stdin から読む', () => {
+  assert.deepStrictEqual(
+    cr.buildCodexArgs({ model: 'gpt-6-astra', effort: 'medium' }),
+    ['exec', '--dangerously-bypass-approvals-and-sandbox', '-m', 'gpt-6-astra', '-c', 'model_reasoning_effort=medium', '-'],
+  );
+});
