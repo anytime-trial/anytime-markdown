@@ -997,6 +997,19 @@
     white-space: nowrap;
 }
 
+.processLoopSkill {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    letter-spacing: 0.04em;
+}
+
+.processLoopSkill code {
+    font-family: inherit;
+    color: var(--ink);
+}
+
 .processSteps {
     list-style: none;
     margin: 0;
