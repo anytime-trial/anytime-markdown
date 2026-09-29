@@ -51,7 +51,7 @@ describe("buildEditorContentCss", () => {
 
   it("見出しの装飾（border / gradient / handwritten 変数）を含む", () => {
     expect(light).toContain("var(--editor-heading-radius-h1, 8px)");
-    expect(light).toContain("var(--editor-heading-font-family, monospace)");
+    expect(light).toContain("var(--editor-heading-font-family, inherit)");
     expect(light).toContain("var(--editor-heading-hatch");
     expect(light).toContain(`var(--editor-heading-border-h1, ${DEFAULT_LIGHT_HEADING_LINK})`);
     expect(dark).toContain(`var(--editor-heading-border-h1, ${DEFAULT_DARK_HEADING_LINK})`);

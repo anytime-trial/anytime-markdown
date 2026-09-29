@@ -307,7 +307,7 @@ ${tiptap("> p")}, ${tiptap("> blockquote > p")}, ${tiptap("li")} {
   position: relative;
 }
 ${tiptap("h1")}, ${tiptap("h2")}, ${tiptap("h3")}, ${tiptap("h4")}, ${tiptap("h5")} {
-  font-family: var(--editor-heading-font-family, monospace);
+  font-family: var(--editor-heading-font-family, inherit);
   letter-spacing: -0.01em;
 }
 
