@@ -278,9 +278,9 @@ describe('grounding.cjs delegation effectiveness', () => {
       '- 委譲見送り: [E2] 小変更',
     ]));
     expect(delegation.effectiveness.byModelEffort).toEqual([
-      { model: 'sonnet', effort: 'low', 採用: 1, 差し戻し: 1, abstain: 1, acceptRatePct: 50 },
+      { model: 'sonnet', effort: 'low', 採用: 1, 差し戻し: 0, abstain: 1, acceptRatePct: 100 },
+      { model: 'sonnet', effort: '(unspecified)', 採用: 1, 差し戻し: 1, abstain: 0, acceptRatePct: 50 }, // 理由文中の effort= は拾わない
       { model: 'sonnet', effort: 'high', 採用: 1, 差し戻し: 0, abstain: 0, acceptRatePct: 100 },
-      { model: 'sonnet', effort: '(unspecified)', 採用: 1, 差し戻し: 0, abstain: 0, acceptRatePct: 100 },
       { model: 'codex', effort: 'xhigh', 採用: 0, 差し戻し: 0, abstain: 1, acceptRatePct: null },
       { model: 'codex', effort: 'max', 採用: 0, 差し戻し: 1, abstain: 0, acceptRatePct: 0 },
       { model: '(unspecified)', effort: 'medium', 採用: 1, 差し戻し: 0, abstain: 0, acceptRatePct: 100 },

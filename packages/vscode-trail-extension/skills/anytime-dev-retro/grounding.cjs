@@ -956,7 +956,8 @@ function detectSemanticWired() {
             byVersion[v][outcome] += 1;
             byModel[model] = byModel[model] ?? emptyTally();
             byModel[model][outcome] += 1;
-            const effort = /\beffort=(low|medium|high|xhigh|max)\b/.exec(line.slice(m[0].length))?.[1] ?? '(unspecified)';
+            // 行末の「— effort=<level>」だけを拾う(理由文中の effort= や effort=high-risk は対象外。SKILL.md §3 効果測定の書式)
+            const effort = /(?:^|\s)—\s*effort=(low|medium|high|xhigh|max)(?=\s|$)/.exec(line.slice(m[0].length))?.[1] ?? '(unspecified)';
             const key = JSON.stringify([model, effort]);
             if (!effortGroups.has(key)) effortGroups.set(key, { model, effort, ...emptyTally() });
             effortGroups.get(key)[outcome] += 1;
