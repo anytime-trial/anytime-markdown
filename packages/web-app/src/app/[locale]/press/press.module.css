@@ -1007,6 +1007,7 @@
 
 .processLoopSkill code {
     font-family: inherit;
+    margin-inline-start: 0.5em;
     color: var(--ink);
 }
 
