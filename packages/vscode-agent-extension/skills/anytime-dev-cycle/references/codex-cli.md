@@ -7,8 +7,10 @@
 ## 起動形
 
 ```bash
-codex exec --dangerously-bypass-approvals-and-sandbox -m <slug> -c model_reasoning_effort=<level> "<プロンプト>" < /dev/null
+timeout --kill-after=60 5400 codex exec --dangerously-bypass-approvals-and-sandbox -m <slug> -c model_reasoning_effort=<level> "<プロンプト>" < /dev/null
 ```
+
+- **`timeout --kill-after=60 5400`（壁時計 90 分）で包む（必須）**。サンドボックスと承認を外して走らせるため、暴走（子エージェントの増殖・ループ）を止める外側の仕組みが他に無い。特にバックグラウンド実行は Bash ツールの 10 分タイムアウトも効かず、無期限に走り得る（2026-07 に OpenAI Codex の 1 プロンプトが子エージェント 826 個を起動して $78,000 を消費した事案が根拠）。終了コード 124（SIGKILL 昇格時は 137）は時間上限による打ち切りであり、結果は検証せず捨て、作業を分割して委譲し直すか Claude 側で実施する。90 分を超える見込みの作業は委譲前に分割する。上限値は `anytime-loop-start` の子セッション上限（90 分）と揃えている。レビュー経路（`anytime-cross-review` の `codex-review.cjs`）は本起動形を使わず、`spawnSync` の `timeout`（既定 5 分・env `CROSS_REVIEW_TIMEOUT_MS`）で別管理している
 
 - **`-m <slug>` と `-c model_reasoning_effort=<level>` を毎回付ける**。値は作業に応じて dev-cycle `SKILL.md` §3.1 の表から引く（例: 定型実装は `-m gpt-6-sol -c model_reasoning_effort=low`）。省略すると `~/.codex/config.toml` の既定で走り、作業に見合わない段のモデルが選ばれる
 
@@ -27,6 +29,7 @@ codex exec --dangerously-bypass-approvals-and-sandbox -m <slug> -c model_reasoni
 | 症状 | 原因 | 対処 |
 | --- | --- | --- |
 | 何も出力せず延々と待つ（ログ末尾が `Reading additional input from stdin...`） | stdin が開いたままで EOF が来ず、追加入力を待ち続けている | `< /dev/null` を付ける。**「Codex が遅い」と誤診しやすい**（タイムアウトを延ばしても直らない） |
+| 終了コード 124 / 137 で終わる | `timeout` の 90 分上限で打ち切られた | 結果は検証せず捨てる。作業を分割して委譲し直すか Claude 側で実施する。同じプロンプトで再実行しない |
 | サンドボックス起動に失敗して即終了 | bwrap 不可の環境で既定サンドボックスを使おうとした | `--dangerously-bypass-approvals-and-sandbox` を付ける |
 | 承認待ちで止まる | 対話モード（`exec` 以外）で起動した | `codex exec` を使う |
 | モデル指定で即終了する | slug が廃止・改名された | `~/.codex/models_cache.json` の `models[].slug` を確認し、対応表の更新をユーザーへ提案する。近い段へ黙って差し替えない |

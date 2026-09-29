@@ -2,9 +2,9 @@
   "anytime-build-webapp": 8,
   "anytime-session-exit": 4,
   "anytime-cross-review": 11,
-  "anytime-loop-start": 20,
+  "anytime-loop-start": 21,
   "anytime-loop-stop": 2,
   "anytime-dev-audit": 13,
-  "anytime-dev-cycle": 31,
+  "anytime-dev-cycle": 32,
   "anytime-analysis": 19
 }

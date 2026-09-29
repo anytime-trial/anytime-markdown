@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### 変更
+
+- `anytime-loop-start` の委譲子セッションに暴走上限を設けた。ランチャーを `exec timeout --verbose --kill-after=60 5400 claude -p --max-budget-usd 30 ...` とし、1 チケットあたり API 換算 $30・壁時計 90 分で打ち切る。上限到達はログ末尾（`Exceeded USD budget` / `timeout --verbose` の出力）で判別し、Comments に中断理由を追記して人へ返却する（自動再委譲しない）。
+- `anytime-dev-cycle` の Codex 起動形を `timeout --kill-after=60 5400 codex exec ...` とし、終了コード 124 / 137 は結果を捨てて分割し直すことを明記した。
+
 ## [1.20.4] - 2026-09-29
 
 ### 変更
