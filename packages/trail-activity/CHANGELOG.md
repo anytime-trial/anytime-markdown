@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-09-30
+
+### Fixed
+
+- Claude Sonnet 5.5 is priced the same as Sonnet 5 ($2 input / $10 output per MTok), including dated IDs, aliases and dot notation. It previously fell back to a different rate.
+
 ## [1.8.0] - 2026-09-29
 
 ### Changed

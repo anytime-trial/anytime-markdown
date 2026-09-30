@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.20.5] - 2026-09-30
+
 ### Changed
 
 - `anytime-loop-start`: delegated child sessions now have runaway limits. The launcher runs `exec timeout --verbose --kill-after=60 5400 claude -p --max-budget-usd 30 ...`, capping each ticket at $30 (API-equivalent estimate) and 90 minutes wall-clock. Hitting a limit is detected from the tail of the log (`Exceeded USD budget` or the `timeout --verbose` message), and the ticket is handed back to the user with the reason in Comments (no automatic re-delegation).

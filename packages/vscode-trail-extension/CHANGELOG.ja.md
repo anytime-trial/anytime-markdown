@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-09-30
+
+### Trail Core (trail-activity)
+
+- Sonnet 5.5 のセッションコストを Sonnet 5 と同じ単価（$2 / $10 per MTok）で計算するようにした。
+
 ## [1.8.0] - 2026-09-29
 
 ### 追加
