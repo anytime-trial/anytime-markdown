@@ -196,7 +196,8 @@ describe('SupabaseTrailStore の洗い替えクリア', () => {
   it.each([
     ['unsafeClearRepos', [['trail_repos', 'repo_id > 0']]],
     ['unsafeClearCurrentGraphs', [['trail_current_graphs', 'repo_id >= 0']]],
-    ['unsafeClearReleaseGraphs', [['trail_release_graphs', 'release_id >= 0']]],
+    // trail_release_graphs は deleteAllPaged（主キー select → in 削除）で消す。fake の select は空を返すため削除呼び出しは出ない。
+    ['unsafeClearReleaseGraphs', []],
     ['unsafeClearCurrentFileAnalysis', [['trail_current_file_analysis', 'repo_id >= 0']]],
     ['unsafeClearCurrentFunctionAnalysis', [['trail_current_function_analysis', 'repo_id >= 0']]],
     ['unsafeClearCurrentCodeGraphs', [
@@ -205,7 +206,6 @@ describe('SupabaseTrailStore の洗い替えクリア', () => {
     ]],
     ['unsafeClearReleaseCodeGraphs', [
       ['trail_release_code_graph_communities', 'release_id >= 0'],
-      ['trail_release_code_graphs', 'release_id >= 0'],
     ]],
   ] as const)('%s は対象テーブルを全行削除する', async (method, expected) => {
     const { store, calls } = makeStore([]);
