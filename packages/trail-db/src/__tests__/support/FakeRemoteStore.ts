@@ -31,6 +31,14 @@ export class FakeRemoteStore implements IRemoteTrailStore {
   sessionCostRows: SessionCostRow[] = [];
   toolCallRows: ToolCallRow[] = [];
 
+  /** リモートに存在する release（release_id → 一意キー repo:tag）。unsafeClearAll では消えず、unsafePruneReleases で刈る。 */
+  releases = new Map<number, string>();
+  get releaseIds(): ReadonlySet<number> { return new Set(this.releases.keys()); }
+  /** リモートの release graph（release_id → 内容とバージョン）。 */
+  releaseGraphs = new Map<number, { graphJson: string; version: string }>();
+  /** upsertReleaseGraph が呼ばれた release_id（送信量の検証用）。 */
+  releaseGraphUpserts: number[] = [];
+
   /** upsertMessages 呼び出し時に throw する例外（セッション単位の失敗を再現する）。 */
   messageFailure: Error | null = null;
   /** upsertSessions が throw するセッション ID（一過性 HTTP 失敗を再現する）。 */
@@ -71,7 +79,23 @@ export class FakeRemoteStore implements IRemoteTrailStore {
     this.commitRows.push(...rows);
   }
   async upsertCommitFiles(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
-  async upsertReleases(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  /** 本番の trail_releases と同じく release_id で upsert し、UNIQUE (repo_id, tag) 違反は throw する。 */
+  async upsertReleases(rows: readonly { release_id?: number | null; repo_name?: string; tag: string }[]): Promise<void> {
+    for (const r of rows) {
+      if (r.release_id == null) continue;
+      const key = `${r.repo_name ?? ''}:${r.tag}`;
+      const holder = [...this.releases].find(([id, k]) => k === key && id !== r.release_id);
+      if (holder) throw new Error(`duplicate key value violates unique constraint (repo_id, tag)=(${key}) held by ${holder[0]}`);
+      this.releases.set(r.release_id, key);
+    }
+  }
+  async unsafePruneReleases(keepReleaseIds: ReadonlySet<number>): Promise<void> {
+    for (const id of [...this.releases.keys()]) {
+      if (keepReleaseIds.has(id)) continue;
+      this.releases.delete(id);
+      this.releaseGraphs.delete(id); // CASCADE
+    }
+  }
   async upsertReleaseFiles(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async upsertSessionCosts(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
 
@@ -81,9 +105,19 @@ export class FakeRemoteStore implements IRemoteTrailStore {
 
   async upsertDailyCounts(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async unsafeClearCurrentGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
-  async unsafeClearReleaseGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async upsertCurrentGraph(_repoId: number, _graphJson: string, _commitId: string): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
-  async upsertReleaseGraph(_releaseId: number, _graphJson: string): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async getReleaseGraphVersions(): Promise<ReadonlyMap<number, string>> {
+    return new Map([...this.releaseGraphs].map(([id, g]) => [id, g.version]));
+  }
+  /** 本番の FK（trail_release_graphs → trail_releases）と同じく、親の無い graph は throw する。 */
+  async upsertReleaseGraph(releaseId: number, graphJson: string, version: string): Promise<void> {
+    if (!this.releases.has(releaseId)) throw new Error(`insert violates foreign key constraint (release_id=${releaseId})`);
+    this.releaseGraphUpserts.push(releaseId);
+    this.releaseGraphs.set(releaseId, { graphJson, version });
+  }
+  async unsafeDeleteReleaseGraphs(releaseIds: readonly number[]): Promise<void> {
+    for (const id of releaseIds) this.releaseGraphs.delete(id);
+  }
   async unsafeClearMessageToolCalls(): Promise<void> { this.toolCallRows = []; }
 
   async upsertMessageToolCalls(rows: readonly ToolCallRow[]): Promise<void> {

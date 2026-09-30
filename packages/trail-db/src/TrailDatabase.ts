@@ -11456,6 +11456,23 @@ export class TrailDatabase {
     return count;
   }
 
+  /**
+   * release graph のバージョン（release_id → updated_at、空なら analyzed_at）を返す。
+   * 差分同期でリモートと比べるためだけに使い、graph_json（1 件十数 MB）は読まない。
+   */
+  getReleaseGraphVersions(): ReadonlyMap<number, string> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT release_id, COALESCE(NULLIF(updated_at, ''), analyzed_at) AS version
+         FROM activity_release_graphs`,
+    );
+    const versions = new Map<number, string>();
+    for (const [releaseId, version] of result[0]?.values ?? []) {
+      versions.set(Number(releaseId), String(version));
+    }
+    return versions;
+  }
+
   getReleases(): ReleaseRow[] {
     const db = this.ensureDb();
     // flip 後 releases は prev_release_id を持つ。外部 I/F (Supabase 同期) は従来通り

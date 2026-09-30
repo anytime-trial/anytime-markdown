@@ -87,6 +87,13 @@ describe('summarizeRemoteError', () => {
     expect(summary).toContain('non-JSON response from gateway');
     expect(summary).not.toContain('<html>');
   });
+
+  it('message が文字列でないエラーでも throw せず、手掛かりの項目で要約する', () => {
+    const noMessage = { code: null, details: 'Payload Too Large', hint: null } as unknown as { message: string };
+    expect(() => summarizeRemoteError(noMessage)).not.toThrow();
+    expect(summarizeRemoteError(noMessage)).toContain('Payload Too Large');
+    expect(summarizeRemoteError({} as unknown as { message: string })).toBe('unknown error (no message)');
+  });
 });
 
 describe('SupabaseTrailStore の再試行', () => {
@@ -100,6 +107,17 @@ describe('SupabaseTrailStore の再試行', () => {
 
     await expect(store.upsertSessions([session('s1')])).resolves.toBeUndefined();
     expect(calls).toHaveLength(3);
+  });
+
+  it('message の無いエラーでも再試行を続け、成功すれば取りこぼさない', async () => {
+    const { store, calls } = makeStore([
+      { error: {} as unknown as { message: string } },
+      { error: null },
+    ]);
+    await store.connect();
+
+    await expect(store.upsertSessions([session('s1')])).resolves.toBeUndefined();
+    expect(calls).toHaveLength(2);
   });
 
   it('制約違反は再試行せず即座に失敗する', async () => {
@@ -121,7 +139,7 @@ describe('SupabaseTrailStore の再試行', () => {
     ]);
     await store.connect();
 
-    await expect(store.upsertReleaseGraph(1, '{}')).rejects.toThrow(/non-JSON response from gateway/);
+    await expect(store.upsertReleaseGraph(1, '{}', '2026-01-01T00:00:00.000Z')).rejects.toThrow(/non-JSON response from gateway/);
     expect(calls).toHaveLength(4); // 初回 + 3 リトライ
   });
 });
@@ -196,8 +214,6 @@ describe('SupabaseTrailStore の洗い替えクリア', () => {
   it.each([
     ['unsafeClearRepos', [['trail_repos', 'repo_id > 0']]],
     ['unsafeClearCurrentGraphs', [['trail_current_graphs', 'repo_id >= 0']]],
-    // trail_release_graphs は deleteAllPaged（主キー select → in 削除）で消す。fake の select は空を返すため削除呼び出しは出ない。
-    ['unsafeClearReleaseGraphs', []],
     ['unsafeClearCurrentFileAnalysis', [['trail_current_file_analysis', 'repo_id >= 0']]],
     ['unsafeClearCurrentFunctionAnalysis', [['trail_current_function_analysis', 'repo_id >= 0']]],
     ['unsafeClearCurrentCodeGraphs', [
@@ -216,13 +232,15 @@ describe('SupabaseTrailStore の洗い替えクリア', () => {
     expect(calls.map((c) => [c.table, c.filter])).toEqual(expected);
   });
 
-  it('unsafeClearAll は範囲削除のテーブルも再試行経由で消す', async () => {
+  it('unsafeClearAll は範囲削除のテーブルも再試行経由で消し、release と graph は消さない', async () => {
     const { store, calls } = makeStore([{ error: SCHEMA_CACHE_ERROR }]);
     await store.connect();
 
     await expect(store.unsafeClearAll()).resolves.toBeUndefined();
     expect(calls.map((c) => [c.table, c.filter])).toEqual([
-      ['trail_daily_counts', 'date >= 0000-01-01'],
+      ['trail_release_files', 'release_id >= 0'],
+      ['trail_release_files', 'release_id >= 0'],
+      ['trail_release_features', 'release_id >= 0'],
       ['trail_daily_counts', 'date >= 0000-01-01'],
       ['trail_current_file_analysis', 'repo_id >= 0'],
       ['trail_current_function_analysis', 'repo_id >= 0'],
