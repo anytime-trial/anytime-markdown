@@ -23,7 +23,7 @@ describe('mcp-markdown integration', () => {
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it('should list all 10 tools', async () => {
+  it('should list all 11 tools', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
     // editor tools
@@ -39,7 +39,8 @@ describe('mcp-markdown integration', () => {
     // markdown helper tools (Phase 2)
     expect(names).toContain('get_frontmatter');
     expect(names).toContain('update_frontmatter');
-    expect(tools).toHaveLength(10);
+    expect(names).toContain('get_image_annotations');
+    expect(tools).toHaveLength(11);
   });
 
   it('should get and update frontmatter without touching the body', async () => {
