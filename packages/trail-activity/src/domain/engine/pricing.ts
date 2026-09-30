@@ -151,6 +151,8 @@ const GENERATION_END = String.raw`(?:$|[^0-9.\-]|-(?:\d{8}(?!\d)|[a-z]))`;
 const RATE_GENERATIONS: ReadonlyArray<readonly [RegExp, string]> = [
   [new RegExp(String.raw`opus-5[-.]5` + GENERATION_END), 'opus-5.5'],
   [new RegExp(String.raw`fable-5[-.]1` + GENERATION_END), 'fable-5.1'],
+  // Sonnet 5.5 は Sonnet 5 と同額（2/10・キャッシュ読取 0.1 倍）なので単価キーを共有する
+  [new RegExp(String.raw`sonnet-5[-.]5` + GENERATION_END), 'sonnet-5'],
   [new RegExp(String.raw`sonnet-5` + GENERATION_END), 'sonnet-5'],
 ];
 
