@@ -7,7 +7,7 @@ description: 日次技術情報収集。プロジェクト関連の技術トピ�
 
 > `<docsRoot>` は対象プロジェクトの CLAUDE.md「ドキュメント保存先（docsRoot）」節に定義された docs リポジトリのルートパスに読み替える。
 
-**当プロジェクト**: anytime-markdown。Tiptap / ProseMirror を vendoring した `markdown-core` の上に、脱 React の vanilla DOM エディタ `markdown-editor` を載せた WYSIWYG Markdown エディタ（VS Code 拡張・Web アプリ）と、開発活動を記録する Trail（VS Code 拡張・MCP）からなるモノレポ。Claude Code を主な開発環境とする。構成が変わったら本段落を更新する（2026-09-29 レポートは「Tiptap ベース」の旧記述のまま示唆を書いていた）。
+**当プロジェクト**: 構成・開発環境は `.claude/docs/research-project-profile.md`（weekly-research と共通の正本）を調査前に Read して前提とする。本文にプロジェクトの説明を別に書かない（2026-09-29 レポートは「Tiptap ベース」の旧記述のまま示唆を書いていた）。
 
 以下のトピックについて、Web 検索で最新情報を調査し、日本語で要約してください。
 
