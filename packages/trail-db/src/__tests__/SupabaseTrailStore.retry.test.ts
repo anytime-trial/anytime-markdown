@@ -87,6 +87,13 @@ describe('summarizeRemoteError', () => {
     expect(summary).toContain('non-JSON response from gateway');
     expect(summary).not.toContain('<html>');
   });
+
+  it('message が文字列でないエラーでも throw せず、手掛かりの項目で要約する', () => {
+    const noMessage = { code: null, details: 'Payload Too Large', hint: null } as unknown as { message: string };
+    expect(() => summarizeRemoteError(noMessage)).not.toThrow();
+    expect(summarizeRemoteError(noMessage)).toContain('Payload Too Large');
+    expect(summarizeRemoteError({} as unknown as { message: string })).toBe('unknown error (no message)');
+  });
 });
 
 describe('SupabaseTrailStore の再試行', () => {
@@ -100,6 +107,17 @@ describe('SupabaseTrailStore の再試行', () => {
 
     await expect(store.upsertSessions([session('s1')])).resolves.toBeUndefined();
     expect(calls).toHaveLength(3);
+  });
+
+  it('message の無いエラーでも再試行を続け、成功すれば取りこぼさない', async () => {
+    const { store, calls } = makeStore([
+      { error: {} as unknown as { message: string } },
+      { error: null },
+    ]);
+    await store.connect();
+
+    await expect(store.upsertSessions([session('s1')])).resolves.toBeUndefined();
+    expect(calls).toHaveLength(2);
   });
 
   it('制約違反は再試行せず即座に失敗する', async () => {
