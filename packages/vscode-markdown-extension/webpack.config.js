@@ -173,6 +173,8 @@ const mcpMarkdownServerConfig = {
       ...buildWebpackAlias(),
       '@anytime-markdown/markdown-engine': path.resolve(__dirname, '../markdown-engine/src/index.ts'),
       '@anytime-markdown/markdown-catalog': path.resolve(__dirname, '../markdown-catalog/src/index.ts'),
+      // get_image_annotations が注記の保存形式を markdown-editor と共有する（exports の internal/* は拡張子を補えない）
+      '@anytime-markdown/markdown-editor/internal': path.resolve(__dirname, '../markdown-editor/src'),
     },
   },
   module: {

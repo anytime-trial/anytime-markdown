@@ -5,6 +5,7 @@
  * エディタ本文とは別に管理する。YAML の構造解析は行わず文字列のまま保持する。
  */
 
+import { extractImageAnnotationBlock } from "../types/imageAnnotation";
 import { type InlineComment, parseCommentData } from "./commentHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "./sanitizeMarkdown";
 
@@ -56,41 +57,12 @@ export function preprocessMarkdown(text: string): {
 } {
   const { frontmatter, body: bodyWithoutFm } = parseFrontmatter(text);
   const { comments, body } = parseCommentData(bodyWithoutFm);
-  const { imageAnnotations, body: bodyWithoutAnnotations } = extractImageAnnotations(body);
+  const { imageAnnotations, body: bodyWithoutAnnotations } = extractImageAnnotationBlock(body);
   const { gifSettings, body: bodyWithoutGifSettings } = extractGifSettings(bodyWithoutAnnotations);
   const sanitized = preserveBlankLines(sanitizeMarkdown(bodyWithoutGifSettings));
   return { frontmatter, comments, body: sanitized, imageAnnotations, gifSettings };
 }
 
-/**
- * Markdown 末尾の `<!-- image-comments -->` ブロックを抽出する。
- */
-function extractImageAnnotations(md: string): {
-  imageAnnotations: Map<string, string>;
-  body: string;
-} {
-  const result = new Map<string, string>();
-  const marker = "\n<!-- image-comments\n";
-  const markerEnd = "\n-->";
-  const idx = md.indexOf(marker);
-  if (idx === -1) return { imageAnnotations: result, body: md };
-
-  const dataStart = idx + marker.length;
-  const dataEnd = md.indexOf(markerEnd, dataStart);
-  if (dataEnd === -1) return { imageAnnotations: result, body: md };
-
-  const block = md.slice(dataStart, dataEnd);
-  for (const line of block.split("\n")) {
-    const eqIdx = line.indexOf("=");
-    if (eqIdx === -1) continue;
-    const key = line.slice(0, eqIdx);
-    const data = line.slice(eqIdx + 1);
-    result.set(key, data);
-  }
-
-  const body = md.slice(0, idx) + md.slice(dataEnd + markerEnd.length);
-  return { imageAnnotations: result, body };
-}
 
 /**
  * Markdown 本文から `<!-- gif-settings: {...} -->` コメントを抽出し、

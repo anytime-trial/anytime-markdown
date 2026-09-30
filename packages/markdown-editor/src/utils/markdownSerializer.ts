@@ -2,6 +2,7 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { commentDataPluginKey } from "../extensions/commentExtension";
 import { getMarkdownStorage } from "../types";
+import { buildAnnotationKey, IMAGE_COMMENTS_BLOCK_END, IMAGE_COMMENTS_BLOCK_START } from "../types/imageAnnotation";
 import type { InlineComment } from "./commentHelpers";
 import { appendCommentData } from "./commentHelpers";
 import { getTrailingNewline } from "./editorContentLoader";
@@ -19,18 +20,16 @@ function embedImageAnnotations(editor: Editor, md: string): string {
   editor.state.doc.descendants((node) => {
     if (node.type.name === "image") {
       if (node.attrs.annotations) {
-        const src = (node.attrs.src as string) ?? "";
-        // src が長い場合（Base64）は先頭20文字 + インデックスで識別
-        const key = src.length > 100 ? `img${imgIndex}:${src.slice(0, 20)}` : `img${imgIndex}:${src}`;
+        const key = buildAnnotationKey(imgIndex, (node.attrs.src as string) ?? "");
         entries.push({ key, data: node.attrs.annotations as string });
       }
       imgIndex++;
     }
   });
   if (entries.length === 0) return md;
-  const block = "\n<!-- image-comments\n" +
+  const block = IMAGE_COMMENTS_BLOCK_START +
     entries.map(e => `${e.key}=${e.data}`).join("\n") +
-    "\n-->";
+    IMAGE_COMMENTS_BLOCK_END;
   return md + block;
 }
 
