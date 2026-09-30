@@ -1,5 +1,7 @@
+import { constants as fsConstants } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+
 import {
   buildAnnotationKey,
   extractImageAnnotationBlock,
@@ -8,8 +10,10 @@ import {
   parseAnnotationKey,
   parseAnnotations,
 } from '@anytime-markdown/markdown-editor/internal/types/imageAnnotation';
-import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
+
 import { type ImageSize, readImageSize } from '../utils/imageSize';
+import { type BodyImage, listBodyImages } from '../utils/markdownImages';
+import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
 
@@ -29,6 +33,8 @@ const MIME_BY_EXT: Readonly<Record<string, string>> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
 };
+/** image content として返してよい MIME（ファイル・data URI 共通の許可リスト） */
+const ALLOWED_MIME = new Set(Object.values(MIME_BY_EXT));
 
 export interface GetImageAnnotationsInput {
   path: string;
@@ -74,53 +80,6 @@ export interface ImageAnnotationsResult {
   imageErrors: Array<{ index: number; reason: string }>;
 }
 
-interface BodyImage {
-  index: number;
-  src: string;
-  alt: string;
-  line: number;
-  heading?: string;
-}
-
-const IMAGE_RE = /!\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
-const FENCE_RE = /^\s*(```|~~~)/;
-const HEADING_RE = /^#{1,6}\s+\S/;
-const GIF_SETTINGS_PREFIX = '<!-- gif-settings:';
-
-function frontmatterEnd(lines: readonly string[]): number {
-  if (lines[0] !== '---') return 0;
-  const end = lines.indexOf('---', 1);
-  return end === -1 ? 0 : end + 1;
-}
-
-/**
- * 本文の画像を、エディタが注記を保存するときと同じ順序で数える。
- * フェンス内・フロントマター内は数えず、gif-settings の付いた GIF（保存時は gifBlock で数えない）も除く。
- */
-export function listBodyImages(markdown: string): BodyImage[] {
-  const lines = markdown.split('\n');
-  const images: BodyImage[] = [];
-  let inFence = false;
-  let heading: string | undefined;
-
-  for (let i = frontmatterEnd(lines); i < lines.length; i++) {
-    const line = lines[i];
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    if (HEADING_RE.test(line)) heading = line.trimEnd();
-    const hasGifSettings = (lines[i + 1] ?? '').trimStart().startsWith(GIF_SETTINGS_PREFIX);
-    for (const match of line.matchAll(IMAGE_RE)) {
-      const src = match[2].replace(/^<|>$/g, '');
-      if (hasGifSettings && src.toLowerCase().split(/[?#]/)[0].endsWith('.gif')) continue;
-      images.push({ index: images.length, src, alt: match[1], line: i + 1, heading });
-    }
-  }
-  return images;
-}
-
 function toView(a: ImageAnnotation, size: ImageSize | undefined): AnnotationView {
   const percent = { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 };
   const view: AnnotationView = { id: a.id, type: a.type, percent, color: a.color, resolved: a.resolved === true };
@@ -139,84 +98,125 @@ function truncateSrc(src: string): string {
   return src.length > MAX_SRC_CHARS ? `${src.slice(0, MAX_SRC_CHARS)}…` : src;
 }
 
-async function realRoot(rootDir: string): Promise<string> {
-  return fs.realpath(rootDir);
+/**
+ * 応答に載せる失敗理由。Node のエラーコード（ENOENT 等）だけを返す。
+ * Why not: error.message をそのまま返さない。realpath 等のメッセージにはワークスペースの絶対パスが入る。
+ */
+function errorReason(error: unknown): string {
+  // instanceof Error は使わない（jest の VM など別レルムで生成された fs のエラーを取りこぼす）
+  if (typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string') return error.code;
+  return error instanceof Error ? error.message : String(error);
 }
 
-/** realpath がワークスペース内に収まるか（シンボリックリンクで外へ出る指定を拒否する） */
-async function resolveInsideRoot(root: string, target: string): Promise<string> {
+interface Roots {
+  /** 呼び出し元が渡した rootDir（字面の判定用） */
+  lexical: string;
+  /** rootDir の realpath（シンボリックリンク解決後の判定用） */
+  real: string;
+}
+
+function isInside(root: string, target: string): boolean {
+  return target === root || target.startsWith(root + path.sep);
+}
+
+const OUTSIDE_ROOT = 'Access denied: path outside root directory';
+
+/**
+ * ワークスペース内に収まるパスの realpath を返す。字面で外を指す指定は存在確認より先に拒否し、
+ * realpath でも外へ出る（シンボリックリンク経由の）指定を拒否する。
+ */
+async function resolveInsideRoot(roots: Roots, target: string): Promise<string> {
+  if (!isInside(roots.lexical, target) && !isInside(roots.real, target)) throw new Error(OUTSIDE_ROOT);
   const real = await fs.realpath(target);
-  if (real !== root && !real.startsWith(root + path.sep)) {
-    throw new Error('Access denied: path outside root directory');
-  }
+  if (!isInside(roots.real, real)) throw new Error(OUTSIDE_ROOT);
   return real;
+}
+
+/**
+ * ワークスペース内に解決したファイルを開く。末端をシンボリックリンクへ差し替えられた場合は O_NOFOLLOW で失敗させ、
+ * 検証と読み取りの間の差し替え（TOCTOU）で外のファイルを読まないようにする。
+ */
+async function openInsideRoot(roots: Roots, target: string): Promise<fs.FileHandle> {
+  const real = await resolveInsideRoot(roots, target);
+  return fs.open(real, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+}
+
+async function readHead(handle: fs.FileHandle, bytes: number): Promise<Buffer> {
+  const buf = Buffer.alloc(bytes);
+  const { bytesRead } = await handle.read(buf, 0, bytes, 0);
+  return buf.subarray(0, bytesRead);
 }
 
 type ImageSource =
   | { kind: 'data'; mimeType: string; bytes: Buffer }
-  | { kind: 'file'; absPath: string }
+  | { kind: 'file'; absPath: string; mimeType?: string }
   | { kind: 'rejected'; reason: string };
 
 function classifySrc(src: string, mdDir: string): ImageSource {
   if (src.startsWith('data:')) {
     const match = /^data:([^;,]+);base64,(.*)$/s.exec(src);
     if (!match) return { kind: 'rejected', reason: 'unsupported data URI (base64 only)' };
-    return { kind: 'data', mimeType: match[1], bytes: Buffer.from(match[2], 'base64') };
+    return { kind: 'data', mimeType: match[1].toLowerCase(), bytes: Buffer.from(match[2], 'base64') };
   }
-  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//')) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//') || src.startsWith('\\\\')) {
     return { kind: 'rejected', reason: 'external URL is not fetched' };
   }
-  let decoded = src.split(/[?#]/)[0];
+  let decoded: string;
   try {
-    decoded = decodeURI(decoded);
+    decoded = decodeURI(src.split(/[?#]/)[0]);
   } catch {
-    // 不正な % エスケープはそのまま扱う（実在しなければ読み取りで失敗として報告される）
+    return { kind: 'rejected', reason: 'invalid percent-encoding in src' };
   }
-  return { kind: 'file', absPath: path.resolve(mdDir, decoded) };
+  const absPath = path.resolve(mdDir, decoded);
+  return { kind: 'file', absPath, mimeType: MIME_BY_EXT[path.extname(absPath).toLowerCase()] };
 }
 
-async function readFileHead(absPath: string, bytes: number): Promise<Buffer> {
-  const handle = await fs.open(absPath, 'r');
+async function probeSize(source: ImageSource, roots: Roots): Promise<{ size?: ImageSize; reason?: string }> {
+  if (source.kind === 'rejected') return { reason: source.reason };
   try {
-    const buf = Buffer.alloc(bytes);
-    const { bytesRead } = await handle.read(buf, 0, bytes, 0);
-    return buf.subarray(0, bytesRead);
-  } finally {
-    await handle.close();
-  }
-}
-
-async function probeSize(source: ImageSource, root: string): Promise<{ size?: ImageSize; reason?: string }> {
-  try {
-    if (source.kind === 'rejected') return { reason: source.reason };
-    const head = source.kind === 'data'
-      ? source.bytes
-      : await readFileHead(await resolveInsideRoot(root, source.absPath), SIZE_PROBE_BYTES);
+    let head: Buffer;
+    if (source.kind === 'data') {
+      head = source.bytes;
+    } else {
+      const handle = await openInsideRoot(roots, source.absPath);
+      try {
+        head = await readHead(handle, SIZE_PROBE_BYTES);
+      } finally {
+        await handle.close();
+      }
+    }
     const size = readImageSize(head);
     return size ? { size } : { reason: 'image format not supported for size detection' };
   } catch (error) {
-    return { reason: error instanceof Error ? error.message : String(error) };
+    return { reason: errorReason(error) };
   }
 }
 
 async function loadImageData(
   source: ImageSource,
-  root: string,
+  roots: Roots,
 ): Promise<{ mimeType: string; data: string } | { reason: string }> {
   if (source.kind === 'rejected') return { reason: source.reason };
+  if (!source.mimeType || !ALLOWED_MIME.has(source.mimeType)) {
+    return { reason: `unsupported image type: ${source.mimeType ?? 'unknown'}` };
+  }
   if (source.kind === 'data') {
     if (source.bytes.length > MAX_IMAGE_BYTES) return { reason: 'image exceeds 5 MB limit' };
     return { mimeType: source.mimeType, data: source.bytes.toString('base64') };
   }
-  const mimeType = MIME_BY_EXT[path.extname(source.absPath).toLowerCase()];
-  if (!mimeType) return { reason: `unsupported image type: ${path.extname(source.absPath)}` };
   try {
-    const real = await resolveInsideRoot(root, source.absPath);
-    const stat = await fs.stat(real);
-    if (stat.size > MAX_IMAGE_BYTES) return { reason: 'image exceeds 5 MB limit' };
-    return { mimeType, data: (await fs.readFile(real)).toString('base64') };
+    const handle = await openInsideRoot(roots, source.absPath);
+    try {
+      if ((await handle.stat()).size > MAX_IMAGE_BYTES) return { reason: 'image exceeds 5 MB limit' };
+      // stat 後に肥大化しても上限 + 1 バイトまでしか読まず、超過を検出する
+      const bytes = await readHead(handle, MAX_IMAGE_BYTES + 1);
+      if (bytes.length > MAX_IMAGE_BYTES) return { reason: 'image exceeds 5 MB limit' };
+      return { mimeType: source.mimeType, data: bytes.toString('base64') };
+    } finally {
+      await handle.close();
+    }
   } catch (error) {
-    return { reason: error instanceof Error ? error.message : String(error) };
+    return { reason: errorReason(error) };
   }
 }
 
@@ -227,35 +227,76 @@ interface ParsedLine {
   annotations: ImageAnnotation[];
 }
 
+/**
+ * 注記ブロックの 1 行を解析する。必須項目の欠けた注記は除き、除いた件数を理由として返す
+ * （読めた注記は捨てない）。
+ */
+function parseBlockLine(key: string, data: string): { parsed?: ParsedLine; reason?: string } {
+  const parsedKey = parseAnnotationKey(key);
+  if (!parsedKey) return { reason: 'invalid key (expected img<index>:<src>)' };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(data);
+  } catch {
+    return { reason: 'annotation data is not valid JSON' };
+  }
+  if (!Array.isArray(raw)) return { reason: 'annotation data is not a JSON array' };
+  const annotations = parseAnnotations(data);
+  const dropped = raw.length - annotations.length;
+  return {
+    parsed: annotations.length > 0 ? { key, ...parsedKey, annotations } : undefined,
+    reason: dropped > 0 ? `${dropped} annotation(s) missing required fields` : undefined,
+  };
+}
+
 function parseBlockLines(
   lines: ReadonlyArray<{ key: string; data: string }>,
   skipped: ImageAnnotationsResult['skipped'],
 ): ParsedLine[] {
   const parsed: ParsedLine[] = [];
   for (const { key, data } of lines) {
-    const parsedKey = parseAnnotationKey(key);
-    if (!parsedKey) {
-      skipped.push({ key, reason: 'invalid key (expected img<index>:<src>)' });
-      continue;
-    }
-    let raw: unknown;
-    try {
-      raw = JSON.parse(data);
-    } catch {
-      skipped.push({ key, reason: 'annotation data is not valid JSON' });
-      continue;
-    }
-    if (!Array.isArray(raw)) {
-      skipped.push({ key, reason: 'annotation data is not a JSON array' });
-      continue;
-    }
-    const annotations = parseAnnotations(data);
-    if (annotations.length < raw.length) {
-      skipped.push({ key, reason: `${raw.length - annotations.length} annotation(s) missing required fields` });
-    }
-    if (annotations.length > 0) parsed.push({ key, ...parsedKey, annotations });
+    const line = parseBlockLine(key, data);
+    if (line.reason) skipped.push({ key, reason: line.reason });
+    if (line.parsed) parsed.push(line.parsed);
   }
   return parsed;
+}
+
+/** 注記キーを本文の画像へ対応づける。対応しなければ unmatched の理由を返す */
+function matchImage(entry: ParsedLine, bodyImages: readonly BodyImage[]): BodyImage | { reason: string } {
+  const image = bodyImages[entry.index];
+  if (!image) return { reason: `no image at index ${entry.index}` };
+  if (!matchesAnnotationSrcKey(image.src, entry.srcKey)) {
+    return { reason: `src mismatch: image #${entry.index} is ${truncateSrc(buildAnnotationKey(entry.index, image.src))}` };
+  }
+  return image;
+}
+
+async function attachImageData(
+  result: ImageAnnotationsResult,
+  index: number,
+  source: ImageSource,
+  roots: Roots,
+): Promise<void> {
+  if (result.imageData.length >= MAX_IMAGES_PER_CALL) {
+    result.imageErrors.push({ index, reason: `per-call image limit (${MAX_IMAGES_PER_CALL}) reached` });
+    return;
+  }
+  const loaded = await loadImageData(source, roots);
+  if ('reason' in loaded) result.imageErrors.push({ index, reason: loaded.reason });
+  else result.imageData.push({ index, ...loaded });
+}
+
+async function readMarkdown(rootDir: string, userPath: string): Promise<{ roots: Roots; mdPath: string; text: string }> {
+  const resolved = resolveSecurePath(rootDir, userPath);
+  validateFileExtension(resolved, ALLOWED_EXTENSIONS);
+  const roots: Roots = { lexical: path.resolve(rootDir), real: await fs.realpath(rootDir) };
+  const handle = await openInsideRoot(roots, resolved);
+  try {
+    return { roots, mdPath: await fs.realpath(resolved), text: await handle.readFile('utf-8') };
+  } finally {
+    await handle.close();
+  }
 }
 
 /**
@@ -266,13 +307,7 @@ export async function getImageAnnotations(
   input: GetImageAnnotationsInput,
   rootDir: string,
 ): Promise<ImageAnnotationsResult> {
-  const resolved = resolveSecurePath(rootDir, input.path);
-  validateFileExtension(resolved, ALLOWED_EXTENSIONS);
-  const root = await realRoot(rootDir);
-  const mdPath = await resolveInsideRoot(root, resolved);
-  const text = await fs.readFile(mdPath, 'utf-8');
-  const mdDir = path.dirname(mdPath);
-
+  const { roots, mdPath, text } = await readMarkdown(rootDir, input.path);
   const { lines, malformed, body } = extractImageAnnotationBlock(text);
   const result: ImageAnnotationsResult = {
     path: input.path, images: [], unmatched: [], skipped: [], imageData: [], imageErrors: [],
@@ -281,37 +316,24 @@ export async function getImageAnnotations(
 
   const bodyImages = listBodyImages(body);
   const keep = (a: ImageAnnotation) => input.includeResolved === true || a.resolved !== true;
+  const entries = parseBlockLines(lines, result.skipped)
+    .filter((e) => input.imageIndex === undefined || e.index === input.imageIndex)
+    .map((e) => ({ ...e, annotations: e.annotations.filter(keep) }))
+    .filter((e) => e.annotations.length > 0);
 
-  for (const entry of parseBlockLines(lines, result.skipped)) {
-    if (input.imageIndex !== undefined && entry.index !== input.imageIndex) continue;
-    const annotations = entry.annotations.filter(keep);
-    if (annotations.length === 0) continue;
-
-    const image = bodyImages[entry.index];
-    if (!image || !matchesAnnotationSrcKey(image.src, entry.srcKey)) {
-      const reason = image
-        ? `src mismatch: image #${entry.index} is ${truncateSrc(buildAnnotationKey(entry.index, image.src))}`
-        : `no image at index ${entry.index}`;
-      result.unmatched.push({ key: entry.key, reason, annotations: annotations.map((a) => toView(a, undefined)) });
+  for (const entry of entries) {
+    const matched = matchImage(entry, bodyImages);
+    if ('reason' in matched) {
+      result.unmatched.push({ key: entry.key, reason: matched.reason, annotations: entry.annotations.map((a) => toView(a, undefined)) });
       continue;
     }
-
-    const source = classifySrc(image.src, mdDir);
-    const { size, reason } = await probeSize(source, root);
-    const view: ImageEntry = { ...image, src: truncateSrc(image.src), annotations: annotations.map((a) => toView(a, size)) };
+    const source = classifySrc(matched.src, path.dirname(mdPath));
+    const { size, reason } = await probeSize(source, roots);
+    const view: ImageEntry = { ...matched, src: truncateSrc(matched.src), annotations: entry.annotations.map((a) => toView(a, size)) };
     if (size) view.size = size;
     else view.sizeUnavailableReason = reason;
     result.images.push(view);
-
-    if (input.includeImages === true) {
-      if (result.imageData.length >= MAX_IMAGES_PER_CALL) {
-        result.imageErrors.push({ index: image.index, reason: `per-call image limit (${MAX_IMAGES_PER_CALL}) reached` });
-        continue;
-      }
-      const loaded = await loadImageData(source, root);
-      if ('reason' in loaded) result.imageErrors.push({ index: image.index, reason: loaded.reason });
-      else result.imageData.push({ index: image.index, ...loaded });
-    }
+    if (input.includeImages === true) await attachImageData(result, matched.index, source, roots);
   }
   return result;
 }

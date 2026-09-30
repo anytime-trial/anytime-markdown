@@ -2,14 +2,15 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { resolveBoundaryForFile } from './utils/trustBoundary';
+
+import { runBacklinks, runNeighbors, runSearchDocs, runSearchSections } from './tools/docSearch';
+import { formatMarkdownTool } from './tools/formatMarkdown';
+import { getFrontmatter, updateFrontmatter } from './tools/frontmatter';
+import { getImageAnnotations, MAX_IMAGE_BYTES, MAX_IMAGES_PER_CALL } from './tools/getImageAnnotations';
 import { getOutline } from './tools/getOutline';
 import { getSectionWithTrust } from './tools/getSection';
 import { updateSection } from './tools/updateSection';
-import { formatMarkdownTool } from './tools/formatMarkdown';
-import { runSearchDocs, runSearchSections, runBacklinks, runNeighbors } from './tools/docSearch';
-import { getFrontmatter, updateFrontmatter } from './tools/frontmatter';
-import { getImageAnnotations, MAX_IMAGE_BYTES, MAX_IMAGES_PER_CALL } from './tools/getImageAnnotations';
+import { resolveBoundaryForFile } from './utils/trustBoundary';
 
 export interface McpEditorOptions {
   rootDir: string;

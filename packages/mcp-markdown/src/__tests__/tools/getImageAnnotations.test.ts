@@ -165,6 +165,79 @@ describe('getImageAnnotations', () => {
     ]);
   });
 
+  it.each([
+    ['file: URL', 'file:///etc/passwd.png', /external/],
+    ['プロトコル相対 URL', '//evil.example/x.png', /external/],
+    ['UNC パス', '\\\\host\\share\\x.png', /external/],
+    ['Windows ドライブ', 'C:\\x.png', /external/],
+    ['絶対パス', '/etc/hosts.png', /outside/],
+    ['上位ディレクトリ', '../../../../etc/x.png', /outside|ENOENT/],
+    ['% エンコードした ..', '%2e%2e/%2e%2e/%2e%2e/etc/x.png', /outside|ENOENT/],
+    ['不正な % エスケープ', 'images/%E0%A4%A.png', /percent-encoding/],
+  ])('AC-07: %s の画像は内容もサイズも返さず理由を返す', async (_label, src, reason) => {
+    const md = `![x](<${src}>)` + block([[`img0:${src}`, [rect('r1')]]]);
+    const result = await getImageAnnotations({ path: write('bound.md', md), includeImages: true }, root);
+    const image = result.images[0] ?? result.unmatched[0];
+    expect(image).toBeDefined();
+    expect(result.imageData).toEqual([]);
+    if (result.images[0]) {
+      expect(result.images[0].size).toBeUndefined();
+      expect(result.images[0].sizeUnavailableReason).toMatch(reason);
+      expect(result.imageErrors[0].reason).toMatch(reason);
+    }
+  });
+
+  it('SEC-01: 失敗理由にワークスペースの絶対パスを含めない', async () => {
+    const md = '![m](images/missing.png)' + block([['img0:images/missing.png', [rect('r1')]]]);
+    const result = await getImageAnnotations({ path: write('missing-file.md', md), includeImages: true }, root);
+    expect(result.images[0].sizeUnavailableReason).toBe('ENOENT');
+    expect(JSON.stringify(result)).not.toContain(root);
+  });
+
+  it('SEC-01: ワークスペース自体がシンボリックリンクでも中のファイルは読める', async () => {
+    const link = `${root}-link`;
+    fs.symlinkSync(root, link);
+    try {
+      const md = '![a](images/a.png)' + block([['img0:images/a.png', [rect('r1')]]]);
+      const result = await getImageAnnotations({ path: write('rootlink.md', md), includeImages: true }, link);
+      expect(result.images[0].size).toEqual({ width: 200, height: 100 });
+      expect(result.imageData).toHaveLength(1);
+    } finally {
+      fs.unlinkSync(link);
+    }
+  });
+
+  it.each([
+    ['text/html', 'data:text/html;base64,PGgxPng8L2gxPg'],
+    ['SVG', 'data:image/svg+xml;base64,PHN2Zy8+'],
+  ])('FR-07: 許可外の data URI（%s）は画像として扱わず本体も返さない', async (_label, dataUri) => {
+    // エディタと同じく markdown-it のリンク検証で画像にならないため、注記は unmatched になる
+    const md = `![d](${dataUri})` + block([[`img0:${dataUri}`, [rect('r1')]]]);
+    const result = await getImageAnnotations({ path: write('mime.md', md), includeImages: true }, root);
+    expect(result.imageData).toEqual([]);
+    expect(result.images).toEqual([]);
+    expect(result.unmatched).toHaveLength(1);
+  });
+
+  it('FR-07: HTML の img で書いた許可外 data URI も本体を返さない（MIME 許可リスト）', async () => {
+    const dataUri = 'data:image/svg+xml;base64,PHN2Zy8+';
+    const md = `<img src="${dataUri}">` + block([[`img0:${dataUri}`, [rect('r1')]]]);
+    const result = await getImageAnnotations({ path: write('mime-html.md', md), includeImages: true }, root);
+    expect(result.images).toHaveLength(1);
+    expect(result.imageData).toEqual([]);
+    expect(result.imageErrors[0].reason).toMatch(/unsupported image type: image\/svg\+xml/);
+  });
+
+  it('FR-03: エディタがエスケープして保存した括弧付き src とインラインコードを正しく数える', async () => {
+    fs.writeFileSync(path.join(root, 'docs', 'images', 'a(1).png'), png(10, 10));
+    const md = ['`![code](images/b.png)`', '', '![a](images/a\\(1\\).png)', '', '![b](images/b.png)'].join('\n')
+      + block([['img0:images/a(1).png', [rect('r1')]], ['img1:images/b.png', [rect('r2')]]]);
+    const result = await getImageAnnotations({ path: write('escaped.md', md) }, root);
+    expect(result.unmatched).toEqual([]);
+    expect(result.images.map((i) => [i.index, i.src, i.line])).toEqual([[0, 'images/a(1).png', 3], [1, 'images/b.png', 5]]);
+    expect(result.images[0].size).toEqual({ width: 10, height: 10 });
+  });
+
   it('AC-07: ワークスペース外の Markdown は拒否する', async () => {
     await expect(getImageAnnotations({ path: '../outside.md' }, root)).rejects.toThrow(/outside/);
   });
