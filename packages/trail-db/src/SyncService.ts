@@ -92,10 +92,17 @@ export class SyncService {
 
     errors += await this.syncStep('Syncing releases...', onProgress, async () => {
       const releases = this.trailDb.getReleases();
-      if (releases.length > 0) await this.store.upsertReleases(releases);
       // trail_releases は差分同期（unsafeClearAll で消さない）。ローカルから消えた release だけを刈る。
+      // upsert より先に刈る: 削除→再取り込みで同じ tag に別 release_id が付くと、旧 id の行が
+      // UNIQUE (repo_id, tag) に当たり upsert が毎回失敗し続ける。
+      if (releases.length === 0) {
+        // 初期化直後・取り込み前の空 DB で同期しただけでリモートを全消ししない。
+        this.logger.warn('Local has no releases; skipped pruning remote trail_releases');
+        return;
+      }
       const keep = new Set(releases.flatMap((r) => (r.release_id == null ? [] : [r.release_id])));
       await this.store.unsafePruneReleases(keep);
+      await this.store.upsertReleases(releases);
       await this.forEachIsolated('activity_release_files', releases, (r) => `release ${r.tag}`, async (release) => {
         const files = this.trailDb.getReleaseFiles(release.tag);
         if (files.length > 0) await this.store.upsertReleaseFiles(files);
@@ -185,6 +192,11 @@ export class SyncService {
   private async syncReleaseGraphs(onProgress?: (progress: SyncProgress) => void): Promise<void> {
     const local = this.trailDb.getReleaseGraphVersions();
     const remote = await this.store.getReleaseGraphVersions();
+    if (local.size === 0 && remote.size > 0) {
+      // releases ステップと同じく、空のローカルでリモートの graph を全消ししない。
+      this.logger.warn('Local has no release graphs; skipped removing remote release graphs');
+      return;
+    }
     const stale = [...remote.keys()].filter((id) => !local.has(id));
     await this.store.unsafeDeleteReleaseGraphs(stale);
 

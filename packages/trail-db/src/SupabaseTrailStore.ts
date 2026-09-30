@@ -189,7 +189,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     const client = this.ensureClient();
     await this.deletePaged(table, pk, pageSize, async (limit) => {
       const { data, error } = await client.from(table).select(pk).limit(limit);
-      if (error) throw new Error(`select ${table} failed: ${error.message}`);
+      if (error) throw new Error(`Supabase select ${table} failed: ${summarizeRemoteError(error)}`);
       return (data as unknown as Array<Record<string, string | number>> | null ?? []).map((r) => r[pk]);
     });
   }
@@ -514,9 +514,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     await this.unsafeDeleteAllRows('trail_current_graphs', 'repo_id', 0);
   }
 
-  /**
-   * trail_release_graphs を全削除する（洗い替え同期の前処理）。
-   */
+  /** リモートの release graph のバージョン（release_id → updated_at）を全件読む。graph_json は読まない。 */
   async getReleaseGraphVersions(): Promise<ReadonlyMap<number, string>> {
     const rows = await this.selectAll<{ release_id: number; updated_at: string | null }>(
       'trail_release_graphs', 'release_id, updated_at', 'release_id',

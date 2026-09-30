@@ -82,4 +82,27 @@ describe('SyncService の release graph 差分同期', () => {
     expect([...store.releaseIds].sort()).toEqual([1, 2, 3]);
     expect([...store.releaseGraphs.keys()].sort()).toEqual([1, 3]);
   });
+
+  it('削除済み release と同じ tag が別 release_id で再登録されても、旧 id を刈ってから登録する', async () => {
+    await new SyncService(db, store).sync();
+    inner(db).run('DELETE FROM activity_releases WHERE release_id = 1');
+    inner(db).run("INSERT INTO activity_releases (release_id, tag) VALUES (10, 'v1.0.0')");
+    db.saveReleaseGraph(graph, '/tsconfig.json', 'v1.0.0');
+
+    const result = await new SyncService(db, store).sync();
+
+    expect(result.errors).toBe(0);
+    expect([...store.releaseIds].sort((a, b) => a - b)).toEqual([2, 3, 10]);
+    expect([...store.releaseGraphs.keys()].sort((a, b) => a - b)).toEqual([2, 3, 10]);
+  });
+
+  it('ローカルの release が 0 件ならリモートの release と graph を刈らない', async () => {
+    await new SyncService(db, store).sync();
+    inner(db).run('DELETE FROM activity_releases');
+
+    await new SyncService(db, store).sync();
+
+    expect([...store.releaseIds].sort()).toEqual([1, 2, 3]);
+    expect([...store.releaseGraphs.keys()].sort()).toEqual([1, 2, 3]);
+  });
 });

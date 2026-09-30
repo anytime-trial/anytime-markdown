@@ -355,10 +355,12 @@ export class PostgresTrailStore implements IRemoteTrailStore {
   }
 
   async unsafePruneReleases(keepReleaseIds: ReadonlySet<number>): Promise<void> {
-    await this.ensurePool().query(
-      'DELETE FROM trail_releases WHERE NOT (release_id = ANY($1::int[]))',
-      [[...keepReleaseIds]],
-    );
+    const pool = this.ensurePool();
+    const keep = [[...keepReleaseIds]];
+    // Supabase 版と同じく、graph_json を持つ重い子を先に消し、親の DELETE に CASCADE 負荷を載せない。
+    await pool.query('DELETE FROM trail_release_graphs WHERE NOT (release_id = ANY($1::int[]))', keep);
+    await pool.query('DELETE FROM trail_release_code_graphs WHERE NOT (release_id = ANY($1::int[]))', keep);
+    await pool.query('DELETE FROM trail_releases WHERE NOT (release_id = ANY($1::int[]))', keep);
   }
 
   async getReleaseGraphVersions(): Promise<ReadonlyMap<number, string>> {
