@@ -3,11 +3,13 @@ import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseR
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 import { type DbLogger, noopDbLogger } from './DbLogger';
-import { isRetryableRemoteError, summarizeRemoteError, type RemoteErrorLike } from './remoteRetry';
+import { isRetryableRemoteError, isStatementTimeout, summarizeRemoteError, type RemoteErrorLike } from './remoteRetry';
 
 /** 一過性エラー時の再試行間隔（指数バックオフ）。この回数を使い切ったら throw する。 */
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500, 4000];
 const DEFAULT_CHUNK_SIZE = 500;
+/** graph_json（数 MB/行）を持つテーブルのページング削除の初期ページ件数。 */
+const GRAPH_DELETE_PAGE_SIZE = 20;
 
 /** Supabase のクエリビルダ（thenable）が解決する形。data は使わないので error のみ見る。 */
 type RemoteWriteResponse = { error: RemoteErrorLike | null };
@@ -138,30 +140,45 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     // sessions 削除時の CASCADE 負荷を最小化する。
     // repo_id/release_id 正規化後: 子 → 親の順を維持。trail_repos は upsertRepos で
     // 冪等に再投入するためここではクリアしない (clear すると FK CASCADE で全子が消える)。
+    // trail_releases の削除は release 系 7 テーブルへ CASCADE する。graph_json を持つ 2 表を
+    // 先に小さいページで消しておき、親の削除 1 文が抱える CASCADE 負荷を軽くする。
     await this.deleteAllPaged('trail_messages', 'uuid');
     await this.deleteAllPaged('trail_sessions', 'id');
+    await this.deleteAllPaged('trail_release_graphs', 'release_id', GRAPH_DELETE_PAGE_SIZE);
+    await this.deleteAllPaged('trail_release_code_graphs', 'release_id', GRAPH_DELETE_PAGE_SIZE);
     await this.deleteAllPaged('trail_releases', 'release_id');
     await this.unsafeDeleteAllRows('trail_daily_counts', 'date', '0000-01-01');
-    await this.deleteAllPaged('trail_release_graphs', 'release_id');
     await this.unsafeDeleteAllRows('trail_current_file_analysis', 'repo_id', 0);
     await this.unsafeDeleteAllRows('trail_current_function_analysis', 'repo_id', 0);
   }
 
-  private async deleteAllPaged(table: string, pk: string, pageSize = 500): Promise<void> {
+  /**
+   * 主キーで select → `in` 削除を繰り返して全行を消す。削除 1 文が statement timeout に当たったら
+   * ページを半分に縮めて同じ行を消し直す（CASCADE 先が重い行は件数を減らさないと 1 文に収まらない）。
+   * 1 行でも timeout する場合と、timeout 以外のエラーは runWithRetry の判定に従って throw する。
+   */
+  private async deleteAllPaged(table: string, pk: string, pageSize = DEFAULT_CHUNK_SIZE): Promise<void> {
     const client = this.ensureClient();
     let deleted = 0;
+    let size = pageSize;
     this.logger.info(`Clearing ${table}...`);
     try {
       while (true) {
-        const { data, error } = await client.from(table).select(pk).limit(pageSize);
+        const { data, error } = await client.from(table).select(pk).limit(size);
         if (error) throw new Error(`select ${table} failed: ${error.message}`);
         if (!data || data.length === 0) break;
         const ids = (data as unknown as Array<Record<string, unknown>>).map((r) => r[pk] as string);
-        const { error: delError } = await client.from(table).delete().in(pk, ids);
-        if (delError) throw new Error(`delete ${table} failed: ${delError.message}`);
+        const deleteIds = (): PromiseLike<RemoteWriteResponse> => client.from(table).delete().in(pk, ids);
+        const { error: delError } = await deleteIds();
+        if (delError && isStatementTimeout(delError) && ids.length > 1) {
+          size = Math.ceil(ids.length / 2);
+          this.logger.warn(`  ${table}: statement timeout, retrying with page size ${size}`);
+          continue;
+        }
+        if (delError) await this.runWithRetry(`delete ${table}`, deleteIds);
         deleted += ids.length;
         this.logger.info(`  ${table}: deleted ${deleted} rows`);
-        if (data.length < pageSize) break;
+        if (data.length < size) break;
       }
       this.logger.info(`Cleared ${table} (${deleted} rows)`);
     } catch (e) {

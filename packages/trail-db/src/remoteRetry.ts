@@ -35,6 +35,11 @@ export function isRetryableRemoteError(error: RemoteErrorLike): boolean {
   return true;
 }
 
+/** Postgres の statement timeout (SQLSTATE 57014 query_canceled)。1 文の処理量を減らせば通る。 */
+export function isStatementTimeout(error: RemoteErrorLike): boolean {
+  return error.code === '57014' || /statement timeout/i.test(error.message);
+}
+
 /** ログ・例外メッセージ用にエラーを 1 行へ要約する（HTML ページ全文の垂れ流しを防ぐ）。 */
 export function summarizeRemoteError(error: RemoteErrorLike): string {
   const code = error.code ? `[${error.code}] ` : '';
