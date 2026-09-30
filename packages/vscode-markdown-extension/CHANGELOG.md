@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-09-30
+
+### Added
+
+- Bundled MCP server `mcp-markdown`: new tool `get_image_annotations` returns the annotations (rectangles, circles, lines and comments) attached to images in the editor, resolved to each image with its surrounding heading, so agents can act on image review comments. Images are counted with markdown-it, the same way as the editor.
+
+### Editor Core (markdown-editor)
+
+- Consolidated the image annotation storage format into one module shared with `mcp-markdown` (saved format unchanged).
+
 ## [1.25.2] - 2026-09-29
 
 ### Editor Core (markdown-editor)

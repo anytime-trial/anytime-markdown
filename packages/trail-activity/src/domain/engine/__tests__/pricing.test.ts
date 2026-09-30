@@ -101,6 +101,14 @@ describe('pricing', () => {
       expect(calculateCost('claude-sonnet-4-6', M(1_000_000, 1_000_000))).toBeCloseTo(3 + 15, 3);
     });
 
+    it('Sonnet 5.5 は Sonnet 5 と同じ $2/$10・キャッシュ読取 0.1 倍で計算する', () => {
+      expect(calculateCost('claude-sonnet-5-5', M(1_000_000, 1_000_000, 1_000_000, 0))).toBeCloseTo(2 + 10 + 0.2, 3);
+      expect(resolveRateModelName('claude-sonnet-5-5[1m]')).toBe('sonnet-5');
+      expect(resolveRateModelName('claude-sonnet-5-5-20260928')).toBe('sonnet-5');
+      expect(resolveRateModelName('claude-sonnet-5-5-latest')).toBe('sonnet-5');
+      expect(resolveRateModelName('claude-sonnet-5.5')).toBe('sonnet-5');
+    });
+
     it('Opus 5 と Opus 4.x は従来の $5/$25 のまま', () => {
       expect(calculateCost('claude-opus-5', M(1_000_000, 1_000_000))).toBeCloseTo(5 + 25, 3);
       expect(calculateCost('claude-opus-4-8', M(1_000_000, 1_000_000))).toBeCloseTo(5 + 25, 3);
@@ -125,7 +133,7 @@ describe('pricing', () => {
     });
 
     it('別の世代の ID を取り違えない', () => {
-      expect(resolveRateModelName('claude-sonnet-5-5')).toBe('sonnet');
+      expect(resolveRateModelName('claude-sonnet-5-50')).toBe('sonnet');
       expect(resolveRateModelName('claude-opus-5-50')).toBe('opus');
       expect(resolveRateModelName('claude-fable-5-10')).toBe('fable');
     });

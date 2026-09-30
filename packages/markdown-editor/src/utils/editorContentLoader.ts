@@ -2,6 +2,7 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
 import { getEditorStorage } from "../types";
+import { buildAnnotationKey } from "../types/imageAnnotation";
 import type { InlineComment } from "./commentHelpers";
 import { preprocessMarkdown } from "./frontmatterHelpers";
 
@@ -41,9 +42,7 @@ export function applyMarkdownToEditor(editor: Editor, text: string): ApplyResult
     let imgIndex = 0;
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === "image") {
-        const src = (node.attrs.src as string) ?? "";
-        const key = src.length > 100 ? `img${imgIndex}:${src.slice(0, 20)}` : `img${imgIndex}:${src}`;
-        const data = imageAnnotations.get(key);
+        const data = imageAnnotations.get(buildAnnotationKey(imgIndex, (node.attrs.src as string) ?? ""));
         if (data) {
           const { tr } = editor.state;
           tr.setNodeMarkup(pos, undefined, { ...node.attrs, annotations: data });

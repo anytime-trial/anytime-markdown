@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-09-30
+
+### 追加
+
+- 同梱 MCP サーバー `mcp-markdown` に `get_image_annotations` を追加した。エディタで画像に付けた注記（矩形・円・線とコメント）を、対応する画像と直前の見出しに紐付けて返す。画像の数え方はエディタと同じ markdown-it に揃えた。
+
+### Editor Core (markdown-editor)
+
+- 画像アノテーションの保存形式を `mcp-markdown` と共有する 1 モジュールへ集約した（保存形式は不変）。
+
 ## [1.25.2] - 2026-09-29
 
 ### Editor Core (markdown-editor)

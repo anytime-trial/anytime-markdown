@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-09-30
+
+### Changed
+
+- Consolidated the storage format of image annotations (the `image-comments` block) into `types/imageAnnotation.ts` so that `mcp-markdown` can share it. No change to the saved format.
+
 ## [1.25.2] - 2026-09-29
 
 ### Fixed

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-09-30
+
+### Trail Core (trail-activity)
+
+- Sonnet 5.5 sessions are costed at the Sonnet 5 rate ($2 / $10 per MTok).
+
 ## [1.8.0] - 2026-09-29
 
 ### Added

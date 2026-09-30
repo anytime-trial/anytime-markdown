@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.20.4",
+  "version": "1.20.5",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
