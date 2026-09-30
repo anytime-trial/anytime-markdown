@@ -35,7 +35,9 @@ class FakeRemoteStore implements IRemoteTrailStore {
   async upsertAllSessionCosts(): Promise<void> {}
   async upsertDailyCounts(): Promise<void> {}
   async unsafeClearCurrentGraphs(): Promise<void> {}
-  async unsafeClearReleaseGraphs(): Promise<void> {}
+  async unsafePruneReleases(): Promise<void> {}
+  async getReleaseGraphVersions(): Promise<ReadonlyMap<number, string>> { return new Map(); }
+  async unsafeDeleteReleaseGraphs(): Promise<void> {}
   async upsertCurrentGraph(): Promise<void> {}
   async upsertReleaseGraph(): Promise<void> {}
   async unsafeClearMessageToolCalls(): Promise<void> {}

@@ -24,11 +24,12 @@ export class PostgresTrailStore implements IRemoteTrailStore {
 
   async unsafeClearAll(): Promise<void> {
     const pool = this.ensurePool();
-    // CASCADE により messages / activity_session_commits / activity_session_costs / activity_release_files も消える
+    // CASCADE により messages / activity_session_commits / activity_session_costs も消える。
+    // trail_releases / trail_release_graphs は差分同期のため消さない（不要な release は unsafePruneReleases）。
     await pool.query('DELETE FROM trail_sessions');
-    await pool.query('DELETE FROM trail_releases');
+    await pool.query('DELETE FROM trail_release_files');
+    await pool.query('DELETE FROM trail_release_features');
     await pool.query('DELETE FROM trail_daily_counts');
-    await pool.query('DELETE FROM trail_release_graphs');
     await pool.query('DELETE FROM trail_current_graphs');
   }
 
@@ -353,9 +354,21 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     await pool.query('DELETE FROM trail_current_graphs');
   }
 
-  async unsafeClearReleaseGraphs(): Promise<void> {
-    const pool = this.ensurePool();
-    await pool.query('DELETE FROM trail_release_graphs');
+  async unsafePruneReleases(keepReleaseIds: ReadonlySet<number>): Promise<void> {
+    await this.ensurePool().query(
+      'DELETE FROM trail_releases WHERE NOT (release_id = ANY($1::int[]))',
+      [[...keepReleaseIds]],
+    );
+  }
+
+  async getReleaseGraphVersions(): Promise<ReadonlyMap<number, string>> {
+    const { rows } = await this.ensurePool().query('SELECT release_id, updated_at FROM trail_release_graphs');
+    return new Map(rows.map((r: { release_id: number; updated_at: string | null }) => [r.release_id, r.updated_at ?? '']));
+  }
+
+  async unsafeDeleteReleaseGraphs(releaseIds: readonly number[]): Promise<void> {
+    if (releaseIds.length === 0) return;
+    await this.ensurePool().query('DELETE FROM trail_release_graphs WHERE release_id = ANY($1::int[])', [[...releaseIds]]);
   }
 
   async upsertCurrentGraph(repoId: number, graphJson: string, commitId: string): Promise<void> {
@@ -370,7 +383,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     );
   }
 
-  async upsertReleaseGraph(releaseId: number, graphJson: string): Promise<void> {
+  async upsertReleaseGraph(releaseId: number, graphJson: string, version: string): Promise<void> {
     const pool = this.ensurePool();
     await pool.query(
       `INSERT INTO trail_release_graphs (release_id, graph_json, updated_at, synced_at)
@@ -378,7 +391,7 @@ export class PostgresTrailStore implements IRemoteTrailStore {
       ON CONFLICT (release_id) DO UPDATE SET
         graph_json = EXCLUDED.graph_json,
         updated_at = EXCLUDED.updated_at, synced_at = NOW()`,
-      [releaseId, graphJson, new Date().toISOString()],
+      [releaseId, graphJson, version],
     );
   }
 
