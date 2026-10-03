@@ -126,7 +126,7 @@ export function useLayoutEditor() {
     } else {
       setSnackbar({ message: t('docsUploadSuccess'), severity: 'success' });
     }
-    fetchFiles();
+    void fetchFiles();
   }, [t, fetchFiles]);
 
   const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,7 +225,7 @@ export function useLayoutEditor() {
         }
         return cats;
       });
-      fetchFiles();
+      void fetchFiles();
     } catch {
       setSnackbar({ message: t('docsDeleteError'), severity: 'error' });
     }

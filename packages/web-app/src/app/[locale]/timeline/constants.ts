@@ -106,16 +106,15 @@ export function fillMonthGaps(months: readonly MonthlyReleaseCount[]): MonthlyRe
   const byMonth = new Map(months.map((m) => [m.month, m]));
   const sorted = [...byMonth.keys()].sort(compareOrdinal);
   const filled: MonthlyReleaseCount[] = [];
-  let [year, month] = sorted[0].split('-').map(Number);
+  const [firstYear, firstMonth] = sorted[0].split('-').map(Number);
   const [lastYear, lastMonth] = sorted[sorted.length - 1].split('-').map(Number);
-  while (year < lastYear || (year === lastYear && month <= lastMonth)) {
-    const key = `${year}-${String(month).padStart(2, '0')}`;
+  // 年月を「0 起点の通算月」に直して 1 か月ずつ進める（12 → 翌年 1 月の繰り上げを剰余で表す）
+  const first = firstYear * 12 + (firstMonth - 1);
+  const last = lastYear * 12 + (lastMonth - 1);
+  for (let n = first; n <= last; n++) {
+    const year = Math.floor(n / 12);
+    const key = `${year}-${String((n % 12) + 1).padStart(2, '0')}`;
     filled.push(byMonth.get(key) ?? { month: key, cli: 0, model: 0 });
-    month += 1;
-    if (month > 12) {
-      month = 1;
-      year += 1;
-    }
   }
   return filled;
 }

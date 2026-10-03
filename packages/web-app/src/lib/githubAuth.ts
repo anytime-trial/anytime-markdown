@@ -128,10 +128,7 @@ const result = NextAuth({
     async jwt({ token, account }) {
       if (account?.access_token) {
         applyAccountTokens(token, account);
-        return token;
-      }
-
-      if (
+      } else if (
         token.googleRefreshToken &&
         isGoogleTokenExpired(token.googleTokenExpiresAt, Date.now())
       ) {

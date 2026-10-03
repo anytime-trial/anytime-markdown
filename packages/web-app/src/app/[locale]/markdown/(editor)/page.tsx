@@ -103,7 +103,7 @@ function EditorPage() {
 
   const {
     externalContent, externalFileName,
-    externalCompareContent, editorKey, isDirty,
+    externalCompareContent, editorKey,
     saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile, handleSaveTargetChange,
     commitMessageDialog, externalSaveKind, githubDoc,
     handleGitHubOpenFile, handleExternalSave,
