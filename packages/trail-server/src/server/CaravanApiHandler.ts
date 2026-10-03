@@ -438,6 +438,21 @@ function toNullStr(v: unknown): string | null {
   return v == null ? null : String(v);
 }
 
+function toKnowledgeGraphNodeRow(row: ReadonlyArray<unknown>): {
+  id: string; label: string; type: string; frequency: number; x?: number; y?: number;
+} {
+  const x = row[4];
+  const y = row[5];
+  const hasPosition = typeof x === 'number' && typeof y === 'number';
+  return {
+    id: toStr(row[0]),
+    label: toStr(row[1]),
+    type: toStr(row[2]),
+    frequency: Number(row[3] ?? 0),
+    ...(hasPosition ? { x, y } : {}),
+  };
+}
+
 /**
  * `hit_entity_ids`（JSON 配列の TEXT 列）を string[] へ解す。CHECK は json_valid までしか
  * 保証しない（配列でない JSON・文字列以外の要素が通り得る）ため、形が想定外の値は
@@ -1911,42 +1926,8 @@ export class CaravanApiHandler {
         LIMIT ?`,
         toBindParams([...activeBinds, ...idBinds, limit]),
       );
-      const nodeRows = (nodeResult[0]?.values ?? []).map((row) => {
-        const x = row[4];
-        const y = row[5];
-        const hasPosition = typeof x === 'number' && typeof y === 'number';
-        return {
-          id: toStr(row[0]),
-          label: toStr(row[1]),
-          type: toStr(row[2]),
-          frequency: Number(row[3] ?? 0),
-          ...(hasPosition ? { x, y } : {}),
-        };
-      });
-
-      const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
-      let links: { a: number; b: number; strength: number }[] = [];
-      if (nodeRows.length > 0) {
-        const ids = nodeRows.map((row) => row.id);
-        // 選定 ID は件数によらずバインド 1 個（JSON 配列）で渡す。以前は `VALUES (?),…` で
-        // 1 件 1 バインドしており、SQLITE_MAX_VARIABLE_NUMBER（32,766）が実質的な
-        // ノード数上限になっていた。json_each なら上限はバインド数ではなく JSON の長さになる。
-        const linkResult = db.exec(
-          `WITH ${activeCte},
-          sel(id) AS (SELECT value FROM json_each(?))
-          SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
-          FROM active
-          WHERE s IN (SELECT id FROM sel) AND o IN (SELECT id FROM sel)
-          GROUP BY MIN(s, o), MAX(s, o)`,
-          toBindParams([...activeBinds, JSON.stringify(ids)]),
-        );
-        links = (linkResult[0]?.values ?? []).flatMap((row) => {
-          const a = indexById.get(toStr(row[0]));
-          const b = indexById.get(toStr(row[1]));
-          if (a === undefined || b === undefined) return [];
-          return [{ a, b, strength: Number(row[2] ?? 0) }];
-        });
-      }
+      const nodeRows = (nodeResult[0]?.values ?? []).map(toKnowledgeGraphNodeRow);
+      const links = this.queryKnowledgeGraphLinks(db, activeCte, activeBinds, nodeRows);
 
       const clusters = this.buildClusters(db, nodeRows);
 
@@ -1975,6 +1956,36 @@ export class CaravanApiHandler {
     } finally {
       this.close(db);
     }
+  }
+
+  /** 選定ノード同士のリンクを取り、ノード配列上の添字ペアへ変換する。 */
+  private queryKnowledgeGraphLinks(
+    db: CaravanDbConnection,
+    activeCte: string,
+    activeBinds: readonly unknown[],
+    nodeRows: readonly { id: string }[],
+  ): { a: number; b: number; strength: number }[] {
+    if (nodeRows.length === 0) return [];
+    const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
+    const ids = nodeRows.map((row) => row.id);
+    // 選定 ID は件数によらずバインド 1 個（JSON 配列）で渡す。以前は `VALUES (?),…` で
+    // 1 件 1 バインドしており、SQLITE_MAX_VARIABLE_NUMBER（32,766）が実質的な
+    // ノード数上限になっていた。json_each なら上限はバインド数ではなく JSON の長さになる。
+    const linkResult = db.exec(
+      `WITH ${activeCte},
+      sel(id) AS (SELECT value FROM json_each(?))
+      SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
+      FROM active
+      WHERE s IN (SELECT id FROM sel) AND o IN (SELECT id FROM sel)
+      GROUP BY MIN(s, o), MAX(s, o)`,
+      toBindParams([...activeBinds, JSON.stringify(ids)]),
+    );
+    return (linkResult[0]?.values ?? []).flatMap((row) => {
+      const a = indexById.get(toStr(row[0]));
+      const b = indexById.get(toStr(row[1]));
+      if (a === undefined || b === undefined) return [];
+      return [{ a, b, strength: Number(row[2] ?? 0) }];
+    });
   }
 
   /**

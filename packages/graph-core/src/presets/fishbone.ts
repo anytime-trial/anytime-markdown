@@ -68,9 +68,8 @@ export function buildFishbone(spec: FishboneSpec, isDark: boolean): GraphDocumen
       }),
     );
     // カテゴリ要因ノード（ラベル＋要因を箇条書き）
-    const text = cat.causes.length
-      ? `${cat.label}\n${cat.causes.map((c) => `・${c}`).join('\n')}`
-      : cat.label;
+    const causeLines = cat.causes.map((c) => '・' + c).join('\n');
+    const text = cat.causes.length ? `${cat.label}\n${causeLines}` : cat.label;
     const w = 168;
     const h = Math.max(56, 30 + cat.causes.length * 22);
     const cy = bone.above ? bone.label.y - h / 2 : bone.label.y + h / 2;
