@@ -206,7 +206,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       table,
       pk,
       pageSize,
-      async (limit) => remaining.slice(0, limit),
+      (limit) => Promise.resolve(remaining.slice(0, limit)),
       (deleted) => { remaining.splice(0, deleted); },
     );
   }
