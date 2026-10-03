@@ -4449,17 +4449,22 @@ export class TrailDatabase {
     for (const metaFile of metaFiles) {
       const match = /^agent-(.+)\.meta\.json$/.exec(metaFile);
       if (!match) continue;
-      const agentId = match[1];
       try {
-        const raw = fs.readFileSync(path.join(subagentDir, metaFile), 'utf-8');
-        const meta = JSON.parse(raw) as { agentType?: unknown; toolUseId?: unknown };
-        const agentType = typeof meta.agentType === 'string' && meta.agentType.length > 0 ? meta.agentType : null;
-        const toolUseId = typeof meta.toolUseId === 'string' && meta.toolUseId.length > 0 ? meta.toolUseId : null;
-        if (agentType || toolUseId) agentTypeByAgentId.set(agentId, { agentType, toolUseId });
+        const fields = this.readAgentMetaFields(path.join(subagentDir, metaFile));
+        if (fields) agentTypeByAgentId.set(match[1], fields);
       } catch (e) {
         this.logger.warn(`[Migration] subagent_type_backfill_v1: skip ${metaFile}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
+  }
+
+  /** `agent-*.meta.json` を読み、agentType / toolUseId のどちらも無ければ null を返す（読み取り・解析失敗は throw）。 */
+  private readAgentMetaFields(metaPath: string): AgentMetaFields | null {
+    const raw = fs.readFileSync(metaPath, 'utf-8');
+    const meta = JSON.parse(raw) as { agentType?: unknown; toolUseId?: unknown };
+    const agentType = typeof meta.agentType === 'string' && meta.agentType.length > 0 ? meta.agentType : null;
+    const toolUseId = typeof meta.toolUseId === 'string' && meta.toolUseId.length > 0 ? meta.toolUseId : null;
+    return agentType || toolUseId ? { agentType, toolUseId } : null;
   }
 
   /** Step 2 of backfillSubagentType: UPDATE activity_messages by agent_id in a single transaction. */
@@ -6005,14 +6010,7 @@ export class TrailDatabase {
 
     // サブエージェント JSONL の場合は隣接 meta.json から subagent_type を取得し、
     // この JSONL 内の全メッセージに付与する。古いセッションは meta.json なし → NULL のまま。
-    let subagentMeta: ReturnType<typeof readSubagentMeta> = null;
-    if (isSubagent) {
-      try {
-        subagentMeta = readSubagentMeta(filePath);
-      } catch (error) {
-        this.logger.warn(error instanceof Error ? error.message : String(error));
-      }
-    }
+    const subagentMeta = this.readSubagentMetaOrWarn(filePath, isSubagent);
     const fileSubagentType = subagentMeta?.agentType ?? null;
 
     const parsedRaw = parseJsonlLines(content);
@@ -6046,17 +6044,12 @@ export class TrailDatabase {
       }
 
       // Insert messages
-      const msgStmt = db.prepare(INSERT_MESSAGE);
-      for (const raw of meta.messagesToInsert) {
-        const params = buildMessageInsertParams(raw, {
-          sessionId,
-          isSubagent,
-          fileSubagentType,
-          fileSourceToolUseId: subagentMeta?.toolUseId ?? null,
-        });
-        msgStmt.run(params);
-      }
-      msgStmt.free();
+      this.insertSessionMessages(meta.messagesToInsert, {
+        sessionId,
+        isSubagent,
+        fileSubagentType,
+        fileSourceToolUseId: subagentMeta?.toolUseId ?? null,
+      });
 
       if (!externalTransaction) db.run('COMMIT');
       return meta.messageCount;
@@ -6064,6 +6057,29 @@ export class TrailDatabase {
       if (!externalTransaction) db.run('ROLLBACK');
       throw err;
     }
+  }
+
+  /** サブエージェント JSONL の隣接 meta.json を読む。読めなければ warn して null（古いセッションは meta.json なし）。 */
+  private readSubagentMetaOrWarn(filePath: string, isSubagent: boolean): ReturnType<typeof readSubagentMeta> {
+    if (!isSubagent) return null;
+    try {
+      return readSubagentMeta(filePath);
+    } catch (error) {
+      this.logger.warn(error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  }
+
+  /** `activity_messages` への INSERT。トランザクション管理は呼び出し側。 */
+  private insertSessionMessages(
+    messages: readonly Parameters<typeof buildMessageInsertParams>[0][],
+    ctx: Parameters<typeof buildMessageInsertParams>[1],
+  ): void {
+    const msgStmt = this.ensureDb().prepare(INSERT_MESSAGE);
+    for (const raw of messages) {
+      msgStmt.run(buildMessageInsertParams(raw, ctx));
+    }
+    msgStmt.free();
   }
 
   /** `sessions` 行の INSERT OR REPLACE。メイン（非サブエージェント）セッションのみが対象。 */
@@ -6575,7 +6591,6 @@ export class TrailDatabase {
     const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
     // 主リポジトリは gitRoots[0] とみなす（コード解析・Codex セッションのフィルタに使う既存挙動の互換）
     const gitRoot = gitRoots?.[0];
-    const repoName = gitRoot ? path.basename(gitRoot) : '';
     const watched = (gitRoots ?? []).map((r) => ({ gitRoot: r, repoName: path.basename(r) }));
     const phasesToSkip = lepOpts?.phasesToSkip ?? new Set<ImportAllPhase>();
     const externalCounters = lepOpts?.externalCounters;

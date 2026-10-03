@@ -45,7 +45,8 @@ function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
-export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityInput): GetBugCausalityResult {
+/** 入力条件から WHERE 句の条件式とバインド値を組み立てる。 */
+function buildSearchConditions(input: GetBugCausalityInput): { conditions: string[]; params: (string | number)[] } {
   const conditions: string[] = [];
   const params: (string | number)[] = [];
 
@@ -69,6 +70,123 @@ export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityI
       params.push(`%${escapeLike(token)}%`, `%${escapeLike(token)}%`);
     }
   }
+  return { conditions, params };
+}
+
+/**
+ * 同一ファイルを触った他のバグ修正数と、カードに載せる変更ファイル（先頭 3 件）を返す。
+ * json_each の完全一致で数える（LIKE 部分一致は別ファイルの再発を混入させる）。
+ */
+function countSameFileBugs(
+  db: CaravanDbConnection,
+  bugFixId: string,
+  affectedJson: string,
+): { sameFileBugCount: number; affectedFiles: string[] } {
+  let sameFileBugCount = 0;
+  let affectedFiles: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(affectedJson);
+    const files = Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
+    affectedFiles = files.slice(0, 3);
+    if (files.length > 0) {
+      const ph2 = files.map(() => '?').join(', ');
+      const fileRows = db.exec(
+        `SELECT COUNT(DISTINCT bf2.id)
+           FROM caravan_bug_fixes bf2, json_each(bf2.affected_file_paths_json) je
+          WHERE bf2.id != ? AND je.value IN (${ph2})`,
+        [bugFixId, ...files],
+      );
+      sameFileBugCount = Number(fileRows[0]?.values?.[0]?.[0] ?? 0);
+    }
+  } catch (err) {
+    // affected_file_paths_json は CHECK (json_valid) 済み。壊れていても 0 で続行するが、無言にはしない
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[${new Date().toISOString()}] [WARN] getBugCausality: broken affected_file_paths_json id=${bugFixId}: ${String(err)}`,
+    );
+  }
+  return { sameFileBugCount, affectedFiles };
+}
+
+function loadPrecursorFindings(db: CaravanDbConnection, bugEntityId: string): BugCausalityCard['precursor_findings'] {
+  // 予兆: ReviewFinding --precedes--> Bug
+  const findingRows = db.exec(
+    `SELECT f.id, f.display_name
+       FROM caravan_edges e
+       JOIN caravan_entities f ON f.id = e.subject_entity_id
+      WHERE e.predicate = 'precedes' AND e.object_entity_id = ? AND e.valid_to IS NULL
+      ORDER BY e.valid_from DESC LIMIT 3`,
+    [bugEntityId],
+  );
+  return (findingRows[0]?.values ?? []).map((f) => ({
+    id: f[0] as string,
+    excerpt: truncate((f[1] as string) ?? '', EXCERPT_MAX_CHARS),
+  }));
+}
+
+function loadRelatedDecisions(db: CaravanDbConnection, bugEntityId: string): BugCausalityCard['related_decisions'] {
+  // 関連する決定: Bug と任意の述語で結ばれた Decision（向き不問）
+  const decisionRows = db.exec(
+    `SELECT d.id, d.display_name
+       FROM caravan_edges e
+       JOIN caravan_entities d
+         ON d.id = CASE WHEN e.subject_entity_id = ? THEN e.object_entity_id ELSE e.subject_entity_id END
+      WHERE (e.subject_entity_id = ? OR e.object_entity_id = ?)
+        AND e.valid_to IS NULL AND d.type = 'Decision'
+      ORDER BY e.valid_from DESC LIMIT 3`,
+    [bugEntityId, bugEntityId, bugEntityId],
+  );
+  return (decisionRows[0]?.values ?? []).map((d) => ({
+    id: d[0] as string,
+    display_name: truncate((d[1] as string) ?? '', EXCERPT_MAX_CHARS),
+  }));
+}
+
+/** 検索結果 1 行（bug_fixes JOIN entities JOIN episodes）から因果カード 1 件を組み立てる。 */
+function buildCard(db: CaravanDbConnection, row: readonly unknown[]): BugCausalityCard {
+  const bugFixId = row[0] as string;
+  const commitSha = row[1] as string;
+  const bugEntityId = row[2] as string;
+  const bugDisplayName = row[3] as string;
+  const pkg = row[4] as string;
+  const category = row[5] as string;
+  const subject = row[6] as string;
+  const bodyExcerpt = (row[7] as string | null) ?? '';
+  const introducedSha = row[8] as string | null;
+  const episodeId = row[9] as string | null;
+  const episodeExcerpt = (row[10] as string | null) ?? '';
+  const committedAt = row[11] as string;
+  const affectedJson = (row[12] as string | null) ?? '[]';
+
+  const precursorFindings = loadPrecursorFindings(db, bugEntityId);
+
+  // 再発性: 同カテゴリ（package × category）と同一ファイルを触った他のバグ修正
+  const catRows = db.exec(
+    `SELECT COUNT(*) FROM caravan_bug_fixes WHERE package = ? AND category = ? AND id != ?`,
+    [pkg, category, bugFixId],
+  );
+  const sameCategoryCount = Number(catRows[0]?.values?.[0]?.[0] ?? 0);
+  const { sameFileBugCount, affectedFiles } = countSameFileBugs(db, bugFixId, affectedJson);
+
+  return {
+    bug: { id: bugEntityId, display_name: bugDisplayName, package: pkg, category, committed_at: committedAt },
+    affected_files: affectedFiles,
+    fix_commit: {
+      sha: commitSha,
+      subject,
+      why: bodyExcerpt === '' ? null : truncate(bodyExcerpt, WHY_MAX_CHARS),
+    },
+    introduced_commit: introducedSha === null || introducedSha === '' ? null : { sha: introducedSha, inferred: true },
+    root_cause_episode:
+      episodeId === null ? null : { id: episodeId, excerpt: truncate(episodeExcerpt, EXCERPT_MAX_CHARS) },
+    precursor_findings: precursorFindings,
+    recurrence: { same_file_bug_count: sameFileBugCount, same_category_count: sameCategoryCount },
+    related_decisions: loadRelatedDecisions(db, bugEntityId),
+  };
+}
+
+export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityInput): GetBugCausalityResult {
+  const { conditions, params } = buildSearchConditions(input);
   if (conditions.length === 0) {
     return { cards: [], matched: false };
   }
@@ -90,97 +208,7 @@ export function getBugCausality(db: CaravanDbConnection, input: GetBugCausalityI
 
   const cards: BugCausalityCard[] = [];
   for (const row of rows[0]?.values ?? []) {
-    const bugFixId = row[0] as string;
-    const commitSha = row[1] as string;
-    const bugEntityId = row[2] as string;
-    const bugDisplayName = row[3] as string;
-    const pkg = row[4] as string;
-    const category = row[5] as string;
-    const subject = row[6] as string;
-    const bodyExcerpt = (row[7] as string | null) ?? '';
-    const introducedSha = row[8] as string | null;
-    const episodeId = row[9] as string | null;
-    const episodeExcerpt = (row[10] as string | null) ?? '';
-    const committedAt = row[11] as string;
-    const affectedJson = (row[12] as string | null) ?? '[]';
-
-    // 予兆: ReviewFinding --precedes--> Bug
-    const findingRows = db.exec(
-      `SELECT f.id, f.display_name
-         FROM caravan_edges e
-         JOIN caravan_entities f ON f.id = e.subject_entity_id
-        WHERE e.predicate = 'precedes' AND e.object_entity_id = ? AND e.valid_to IS NULL
-        ORDER BY e.valid_from DESC LIMIT 3`,
-      [bugEntityId],
-    );
-    const precursorFindings = (findingRows[0]?.values ?? []).map((f) => ({
-      id: f[0] as string,
-      excerpt: truncate((f[1] as string) ?? '', EXCERPT_MAX_CHARS),
-    }));
-
-    // 再発性: 同カテゴリ（package × category）と同一ファイルを触った他のバグ修正
-    const catRows = db.exec(
-      `SELECT COUNT(*) FROM caravan_bug_fixes WHERE package = ? AND category = ? AND id != ?`,
-      [pkg, category, bugFixId],
-    );
-    const sameCategoryCount = Number(catRows[0]?.values?.[0]?.[0] ?? 0);
-
-    let sameFileBugCount = 0;
-    let affectedFiles: string[] = [];
-    try {
-      const parsed: unknown = JSON.parse(affectedJson);
-      const files = Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
-      affectedFiles = files.slice(0, 3);
-      if (files.length > 0) {
-        // json_each の完全一致で数える（LIKE 部分一致は別ファイルの再発を混入させる）
-        const ph2 = files.map(() => '?').join(', ');
-        const fileRows = db.exec(
-          `SELECT COUNT(DISTINCT bf2.id)
-             FROM caravan_bug_fixes bf2, json_each(bf2.affected_file_paths_json) je
-            WHERE bf2.id != ? AND je.value IN (${ph2})`,
-          [bugFixId, ...files],
-        );
-        sameFileBugCount = Number(fileRows[0]?.values?.[0]?.[0] ?? 0);
-      }
-    } catch (err) {
-      // affected_file_paths_json は CHECK (json_valid) 済み。壊れていても 0 で続行するが、無言にはしない
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[${new Date().toISOString()}] [WARN] getBugCausality: broken affected_file_paths_json id=${bugFixId}: ${String(err)}`,
-      );
-    }
-
-    // 関連する決定: Bug と任意の述語で結ばれた Decision（向き不問）
-    const decisionRows = db.exec(
-      `SELECT d.id, d.display_name
-         FROM caravan_edges e
-         JOIN caravan_entities d
-           ON d.id = CASE WHEN e.subject_entity_id = ? THEN e.object_entity_id ELSE e.subject_entity_id END
-        WHERE (e.subject_entity_id = ? OR e.object_entity_id = ?)
-          AND e.valid_to IS NULL AND d.type = 'Decision'
-        ORDER BY e.valid_from DESC LIMIT 3`,
-      [bugEntityId, bugEntityId, bugEntityId],
-    );
-    const relatedDecisions = (decisionRows[0]?.values ?? []).map((d) => ({
-      id: d[0] as string,
-      display_name: truncate((d[1] as string) ?? '', EXCERPT_MAX_CHARS),
-    }));
-
-    cards.push({
-      bug: { id: bugEntityId, display_name: bugDisplayName, package: pkg, category, committed_at: committedAt },
-      affected_files: affectedFiles,
-      fix_commit: {
-        sha: commitSha,
-        subject,
-        why: bodyExcerpt === '' ? null : truncate(bodyExcerpt, WHY_MAX_CHARS),
-      },
-      introduced_commit: introducedSha === null || introducedSha === '' ? null : { sha: introducedSha, inferred: true },
-      root_cause_episode:
-        episodeId === null ? null : { id: episodeId, excerpt: truncate(episodeExcerpt, EXCERPT_MAX_CHARS) },
-      precursor_findings: precursorFindings,
-      recurrence: { same_file_bug_count: sameFileBugCount, same_category_count: sameCategoryCount },
-      related_decisions: relatedDecisions,
-    });
+    cards.push(buildCard(db, row));
   }
 
   return { cards, matched: cards.length > 0 };

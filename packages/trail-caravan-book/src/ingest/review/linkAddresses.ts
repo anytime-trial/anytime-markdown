@@ -140,11 +140,15 @@ function scoreCommit(commitMessage: string, findingText: string): number {
  * 「レビュー」単独は拾わない。レビュー書式の改訂やレビュー機能の実装コミットまで当たるため、
  * 対処を表す語（指摘 / 対応 / 対処 / address / feedback）との共起を必須にする。
  */
-const REVIEW_FIX_MARKER_RE =
-  /レビュー\s*指摘|指摘\s*対応|指摘\s*対処|レビュー\s*対応|レビュー\s*対処|review\s*(?:指摘|feedback|comments?)|address(?:es|ing|ed)?\s+review/i;
+const REVIEW_FIX_MARKER_RES: readonly RegExp[] = [
+  /レビュー\s*(?:指摘|対応|対処)/,
+  /指摘\s*(?:対応|対処)/,
+  /review\s*(?:指摘|feedback|comments?)/i,
+  /address(?:es|ing|ed)?\s+review/i,
+];
 
 export function hasReviewFixMarker(commitMessage: string): boolean {
-  return REVIEW_FIX_MARKER_RE.test(commitMessage);
+  return REVIEW_FIX_MARKER_RES.some((re) => re.test(commitMessage));
 }
 
 /**
