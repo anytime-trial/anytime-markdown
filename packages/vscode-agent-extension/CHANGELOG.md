@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.20.6] - 2026-10-03
+
+### Changed
+
+- Internal refactors in `agent-core` for SonarCloud findings (no behaviour change): the airspace write-target detection is split into smaller functions, and the transcript redaction regex is simplified.
+
 ## [1.20.5] - 2026-09-30
 
 ### Changed

@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-03
+
+### Fixed
+
+- Supabase sync: `trail_releases` is deleted in pages, so the sync no longer stops on a statement timeout.
+- Supabase sync: the release code graph is synced as a diff instead of resending the whole graph (about 1.8 GB) on every run, which used to fail.
+- Supabase sync: a remote error without a `message` no longer throws a TypeError while being summarised, which stopped the retry.
+
+### Trail Core (trail-db / trail-server / trail-caravan-book / mcp-trail)
+
+- Internal refactors for SonarCloud findings (no behaviour change): long functions are split, and regexes flagged for super-linear backtracking are rewritten with identical matches.
+
 ## [1.8.1] - 2026-09-30
 
 ### Trail Core (trail-activity)

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-10-03
+
+### Changed
+
+- Bundled MCP server `mcp-markdown`: the HTML `<img>` pattern is rewritten so it no longer backtracks super-linearly on malformed input. Matches are unchanged.
+
+### Editor Core (markdown-editor)
+
+- Internal refactors for SonarCloud findings (no behaviour change).
+
 ## [1.26.0] - 2026-09-30
 
 ### Added

@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-10-03
+
+### 変更
+
+- 同梱 MCP サーバー `mcp-markdown` の HTML `<img>` パターンを、不正入力で super-linear にバックトラックしない形へ書き換えた。一致結果は変わらない。
+
+### Editor Core (markdown-editor)
+
+- SonarCloud 指摘に対する内部リファクタリング（挙動の変更なし）。
+
 ## [1.26.0] - 2026-09-30
 
 ### 追加

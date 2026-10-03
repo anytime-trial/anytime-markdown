@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-03
+
+### 修正
+
+- Supabase 同期: `trail_releases` をページ単位で削除し、statement timeout で同期が止まらないようにした。
+- Supabase 同期: リリースのコードグラフを毎回全量（約 1.8 GB）送り直して失敗していたのを、差分同期に改めた。
+- Supabase 同期: `message` を持たないリモートエラーの要約で TypeError が出て再試行が止まる不具合を修正した。
+
+### Trail Core (trail-db / trail-server / trail-caravan-book / mcp-trail)
+
+- SonarCloud 指摘に対する内部リファクタリング（挙動の変更なし）。長い関数を分割し、super-linear なバックトラックを指摘された正規表現を一致結果を変えずに書き換えた。
+
 ## [1.8.1] - 2026-09-30
 
 ### Trail Core (trail-activity)

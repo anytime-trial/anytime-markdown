@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-10-03
+
+### Changed
+
+- The menu backdrop is hidden from assistive technology with `aria-hidden="true"` instead of `role="presentation"` (Sonar S6819).
+
 ## [0.3.12] - 2026-09-13
 
 ### Fixed
