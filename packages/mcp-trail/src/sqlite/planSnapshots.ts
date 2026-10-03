@@ -46,7 +46,6 @@ function sha256(text: string): string {
   return 'sha256:' + createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-/** フェンス外の ATX 見出しで分割し、節ごとの指紋を返す。見出し前の前文は対象にしない。 */
 /** 末尾の改行だけを落とす（`/\n+$/` は改行が並ぶ入力で二乗時間になるため走査で行う）。 */
 function stripTrailingNewlines(text: string): string {
   let end = text.length;
@@ -54,6 +53,7 @@ function stripTrailingNewlines(text: string): string {
   return text.slice(0, end);
 }
 
+/** フェンス外の ATX 見出しで分割し、節ごとの指紋を返す。見出し前の前文は対象にしない。 */
 export function fingerprintPlanSections(markdown: string): PlanSectionFingerprint[] {
   const lines = markdown.split('\n');
   const sections: Array<{ heading: string; body: string[] }> = [];
