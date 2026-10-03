@@ -75,8 +75,14 @@ const LLM_FINDING_INDEX_OFFSET = 10000;
 // 末尾に \b を置かないのは、JS の \b が [A-Za-z0-9_] 基準で、日本語文字の直後では
 // 境界が成立せず判定が丸ごと効かなくなるため（「良い点」が除外されない）。
 // 前方一致にしているので「総合評価とまとめ」のような派生見出しも除外側に入る。
-const NON_FINDING_HEADINGS =
-  /^\s*(?:総合評価|総評|概要|サマリ|サマリー|良い点|評価|結論|レビュー対象|次のアクション|補足情報|検証済み|Summary|Assessment|Strengths|Overview|Conclusion|Recommendations?|Good\s+points?)/i;
+const NON_FINDING_HEADING_RES: readonly RegExp[] = [
+  /^\s*(?:総合評価|総評|概要|サマリ|サマリー|良い点|評価|結論|レビュー対象|次のアクション|補足情報|検証済み)/,
+  /^\s*(?:Summary|Assessment|Strengths|Overview|Conclusion|Recommendations?|Good\s+points?)/i,
+];
+
+function isNonFindingHeading(heading: string): boolean {
+  return NON_FINDING_HEADING_RES.some((re) => re.test(heading));
+}
 
 const SEVERITIES = new Set(['error', 'warn', 'info']);
 const CATEGORIES = new Set([
@@ -142,7 +148,7 @@ function findingSectionsOf(body: string): string {
     // 空本文の見出し（"## " など）も境界として扱う（他パッケージと同じ解釈）。
     const heading = /^#{1,4}\s+(\S.*)?$/.exec(line);
     if (heading) {
-      excluding = NON_FINDING_HEADINGS.test(heading[1] ?? '');
+      excluding = isNonFindingHeading(heading[1] ?? '');
       continue;
     }
     if (!excluding) kept.push(line);

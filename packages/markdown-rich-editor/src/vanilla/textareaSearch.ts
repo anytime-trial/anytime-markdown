@@ -70,9 +70,7 @@ export function createTextareaSearchState(
   function recompute(): void {
     const newMatches = findMatches(text, searchTerm, caseSensitive);
     matches = newMatches;
-    if (matches.length === 0) {
-      currentIndex = 0;
-    } else if (currentIndex >= matches.length) {
+    if (matches.length === 0 || currentIndex >= matches.length) {
       currentIndex = 0;
     }
     notify();

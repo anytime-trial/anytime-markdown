@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-10-03
+
+### 変更
+
+- `FileBackupManager` の `maxGzipBytes` を `readonly` にした（挙動の変更なし）。
+
 ## [0.3.12] - 2026-09-13
 
 ### 変更

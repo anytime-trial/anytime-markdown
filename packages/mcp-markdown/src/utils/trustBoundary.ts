@@ -43,18 +43,18 @@ export function detectTrust(markdown: string): TrustInfo {
     const trimmed = line.trim();
     const marker = /^(`{3,}|~{3,})/.exec(trimmed);
     if (fence) {
-      if (marker && marker[1][0] === fence.char && marker[1].length >= fence.length
+      if (marker && marker[1].startsWith(fence.char) && marker[1].length >= fence.length
         && trimmed.slice(marker[1].length).trim() === '') {
         fence = undefined;
       }
       return;
     }
-    if (marker && (marker[1][0] !== '`' || !trimmed.slice(marker[1].length).includes('`'))) {
+    if (marker && (!marker[1].startsWith('`') || !trimmed.slice(marker[1].length).includes('`'))) {
       fence = { char: marker[1][0], length: marker[1].length };
       return;
     }
     if (/^https?:\/\/\S+$/.test(trimmed)
-      || /^\[[^\[\]\r\n]*\]\(https?:\/\/[^\s)]+\)$/.test(trimmed)
+      || /^\[[^[\]\r\n]*\]\(https?:\/\/[^\s)]+\)$/.test(trimmed)
       || /^<https?:\/\/[^\s<>]+>$/.test(trimmed)) {
       untrustedSegments.push({ kind: 'embed', startLine: index + 1, endLine: index + 1 });
     }

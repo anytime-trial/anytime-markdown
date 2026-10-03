@@ -7,6 +7,9 @@ export interface IRemoteTrailStore {
   /**
    * [DESTRUCTIVE] リモートの全テーブルを一括削除する。
    * 呼び出し後は即座に upsert で復元する前提で使うこと。
+   * 例外: trail_releases と trail_release_graphs は差分同期のため消さない
+   * （graph は 1 件十数 MB あり、毎回の送り直しがゲートウェイで落ちる）。
+   * 不要になった release は unsafePruneReleases で消す。
    */
   unsafeClearAll(): Promise<void>;
   getExistingSessionIds(): Promise<readonly string[]>;
@@ -30,6 +33,11 @@ export interface IRemoteTrailStore {
   upsertCommits(rows: readonly SessionCommitRow[]): Promise<void>;
   upsertCommitFiles(rows: readonly { repo_id: number; commit_hash: string; file_path: string }[]): Promise<void>;
   upsertReleases(rows: readonly ReleaseRow[]): Promise<void>;
+  /**
+   * [DESTRUCTIVE] keepReleaseIds に無い release をリモートから消す（CASCADE で子テーブルも消える）。
+   * 重い release graph を先に消してから親を消す。
+   */
+  unsafePruneReleases(keepReleaseIds: ReadonlySet<number>): Promise<void>;
   upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void>;
   upsertSessionCosts(sessionId: string, costs: readonly {
     model: string;
@@ -63,10 +71,13 @@ export interface IRemoteTrailStore {
   }[]): Promise<void>;
   /** [DESTRUCTIVE] activity_current_graphs テーブルを全削除する（洗い替え同期用）。 */
   unsafeClearCurrentGraphs(): Promise<void>;
-  /** [DESTRUCTIVE] activity_release_graphs テーブルを全削除する（洗い替え同期用）。 */
-  unsafeClearReleaseGraphs(): Promise<void>;
   upsertCurrentGraph(repoId: number, graphJson: string, commitId: string): Promise<void>;
-  upsertReleaseGraph(releaseId: number, graphJson: string): Promise<void>;
+  /** リモートの release graph のバージョン（release_id → updated_at）。graph_json は読まない。 */
+  getReleaseGraphVersions(): Promise<ReadonlyMap<number, string>>;
+  /** release graph を upsert し、version を updated_at に保存する（次回の差分判定に使う）。 */
+  upsertReleaseGraph(releaseId: number, graphJson: string, version: string): Promise<void>;
+  /** [DESTRUCTIVE] 指定した release の graph をリモートから消す。 */
+  unsafeDeleteReleaseGraphs(releaseIds: readonly number[]): Promise<void>;
   listManualElements(repoId: number): Promise<readonly ManualElement[]>;
   upsertManualElement(repoId: number, element: ManualElement): Promise<void>;
   deleteManualElement(repoId: number, elementId: string): Promise<void>;

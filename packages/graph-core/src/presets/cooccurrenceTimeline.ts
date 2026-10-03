@@ -262,6 +262,22 @@ export function reorderCooccurrenceSlice(
   return { slices: move(next.slices), nodes: move(next.nodes), links: move(next.links) };
 }
 
+const ISO_DATE_PART = /^\d{4}(?:-\d{2}){0,2}/;
+const ISO_TIME_PART = /^T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?/;
+const ISO_ZONE_PART = /^(?:Z|[+-]\d{2}:\d{2})$/;
+
+/** `^\d{4}(-\d{2}){0,2}(T hh:mm(:ss(.fff)?)? (Z|±hh:mm)?)?$` を、複雑度の上限内で部品に分けて判定する。 */
+function isIso8601Date(at: string): boolean {
+  const date = ISO_DATE_PART.exec(at);
+  if (!date) return false;
+  const afterDate = at.slice(date[0].length);
+  if (afterDate === '') return true;
+  const time = ISO_TIME_PART.exec(afterDate);
+  if (!time) return false;
+  const zone = afterDate.slice(time[0].length);
+  return zone === '' || ISO_ZONE_PART.test(zone);
+}
+
 /**
  * ISO 8601 の日付として解釈する。解釈できなければ `undefined`。
  *
@@ -269,7 +285,7 @@ export function reorderCooccurrenceSlice(
  * 受け、環境によって受理と拒否が分かれる。書式を先に固定してから値へ落とす。
  */
 export function cooccurrenceSliceDateValue(at: string): number | undefined {
-  if (!/^\d{4}(-\d{2}){0,2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?)?$/.test(at)) return undefined;
+  if (!isIso8601Date(at)) return undefined;
   const value = Date.parse(at);
   return Number.isFinite(value) ? value : undefined;
 }

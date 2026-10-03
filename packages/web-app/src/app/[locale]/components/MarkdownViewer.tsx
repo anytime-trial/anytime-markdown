@@ -152,7 +152,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   }, [resolvedDocKey, fallbackDocKey, contentApiPath, t]);
 
   useEffect(() => {
-    fetchContent();
+    void fetchContent();
   }, [fetchContent]);
 
   // サーバ生成の本文がある間はスピナーを出さない。ここがサーバの返す HTML そのものなので、

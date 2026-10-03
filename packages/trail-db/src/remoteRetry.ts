@@ -6,9 +6,15 @@
  * 同じ結果になるだけなので、即座に throw して呼び出し元へ返す。
  */
 
+/**
+ * supabase-js が返すエラーの形。型上 message は string だが、ゲートウェイ断や巨大ペイロードの拒否では
+ * message 欠落のオブジェクトが返ることがある（2026-09-30 実測）。要約側は message を信用しない。
+ */
 export interface RemoteErrorLike {
   readonly message: string;
   readonly code?: string | null;
+  readonly details?: string | null;
+  readonly hint?: string | null;
 }
 
 /**
@@ -35,14 +41,29 @@ export function isRetryableRemoteError(error: RemoteErrorLike): boolean {
   return true;
 }
 
+/** Postgres の statement timeout (SQLSTATE 57014 query_canceled)。1 文の処理量を減らせば通る。 */
+export function isStatementTimeout(error: RemoteErrorLike): boolean {
+  return error.code === '57014' || /statement timeout/i.test(messageOf(error) ?? '');
+}
+
 /** ログ・例外メッセージ用にエラーを 1 行へ要約する（HTML ページ全文の垂れ流しを防ぐ）。 */
 export function summarizeRemoteError(error: RemoteErrorLike): string {
   const code = error.code ? `[${error.code}] ` : '';
-  if (isHtmlErrorPage(error.message)) {
-    return `${code}non-JSON response from gateway (HTML error page, ${error.message.length} bytes)`;
+  const raw = messageOf(error) ?? [error.details, error.hint].filter(isNonEmptyString).join(' / ');
+  if (!raw) return `${code}unknown error (no message)`;
+  if (isHtmlErrorPage(raw)) {
+    return `${code}non-JSON response from gateway (HTML error page, ${raw.length} bytes)`;
   }
-  const message = error.message.length > 300
-    ? `${error.message.slice(0, 300)}...`
-    : error.message;
+  const message = raw.length > 300 ? `${raw.slice(0, 300)}...` : raw;
   return `${code}${message}`;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+/** message が空でない文字列のときだけ返す（型に反して undefined / 非文字列が来る経路がある）。 */
+function messageOf(error: RemoteErrorLike): string | undefined {
+  const message: unknown = error.message;
+  return isNonEmptyString(message) ? message : undefined;
 }

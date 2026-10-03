@@ -43,7 +43,7 @@ function isInjectedPreamble(text: string): boolean {
   return (
     text.startsWith('Base directory for this skill:') ||
     text.startsWith('<system-reminder>') ||
-    /^Caveat: The messages below were generated/.test(text)
+    text.startsWith('Caveat: The messages below were generated')
   );
 }
 

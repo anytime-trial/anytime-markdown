@@ -29,7 +29,7 @@ export function installEditorDomShortcuts(options: EditorDomShortcutOptions): ()
     if (!mod) return;
     if (e.key === "s" || e.key === "S") {
       e.preventDefault();
-      (fileHandlers.onSaveFile ?? fileHandlers.onDownload)();
+      void (fileHandlers.onSaveFile ?? fileHandlers.onDownload)();
     } else if (e.key === "k" || e.key === "K") {
       e.preventDefault();
       openLinkDialog();
@@ -96,7 +96,7 @@ export function installGlobalShortcuts(options: GlobalShortcutOptions): () => vo
   const handleModShift = (e: KeyboardEvent, key: string): void => {
     if (key === "s") {
       e.preventDefault();
-      fileHandlers.onSaveAsFile?.();
+      void fileHandlers.onSaveAsFile?.();
     } else if (key === "c") {
       e.preventDefault();
       copyAllMarkdown();
@@ -134,7 +134,7 @@ export function installGlobalShortcuts(options: GlobalShortcutOptions): () => vo
     // mod 単独系（Alt / Shift なし）。mod+S / mod+K は editor.view.dom 側で処理する。
     if (!e.altKey && key === "o") {
       e.preventDefault();
-      fileHandlers.onOpenFile?.();
+      void fileHandlers.onOpenFile?.();
     }
   };
 

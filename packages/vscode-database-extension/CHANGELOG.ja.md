@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-10-03
+
+### Database Core (database-core / database-viewer)
+
+- メニューのバックドロップを `aria-hidden` で隠すようにし、軽微なリファクタリングを行った（挙動の変更なし）。
+
 ## [0.3.12] - 2026-09-13
 
 ### Database Core (database-core / database-viewer)

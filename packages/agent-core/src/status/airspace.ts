@@ -497,6 +497,56 @@ function splitSegments(command: string): CommandSegment[] {
   return segments;
 }
 
+/** 書き込み対象トークンを `base` 基準の絶対パスへ解決する。解決できない形と `/dev/` 配下は null。 */
+function resolveWriteTarget(base: string, token: string | undefined): string | null {
+  if (token === undefined || !isResolvablePath(token)) return null;
+  const absolute = resolve(base, token);
+  return absolute.startsWith('/dev/') ? null : absolute;
+}
+
+/** `cd <target>` 後の基準ディレクトリ。解決できない `cd`（変数展開・グロブ）以降は推定を止める（null）。 */
+function resolveCdBase(target: string | undefined, base: string | null): string | null {
+  if (target === undefined || !isResolvablePath(target) || base === null) return null;
+  return resolve(base, target);
+}
+
+/**
+ * リダイレクトを引数列から切り離す。残したままだと `cp a b > /dev/null` の
+ * 末尾引数が `/dev/null` になり、本来の書き込み先 `b` を取り違える。
+ * 返す `redirectTargets` は fd 番号なしのリダイレクト先だけ（`2>err.log` はログ用の書き込みで
+ * 衝突検知の対象にしない）。
+ */
+function splitRedirects(tokens: readonly string[]): { rest: string[]; redirectTargets: (string | undefined)[] } {
+  const rest: string[] = [];
+  const redirectTargets: (string | undefined)[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    // `> path` / `>> path` / `>path` / `2>path` / `2>&1`。
+    const redirect = /^(\d*)(>>?)(.*)$/.exec(token);
+    if (redirect === null) {
+      rest.push(token);
+      continue;
+    }
+    const inlineTarget = redirect[3];
+    const target = inlineTarget === '' ? tokens[index + 1] : inlineTarget;
+    if (inlineTarget === '') index += 1;
+    if (redirect[1] === '') redirectTargets.push(target);
+  }
+  return { rest, redirectTargets };
+}
+
+/** リダイレクトを除いたコマンド列（コマンド名 + 引数）から、書き込み対象になり得るパスを列挙する。 */
+function commandWriteTargets(rest: readonly string[], base: string): string[] {
+  const [command0, ...args] = rest;
+  if (command0 === undefined) return [];
+  if (command0 === 'tee') return args.filter((arg) => !arg.startsWith('-'));
+  // sed は `-i` / `-i.bak` / `--in-place` があるときだけ書き込む。対象は残りの入力ファイル全部
+  // （`sed -i s/a/b/ a.ts b.ts` は両方を書き換える）。
+  if (command0 === 'sed' && args.some((arg) => /^(-i|--in-place)/.test(arg))) return sedInputFiles(args);
+  if (LAST_ARG_WRITERS.has(command0)) return copyTargets(args, base);
+  return [];
+}
+
 /**
  * Bash コマンドから書き込み対象になり得る絶対パスを推定する。
  *
@@ -519,13 +569,6 @@ export function parseBashWriteTargets(command: string, cwd: string): string[] {
   // 解決できない `cd`（変数展開・グロブ）以降は推定を止める（null）。
   let base: string | null = cwd;
 
-  const add = (token: string | undefined): void => {
-    if (base === null || token === undefined || !isResolvablePath(token)) return;
-    const absolute = resolve(base, token);
-    if (absolute.startsWith('/dev/')) return;
-    if (!targets.includes(absolute)) targets.push(absolute);
-  };
-
   for (const segment of splitSegments(scope)) {
     // パイプ・バックグラウンドの前段はサブシェルで走るため、そこでの cd は後段へ効かない。
     if (segment.separator !== undefined && !propagatesCd(segment.separator)) {
@@ -533,49 +576,15 @@ export function parseBashWriteTargets(command: string, cwd: string): string[] {
     }
     const tokens = tokenize(segment.text);
     if (tokens[0] === 'cd') {
-      const target = tokens[1];
-      base =
-        target === undefined || !isResolvablePath(target) || base === null
-          ? null
-          : resolve(base, target);
+      base = resolveCdBase(tokens[1], base);
       continue;
     }
     if (base === null) continue;
 
-    // 1 段目: リダイレクトを引数列から切り離す。残したままだと `cp a b > /dev/null` の
-    // 末尾引数が `/dev/null` になり、本来の書き込み先 `b` を取り違える。
-    const rest: string[] = [];
-    for (let index = 0; index < tokens.length; index += 1) {
-      const token = tokens[index];
-      // `> path` / `>> path` / `>path` / `2>path` / `2>&1`。
-      const redirect = /^(\d*)(>>?)(.*)$/.exec(token);
-      if (redirect === null) {
-        rest.push(token);
-        continue;
-      }
-      const inlineTarget = redirect[3];
-      const target = inlineTarget === '' ? tokens[index + 1] : inlineTarget;
-      if (inlineTarget === '') index += 1;
-      // fd 番号付き（`2>err.log`）はログ用の書き込みで、衝突検知の対象にしない。
-      if (redirect[1] === '') add(target);
-    }
-
-    const [command0, ...args] = rest;
-    if (command0 === undefined) continue;
-    const nonFlagArgs = args.filter((arg) => !arg.startsWith('-'));
-
-    if (command0 === 'tee') {
-      for (const arg of nonFlagArgs) add(arg);
-      continue;
-    }
-    // sed は `-i` / `-i.bak` / `--in-place` があるときだけ書き込む。対象は残りの入力ファイル全部
-    // （`sed -i s/a/b/ a.ts b.ts` は両方を書き換える）。
-    if (command0 === 'sed' && args.some((arg) => /^(-i|--in-place)/.test(arg))) {
-      for (const file of sedInputFiles(args)) add(file);
-      continue;
-    }
-    if (LAST_ARG_WRITERS.has(command0)) {
-      for (const target of copyTargets(args, base)) add(target);
+    const { rest, redirectTargets } = splitRedirects(tokens);
+    for (const token of [...redirectTargets, ...commandWriteTargets(rest, base)]) {
+      const absolute = resolveWriteTarget(base, token);
+      if (absolute !== null && !targets.includes(absolute)) targets.push(absolute);
     }
   }
 

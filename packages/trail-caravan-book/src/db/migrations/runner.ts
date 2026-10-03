@@ -95,9 +95,10 @@ export function runMigrations(conn: CaravanDbConnection): void {
     if (applied.has(migration.version)) continue;
     if (migration.requiresFts5 && !hasFts5(conn)) {
       const ts = new Date().toISOString();
+      const migrationLabel = migration.file ?? `v${migration.version}`;
       // eslint-disable-next-line no-console
       console.log(
-        `[${ts}] [WARN] trail-caravan-book: migration ${migration.file ?? `v${migration.version}`} skipped (SQLite build lacks FTS5)`,
+        `[${ts}] [WARN] trail-caravan-book: migration ${migrationLabel} skipped (SQLite build lacks FTS5)`,
       );
       continue;
     }

@@ -107,7 +107,8 @@ export function createFrontmatterCompareRow(
   // 直近に DOM を構築した内容シグネチャ（変化時のみ再構築する）。null = 未構築。
   let builtSig: string | null = null;
 
-  const bodyId = `am-fm-compare-body-${(instanceSeq += 1)}`;
+  instanceSeq += 1;
+  const bodyId = `am-fm-compare-body-${instanceSeq}`;
 
   const root = document.createElement("div");
   root.dataset.amFrontmatterCompare = "";

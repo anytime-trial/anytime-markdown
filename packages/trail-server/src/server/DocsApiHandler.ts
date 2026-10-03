@@ -176,11 +176,7 @@ function frontmatterScalar(fm: string, key: string): string | null {
   return null;
 }
 
-function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
-  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
-  if (!fmMatch) return null;
-  const fm = fmMatch[1];
-
+function parseC4ScopeLines(fm: string): string[] {
   const scopeLines: string[] = [];
   let inScope = false;
   for (const line of fm.split(/\r?\n/)) {
@@ -205,6 +201,15 @@ function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
       }
     }
   }
+  return scopeLines;
+}
+
+function parseLocalFrontmatter(raw: string): Omit<DocLink, 'path'> | null {
+  const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
+  if (!fmMatch) return null;
+  const fm = fmMatch[1];
+
+  const scopeLines = parseC4ScopeLines(fm);
   if (scopeLines.length === 0) return null;
 
   const title = frontmatterScalar(fm, 'title');

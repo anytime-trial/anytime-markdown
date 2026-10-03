@@ -75,11 +75,12 @@ export abstract class CaravanAnalyzerBase implements Analyzer {
         );
         // 起動しなかったことを台帳へ残す。ログとイベントだけでは「まだ動いていない」と
         // 「動いて 0 件だった」が利用側から区別できず、恒久的な取込停止が観測面に現れない。
+        const detailSuffix = detail ? `; ${detail}` : '';
         for (const scope of this.scopes) {
           session.recordScopeSkipped(
             scope,
             'llm_unavailable',
-            `${this.id} needs ${missing.join('+')}${detail ? `; ${detail}` : ''}`,
+            `${this.id} needs ${missing.join('+')}${detailSuffix}`,
           );
         }
         await ctx.bus.publish({

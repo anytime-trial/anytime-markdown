@@ -35,8 +35,14 @@ export interface ExtractRationaleStats {
  * after the first line and truncate multi-line rationale bodies.
  * Instead, `(?:^|\n)` is used to anchor the match at line start.
  */
-const RATIONALE_PATTERN =
-  /(?:^|\n)(?:Rationale|Reason|理由)\s*[：:]\s*([\s\S]+?)(?=\n[^\S\n]*\n|\n[A-Z][a-z]+\s*[：:]|$)/i;
+// 本文の先頭を `\S` に固定するのは、直前の `\s*` と `[\s\S]` が重なって super-linear に
+// なるのを避けるため（Sonar S8786）。空白だけの本文は従来も trim 後に空で捨てていたので結果は同じ。
+// 複雑度（S5843）対策でラベル部と終端の先読みを 2 本の文字列に分けて組み立てる。
+const RATIONALE_PATTERN = new RegExp(
+  String.raw`(?:^|\n)(?:Rationale|Reason|理由)\s*[：:]\s*(\S[\s\S]*?)` +
+    String.raw`(?=\n[^\S\n]*\n|\n[A-Z][a-z]+\s*[：:]|$)`,
+  'i',
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -127,7 +127,8 @@ function parseIndentTree(lines: string[]): TreeNodeSpec[] {
       roots.push(node);
     } else {
       const parent = stack[stack.length - 1].node;
-      (parent.children ??= []).push(node);
+      parent.children ??= [];
+      parent.children.push(node);
     }
     stack.push({ node, level });
   }

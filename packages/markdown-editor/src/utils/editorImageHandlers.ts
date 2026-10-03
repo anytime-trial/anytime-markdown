@@ -85,11 +85,11 @@ export function tryImportDroppedMdFile(
   const mdItemAny = mdItem as (DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }) | null;
   if (mdItemAny?.getAsFileSystemHandle) {
     mdItemAny.getAsFileSystemHandle().then((handle: FileSystemHandle | null) => {
-      handleImportRef.current(mdFile, handle?.kind === "file" ? handle as FileSystemFileHandle : undefined);
+      void handleImportRef.current(mdFile, handle?.kind === "file" ? handle as FileSystemFileHandle : undefined);
     }).catch(() => {
-      handleImportRef.current(mdFile);
+      void handleImportRef.current(mdFile);
     });
   } else {
-    handleImportRef.current(mdFile);
+    void handleImportRef.current(mdFile);
   }
 }

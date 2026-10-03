@@ -92,7 +92,17 @@ export class SyncService {
 
     errors += await this.syncStep('Syncing releases...', onProgress, async () => {
       const releases = this.trailDb.getReleases();
-      if (releases.length > 0) await this.store.upsertReleases(releases);
+      // trail_releases は差分同期（unsafeClearAll で消さない）。ローカルから消えた release だけを刈る。
+      // upsert より先に刈る: 削除→再取り込みで同じ tag に別 release_id が付くと、旧 id の行が
+      // UNIQUE (repo_id, tag) に当たり upsert が毎回失敗し続ける。
+      if (releases.length === 0) {
+        // 初期化直後・取り込み前の空 DB で同期しただけでリモートを全消ししない。
+        this.logger.warn('Local has no releases; skipped pruning remote trail_releases');
+        return;
+      }
+      const keep = new Set(releases.flatMap((r) => (r.release_id == null ? [] : [r.release_id])));
+      await this.store.unsafePruneReleases(keep);
+      await this.store.upsertReleases(releases);
       await this.forEachIsolated('activity_release_files', releases, (r) => `release ${r.tag}`, async (release) => {
         const files = this.trailDb.getReleaseFiles(release.tag);
         if (files.length > 0) await this.store.upsertReleaseFiles(files);
@@ -109,17 +119,7 @@ export class SyncService {
     }, 'Failed to sync current TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
-      // activity_release_graphs は release_id キー。getTrailGraphIds は tag を返すため、release_id を
-      // 持つ getReleases() から引き直して upsert する (graph 不在の release は skip)。
-      const releases = this.trailDb.getReleases();
-      onProgress?.({ message: `Syncing ${releases.length} release TrailGraphs (wash-away)...` });
-      await this.store.unsafeClearReleaseGraphs();
-      await this.forEachIsolated('release TrailGraphs', releases, (r) => `release ${r.tag}`, async (rel) => {
-        if (rel.release_id == null) return;
-        const graph = this.trailDb.getTrailGraph(rel.tag);
-        if (!graph) return;
-        await this.store.upsertReleaseGraph(rel.release_id, JSON.stringify(graph));
-      });
+      await this.syncReleaseGraphs(onProgress);
     }, 'Failed to sync release TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
@@ -181,6 +181,41 @@ export class SyncService {
     }, 'Failed to refresh materialized views');
 
     return { synced, skipped: 0, errors };
+  }
+
+  /**
+   * release graph を差分同期する。graph は 1 件十数 MB あり、全件の送り直し（旧 wash-away）は
+   * ゲートウェイの切断・timeout で毎回数件が落ちていた。ローカルのバージョン（updated_at、空なら
+   * analyzed_at）とリモートの updated_at を比べ、変わった graph だけを送り、ローカルに無い graph は消す。
+   * 送れなかった graph はリモートのバージョンが古いままなので、次回の同期で再送される。
+   */
+  private async syncReleaseGraphs(onProgress?: (progress: SyncProgress) => void): Promise<void> {
+    const local = this.trailDb.getReleaseGraphVersions();
+    const remote = await this.store.getReleaseGraphVersions();
+    if (local.size === 0 && remote.size > 0) {
+      // releases ステップと同じく、空のローカルでリモートの graph を全消ししない。
+      this.logger.warn('Local has no release graphs; skipped removing remote release graphs');
+      return;
+    }
+    const stale = [...remote.keys()].filter((id) => !local.has(id));
+    await this.store.unsafeDeleteReleaseGraphs(stale);
+
+    // activity_release_graphs は release_id キーだが、graph の読み出しは tag 指定のため getReleases() で引き直す。
+    const changed = this.trailDb.getReleases().flatMap((r) => {
+      const releaseId = r.release_id;
+      if (releaseId == null) return [];
+      const version = local.get(releaseId);
+      if (version === undefined || remote.get(releaseId) === version) return [];
+      return [{ releaseId, tag: r.tag, version }];
+    });
+    onProgress?.({
+      message: `Syncing ${changed.length}/${local.size} release TrailGraphs (diff, ${stale.length} removed)...`,
+    });
+    await this.forEachIsolated('release TrailGraphs', changed, (r) => `release ${r.tag}`, async (rel) => {
+      const graph = this.trailDb.getTrailGraph(rel.tag);
+      if (!graph) return;
+      await this.store.upsertReleaseGraph(rel.releaseId, JSON.stringify(graph), rel.version);
+    });
   }
 
   /** Run a named sync step; returns 1 on error, 0 on success. */

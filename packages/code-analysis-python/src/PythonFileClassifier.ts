@@ -86,9 +86,8 @@ function fromImportIsUi(stmt: Node): boolean {
 
 /** import の name ノード（dotted_name / aliased_import）から元モジュール文字列を取り出す。 */
 function moduleText(nameNode: Node): string {
-  if (nameNode.type === 'aliased_import') return nameNode.childForFieldName('name')?.text ?? '';
-  if (nameNode.type === 'dotted_name') return nameNode.text;
-  return '';
+  // aliased_import は alias を剥がした元名、dotted_name はそのままの文字列で、from-import の imported 名と同じ規則。
+  return importedName(nameNode);
 }
 
 /** from-import の imported 名（alias は剥がした元名）。 */

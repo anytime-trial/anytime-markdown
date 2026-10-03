@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-10-03
+
+### Database Core (database-core / database-viewer)
+
+- The menu backdrop is hidden with `aria-hidden`, and minor refactors (no behaviour change).
+
 ## [0.3.12] - 2026-09-13
 
 ### Database Core (database-core / database-viewer)

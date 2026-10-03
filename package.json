@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.26.0",
+  "version": "1.26.1",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -89,6 +89,9 @@
     "packages/vscode-diagram-extension"
   ],
   "overrides": {
+    "@next/eslint-plugin-next": {
+      "fast-glob": "npm:tinyglobby@0.2.15"
+    },
     "ip-address": "10.7.2",
     "undici": "7.30.0",
     "fast-uri": "3.1.8",
@@ -96,14 +99,14 @@
     "diff": "8.0.3",
     "postcss": "8.5.25",
     "uuid": "^14.0.0",
-    "next": "16.3.5",
+    "next": "16.3.8",
     "@auth/core": "0.41.3",
     "next-auth": {
       "@auth/core": "0.41.3"
     },
     "handlebars": "4.7.9",
     "@xmldom/xmldom": "0.9.12",
-    "brace-expansion": "1.1.18",
+    "brace-expansion": "1.1.21",
     "ignore": "7.0.5",
     "ws": "8.21.0",
     "markdown-it": "14.3.2",
@@ -148,6 +151,6 @@
     "@emotion/styled": "11.14.0",
     "@xmldom/xmldom": "0.9.12",
     "ignore": "7.0.5",
-    "next": "16.3.5"
+    "next": "16.3.8"
   }
 }

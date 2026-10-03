@@ -33,8 +33,7 @@ type BugFix = {
   subjectSummary: string;
 };
 
-function resolveWindowDays(windowDays: number | undefined): number {
-  const requested = windowDays ?? 60;
+function resolveWindowDays(requested: number | undefined = 60): number {
   return Number.isFinite(requested) && requested > 0 ? requested : 60;
 }
 

@@ -134,7 +134,7 @@ function isSafePlainAnchor(anchor: HTMLAnchorElement, hrefWithAnchor: string): b
 
   return (
     anchor.childElementCount === 0 &&
-    !/[\[\]()\\`\n\r]/.test(text) &&
+    !/[[\]()\\`\n\r]/.test(text) &&
     !/[\s()]/.test(hrefWithAnchor)
   );
 }

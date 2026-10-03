@@ -120,17 +120,23 @@ function inferTargetKind(refs: string[]): ParsedReviewSession['target_kind'] {
   return 'mixed';
 }
 
+/** 章（chapter）単位で決まり、章内の全指摘で共通のメタデータ。 */
+interface ChapterMeta {
+  category: ParsedFinding['category'];
+  severity: ParsedFinding['severity'];
+  chapterHeading: string;
+  is_category_inferred: boolean;
+  checklistRef: string | null;
+}
+
 function makeFinding(
   findingIndex: number,
   target: string | null,
-  category: ParsedFinding['category'],
-  severity: ParsedFinding['severity'],
   findingText: string,
   suggestionText: string,
-  chapterHeading: string,
-  is_category_inferred: boolean,
-  checklistRef: string | null,
+  meta: ChapterMeta,
 ): ParsedFinding {
+  const { category, severity, chapterHeading, is_category_inferred, checklistRef } = meta;
   return {
     finding_index: findingIndex,
     target_file_path: target,
@@ -174,6 +180,14 @@ function extractFindings(bodyText: string): ParsedFinding[] {
     // チャプターに複数 finding が同居する場合の扱いは resolveFindingTarget を参照。
     const chapterTarget = parseTargetMarker(chapterBody);
 
+    const chapterMeta: ChapterMeta = {
+      category,
+      severity,
+      chapterHeading: chapter.heading,
+      is_category_inferred,
+      checklistRef,
+    };
+
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);
     if (pairs.length > 0) {
@@ -183,7 +197,7 @@ function extractFindings(bodyText: string): ParsedFinding[] {
           chapterTarget,
           chapterFindingCount: pairs.length,
         });
-        findings.push(makeFinding(findingIndex++, target, category, severity, findingText, suggestionText, chapter.heading, is_category_inferred, checklistRef));
+        findings.push(makeFinding(findingIndex++, target, findingText, suggestionText, chapterMeta));
       }
       continue;
     }
@@ -197,7 +211,7 @@ function extractFindings(bodyText: string): ParsedFinding[] {
         chapterTarget,
         chapterFindingCount: numbered.length,
       });
-      findings.push(makeFinding(findingIndex++, target, category, severity, findingText, nf.suggestion, chapter.heading, is_category_inferred, checklistRef));
+      findings.push(makeFinding(findingIndex++, target, findingText, nf.suggestion, chapterMeta));
     }
   }
 

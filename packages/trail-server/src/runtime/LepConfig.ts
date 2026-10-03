@@ -486,6 +486,15 @@ function validateLlmSection(
   return { providers: { ollama } };
 }
 
+function pickRagConfig(r: Record<string, unknown>): Partial<LepRagConfig> {
+  const rag: Partial<LepRagConfig> = {};
+  if (typeof r['bm25Limit'] === 'number') rag.bm25Limit = r['bm25Limit'];
+  if (typeof r['vecLimit'] === 'number') rag.vecLimit = r['vecLimit'];
+  if (typeof r['finalLimit'] === 'number') rag.finalLimit = r['finalLimit'];
+  if (typeof r['rrfK'] === 'number') rag.rrfK = r['rrfK'];
+  return rag;
+}
+
 function validateCaravanSection(
   raw: unknown,
   sourceLabel: string,
@@ -497,15 +506,7 @@ function validateCaravanSection(
     return undefined;
   }
   const memory: NonNullable<PartialLepConfig['memory']> = {};
-  if (isPlainObject(raw['rag'])) {
-    const r = raw['rag'];
-    const rag: Partial<LepRagConfig> = {};
-    if (typeof r['bm25Limit'] === 'number') rag.bm25Limit = r['bm25Limit'];
-    if (typeof r['vecLimit'] === 'number') rag.vecLimit = r['vecLimit'];
-    if (typeof r['finalLimit'] === 'number') rag.finalLimit = r['finalLimit'];
-    if (typeof r['rrfK'] === 'number') rag.rrfK = r['rrfK'];
-    memory.rag = rag;
-  }
+  if (isPlainObject(raw['rag'])) memory.rag = pickRagConfig(raw['rag']);
   if (isPlainObject(raw['fts']) && typeof raw['fts']['rebuildIntervalMinutes'] === 'number') {
     memory.fts = { rebuildIntervalMinutes: raw['fts']['rebuildIntervalMinutes'] };
   }

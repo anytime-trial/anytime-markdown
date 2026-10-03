@@ -1,11 +1,11 @@
 import { existsSync } from 'node:fs';
 
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 
 import type { GoldenFile } from './types';
 
 /**
- * fast-glob で candidate ディレクトリ配下のファイルを列挙する。
+ * tinyglobby で candidate ディレクトリ配下のファイルを列挙する。
  * 戻り値は candidateDir からの POSIX 相対パス。
  */
 export async function listDocuments(
@@ -15,13 +15,14 @@ export async function listDocuments(
 ): Promise<string[]> {
   if (!existsSync(rootDir)) return [];
 
-  const entries = await fg(documentGlob, {
+  const entries = await glob(documentGlob, {
     cwd: rootDir,
     onlyFiles: true,
     dot: false,
     ignore: [...excludeGlobs],
     // POSIX 区切りで返す。Windows パスでも比較を安定化させるため
     absolute: false,
+    expandDirectories: false,
   });
   return entries;
 }

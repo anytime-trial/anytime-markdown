@@ -694,9 +694,8 @@ function wireAnalyzeCallbacks(
  */
 async function bindHttpPort(
   server: TrailDataServer,
-  preferredPort: number | undefined,
+  preferred = 19841,
 ): Promise<number> {
-  const preferred = preferredPort ?? 19841;
   const portCandidates: number[] =
     preferred === 0
       ? [0]

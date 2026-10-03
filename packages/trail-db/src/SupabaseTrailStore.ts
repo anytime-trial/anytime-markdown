@@ -3,11 +3,17 @@ import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseR
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 import { type DbLogger, noopDbLogger } from './DbLogger';
-import { isRetryableRemoteError, summarizeRemoteError, type RemoteErrorLike } from './remoteRetry';
+import { isRetryableRemoteError, isStatementTimeout, summarizeRemoteError, type RemoteErrorLike } from './remoteRetry';
 
 /** 一過性エラー時の再試行間隔（指数バックオフ）。この回数を使い切ったら throw する。 */
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500, 4000];
 const DEFAULT_CHUNK_SIZE = 500;
+/** graph_json（数 MB/行）を持つテーブルのページング削除の初期ページ件数。 */
+const GRAPH_DELETE_PAGE_SIZE = 20;
+/** timeout でページを縮めた後、この回数続けて成功したら件数を倍に戻す。 */
+const GROW_AFTER_SUCCESSES = 4;
+/** 全行 select のページ件数（PostgREST の既定 max-rows 1000 以下）。 */
+const SELECT_PAGE_SIZE = 1000;
 
 /** Supabase のクエリビルダ（thenable）が解決する形。data は使わないので error のみ見る。 */
 type RemoteWriteResponse = { error: RemoteErrorLike | null };
@@ -133,35 +139,125 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
   }
 
   async unsafeClearAll(): Promise<void> {
-    // Supabase の statement timeout を避けるため、全テーブルをページング削除する。
+    // Supabase の statement timeout を避けるため、行数の多いテーブルはページング削除する。
     // 先に子テーブル(messages)を消してから親(sessions)を消すことで、
     // sessions 削除時の CASCADE 負荷を最小化する。
-    // repo_id/release_id 正規化後: 子 → 親の順を維持。trail_repos は upsertRepos で
-    // 冪等に再投入するためここではクリアしない (clear すると FK CASCADE で全子が消える)。
+    // trail_repos は upsertRepos で冪等に再投入するためここではクリアしない (clear すると FK CASCADE で全子が消える)。
+    // trail_releases / trail_release_graphs は差分同期のため消さない (graph は 1 件十数 MB あり、毎回の
+    // 送り直しがゲートウェイで落ちる)。不要な release は unsafePruneReleases で消す。release の子のうち
+    // 行の軽い files / features は従来どおり洗い替える (coverage / code graphs は各同期ステップで洗い替える)。
     await this.deleteAllPaged('trail_messages', 'uuid');
     await this.deleteAllPaged('trail_sessions', 'id');
-    await this.deleteAllPaged('trail_releases', 'release_id');
+    await this.unsafeDeleteAllRows('trail_release_files', 'release_id', 0);
+    await this.unsafeDeleteAllRows('trail_release_features', 'release_id', 0);
     await this.unsafeDeleteAllRows('trail_daily_counts', 'date', '0000-01-01');
-    await this.deleteAllPaged('trail_release_graphs', 'release_id');
     await this.unsafeDeleteAllRows('trail_current_file_analysis', 'repo_id', 0);
     await this.unsafeDeleteAllRows('trail_current_function_analysis', 'repo_id', 0);
   }
 
-  private async deleteAllPaged(table: string, pk: string, pageSize = 500): Promise<void> {
+  async unsafePruneReleases(keepReleaseIds: ReadonlySet<number>): Promise<void> {
+    const remoteIds = await this.selectAll<{ release_id: number }>('trail_releases', 'release_id', 'release_id');
+    const stale = remoteIds.map((r) => r.release_id).filter((id) => !keepReleaseIds.has(id));
+    if (stale.length === 0) return;
+    // 親の削除 1 文に graph_json の CASCADE を載せないよう、重い子を先に消す。
+    await this.deleteIdsPaged('trail_release_graphs', 'release_id', stale, GRAPH_DELETE_PAGE_SIZE);
+    await this.deleteIdsPaged('trail_release_code_graphs', 'release_id', stale, GRAPH_DELETE_PAGE_SIZE);
+    await this.deleteIdsPaged('trail_releases', 'release_id', stale, DEFAULT_CHUNK_SIZE);
+  }
+
+  /**
+   * 表の全行を select する。PostgREST は 1 リクエストの返却行数に上限（既定 1000）があり、
+   * 超えた分は黙って切り捨てられるため、range でページを進めて読み切る。
+   */
+  private async selectAll<T>(table: string, columns: string, orderBy: string): Promise<T[]> {
+    const rows: T[] = [];
+    for (let from = 0; ; from += SELECT_PAGE_SIZE) {
+      const { data, error } = await this.ensureClient()
+        .from(table)
+        .select(columns)
+        .order(orderBy)
+        .range(from, from + SELECT_PAGE_SIZE - 1);
+      if (error) throw new Error(`Supabase select ${table} failed: ${summarizeRemoteError(error)}`);
+      const page = (data ?? []) as unknown as T[];
+      rows.push(...page);
+      if (page.length < SELECT_PAGE_SIZE) return rows;
+    }
+  }
+
+  /** 主キーで select → `in` 削除を繰り返して全行を消す（削除の縮小・再試行は deletePaged）。 */
+  private async deleteAllPaged(table: string, pk: string, pageSize = DEFAULT_CHUNK_SIZE): Promise<void> {
+    const client = this.ensureClient();
+    await this.deletePaged(table, pk, pageSize, async (limit) => {
+      const { data, error } = await client.from(table).select(pk).limit(limit);
+      if (error) throw new Error(`Supabase select ${table} failed: ${summarizeRemoteError(error)}`);
+      return (data as unknown as Array<Record<string, string | number>> | null ?? []).map((r) => r[pk]);
+    });
+  }
+
+  /** 指定した主キーの行だけを消す（削除の縮小・再試行は deletePaged）。 */
+  private async deleteIdsPaged(
+    table: string,
+    pk: string,
+    ids: readonly (string | number)[],
+    pageSize: number,
+  ): Promise<void> {
+    const remaining = [...ids];
+    await this.deletePaged(
+      table,
+      pk,
+      pageSize,
+      (limit) => Promise.resolve(remaining.slice(0, limit)),
+      (deleted) => { remaining.splice(0, deleted); },
+    );
+  }
+
+  /**
+   * `nextPage` が返す主キーを `in` 削除で消し、空になるまで繰り返す。削除 1 文が statement timeout に
+   * 当たったらページを半分に縮めて同じ行を消し直す（CASCADE 先が重い行は件数を減らさないと 1 文に収まらない）。
+   * 縮めた後に GROW_AFTER_SUCCESSES 回続けて成功したら件数を倍に戻す（一過性の timeout で以降が
+   * 1 行ずつに固定されるのを防ぎ、重い行が続く表で timeout と拡大を毎回往復するのも避ける）。
+   * 1 行の削除は runWithRetry に通し、timeout を含む一過性エラーは再試行、それ以外は throw する。
+   */
+  private async deletePaged(
+    table: string,
+    pk: string,
+    pageSize: number,
+    nextPage: (limit: number) => Promise<readonly (string | number)[]>,
+    onDeleted: (count: number) => void = () => {},
+  ): Promise<void> {
     const client = this.ensureClient();
     let deleted = 0;
+    let size = pageSize;
+    let successStreak = 0;
     this.logger.info(`Clearing ${table}...`);
     try {
       while (true) {
-        const { data, error } = await client.from(table).select(pk).limit(pageSize);
-        if (error) throw new Error(`select ${table} failed: ${error.message}`);
-        if (!data || data.length === 0) break;
-        const ids = (data as unknown as Array<Record<string, unknown>>).map((r) => r[pk] as string);
-        const { error: delError } = await client.from(table).delete().in(pk, ids);
-        if (delError) throw new Error(`delete ${table} failed: ${delError.message}`);
+        const ids = await nextPage(size);
+        if (ids.length === 0) break;
+        const deleteIds = (): PromiseLike<RemoteWriteResponse> => client.from(table).delete().in(pk, [...ids]);
+        if (ids.length === 1) {
+          await this.runWithRetry(`delete ${table}`, deleteIds);
+        } else {
+          const { error: delError } = await deleteIds();
+          if (delError && isStatementTimeout(delError)) {
+            size = Math.ceil(ids.length / 2);
+            successStreak = 0;
+            this.logger.warn(`  ${table}: statement timeout, retrying with page size ${size}`);
+            continue;
+          }
+          if (delError && !isRetryableRemoteError(delError)) {
+            throw new Error(`Supabase delete ${table} failed: ${summarizeRemoteError(delError)}`);
+          }
+          if (delError) await this.runWithRetry(`delete ${table}`, deleteIds);
+        }
         deleted += ids.length;
+        onDeleted(ids.length);
         this.logger.info(`  ${table}: deleted ${deleted} rows`);
-        if (data.length < pageSize) break;
+        if (ids.length < size) break;
+        if (++successStreak >= GROW_AFTER_SUCCESSES && size < pageSize) {
+          size = Math.min(pageSize, size * 2);
+          successStreak = 0;
+        }
       }
       this.logger.info(`Cleared ${table} (${deleted} rows)`);
     } catch (e) {
@@ -418,11 +514,17 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     await this.unsafeDeleteAllRows('trail_current_graphs', 'repo_id', 0);
   }
 
-  /**
-   * trail_release_graphs を全削除する（洗い替え同期の前処理）。
-   */
-  async unsafeClearReleaseGraphs(): Promise<void> {
-    await this.unsafeDeleteAllRows('trail_release_graphs', 'release_id', 0);
+  /** リモートの release graph のバージョン（release_id → updated_at）を全件読む。graph_json は読まない。 */
+  async getReleaseGraphVersions(): Promise<ReadonlyMap<number, string>> {
+    const rows = await this.selectAll<{ release_id: number; updated_at: string | null }>(
+      'trail_release_graphs', 'release_id, updated_at', 'release_id',
+    );
+    return new Map(rows.map((r) => [r.release_id, r.updated_at ?? '']));
+  }
+
+  async unsafeDeleteReleaseGraphs(releaseIds: readonly number[]): Promise<void> {
+    if (releaseIds.length === 0) return;
+    await this.deleteIdsPaged('trail_release_graphs', 'release_id', releaseIds, GRAPH_DELETE_PAGE_SIZE);
   }
 
   /**
@@ -448,14 +550,14 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
    * graph_json は数 MB になるため、ゲートウェイの 5xx (HTML エラーページ) を踏みやすい。
    * runWithRetry がそれを一過性として再試行する。
    */
-  async upsertReleaseGraph(releaseId: number, graphJson: string): Promise<void> {
+  async upsertReleaseGraph(releaseId: number, graphJson: string, version: string): Promise<void> {
     await this.runWithRetry(`upsert release graph (release ${releaseId}, ${graphJson.length} bytes)`, () =>
       this.ensureClient()
         .from('trail_release_graphs')
         .upsert({
           release_id: releaseId,
           graph_json: graphJson,
-          updated_at: new Date().toISOString(),
+          updated_at: version,
           synced_at: new Date().toISOString(),
         }, { onConflict: 'release_id' }),
     );
@@ -642,7 +744,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
 
   async unsafeClearReleaseCodeGraphs(): Promise<void> {
     await this.unsafeDeleteAllRows('trail_release_code_graph_communities', 'release_id', 0);
-    await this.unsafeDeleteAllRows('trail_release_code_graphs', 'release_id', 0);
+    await this.deleteAllPaged('trail_release_code_graphs', 'release_id', GRAPH_DELETE_PAGE_SIZE);
   }
 
   async upsertReleaseCodeGraphs(rows: readonly {

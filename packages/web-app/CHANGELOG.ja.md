@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.56.2] - 2026-10-03
+
+### 変更
+
+- SonarCloud 指摘に対する内部リファクタリング（挙動の変更なし）。アクセシビリティの ratchet を小さな関数へ分割し、NextAuth の `jwt` コールバックの return を 1 か所にまとめ、待たない promise に `void` を明示した。markdown-editor 1.26.1 と graph-core 1.3.3 を取り込む。
+
 ## [0.56.1] - 2026-09-29
 
 ### 修正

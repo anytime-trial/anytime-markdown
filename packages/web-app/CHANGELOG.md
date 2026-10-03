@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.56.2] - 2026-10-03
+
+### Changed
+
+- Internal refactors for SonarCloud findings (no behaviour change): the accessibility ratchet is split into smaller functions, the NextAuth `jwt` callback returns from a single place, and fire-and-forget promises are marked with `void`. Picks up markdown-editor 1.26.1 and graph-core 1.3.3.
+
 ## [0.56.1] - 2026-09-29
 
 ### Fixed

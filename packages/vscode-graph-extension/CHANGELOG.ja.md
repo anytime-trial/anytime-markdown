@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-03
+
+### Graph Core (graph-core)
+
+- SonarCloud 指摘に対する内部リファクタリング（挙動の変更なし）。
+
 ## [1.3.2] - 2026-09-13
 
 ### Graph Core (graph-core)

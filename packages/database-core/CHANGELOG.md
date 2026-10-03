@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-10-03
+
+### Changed
+
+- `FileBackupManager` marks `maxGzipBytes` as `readonly` (no behaviour change).
+
 ## [0.3.12] - 2026-09-13
 
 ### Changed

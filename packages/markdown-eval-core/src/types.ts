@@ -18,7 +18,7 @@ export interface EvaluateReverseSpecInput {
   candidateDir: string;
   /**
    * ペアリング対象ファイルの glob (省略時 "**\/*.ja.md")。
-   * fast-glob 構文。candidateDir からの相対。
+   * glob 構文（tinyglobby / picomatch）。candidateDir からの相対。
    */
   documentGlob?: string;
   /** ペアリング除外パターン (省略時 ["_eval/**"]) */
