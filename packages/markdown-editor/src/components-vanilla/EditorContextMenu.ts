@@ -287,7 +287,7 @@ export function createEditorContextMenu(
    * これにより左ペインでは編集モードでもレビューモードと同じ読み取り専用メニューを出し、
    * copy も左ペインのエディタに対して動作させる。
    */
-  let paneOverride: { editor: Editor | null; readOnly?: boolean; currentMode?: typeof currentMode } | null = null;
+  let paneOverride: { editor: Editor | null; readOnly: boolean | undefined; currentMode: typeof currentMode } | null = null;
 
   const restorePaneOverride = (): void => {
     if (!paneOverride) return;
@@ -335,7 +335,7 @@ export function createEditorContextMenu(
       if (!ta) return;
       const selected = ta.value.substring(ta.selectionStart, ta.selectionEnd);
       if (selected) {
-        copyTextToClipboard(selected);
+        void copyTextToClipboard(selected);
         const before = ta.value.substring(0, ta.selectionStart);
         const after = ta.value.substring(ta.selectionEnd);
         setTextareaValue(ta, before + after);
@@ -354,7 +354,7 @@ export function createEditorContextMenu(
       const ta = sourceTextarea;
       if (!ta) return;
       const selected = ta.value.substring(ta.selectionStart, ta.selectionEnd);
-      if (selected) copyTextToClipboard(selected);
+      if (selected) void copyTextToClipboard(selected);
       handleClose();
       return;
     }

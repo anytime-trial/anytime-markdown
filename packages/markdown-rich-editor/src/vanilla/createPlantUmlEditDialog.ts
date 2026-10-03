@@ -101,7 +101,6 @@ export function createPlantUmlEditDialog(opts: CreatePlantUmlEditDialogOptions):
   const { state, t, isDark, fontSize, lineHeight, readOnly } = opts;
 
   const zp = createZoomPanState();
-  let activeTab: "code" | "config" = "code";
 
   const { config: initConfig, body: initBody } = extractPlantUmlConfig(state.getFsCode());
   let configText = initConfig;
@@ -146,7 +145,6 @@ export function createPlantUmlEditDialog(opts: CreatePlantUmlEditDialogOptions):
       { value: "config", label: t("configTab") },
     ],
     onChange: (val) => {
-      activeTab = val as "code" | "config";
       lntCode.el.style.display = val === "code" ? "flex" : "none";
       lntConfig.el.style.display = val === "config" ? "flex" : "none";
     },
@@ -189,7 +187,6 @@ export function createPlantUmlEditDialog(opts: CreatePlantUmlEditDialogOptions):
         bodyText = code;
         lntCode.update({ value: code });
         state.onFsTextChange(mergePlantUmlConfig(configText, code));
-        activeTab = "code";
         tabs.update({ value: "code" });
         lntCode.el.style.display = "flex";
         lntConfig.el.style.display = "none";

@@ -99,7 +99,7 @@ export function parseGraphCode(
 
   onStateChange({ ...initialState, loading: true });
 
-  (async () => {
+  void (async () => {
     try {
       // パーサー（+ mathjs）を動的ロード
       const parseLatex = await getParser();

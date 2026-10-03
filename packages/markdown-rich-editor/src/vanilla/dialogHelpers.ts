@@ -106,7 +106,7 @@ export function createLineNumberTextarea(opts: {
     const lineHeightPx = fontSize * lineHeight;
     if (lineHeightPx !== renderedLineHeightPx) {
       // 行高さが変わったときのみ全再構築（span の height が陳腐化するため）。
-      while (gutter.firstChild) gutter.removeChild(gutter.firstChild);
+      gutter.replaceChildren();
       renderedLineCount = 0;
       renderedLineHeightPx = lineHeightPx;
     }

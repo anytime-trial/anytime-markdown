@@ -69,7 +69,6 @@ export function createMermaidEditDialog(opts: CreateMermaidEditDialogOptions): M
   const zp = createZoomPanState();
   let currentSvg = opts.svg ?? "";
   let cancelRender: (() => void) | null = null;
-  let activeTab: "code" | "config" = "code";
 
   // extract config/body from initial code
   const { config: initConfig, body: initBody } = extractMermaidConfig(state.getFsCode());
@@ -115,7 +114,6 @@ export function createMermaidEditDialog(opts: CreateMermaidEditDialogOptions): M
       { value: "config", label: t("configTab") },
     ],
     onChange: (val) => {
-      activeTab = val as "code" | "config";
       lntCode.el.style.display = val === "code" ? "flex" : "none";
       lntConfig.el.style.display = val === "config" ? "flex" : "none";
     },
@@ -163,7 +161,6 @@ export function createMermaidEditDialog(opts: CreateMermaidEditDialogOptions): M
         const merged = mergeMermaidConfig(configText, code);
         state.onFsTextChange(merged);
         // Switch to code tab
-        activeTab = "code";
         tabs.update({ value: "code" });
         lntCode.el.style.display = "flex";
         lntConfig.el.style.display = "none";

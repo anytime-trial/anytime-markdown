@@ -83,6 +83,13 @@ interface ImageCropToolHandle {
   destroy: () => void;
 }
 
+/** トグルアイコンの active 状態（color="primary" 相当）と aria-pressed を反映する。 */
+function applyToggleState(btn: IconButtonHandle, active: boolean): void {
+  btn.el.setAttribute("aria-pressed", active ? "true" : "false");
+  // 非アクティブを "" にすると IconButton の color:inherit が消え <button> が UA 黒に戻る。
+  btn.el.style.color = active ? "var(--am-color-primary-main)" : "inherit";
+}
+
 /**
  * vanilla ImageCropTool を生成する。`el` を呼び元が配置し、destroy で listener と子ハンドルを解放する。
  */
@@ -498,13 +505,6 @@ export function createImageCropTool(
     right.appendChild(gridBtn.el);
 
     toolbar.appendChild(right);
-  }
-
-  /** トグルアイコンの active 状態（color="primary" 相当）と aria-pressed を反映する。 */
-  function applyToggleState(btn: IconButtonHandle, active: boolean): void {
-    btn.el.setAttribute("aria-pressed", active ? "true" : "false");
-    // 非アクティブを "" にすると IconButton の color:inherit が消え <button> が UA 黒に戻る。
-    btn.el.style.color = active ? "var(--am-color-primary-main)" : "inherit";
   }
 
   // ===== オーバーレイ再描画（ruler/grid SVG・crop SVG・crop プレビュー） =====

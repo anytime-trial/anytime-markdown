@@ -119,6 +119,26 @@ function ensureStyleInjected(): void {
 }
 
 /**
+ * role="button" の div は Enter/Space で click を発火しないため、click とキーボード操作を配線し、
+ * 解除用ハンドルを handles へ積む。
+ */
+function wireCardActivation(
+  card: HTMLElement,
+  onActivate: () => void,
+  handles: Array<{ destroy: () => void }>,
+): void {
+  card.addEventListener("click", onActivate);
+  handles.push({ destroy: () => card.removeEventListener("click", onActivate) });
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    onActivate();
+  };
+  card.addEventListener("keydown", onKeyDown);
+  handles.push({ destroy: () => card.removeEventListener("keydown", onKeyDown) });
+}
+
+/**
  * ドキュメント内でコメント ID に対応するテキストまたは位置を取得する（React 版 findCommentInDoc と同一）。
  */
 function findCommentInDoc(
@@ -414,16 +434,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     const onCardClick = (): void => {
       if (found) navigate(found.pos + 1);
     };
-    card.addEventListener("click", onCardClick);
-    bodyHandles.push({ destroy: () => card.removeEventListener("click", onCardClick) });
-    // role="button" の div は Enter/Space で click を発火しないため、キーボード操作を明示的に配線する。
-    const onCardKeyDown = (e: KeyboardEvent): void => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      onCardClick();
-    };
-    card.addEventListener("keydown", onCardKeyDown);
-    bodyHandles.push({ destroy: () => card.removeEventListener("keydown", onCardKeyDown) });
+    wireCardActivation(card, onCardClick, bodyHandles);
 
     // 対象テキスト / point ラベル。
     if (found && !found.isPoint && found.text) {
@@ -526,16 +537,7 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     cardBtn.setAttribute("role", "button");
     cardBtn.tabIndex = 0;
     const onCardClick = (): void => navigate(img.pos);
-    cardBtn.addEventListener("click", onCardClick);
-    bodyHandles.push({ destroy: () => cardBtn.removeEventListener("click", onCardClick) });
-    // role="button" の div は Enter/Space で click を発火しないため、キーボード操作を明示的に配線する。
-    const onCardKeyDown = (e: KeyboardEvent): void => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      onCardClick();
-    };
-    cardBtn.addEventListener("keydown", onCardKeyDown);
-    bodyHandles.push({ destroy: () => cardBtn.removeEventListener("keydown", onCardKeyDown) });
+    wireCardActivation(cardBtn, onCardClick, bodyHandles);
 
     const labelRow = document.createElement("div");
     labelRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:2px;";

@@ -210,15 +210,12 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
         return;
       }
       if (e.key === "Enter") {
-        if (mode === "label") {
-          // ラベルは改行を持てない（行ベース DSL）。Shift 有無に関わらず確定する。
-          e.preventDefault();
-          confirm();
-        } else if (e.ctrlKey || e.metaKey) {
+        // ラベルは改行を持てない（行ベース DSL）。Shift 有無に関わらず確定する。
+        // mode='list' の素の Enter は改行（既定動作）なので Ctrl/Cmd 付きのみ確定する。
+        if (mode === "label" || e.ctrlKey || e.metaKey) {
           e.preventDefault();
           confirm();
         }
-        // mode='list' の素の Enter は改行（既定動作）。
       }
     });
     ta.addEventListener("blur", () => confirm());
