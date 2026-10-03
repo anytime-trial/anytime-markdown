@@ -47,6 +47,13 @@ function sha256(text: string): string {
 }
 
 /** フェンス外の ATX 見出しで分割し、節ごとの指紋を返す。見出し前の前文は対象にしない。 */
+/** 末尾の改行だけを落とす（`/\n+$/` は改行が並ぶ入力で二乗時間になるため走査で行う）。 */
+function stripTrailingNewlines(text: string): string {
+  let end = text.length;
+  while (end > 0 && text[end - 1] === '\n') end--;
+  return text.slice(0, end);
+}
+
 export function fingerprintPlanSections(markdown: string): PlanSectionFingerprint[] {
   const lines = markdown.split('\n');
   const sections: Array<{ heading: string; body: string[] }> = [];
@@ -55,7 +62,7 @@ export function fingerprintPlanSections(markdown: string): PlanSectionFingerprin
     const trimmed = raw.trim();
     const marker = /^(`{3,}|~{3,})/.exec(trimmed);
     if (fence !== null) {
-      if (marker && marker[1][0] === fence.char && marker[1].length >= fence.length) fence = null;
+      if (marker && marker[1].startsWith(fence.char) && marker[1].length >= fence.length) fence = null;
       sections.at(-1)?.body.push(raw);
       continue;
     }
@@ -74,7 +81,8 @@ export function fingerprintPlanSections(markdown: string): PlanSectionFingerprin
   return sections.map((section) => {
     const occurrence = (counts.get(section.heading) ?? 0) + 1;
     counts.set(section.heading, occurrence);
-    const normalized = section.body.map((line) => line.trimEnd()).join('\n').replace(/\n+$/, '');
+    const joined = section.body.map((line) => line.trimEnd()).join('\n');
+    const normalized = stripTrailingNewlines(joined);
     return { heading: section.heading, occurrence, hash: sha256(normalized) };
   });
 }

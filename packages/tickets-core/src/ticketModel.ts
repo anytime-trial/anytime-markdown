@@ -275,7 +275,8 @@ function serializeScalar(value: string | number): string {
     throw new Error('frontmatter のスカラー値に制御文字（改行等）は使用できません');
   }
   if (value === '' || /[:#[\]{}"']/.test(value) || NUMBER_RE.test(value) || value.trim() !== value) {
-    return `"${value.replaceAll('"', String.raw`\"`)}"`;
+    const escaped = value.replaceAll('"', String.raw`\"`);
+    return `"${escaped}"`;
   }
   return value;
 }

@@ -18,7 +18,7 @@ export interface BodyImage {
 // エディタと同じに扱えず、番号が 1 つずれるとそれ以降の注記がすべて対応しなくなる。
 const md = new MarkdownIt({ html: true, linkify: false, breaks: false });
 
-const HTML_IMG_RE = /<img\b[^>]*?\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
+const HTML_IMG_RE = /<img\b(?:[^>\s]|\s(?!src\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)))*\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
 const HTML_ALT_RE = /\salt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
 
 interface Collector {
