@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-03
+
+### Changed
+
+- No functional changes. The version is aligned with the `anytime-trail` release set.
+
 ## [1.8.1] - 2026-09-30
 
 ### Fixed

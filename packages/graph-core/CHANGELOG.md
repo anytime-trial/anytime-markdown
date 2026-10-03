@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-03
+
+### Changed
+
+- The ISO 8601 date check of the cooccurrence timeline preset is split into simple parts instead of one complex regex (Sonar S5843). Accepted values are unchanged.
+- Minor refactors in the graph DSL parser and the fishbone preset (no behaviour change).
+
 ## [1.3.2] - 2026-09-13
 
 ### Fixed

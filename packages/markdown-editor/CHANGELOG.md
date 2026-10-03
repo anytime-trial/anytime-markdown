@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-10-03
+
+### Changed
+
+- Internal refactors for SonarCloud findings with no behaviour change: heading targets of agent edits are parsed without a backtracking regex, fire-and-forget promises are marked with `void`, duplicated branches are merged and DOM removal uses `node.remove()` / `replaceChildren()`.
+
 ## [1.26.0] - 2026-09-30
 
 ### Changed
