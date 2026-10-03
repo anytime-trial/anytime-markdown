@@ -92,12 +92,12 @@ function rollbackRenames(
   rename: (from: string, to: string) => void,
   warn: (message: string) => void,
 ): void {
-  for (const { from, to } of [...done].reverse()) {
+  for (const { from: original, to: moved } of [...done].reverse()) {
     try {
-      rename(to, from);
+      rename(moved, original);
     } catch (rollbackError) {
       warn(
-        `[legacyDbRename] rollback failed for ${to} -> ${from}: ${String(
+        `[legacyDbRename] rollback failed for ${moved} -> ${original}: ${String(
           rollbackError instanceof Error ? rollbackError.message : rollbackError,
         )}`,
       );

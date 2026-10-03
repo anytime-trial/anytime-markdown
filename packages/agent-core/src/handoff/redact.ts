@@ -12,7 +12,7 @@ const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, R], // Slack token
   // \s*[:=]?\s* は 2 つの \s* が空白の並びを分け合えて super-linear（Sonar S8786）。
   // 区切り文字とその後続空白を 1 つの任意グループに畳む（受理する文字列の集合は同じ）。
-  [/\b(authorization|bearer)\b\s*(?:[:=]\s*)?[A-Za-z0-9._~+/-]{12,}=*/gi, `$1 ${R}`],
+  [/\b(authorization|bearer)\b\s*(?:[:=]\s*)?[a-z0-9._~+/-]{12,}=*/gi, `$1 ${R}`],
   [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{6,}\b/g, R], // JWT
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, R],
 ];

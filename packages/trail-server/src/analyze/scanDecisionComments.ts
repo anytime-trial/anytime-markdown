@@ -58,6 +58,42 @@ function namedNodeIdent(node: ts.Node): string | null {
   return null;
 }
 
+/** 1 ファイル分の走査状態。 */
+interface CommentScanContext {
+  readonly sourceFile: ts.SourceFile;
+  readonly sourceText: string;
+  readonly relFilePath: string;
+  readonly seenCommentPositions: Set<number>;
+  readonly out: DecisionComment[];
+}
+
+function processCommentRange(ctx: CommentScanContext, range: ts.CommentRange, node: ts.Node): void {
+  if (ctx.seenCommentPositions.has(range.pos)) return;
+  ctx.seenCommentPositions.add(range.pos);
+
+  const raw = ctx.sourceText.slice(range.pos, range.end);
+  const inner = commentInnerText(raw, range.kind);
+  const match = COMMENT_PATTERN.exec(inner);
+  if (!match) return;
+
+  const text = match[1].trim();
+  if (!text) return;
+
+  const { line: lineZero } = ctx.sourceFile.getLineAndCharacterOfPosition(range.pos);
+  ctx.out.push({
+    filePath: ctx.relFilePath,
+    line: lineZero + 1,
+    text,
+    symbolName: namedNodeIdent(node),
+  });
+}
+
+function visitComments(node: ts.Node, ctx: CommentScanContext): void {
+  const commentRanges = ts.getLeadingCommentRanges(ctx.sourceText, node.getFullStart()) ?? [];
+  for (const range of commentRanges) processCommentRange(ctx, range, node);
+  ts.forEachChild(node, (child) => visitComments(child, ctx));
+}
+
 /**
  * ts.Program の全ソースを走査し、`WHY:` / `RATIONALE:` / `理由:` の leading comment を
  * `DecisionComment[]` として抽出する純粋関数。DB 書込・memory 依存を持たないため
@@ -88,37 +124,13 @@ export function scanDecisionComments(program: ts.Program, rootDir: string): Deci
     if (sourceFile.isDeclarationFile) continue;
     if (relFilePath.includes('node_modules')) continue;
 
-    const sourceText = sourceFile.getFullText();
-    const seenCommentPositions = new Set<number>();
-
-    function processCommentRange(range: ts.CommentRange, node: ts.Node): void {
-      if (seenCommentPositions.has(range.pos)) return;
-      seenCommentPositions.add(range.pos);
-
-      const raw = sourceText.slice(range.pos, range.end);
-      const inner = commentInnerText(raw, range.kind);
-      const match = COMMENT_PATTERN.exec(inner);
-      if (!match) return;
-
-      const text = match[1].trim();
-      if (!text) return;
-
-      const { line: lineZero } = sourceFile.getLineAndCharacterOfPosition(range.pos);
-      out.push({
-        filePath: relFilePath,
-        line: lineZero + 1,
-        text,
-        symbolName: namedNodeIdent(node),
-      });
-    }
-
-    function visit(node: ts.Node): void {
-      const commentRanges = ts.getLeadingCommentRanges(sourceText, node.getFullStart()) ?? [];
-      for (const range of commentRanges) processCommentRange(range, node);
-      ts.forEachChild(node, visit);
-    }
-
-    visit(sourceFile);
+    visitComments(sourceFile, {
+      sourceFile,
+      sourceText: sourceFile.getFullText(),
+      relFilePath,
+      seenCommentPositions: new Set<number>(),
+      out,
+    });
   }
 
   return out;

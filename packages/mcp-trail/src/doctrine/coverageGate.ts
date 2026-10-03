@@ -36,11 +36,11 @@ export interface CoverageGateInput {
   readonly coverage: GateCoverage;
   readonly citations: ReadonlyArray<GateCitation>;
   /** 判断が影響する変更対象（絶対パス）。未指定は ODD 判定不能として escalate */
-  readonly targetPaths?: ReadonlyArray<string> | undefined;
+  readonly targetPaths?: ReadonlyArray<string>;
   /** 呼び出し側の重大度申告。未指定は判定不能として escalate */
-  readonly severity?: GateSeverity | undefined;
+  readonly severity?: GateSeverity;
   /** 呼び出し側の操作種別申告。未指定は判定不能として escalate */
-  readonly operationKind?: OperationKind | undefined;
+  readonly operationKind?: OperationKind;
   /** ODD Policy Registry の解決結果（Phase 7-A）。`invalid` は判定不能として escalate */
   readonly odd: OddResolution;
   /**
@@ -49,19 +49,19 @@ export interface CoverageGateInput {
    * `instruction_unknown` で escalate する。「何の指示の範囲内か」が無い判断は行動範囲を
    * 検証できず、代行の前提を欠くため fail-closed に倒す。
    */
-  readonly instructionDeclared?: boolean | undefined;
+  readonly instructionDeclared?: boolean;
   /**
    * 指示から一意に定まらない論点の事前申告 (DCT-14)。非空は escalate。
    * **未指定は判定不能として escalate**（他 3 軸と同じ fail-closed）。空配列を
    * 明示して初めて「指示から一意に定まる」という宣言になる。
    */
-  readonly underspecifiedPoints?: ReadonlyArray<string> | undefined;
+  readonly underspecifiedPoints?: ReadonlyArray<string>;
   /**
    * 解消済み論点の逐語文字列集合 (DCT-19)。`resolve_underspecified_points` で人の回答が
    * 記録された論点。申告との突合は逐語一致で、未解消の残りだけが規則 2.5 の対象になる。
    * 未指定は「解消なし」と同義（申告義務の fail-closed は underspecifiedPoints 側が担う）。
    */
-  readonly resolvedPoints?: ReadonlyArray<string> | undefined;
+  readonly resolvedPoints?: ReadonlyArray<string>;
 }
 
 export interface CoverageGateResult {

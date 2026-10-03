@@ -22,6 +22,19 @@ export interface AgentEditController {
   dispose: () => void;
 }
 
+/**
+ * "## Title" 形式の見出し行を level と本文に分解する。`/^(#{1,6})\s+(.*?)\s*$/` と同値だが、
+ * 後方参照の多い正規表現（super-linear）を避けるため、先頭は固定長の判定、本文は trim で取る。
+ */
+export function parseHeadingTarget(heading: string): { hashes: string; text: string } | null {
+  const head = /^(#{1,6})\s/.exec(heading);
+  if (!head) return null;
+  const text = heading.slice(head[1].length).trim();
+  // 元の `.` は改行系文字にマッチしないため、本文中の改行は不一致とする。
+  if (/[\n\r\u2028\u2029]/.test(text)) return null;
+  return { hashes: head[1], text };
+}
+
 export function installAgentEdits({ editor }: { editor: Editor }): AgentEditController {
   let ui: AgentEditUiEntry[] = [];
   let applying = false;
@@ -61,10 +74,10 @@ export function installAgentEdits({ editor }: { editor: Editor }): AgentEditCont
       const seen = new Set<string>();
       const next: AgentEditUiEntry[] = [];
       for (const target of targets) {
-        const match = /^(#{1,6})\s+(.*?)\s*$/.exec(target.heading);
+        const match = parseHeadingTarget(target.heading);
         const occurrence = target.occurrence ?? 1;
         if (!match || !Number.isInteger(occurrence) || occurrence < 1) continue;
-        const entry: AgentEditUiEntry = { level: match[1].length, text: normalizeHeadingText(match[2]), occurrence };
+        const entry: AgentEditUiEntry = { level: match.hashes.length, text: normalizeHeadingText(match.text), occurrence };
         const key = agentEditEntryKey(entry);
         if (seen.has(key)) continue;
         seen.add(key);

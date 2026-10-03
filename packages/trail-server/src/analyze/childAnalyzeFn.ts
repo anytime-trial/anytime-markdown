@@ -13,7 +13,7 @@ export interface ChildAnalyzeFnDeps {
   readonly onProgress?: (phase: string, percent: number) => void;
   readonly logger?: { info(m: string): void; warn(m: string): void; error(m: string, e?: unknown): void };
   /** fork 注入（テスト用）。`AnalyzeChildRunner` へ透過。 */
-  readonly fork?: AnalyzeChildRunnerDeps['fork'];
+  readonly fork?: NonNullable<AnalyzeChildRunnerDeps['fork']>;
   /** SIGSEGV 時の 1 回リトライ可否（既定 true）。 */
   readonly retryOnCrash?: boolean;
 }

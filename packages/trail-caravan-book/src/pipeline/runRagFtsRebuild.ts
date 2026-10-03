@@ -37,17 +37,12 @@ function log(level: string, message: string, context?: Record<string, unknown>):
   console.log(`[${ts()}] [${level}] runRagFtsRebuild ${message}${ctx}`);
 }
 
-function generateRunId(): string {
-  return `rag_fts_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 export async function runRagFtsRebuild(
   input: RunRagFtsRebuildInput,
 ): Promise<RunRagFtsRebuildResult> {
   const { db, trigger, onProgress, signal } = input;
   const startedAt = ts();
   const startedMs = Date.now();
-  const runId = generateRunId();
 
   // CAS: pipeline_state を確認し、running なら skip
   const currentStatus = db.exec(

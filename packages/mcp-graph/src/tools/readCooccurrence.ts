@@ -87,7 +87,7 @@ export async function readCooccurrence(input: ReadCooccurrenceInput, rootDir: st
 
 /** メモが無い対象では `note` を書かない（省略とメモなしを同じ形で返す）。 */
 function noteField(
-  file: { spec: { notes?: Parameters<typeof readCooccurrenceNote>[0]['notes'] } },
+  file: { spec: Parameters<typeof readCooccurrenceNote>[0] },
   target: CooccurrenceNoteTarget,
   index: number,
 ): { note?: string } {

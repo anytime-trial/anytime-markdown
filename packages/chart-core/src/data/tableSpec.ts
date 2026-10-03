@@ -48,9 +48,9 @@ function fullRange(cells: ReadonlyArray<ReadonlyArray<string>>): TableRange {
 }
 
 /** 見出しの末尾 " x" / " y" を除いた系列名。 */
-function stripAxisSuffix(header: string | undefined): string {
+function stripAxisSuffix(header = ""): string {
   // /\s*[xy]$/ は一致しない入力で空白の連なりぶんバックトラックする（Sonar S8786）。
-  const raw = header ?? "";
+  const raw = header;
   const last = raw.at(-1);
   if (last === undefined || !"xXyY".includes(last)) return raw.trim();
   let end = raw.length - 1;

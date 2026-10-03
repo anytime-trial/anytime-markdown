@@ -10,7 +10,7 @@ import {
 import { isLowInformationEntity } from '../canonical/entityQuality';
 import { fetchCommunityNames } from '../retrieve/communitySummaries';
 import { tokenizeForFts5 } from './tokenizeForFts5';
-import { reciprocalRankFusion, type RankSource } from './reciprocalRankFusion';
+import { reciprocalRankFusion, type FusedItem, type RankSource } from './reciprocalRankFusion';
 
 export interface HybridSearchInput extends SearchInput {
   /** BM25 で取得する候補数。default 30 */
@@ -109,26 +109,14 @@ function logPerf(ctx: Record<string, unknown>): void {
   console.log(`[${ts}] [INFO] hybridSearchCaravanBook ${JSON.stringify(ctx)}`);
 }
 
-export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promise<HybridSearchResult> {
+/**
+ * ベクトルアームを実行する。ollama 不通時は空配列へ縮退する（従来は検索全体が
+ * 失敗し、embedding 基盤の無い環境で結果ゼロになっていた）。
+ */
+async function vectorArmOrDegrade(opts: HybridSearchOptions, vecLimit: number): Promise<SearchEntity[]> {
   const { db, ollama, embedModel, input } = opts;
-  const bm25Limit = input.bm25_limit ?? 30;
-  const vecLimit = input.vec_limit ?? 30;
-  const rrfK = input.rrf_k ?? 60;
-  const finalLimit = input.final_limit ?? 12;
-
-  const t0 = nowMs();
-  // 1. BM25 (FTS5)
-  const bm25Hits = bm25Search(db, input.query, bm25Limit, {
-    entity_types: input.entity_types,
-    since: input.since,
-  });
-  const tBm25 = nowMs();
-
-  // 2. Vector top-K。ollama 不通時は BM25 のみへ縮退する（従来は検索全体が
-  //    失敗し、embedding 基盤の無い環境で結果ゼロになっていた）
-  let vecEntities: SearchEntity[] = [];
   try {
-    vecEntities = await vectorTopK({
+    return await vectorTopK({
       db,
       ollama,
       embedModel,
@@ -145,7 +133,81 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
     console.warn(
       `[${new Date().toISOString()}] [WARN] hybridSearchCaravanBook vector arm degraded to BM25-only: ${stack}`,
     );
+    return [];
   }
+}
+
+/**
+ * RRF 融合結果を entity 詳細へ解決し、低情報エンティティを除外して finalLimit 件に切る。
+ * 既に vec で取れている entity は vecEntities から再利用 (score 取得済)、
+ * BM25-only でヒットした id は別途 hydrate する。
+ */
+function buildFusedEntities(
+  db: CaravanDbConnection,
+  fused: ReadonlyArray<FusedItem>,
+  vecEntities: ReadonlyArray<SearchEntity>,
+  bm25Hits: ReadonlyArray<{ id: string; rank: number }>,
+  finalLimit: number,
+): FusedEntity[] {
+  const vecById = new Map(vecEntities.map((e) => [e.id, e]));
+  const missingIds = fused.filter((f) => !vecById.has(f.id)).map((f) => f.id);
+  const extraEntities = missingIds.length > 0 ? hydrateEntities(db, missingIds) : [];
+  const extraById = new Map(extraEntities.map((e) => [e.id, e]));
+
+  const bm25RankById = new Map(bm25Hits.map((h) => [h.id, h.rank]));
+  const entities: FusedEntity[] = [];
+  for (const f of fused) {
+    if (entities.length >= finalLimit) break;
+    const base = vecById.get(f.id) ?? extraById.get(f.id);
+    if (!base) continue;
+    // vec アームは vectorTopK 内で除外済みだが、BM25 のみで hit した id はここが唯一の関所
+    if (isLowInformationEntity(base.display_name, base.summary)) continue;
+    entities.push({
+      ...base,
+      score: f.score,
+      sources: f.sources,
+      raw_scores: buildRawScores(bm25RankById.get(f.id), vecById.get(f.id)?.score),
+    });
+  }
+
+  attachCommunityNames(db, entities);
+  return entities;
+}
+
+/** アームごとの生スコア。そのアームでヒットしなかった項目は省略する。 */
+function buildRawScores(bm25Rank: number | undefined, cosine: number | undefined): FusedEntity['raw_scores'] {
+  return {
+    ...(bm25Rank !== undefined ? { bm25_rank: bm25Rank } : {}),
+    ...(cosine !== undefined ? { cosine } : {}),
+  };
+}
+
+/** 要約済みコミュニティの名前を文脈として同梱する（T-22。無ければフィールド省略）。 */
+function attachCommunityNames(db: CaravanDbConnection, entities: FusedEntity[]): void {
+  const communityNames = fetchCommunityNames(db, entities.map((e) => e.id));
+  for (const entity of entities) {
+    const communityName = communityNames.get(entity.id);
+    if (communityName !== undefined) entity.community = { name: communityName };
+  }
+}
+
+export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promise<HybridSearchResult> {
+  const { db, input } = opts;
+  const bm25Limit = input.bm25_limit ?? 30;
+  const vecLimit = input.vec_limit ?? 30;
+  const rrfK = input.rrf_k ?? 60;
+  const finalLimit = input.final_limit ?? 12;
+
+  const t0 = nowMs();
+  // 1. BM25 (FTS5)
+  const bm25Hits = bm25Search(db, input.query, bm25Limit, {
+    entity_types: input.entity_types,
+    since: input.since,
+  });
+  const tBm25 = nowMs();
+
+  // 2. Vector top-K（ollama 不通時は BM25 のみへ縮退）
+  const vecEntities = await vectorArmOrDegrade(opts, vecLimit);
   const vecHits = vecEntities.map((e, i) => ({ id: e.id, rank: i }));
   const tVec = nowMs();
 
@@ -178,40 +240,8 @@ export async function hybridSearchCaravanBook(opts: HybridSearchOptions): Promis
     return { entities: [], edges: [], episodes: [], matched: false };
   }
 
-  // 4. Hydrate: BM25-only でヒットした id は entity 詳細を別途取得する。
-  //    既に vec で取れている entity は vecEntities から再利用 (score 取得済)。
-  const vecById = new Map(vecEntities.map((e) => [e.id, e]));
-  const missingIds = fused.filter((f) => !vecById.has(f.id)).map((f) => f.id);
-  const extraEntities = missingIds.length > 0 ? hydrateEntities(db, missingIds) : [];
-  const extraById = new Map(extraEntities.map((e) => [e.id, e]));
-
-  const bm25RankById = new Map(bm25Hits.map((h) => [h.id, h.rank]));
-  const entities: FusedEntity[] = [];
-  for (const f of fused) {
-    if (entities.length >= finalLimit) break;
-    const base = vecById.get(f.id) ?? extraById.get(f.id);
-    if (!base) continue;
-    // vec アームは vectorTopK 内で除外済みだが、BM25 のみで hit した id はここが唯一の関所
-    if (isLowInformationEntity(base.display_name, base.summary)) continue;
-    const bm25Rank = bm25RankById.get(f.id);
-    const cosine = vecById.get(f.id)?.score;
-    entities.push({
-      ...base,
-      score: f.score,
-      sources: f.sources,
-      raw_scores: {
-        ...(bm25Rank !== undefined ? { bm25_rank: bm25Rank } : {}),
-        ...(cosine !== undefined ? { cosine } : {}),
-      },
-    });
-  }
-
-  // 要約済みコミュニティの名前を文脈として同梱する（T-22。無ければフィールド省略）
-  const communityNames = fetchCommunityNames(db, entities.map((e) => e.id));
-  for (const entity of entities) {
-    const communityName = communityNames.get(entity.id);
-    if (communityName !== undefined) entity.community = { name: communityName };
-  }
+  // 4. Hydrate + 低情報除外 + コミュニティ名の同梱
+  const entities = buildFusedEntities(db, fused, vecEntities, bm25Hits, finalLimit);
 
   // 5. hops=1 のときは fused エンティティの周辺文脈を直接取得する
   //    （従来は searchCaravanBook を再実行してベクトル検索を二重に走らせ、

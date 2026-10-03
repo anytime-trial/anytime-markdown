@@ -18,6 +18,107 @@ export interface BugFixCausalityBackfillResult {
   duration_ms: number;
 }
 
+/** 1. body_excerpt: attach 済み activity.db のコミット本文から充填する。 */
+function backfillBodyExcerpts(
+  db: CaravanDbConnection,
+  repoName: string,
+  logger: CaravanLogger,
+): { filled: number; failures: number } {
+  let filled = 0;
+  let failures = 0;
+  const bodyRows = db.exec(
+    `SELECT bf.id, sc.commit_message
+       FROM caravan_bug_fixes bf
+       JOIN trail.activity_session_commits sc ON sc.commit_hash = bf.commit_sha
+       JOIN trail.activity_repos r ON r.repo_id = sc.repo_id
+      WHERE bf.workspace = ? AND r.repo_name = ? AND bf.body_excerpt = ''`,
+    [repoName, repoName],
+  );
+  for (const row of bodyRows[0]?.values ?? []) {
+    const id = row[0] as string;
+    const message = row[1] as string;
+    try {
+      const body = extractCommitBody(message);
+      if (body === '') continue; // 本文なしコミットは未充填のまま（'' は「無い」を意味する）
+      db.run(`UPDATE caravan_bug_fixes SET body_excerpt = ? WHERE id = ? AND body_excerpt = ''`, [body, id]);
+      filled += db.getRowsModified();
+    } catch (err) {
+      failures += 1;
+      logger.error(`[anytime-memory] causality backfill: body_excerpt failed for id=${id}`, err);
+    }
+  }
+  return { filled, failures };
+}
+
+/** affected_file_paths_json を文字列配列へ解釈する。壊れていれば記録して空配列。 */
+function parseAffectedFilePaths(raw: string, id: string, logger: CaravanLogger): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw || '[]');
+    if (Array.isArray(parsed)) return parsed.filter((p): p is string => typeof p === 'string');
+  } catch (err) {
+    logger.error(`[anytime-memory] causality backfill: broken affected_file_paths_json id=${id}`, err);
+  }
+  return [];
+}
+
+/** 3. introduced_commit_sha: SZZ 簡易推定の再実行。 */
+function backfillIntroducedCommits(
+  db: CaravanDbConnection,
+  repoName: string,
+  repoRoot: string,
+  limit: number,
+  logger: CaravanLogger,
+): { attempted: number; inferred: number; failures: number } {
+  let attempted = 0;
+  let inferred = 0;
+  let failures = 0;
+  const targetRows = db.exec(
+    `SELECT id, commit_sha, affected_file_paths_json, committed_at
+       FROM caravan_bug_fixes
+      WHERE workspace = ? AND introduced_commit_sha IS NULL
+      ORDER BY committed_at DESC`,
+    [repoName],
+  );
+  for (const row of targetRows[0]?.values ?? []) {
+    if (attempted >= limit) break;
+    const id = row[0] as string;
+    const commitSha = row[1] as string;
+    const committedAt = row[3] as string;
+    const filePaths = parseAffectedFilePaths(row[2] as string, id, logger);
+    if (filePaths.length === 0) continue; // 変更ファイル不明の行は推定不能
+    attempted += 1;
+    if (attempted % PROGRESS_LOG_INTERVAL === 0) {
+      logger.info(
+        `[anytime-memory] causality backfill: introduced inference ${attempted} attempted ` +
+          `(${inferred} inferred)`,
+      );
+    }
+    try {
+      const result = inferIntroducedBy({
+        db,
+        bugEntityId: entityId('Bug', commitSha),
+        fixCommitSha: commitSha,
+        affectedFilePaths: filePaths,
+        repoRoot,
+        recordedAt: new Date().toISOString(),
+        valid_from: committedAt,
+        logger,
+      });
+      if (result.introduced_commit_sha !== null) {
+        db.run(
+          `UPDATE caravan_bug_fixes SET introduced_commit_sha = ? WHERE id = ? AND introduced_commit_sha IS NULL`,
+          [result.introduced_commit_sha, id],
+        );
+        inferred += db.getRowsModified();
+      }
+    } catch (err) {
+      failures += 1;
+      logger.error(`[anytime-memory] causality backfill: introduced inference failed for id=${id}`, err);
+    }
+  }
+  return { attempted, inferred, failures };
+}
+
 /**
  * `caravan_bug_fixes` の因果 3 列（body_excerpt / root_cause_episode_id /
  * introduced_commit_sha）を既存行へ充填する operator 駆動バックフィル
@@ -40,103 +141,37 @@ export function runBugFixCausalityBackfill(opts: {
   const { db, repoName, repoRoot } = opts;
   const logger = opts.logger ?? noopLogger;
   const startMs = Date.now();
-  let failures = 0;
 
   // ── 0. workspace 列の充填 ────────────────────────────────────────────────
   // 本番実測で 1,362 / 1,369 行が workspace='' のまま残っていた。以降の各段は
   // workspace = repoName で絞るため、先に埋めないと既存行が全て対象外になる。
   backfillBugFixWorkspace(db, repoName, logger);
 
-  // ── 1. body_excerpt: attach 済み activity.db のコミット本文から充填 ──────
-  let bodyFilled = 0;
-  const bodyRows = db.exec(
-    `SELECT bf.id, sc.commit_message
-       FROM caravan_bug_fixes bf
-       JOIN trail.activity_session_commits sc ON sc.commit_hash = bf.commit_sha
-       JOIN trail.activity_repos r ON r.repo_id = sc.repo_id
-      WHERE bf.workspace = ? AND r.repo_name = ? AND bf.body_excerpt = ''`,
-    [repoName, repoName],
-  );
-  for (const row of bodyRows[0]?.values ?? []) {
-    const id = row[0] as string;
-    const message = row[1] as string;
-    try {
-      const body = extractCommitBody(message);
-      if (body === '') continue; // 本文なしコミットは未充填のまま（'' は「無い」を意味する）
-      db.run(`UPDATE caravan_bug_fixes SET body_excerpt = ? WHERE id = ? AND body_excerpt = ''`, [body, id]);
-      bodyFilled += db.getRowsModified();
-    } catch (err) {
-      failures += 1;
-      logger.error(`[anytime-memory] causality backfill: body_excerpt failed for id=${id}`, err);
-    }
-  }
+  // ── 1. body_excerpt ─────────────────────────────────────────────────────
+  const body = backfillBodyExcerpts(db, repoName, logger);
 
   // ── 2. root_cause_episode_id: 再リンク ──────────────────────────────────
   const episodesRelinked = relinkNullRootCauseEpisodes(db, { workspace: repoName, logger });
 
-  // ── 3. introduced_commit_sha: SZZ 簡易推定の再実行 ──────────────────────
-  let introducedAttempted = 0;
-  let introducedInferred = 0;
-  if (opts.inferIntroduced !== false) {
-    const limit = opts.introducedLimit ?? Number.MAX_SAFE_INTEGER;
-    const targetRows = db.exec(
-      `SELECT id, commit_sha, affected_file_paths_json, committed_at
-         FROM caravan_bug_fixes
-        WHERE workspace = ? AND introduced_commit_sha IS NULL
-        ORDER BY committed_at DESC`,
-      [repoName],
-    );
-    for (const row of targetRows[0]?.values ?? []) {
-      if (introducedAttempted >= limit) break;
-      const id = row[0] as string;
-      const commitSha = row[1] as string;
-      const committedAt = row[3] as string;
-      let filePaths: string[] = [];
-      try {
-        const parsed: unknown = JSON.parse((row[2] as string) || '[]');
-        if (Array.isArray(parsed)) filePaths = parsed.filter((p): p is string => typeof p === 'string');
-      } catch (err) {
-        logger.error(`[anytime-memory] causality backfill: broken affected_file_paths_json id=${id}`, err);
-      }
-      if (filePaths.length === 0) continue; // 変更ファイル不明の行は推定不能
-      introducedAttempted += 1;
-      if (introducedAttempted % PROGRESS_LOG_INTERVAL === 0) {
-        logger.info(
-          `[anytime-memory] causality backfill: introduced inference ${introducedAttempted} attempted ` +
-            `(${introducedInferred} inferred)`,
-        );
-      }
-      try {
-        const result = inferIntroducedBy({
+  // ── 3. introduced_commit_sha ────────────────────────────────────────────
+  const introduced =
+    opts.inferIntroduced === false
+      ? { attempted: 0, inferred: 0, failures: 0 }
+      : backfillIntroducedCommits(
           db,
-          bugEntityId: entityId('Bug', commitSha),
-          fixCommitSha: commitSha,
-          affectedFilePaths: filePaths,
+          repoName,
           repoRoot,
-          recordedAt: new Date().toISOString(),
-          valid_from: committedAt,
+          opts.introducedLimit ?? Number.MAX_SAFE_INTEGER,
           logger,
-        });
-        if (result.introduced_commit_sha !== null) {
-          db.run(
-            `UPDATE caravan_bug_fixes SET introduced_commit_sha = ? WHERE id = ? AND introduced_commit_sha IS NULL`,
-            [result.introduced_commit_sha, id],
-          );
-          introducedInferred += db.getRowsModified();
-        }
-      } catch (err) {
-        failures += 1;
-        logger.error(`[anytime-memory] causality backfill: introduced inference failed for id=${id}`, err);
-      }
-    }
-  }
+        );
 
+  const failures = body.failures + introduced.failures;
   return {
     status: failures > 0 ? 'partial' : 'success',
-    body_filled: bodyFilled,
+    body_filled: body.filled,
     episodes_relinked: episodesRelinked,
-    introduced_attempted: introducedAttempted,
-    introduced_inferred: introducedInferred,
+    introduced_attempted: introduced.attempted,
+    introduced_inferred: introduced.inferred,
     failures,
     duration_ms: Date.now() - startMs,
   };

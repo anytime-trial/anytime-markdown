@@ -55,7 +55,7 @@ export class FileBackupManager {
    */
   private static readonly DEFAULT_MAX_GZIP_BYTES = 1_500_000_000;
   /** gzip 上限（テストから差し替えられるようインスタンス値として持つ）。 */
-  private maxGzipBytes: number = FileBackupManager.DEFAULT_MAX_GZIP_BYTES;
+  private readonly maxGzipBytes: number = FileBackupManager.DEFAULT_MAX_GZIP_BYTES;
   private backupDone = false;
   private readonly suffix: string;
   private readonly latchPerInstance: boolean;

@@ -12,9 +12,10 @@ function bulletList(items: readonly string[], total: number): string {
 }
 
 function bodyMarkdown(s: HandoffStructured): string {
+  const lastCommitSuffix = s.lastCommit ? ` / 直近コミット \`${s.lastCommit.slice(0, 7)}\`` : '';
   return [
     `## 🎯 目的\n${s.goal || '_(未検出)_'}`,
-    `## 🌿 ブランチ\n\`${s.branch || '(unknown)'}\`${s.lastCommit ? ` / 直近コミット \`${s.lastCommit.slice(0, 7)}\`` : ''}`,
+    `## 🌿 ブランチ\n\`${s.branch || '(unknown)'}\`${lastCommitSuffix}`,
     `## 📂 変更ファイル（直近 ${s.filesTouched.length} 件 / 全 ${s.filesTouchedTotal} 件）\n${bulletList(s.filesTouched, s.filesTouchedTotal)}`,
     `## 🔧 実行コマンド（直近 ${s.commands.length} 件 / 全 ${s.commandsTotal} 件）\n${bulletList(s.commands, s.commandsTotal)}`,
     `## ⏱ どこまで進んだか\n${s.lastState || '_(unknown)_'}`,

@@ -13,4 +13,4 @@ async function main() {
   await server.connect(transport);
 }
 
-main();
+void main();

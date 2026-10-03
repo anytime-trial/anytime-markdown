@@ -56,8 +56,8 @@ export function usePreset() {
 function updateStatusBar(mode: ThemeMode) {
   if (!Capacitor.isNativePlatform()) return;
   const isLight = mode === 'light';
-  StatusBar.setStyle({ style: isLight ? Style.Light : Style.Dark });
-  StatusBar.setBackgroundColor({ color: isLight ? '#FBF9F3' : '#121212' });
+  void StatusBar.setStyle({ style: isLight ? Style.Light : Style.Dark });
+  void StatusBar.setBackgroundColor({ color: isLight ? '#FBF9F3' : '#121212' });
 }
 
 export function Providers({ children }: Readonly<{ children: React.ReactNode }>) {

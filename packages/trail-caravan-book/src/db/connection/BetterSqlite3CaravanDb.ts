@@ -20,6 +20,12 @@ export interface BetterSqlite3CaravanDbOptions {
   readonly nativeBinding?: string;
 }
 
+// 書込文の動詞部（INSERT [OR x] INTO / REPLACE INTO / UPDATE [OR x] / DELETE FROM）と、
+// その直後の `schema.` 部を 2 段に分けて判定する（1 本にすると正規表現が複雑になりすぎる）。
+const WRITE_VERB_RE =
+  /^\s*(?:INSERT\s+(?:OR\s+[a-z]+\s+)?INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+[a-z]+)?|DELETE\s+FROM)\s+/i;
+const WRITE_SCHEMA_RE = /^([a-z_]\w*)\s*\./i;
+
 export class BetterSqlite3CaravanDb implements CaravanDbConnection {
   private readonly db: BetterSqlite3.Database;
   private lastRunChanges = 0;
@@ -49,7 +55,9 @@ export class BetterSqlite3CaravanDb implements CaravanDbConnection {
     // fail-open が多く、「毎回失敗するが処理は続く」形の恒久欠落になる
     // （本番実測: backfillBugFixWorkspace が常に拒否され workspace 1,362 行が空のまま）。
     // SHORTCUT: 先頭が WITH の書込文と引用符付き schema 名 ("trail".x) は検査対象外. ceiling: 現行コードベースにその形の書込文は無い. upgrade: CTE 経由の書込を導入する時に SQL パーサベースの判定へ置き換える.
-    const m = /^\s*(?:INSERT\s+(?:OR\s+[A-Za-z]+\s+)?INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+[A-Za-z]+)?|DELETE\s+FROM)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\./i.exec(sql);
+    const verb = WRITE_VERB_RE.exec(sql);
+    if (verb === null) return;
+    const m = WRITE_SCHEMA_RE.exec(sql.slice(verb[0].length));
     if (m === null) return;
     const targetSchema = m[1].toLowerCase();
     for (const alias of this.readOnlyAliases) {

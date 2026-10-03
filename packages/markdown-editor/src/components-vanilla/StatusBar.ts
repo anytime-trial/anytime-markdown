@@ -372,7 +372,7 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
     dirtyTooltip?.destroy();
     dirtyTooltip = null;
     // root をクリア（子ハンドルの el は使い回すので destroy しない）。
-    for (const node of [...el.childNodes]) el.removeChild(node);
+    for (const node of [...el.childNodes]) node.remove();
 
     if (hidden) {
       // React 原版は null を返すが、vanilla はハンドルの el を維持するため空 div にする。

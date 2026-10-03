@@ -104,6 +104,35 @@ export function reassociateCaravanCommunitySummaries(
   return { refreshed };
 }
 
+/**
+ * 標本は次数上位から取り、低情報名（「不明」等のプレースホルダ）を除いて
+ * sampleSize 件へ絞る。除外分を見込んで 3 倍を先読みする。
+ */
+function loadSampleMembers(
+  db: CaravanDbConnection,
+  graphVersion: string,
+  communityId: number,
+  sampleSize: number,
+): CommunitySampleMember[] {
+  const memberRows = db.exec(
+    `SELECT e.display_name, e.type, l.degree, e.summary
+       FROM caravan_entity_layout l
+       JOIN caravan_entities e ON e.id = l.entity_id
+       WHERE l.graph_version = ? AND l.community_id = ?
+       ORDER BY l.degree DESC, e.display_name ASC
+       LIMIT ?`,
+    [graphVersion, communityId, sampleSize * 3],
+  );
+  const sampleMembers: CommunitySampleMember[] = [];
+  for (const row of memberRows[0]?.values ?? []) {
+    if (sampleMembers.length >= sampleSize) break;
+    const displayName = String(row[0]);
+    if (isLowInformationEntity(displayName, String(row[3] ?? ''))) continue;
+    sampleMembers.push({ display_name: displayName, type: String(row[1]), degree: Number(row[2]) });
+  }
+  return sampleMembers;
+}
+
 /** コミュニティの列挙（純読み取り。要約の照合は stable_key 直結合で版キャッシュに依存しない）。 */
 export function listCaravanCommunities(
   db: CaravanDbConnection,
@@ -129,24 +158,7 @@ export function listCaravanCommunities(
     const summaryRow = summaryRows[0]?.values[0];
     if (options.unsummarizedOnly === true && summaryRow !== undefined) continue;
 
-    // 標本は次数上位から取り、低情報名（「不明」等のプレースホルダ）を除いて
-    // sampleSize 件へ絞る。除外分を見込んで 3 倍を先読みする。
-    const memberRows = db.exec(
-      `SELECT e.display_name, e.type, l.degree, e.summary
-       FROM caravan_entity_layout l
-       JOIN caravan_entities e ON e.id = l.entity_id
-       WHERE l.graph_version = ? AND l.community_id = ?
-       ORDER BY l.degree DESC, e.display_name ASC
-       LIMIT ?`,
-      [graphVersion, communityId, sampleSize * 3],
-    );
-    const sampleMembers: CommunitySampleMember[] = [];
-    for (const row of memberRows[0]?.values ?? []) {
-      if (sampleMembers.length >= sampleSize) break;
-      const displayName = String(row[0]);
-      if (isLowInformationEntity(displayName, String(row[3] ?? ''))) continue;
-      sampleMembers.push({ display_name: displayName, type: String(row[1]), degree: Number(row[2]) });
-    }
+    const sampleMembers = loadSampleMembers(db, graphVersion, communityId, sampleSize);
 
     result.push({
       community_id: communityId,

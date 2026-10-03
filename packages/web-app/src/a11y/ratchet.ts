@@ -56,6 +56,42 @@ export interface A11yRatchetResult {
 const byKey = <T extends { page: string; id: string }>(a: T, b: T): number =>
   a.page.localeCompare(b.page) || a.id.localeCompare(b.id);
 
+function mergeViolationsById(violations: readonly A11yViolationSummary[]): Map<string, A11yViolationSummary> {
+  const current = new Map<string, A11yViolationSummary>();
+  for (const v of violations) {
+    const prev = current.get(v.id);
+    current.set(v.id, prev ? { ...prev, nodes: prev.nodes + v.nodes } : v);
+  }
+  return current;
+}
+
+/** 1 ページ分の違反を基線と突き合わせ、回帰・改善を追記して次の基線（ページ分）を返す。 */
+function evaluateScan(
+  page: string,
+  current: ReadonlyMap<string, A11yViolationSummary>,
+  allowedRules: Readonly<Record<string, number>>,
+  regressions: A11yRegression[],
+  improvements: A11yImprovement[],
+): Record<string, number> {
+  const next: Record<string, number> = {};
+  for (const v of current.values()) {
+    const allowed = allowedRules[v.id] ?? 0;
+    if (v.nodes > allowed) {
+      regressions.push({ page, id: v.id, impact: v.impact, nodes: v.nodes, allowed });
+      if (allowed > 0) next[v.id] = allowed;
+      continue;
+    }
+    if (v.nodes < allowed) improvements.push({ page, id: v.id, nodes: v.nodes, allowed });
+    if (v.nodes > 0) next[v.id] = v.nodes;
+  }
+  for (const [id, allowed] of Object.entries(allowedRules)) {
+    if (!current.has(id) && allowed > 0) {
+      improvements.push({ page, id, nodes: 0, allowed });
+    }
+  }
+  return next;
+}
+
 export function ratchetA11y(baseline: A11yBaseline, scans: readonly A11yScanResult[]): A11yRatchetResult {
   const regressions: A11yRegression[] = [];
   const improvements: A11yImprovement[] = [];
@@ -69,28 +105,8 @@ export function ratchetA11y(baseline: A11yBaseline, scans: readonly A11yScanResu
 
   for (const scan of scans) {
     const allowedRules = baseline[scan.page] ?? {};
-    const current = new Map<string, A11yViolationSummary>();
-    for (const v of scan.violations) {
-      const prev = current.get(v.id);
-      current.set(v.id, prev ? { ...prev, nodes: prev.nodes + v.nodes } : v);
-    }
-
-    const next: Record<string, number> = {};
-    for (const v of current.values()) {
-      const allowed = allowedRules[v.id] ?? 0;
-      if (v.nodes > allowed) {
-        regressions.push({ page: scan.page, id: v.id, impact: v.impact, nodes: v.nodes, allowed });
-        if (allowed > 0) next[v.id] = allowed;
-      } else {
-        if (v.nodes < allowed) improvements.push({ page: scan.page, id: v.id, nodes: v.nodes, allowed });
-        if (v.nodes > 0) next[v.id] = v.nodes;
-      }
-    }
-    for (const [id, allowed] of Object.entries(allowedRules)) {
-      if (!current.has(id) && allowed > 0) {
-        improvements.push({ page: scan.page, id, nodes: 0, allowed });
-      }
-    }
+    const current = mergeViolationsById(scan.violations);
+    const next = evaluateScan(scan.page, current, allowedRules, regressions, improvements);
     nextBaseline[scan.page] = next;
   }
 

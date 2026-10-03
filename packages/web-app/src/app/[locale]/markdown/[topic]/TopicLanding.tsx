@@ -26,12 +26,15 @@ const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.anytime-trial.
  * 自前の i18n なので外部入力ではないが、HTML を組み立てる経路自体を作らない）。
  */
 function withInlineCode(text: string): ReactNode[] {
-  return text.split('`').map((segment, index) =>
-    index % 2 === 1 ? (
-      // 分割後の並びは安定していて要素の入れ替えも起きないため index を鍵にしてよい
+  let offset = 0;
+  return text.split('`').map((segment, index) => {
+    // 鍵は配列 index でなく、本文中の開始位置（分割後の並びは安定していて一意）
+    const key = offset;
+    offset += segment.length + 1;
+    return index % 2 === 1 ? (
       <Box
         component="code"
-        key={`code-${index}`}
+        key={`code-${key}`}
         sx={{
           px: 0.5,
           borderRadius: 0.5,
@@ -43,9 +46,9 @@ function withInlineCode(text: string): ReactNode[] {
         {segment}
       </Box>
     ) : (
-      <span key={`text-${index}`}>{segment}</span>
-    ),
-  );
+      <span key={`text-${key}`}>{segment}</span>
+    );
+  });
 }
 
 function SampleBlock({ code }: Readonly<{ code: string }>) {

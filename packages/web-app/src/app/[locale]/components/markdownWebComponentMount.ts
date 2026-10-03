@@ -42,7 +42,7 @@ export function createWebComponentMount(
     el.options = options; // connect 前に渡すと mount 時にそのまま使われる
     container.appendChild(el);
     if (mountOptions.untrustedContent) {
-      resolveUntrustedContentTarget(tagName, el).setAttribute('data-untrusted-content', 'true');
+      resolveUntrustedContentTarget(tagName, el).dataset.untrustedContent = 'true';
     }
     return {
       get editor() {
