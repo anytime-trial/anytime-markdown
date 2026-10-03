@@ -11,7 +11,12 @@ export interface FilterConfig {
 }
 
 // TS/JS: foo.test.ts / foo.spec.tsx 等。Python: test_foo.py / foo_test.py（パスセグメント先頭）。
-const TEST_PATTERN = /\.(test|spec)\.(ts|tsx|js|jsx)$|(^|\/)(test_[^/]+|[^/]+_test)\.pyi?$/;
+const JS_TEST_PATTERN = /\.(?:test|spec)\.[jt]sx?$/;
+const PY_TEST_PATTERN = /(?:^|\/)(?:test_[^/]+|[^/]+_test)\.pyi?$/;
+
+function isTestPath(filePath: string): boolean {
+  return JS_TEST_PATTERN.test(filePath) || PY_TEST_PATTERN.test(filePath);
+}
 
 export function applyFilter(
   nodes: readonly TrailNode[],
@@ -19,7 +24,7 @@ export function applyFilter(
   config: FilterConfig,
 ): { nodes: TrailNode[]; edges: TrailEdge[] } {
   const filteredNodes = nodes.filter(node => {
-    if (!config.includeTests && TEST_PATTERN.test(node.filePath)) {
+    if (!config.includeTests && isTestPath(node.filePath)) {
       return false;
     }
     // Paths starting with '../' are resolved via symlinks (e.g. workspace package symlinks in
