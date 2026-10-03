@@ -29,7 +29,7 @@ export function installEditorDomShortcuts(options: EditorDomShortcutOptions): ()
     if (!mod) return;
     if (e.key === "s" || e.key === "S") {
       e.preventDefault();
-      (fileHandlers.onSaveFile ?? fileHandlers.onDownload)();
+      void (fileHandlers.onSaveFile ?? fileHandlers.onDownload)();
     } else if (e.key === "k" || e.key === "K") {
       e.preventDefault();
       openLinkDialog();
