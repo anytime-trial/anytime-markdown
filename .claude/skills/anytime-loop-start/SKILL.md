@@ -88,6 +88,7 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
    1. 委譲マーカーを先に記録してから起動する（記録前の起動は禁止。クラッシュ時に手順 1 が検知できなくなる）。
    2. 起動は **`setsid` でセッションから切り離す**（Bash の `run_in_background` に依存しない）。tick 実行体はサブエージェントであり、その終了時にバックグラウンドの子プロセスが巻き添えで停止すると委譲が失われるため、プロセスグループごと分離する。起動確認（マーカーの `pid` 生存）だけ行い、実行完了を待たずに tick を終了する。**切り離した子の終了通知は届かない**ので、結果は次 tick の手順 1（死んだマーカーの検知）から手順 8 の委譲検証で拾う。
    3. 起動はコード（ランチャースクリプト）とデータ（委譲プロンプト）を**別ファイルに分離**して行う。委譲プロンプトはバッククォート・クォート・`$` を含む長い Markdown であり、シェルコマンド文字列へ直接埋め込むと本文内容に依存して引用が崩れる（`bash -c '...'` 内のバッククォートが command substitution 化した実害あり）。プロンプト本文をシェルにも argv にも一度も通さないことを不変条件とする:
+      0. Bash で `mkdir -p <ticketsRepo>/.git/ticket-delegations/logs` を実行する（以下のファイルとログの置き場所。ランチャー内の `mkdir -p <ticketsRepo>/.git/ticket-delegations` は `logs/` を作らず、起動時の `> .../logs/<id>.log` リダイレクトは置き場所が無いと失敗する）。
       1. Write で `<ticketsRepo>/.git/ticket-delegations/logs/<チケット id>.prompt.md` に委譲プロンプト本文をそのまま書く（エスケープ不要。heredoc での `.sh` への内包は、本文にデリミタが現れた瞬間に壊れるため使わない）。
       2. Write で `<ticketsRepo>/.git/ticket-delegations/logs/<チケット id>.settings.json` に heartbeat hooks 設定を書く（`<codeWorkspace>` は展開する。委譲子セッションだけに `--settings` で注入するため、グローバル・プロジェクトの settings には配線しない＝他セッションへの影響ゼロ）:
 
@@ -123,8 +124,9 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
              "Bash(git -C <ticketsRepo> status:*)" "Bash(git -C <ticketsRepo> log:*)" "Bash(git -C <ticketsRepo> show:*)" \
              "Bash(git -C <ticketsRepo> diff:*)" "Bash(git -C <ticketsRepo> rev-parse:*)" "Bash(git -C <ticketsRepo> fetch:*)" \
              "Bash(git -C <ticketsRepo> pull:*)" "Bash(git -C <ticketsRepo> add:*)" "Bash(git -C <ticketsRepo> commit:*)" \
-             "Bash(git -C <ticketsRepo> push:*)" \
-             "Bash(git -C <docsRoot> status:*)" "Bash(git -C <docsRoot> log:*)" "Bash(git -C <docsRoot> diff:*)" \
+             "Bash(git -C <ticketsRepo> push:*)" "Bash(git -C <ticketsRepo> branch --show-current:*)" \
+             "Bash(git -C <docsRoot> status:*)" "Bash(git -C <docsRoot> log:*)" "Bash(git -C <docsRoot> show:*)" "Bash(git -C <docsRoot> diff:*)" \
+             "Bash(git -C <docsRoot> fetch:*)" "Bash(git -C <docsRoot> branch --show-current:*)" \
              "Bash(git -C <docsRoot> rev-parse:*)" "Bash(git -C <docsRoot> remote get-url:*)" "Bash(git -C <docsRoot> pull:*)" \
              "Bash(git -C <docsRoot> add:*)" "Bash(git -C <docsRoot> commit:*)" "Bash(git -C <docsRoot> push:*)" \
            < <ticketsRepo>/.git/ticket-delegations/logs/T-12.prompt.md
@@ -134,7 +136,7 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
 
          Why not `--restricted`: 最小権限の `--restricted`（Bash などコマンド実行系の組み込みツールを外す）は子セッションに使わない。子は完了時に `git commit` を実行する必要があり、Bash が無いと完了条件へ到達できない（2026-09-23 に `claude --help` で確認）。権限の絞り込みは `--allowedTools` で行う。
 
-         **git の許可はサブコマンドを列挙する**（`Bash(git -C <ticketsRepo>:*)` のようなワイルドカードにしない）。ワイルドカードだと `reset --hard` / `clean -f` / `push --force` / `branch -D` まで事前許可され、§3 の安全境界がプロンプトの指示だけに頼ることになる（AI事業者ガイドライン第1.2版 別添 第4部「権限を業務遂行に必要な最小限に設定する」。proposal `20261005-skills-ai-guideline-alignment`）。列挙外の git 操作が必要になったら、子は許可リストで拒否されるので §2 の質問へ切り替える。なお `push:*` は `push --force` にも前方一致するが、global の `destructive-guard.sh` と `~/.claude/settings.json` の deny が force push を止める。
+         **git の許可はサブコマンドを列挙する**（`Bash(git -C <ticketsRepo>:*)` のようなワイルドカードにしない）。ワイルドカードだと `reset --hard` / `clean -f` / `push --force` / `branch -D` まで事前許可され、§3 の安全境界がプロンプトの指示だけに頼ることになる（AI事業者ガイドライン第1.2版 別添 第4部「権限を業務遂行に必要な最小限に設定する」。proposal `20261005-skills-ai-guideline-alignment`）。`branch` は `branch -D` まで前方一致しないよう、コミット前 3 点確認で使う `branch --show-current` だけを許可する。`restore --staged` は `restore --staged --worktree`（作業ツリーの上書き）に前方一致するため許可しない。3 点確認で他者の差分を見つけたら、自分で外さず §2 の質問で報告する（`~/.claude/rules/git-workflow.md` の「作業を止めて報告する」側）。列挙外の git 操作が必要になったら、子は許可リストで拒否されるので §2 の質問へ切り替える。なお `push:*` は `push --force` にも前方一致するが、global の `destructive-guard.sh` と `~/.claude/settings.json` の deny が force push を止める。
 
 `export TICKET_DELEGATION_MARKER` は `timeout` 経由で claude に継承され、`--settings` で注入した hooks（同梱 `heartbeat-hook.cjs`）がこの env でマーカーを特定して heartbeat を書く（env 未設定のセッションでは hook は no-op）。マーカーのフィールド契約は §3 を参照。
 
@@ -147,7 +149,7 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
              > <ticketsRepo>/.git/ticket-delegations/logs/T-12.log 2>&1 < /dev/null &
          ```
 
-         外側の `< /dev/null` はランチャー内の stdin リダイレクトで上書きされるため競合しない。ランチャー・プロンプト・settings・ログは `<ticketsRepo>/.git/ticket-delegations/logs/` に置き（手順 7-3-1 の前に `mkdir -p` する）、委譲後も削除しない（子が変死したとき「何を指示されたか」と「何をしたか」を事後検証するため）。`/tmp` に置かないのは、再起動やコンテナ再構築で消え、操作履歴を後から追えなくなるためである（AI事業者ガイドライン第1.2版 別添 第5部「ログ（操作履歴、入力・出力の記録等）の管理体制の整備」）。`.git/` 配下なのでコミット・push されず、手順 1 のマーカー検査（`.git/ticket-delegations/*.json`）にもサブディレクトリなので掛からない。ファイル名はチケット id 単位なので、同じチケットを再委譲すると前回分を上書きする。
+         外側の `< /dev/null` はランチャー内の stdin リダイレクトで上書きされるため競合しない。ランチャー・プロンプト・settings・ログは `<ticketsRepo>/.git/ticket-delegations/logs/` に置き（上の手順 0 で作る）、委譲後も削除しない（子が変死したとき「何を指示されたか」と「何をしたか」を事後検証するため）。`/tmp` に置かないのは、再起動やコンテナ再構築で消え、操作履歴を後から追えなくなるためである（AI事業者ガイドライン第1.2版 別添 第5部「ログ（操作履歴、入力・出力の記録等）の管理体制の整備」）。`.git/` 配下なのでコミット・push されず、手順 1 のマーカー検査（`.git/ticket-delegations/*.json`）にもサブディレクトリなので掛からない。ファイル名はチケット id 単位なので、同じチケットを再委譲すると前回分を上書きする。
 
       **`--add-dir <ticketsRepo>` は必須**（省略不可）。cwd はコードワークスペースのルートであり、チケットリポジトリはその**外**にあるため、付けないと子はチケットファイルを Read すらできず、**質問手順（§2）による中断すら踏めずに死ぬ**（チケットへ何も書けないため痕跡はログにしか残らない）。`--allowedTools` でチケットリポジトリに対する git 操作を事前許可するのも同じ理由で必須である。**ヘッドレスの子は権限プロンプトに応答できないので、必要な許可は起動時に与え切る**（後から承認する経路が無い）。付与範囲は §3 の安全境界と一致させる（チケットリポジトリの git 操作とチケットファイルの読み書きまで。コードワークスペース側の push 権限は与えない）。
 
@@ -234,6 +236,8 @@ description: "チケット駆動の自動実行 1 tick とループ開始。「/
 | 完了報告・手離し | `ticket: T-12 done, handback (assignee: user, +25m)` |
 
 手離し（§1.2）を伴うコミットは、返却先（`assignee: user`）と今回加算した実施工数（`+<分>m`）を件名に含める。
+
+**トレーラ**: 子セッションのコミット（チケットリポジトリ・docsRoot・コードワークスペースのいずれも）は、本文末尾に `Ticket: <チケット id>` と `Co-Authored-By: <実行モデル>` を付ける（§1.1「AI 生成の明示」）。docsRoot 側の `Ticket:` もチケット id だけでよい（チケットリポジトリは ticketsRoot で一意に決まるため）。tick 自身のコミット（着手宣言・委譲検証での返却）は対象外。
 
 ## 5. ループの運用とモデル選択
 

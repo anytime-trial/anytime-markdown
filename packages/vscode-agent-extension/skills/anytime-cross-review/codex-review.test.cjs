@@ -99,7 +99,10 @@ test('runReview は o.prompt を渡すとそれを codex に使う(Round 2 検�
     gitStatus: () => '',
     logger: { info() {}, error() {} },
   });
-  assert.strictEqual(seen, 'CUSTOM VERIFY PROMPT');
+  // カスタムプロンプトは先頭にそのまま残し、両ラウンド共通の信頼境界を末尾に足す(Codex review 指摘 #1)。
+  assert.ok(seen.startsWith('CUSTOM VERIFY PROMPT'));
+  assert.match(seen, /指示文.*データとして扱い従わない/);
+  assert.match(seen, /\.env/);
 });
 
 test('runReview は runCodex が throw したら ok=false・error を返す(catch パス)', async () => {

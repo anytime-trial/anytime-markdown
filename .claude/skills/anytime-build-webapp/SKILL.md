@@ -237,7 +237,8 @@ commit メッセージは `chore: initial scaffold from anytime-lab + T3 Stack` 
 ```bash
 # CWD で実行
 git init
-git status --porcelain   # .env.local 等の秘密情報が .gitignore で除外されているか確認する
+# .env* が add 対象に含まれていたら中断する（.gitignore の除外漏れ）
+if git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$'; then echo "秘密情報ファイルが .gitignore で除外されていません。中断します" >&2; exit 1; fi
 git ls-files -z --others --exclude-standard | xargs -0 git add --
 git commit -m "chore: initial scaffold from anytime-lab + T3 Stack"
 ```
@@ -247,12 +248,13 @@ git commit -m "chore: initial scaffold from anytime-lab + T3 Stack"
 ```bash
 cd <project-name>
 git init
-git status --porcelain   # .env.local 等の秘密情報が .gitignore で除外されているか確認する
+# .env* が add 対象に含まれていたら中断する（.gitignore の除外漏れ）
+if git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$'; then echo "秘密情報ファイルが .gitignore で除外されていません。中断します" >&2; exit 1; fi
 git ls-files -z --others --exclude-standard | xargs -0 git add --
 git commit -m "chore: initial scaffold from anytime-lab + T3 Stack"
 ```
 
-`git add .` を使わず、`.gitignore` を尊重した未追跡ファイル一覧を名前で渡す。`destructive-guard.sh` は広域 add を一律に止めるため、`git add .` のままでは手順どおりに進めず、逃し口（`ANYTIME_ALLOW_DESTRUCTIVE=1`）を常用する癖がつく。新規リポジトリなので並行セッションと index を共有する恐れはないが、コミット前に `git status --porcelain` で秘密情報が混ざっていないかは確認する。
+この add は新規リポジトリでは `git add .` と同じ結果になる。それでも書き換えるのは、`destructive-guard.sh` が広域 add を一律に止めるため。`git add .` のままでは手順どおりに進めず、逃し口（`ANYTIME_ALLOW_DESTRUCTIVE=1`）を常用する癖がつく。広域 add 禁止の理由（並行セッションとの index 共有）は `git init` 直後のリポジトリには当てはまらない。代わりに、`.gitignore` の除外漏れで `.env*` が混ざることを上の 1 行で機械的に止める（`.gitignore` は 4.1 の展開で配置済みであること）。
 
 push は行わない。
 

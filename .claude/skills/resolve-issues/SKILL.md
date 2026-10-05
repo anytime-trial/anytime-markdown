@@ -141,7 +141,7 @@ Step 1 で未解決 issue がある場合は、今回のトリアージに優先
 | 依存の変更 | Dependabot・Security Alerts 対応のパッケージ更新（`package.json` / `package-lock.json` の変更） | global `CLAUDE.md`「パッケージ追加・更新は事前承認」 |
 | 外部起票の Issue 由来の修正 | `author`（`fetch-github-issues.sh` の出力）がリポジトリのコラボレーター（`gh api repos/<owner/repo>/collaborators --jq '.[].login'`）に含まれない GitHub Issue | 本文を誰でも書けるため、修正内容が第三者の文章に誘導される |
 
-- `/loop` から起動された場合など、ユーザーが応答できないときは聞かない。3 種の操作はすべて実行せずに「保留事項」へ列挙し、それ以外の修正だけを進める
+- ユーザーが応答できないとき（`/loop` の定期発火や `ScheduleWakeup` で起動され、起動プロンプトがユーザーの入力ではない場合）は聞かない。3 種の操作はすべて実行せずに「保留事項」へ列挙し、それ以外の修正だけを進める
 - 承認されなかった操作は、レポートの「保留事項」に理由（未承認）と一覧の内容を残す
 
 スキップ対象の SonarCloud issue は、**4-2 で承認を得たものに限り**、SonarCloud API で `falsepositive` に設定する。
@@ -179,6 +179,8 @@ curl -s -X POST "https://sonarcloud.io/api/hotspots/change_status" \
 - `SAFE` / `ACKNOWLEDGED` への変更は 4-2 で承認を得たものに限る。
 
 ### Step 5: 修正ループ
+
+着手前に、今回の実行でコミット済みの修正件数を数える。20 件（実行方針の上限）に達したら、残りの issue は修正せず「今回対象外の issue」へ回す。
 
 issue ごとに以下を実行する。
 
@@ -263,7 +265,7 @@ bash .claude/skills/resolve-issues/scripts/format-report.sh \
 
 - **未解決 issue**: テスト失敗等で修正できなかった issue
 - **スキップした issue**: 誤検知・wontfix・互換性問題等でスキップした issue とその理由
-- **今回対象外の issue**: 件数が多く次回に回した Minor/Info 等の issue
+- **今回対象外の issue**: 1 回あたりの上限（20 件）を超えた分と、件数が多く次回に回した Minor/Info 等の issue
 - **カバレッジ未達ファイル**: 90% に到達しなかったファイルと理由
 - **保留事項**: ユーザー判断が必要な項目（4-2 で未承認・保留になった操作の一覧と、信頼境界に触れて修正を見送った issue を含む）
 - **新たに発見した課題**: 修正中に見つけた関連問題
@@ -302,7 +304,12 @@ bash .claude/skills/resolve-issues/scripts/format-report.sh \
 
 ## /loop で定期実行する場合の停止条件
 
-次のいずれかに当たったら、次回の `ScheduleWakeup` を入れずにループを止め、理由をレポートとチャットに残す。
+下記の停止条件のいずれかに当たったらループを止め、理由をレポートとチャットに残す。止め方は起動形で異なる。
+
+- 自己ペース（間隔なしの `/loop`）: `ScheduleWakeup` を `stop: true` で呼び、次回を予約しない
+- 固定間隔（`/loop 1h /resolve-issues` 等）: `CronList` で `prompt` が `/resolve-issues` の recurring ジョブを特定し、そのジョブだけを `CronDelete` する（無関係なジョブは削除しない）。次回を予約しないだけでは、登録済みのジョブが発火し続ける
+
+停止条件:
 
 - 直近 2 回の実行で、新しくマージできた修正が 0 件だった（残りが承認待ち・修正不能だけになっている）
 - 4-2 の保留事項が前回から減っていない状態が 2 回続いた（人の判断待ちが滞留している）

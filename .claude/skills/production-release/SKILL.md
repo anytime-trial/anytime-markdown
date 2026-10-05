@@ -430,13 +430,15 @@ code --install-extension packages/vscode-extension-pack/anytime-extension-pack-<
 本番リリース依頼を受けている状態のため、通常の push 操作時にユーザー確認は挟まない。リリース依頼自体が push の承認にあたる。
 
 ```bash
-git status --porcelain                      # バージョン・CHANGELOG・lock 以外の変更が無いか確認する
-git diff --name-only -z | xargs -0 git add -- # 追跡済みの変更ファイルだけを名前で add する
+cd "$(git rev-parse --show-toplevel)"         # diff --name-only はルート相対なのでルートで add する
+git status --porcelain                        # バージョン・CHANGELOG・lock・manifest 以外の変更が無いか確認する
+git diff --name-only -z | xargs -0 git add --  # 追跡済みの変更ファイルを名前で add する（未追跡は拾わない）
+git diff --cached --stat                      # ステージ内容がリリース対象のファイルだけかを確認する
 git commit -m "release: v<version>"
 git push origin develop
 ```
 
-`git add -A` を使わないのは、並行セッションが `.git/index` を共有しているとき、他セッションの作業中ファイルまでリリースコミットに混ぜてしまうため（global `CLAUDE.md`「広域 add 禁止」。`destructive-guard.sh` も止める）。`git status --porcelain` に未追跡ファイル（`??`）や想定外のファイルがあれば、コミットせずに確認する。
+`git add -A` を使わないのは、未追跡ファイル（ビルド成果物・他セッションの新規ファイル）をリリースコミットに混ぜないため（global `CLAUDE.md`「広域 add 禁止」。`destructive-guard.sh` も止める）。この add は追跡済みの変更をすべて拾うので、他セッションが追跡済みファイルを編集中だとそれも混ざる。`git status --porcelain` と `git diff --cached --stat` に、リリースで変えたファイル（各 `package.json`・CHANGELOG・`package-lock.json`・manifest）以外が出たらコミットせず、`git restore --staged <path>` で外すか作業を止めて確認する。
 
 **失敗時**: push が rejected された場合は `git pull --rebase origin develop` で最新を取り込んでから再 push。コンフリクトが発生した場合はユーザーに確認。
 
