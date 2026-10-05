@@ -314,18 +314,17 @@ describe('installTemplatedSkill の版数ゲート', () => {
   });
 
   it('書き込みに失敗したら版数を記録しない（次回の起動で再び上書きを試みる）', () => {
-    if (process.getuid?.() === 0) return; // root は chmod を無視するため検証できない
     const env = setupEnv();
-    const targetDir = path.join(env.claudeDir, 'skills', 'anytime-note');
     try {
       writeMarker(env, { 'anytime-note': 1 });
-      fs.mkdirSync(targetDir, { recursive: true });
-      fs.chmodSync(targetDir, 0o555);
+      // SKILL.md の位置をディレクトリにして書き込みを EISDIR で失敗させる。
+      // 権限（chmod）に頼ると root 実行で検証が素通りし、fs 名前空間は jest.spyOn で再定義できないため。
+      fs.mkdirSync(target(env), { recursive: true });
       const result = run(env, 2);
       expect(result.installed).toBe(false);
+      expect(result.upgraded).toBe(true);
       expect(readMarker(env)['anytime-note']).toBe(1);
     } finally {
-      fs.chmodSync(targetDir, 0o755);
       env.cleanup();
     }
   });
