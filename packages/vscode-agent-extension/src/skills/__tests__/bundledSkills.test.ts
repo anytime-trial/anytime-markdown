@@ -31,3 +31,25 @@ describe('BUNDLED_STATIC_SKILLS', () => {
     expect(wired).toEqual(bundled);
   });
 });
+
+/**
+ * manifest のキーと同梱スキル（テンプレート展開を含む）のドリフトを検知する。
+ *
+ * manifest に載っていないスキルは版数ゲートを持たず、配布済みコピーに差分があると
+ * 更新が永久に届かない（2026-10-05: anytime-note がこの状態だった）。
+ */
+describe('skills/manifest.json', () => {
+  it('同梱した全スキル（テンプレート展開スキルを含む）に正の整数の版数がある', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(skillsDir, 'manifest.json'), 'utf-8')) as Record<string, unknown>;
+    const bundled = fs
+      .readdirSync(skillsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+    expect(Object.keys(manifest).sort()).toEqual(bundled);
+    for (const name of bundled) {
+      const v = manifest[name];
+      expect(Number.isInteger(v) && (v as number) > 0).toBe(true);
+    }
+  });
+});

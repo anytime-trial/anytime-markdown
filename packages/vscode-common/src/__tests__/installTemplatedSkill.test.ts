@@ -235,3 +235,98 @@ describe('installTemplatedSkill', () => {
     }
   });
 });
+
+describe('installTemplatedSkill の版数ゲート', () => {
+  const MARKER = '.test-skill-versions.json';
+  const LOCAL = '# locally edited\n';
+
+  function markerPath(env: TestEnv): string {
+    return path.join(env.claudeDir, 'skills', MARKER);
+  }
+  function target(env: TestEnv): string {
+    return path.join(env.claudeDir, 'skills', 'anytime-note', 'SKILL.md');
+  }
+  function writeMarker(env: TestEnv, value: Record<string, number>): void {
+    fs.writeFileSync(markerPath(env), JSON.stringify(value));
+  }
+  function readMarker(env: TestEnv): Record<string, number> {
+    return JSON.parse(fs.readFileSync(markerPath(env), 'utf-8')) as Record<string, number>;
+  }
+  function run(env: TestEnv, version: number) {
+    return installTemplatedSkill({
+      claudeDir: env.claudeDir,
+      extensionPath: env.extensionPath,
+      skillName: 'anytime-note',
+      placeholders: PLACEHOLDERS,
+      version,
+      markerFile: MARKER,
+    });
+  }
+
+  it('同梱版数が記録版数を上回ればローカル差分があっても上書きし、版数を記録する', () => {
+    const env = setupEnv({ existingSkill: LOCAL });
+    try {
+      writeMarker(env, { 'anytime-note': 1 });
+      const result = run(env, 2);
+      expect(result.installed).toBe(true);
+      expect(result.upgraded).toBe(true);
+      expect(fs.readFileSync(target(env), 'utf-8')).toBe(RENDERED);
+      expect(readMarker(env)['anytime-note']).toBe(2);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('同梱版数が記録版数と同じならローカル差分を保持する', () => {
+    const env = setupEnv({ existingSkill: LOCAL });
+    try {
+      writeMarker(env, { 'anytime-note': 2 });
+      const result = run(env, 2);
+      expect(result.preserved).toBe(true);
+      expect(result.upgraded).toBe(false);
+      expect(fs.readFileSync(target(env), 'utf-8')).toBe(LOCAL);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('版数が未記録なら上書きして記録する（版数ゲート導入前の配布済みコピーを正本へ収束させる）', () => {
+    const env = setupEnv({ existingSkill: LOCAL });
+    try {
+      const result = run(env, 1);
+      expect(result.upgraded).toBe(true);
+      expect(fs.readFileSync(target(env), 'utf-8')).toBe(RENDERED);
+      expect(readMarker(env)['anytime-note']).toBe(1);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('記録時に他スキルの版数を消さない', () => {
+    const env = setupEnv({ existingSkill: LOCAL });
+    try {
+      writeMarker(env, { 'anytime-note': 1, 'anytime-loop-start': 22 });
+      run(env, 2);
+      expect(readMarker(env)).toEqual({ 'anytime-note': 2, 'anytime-loop-start': 22 });
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('書き込みに失敗したら版数を記録しない（次回の起動で再び上書きを試みる）', () => {
+    if (process.getuid?.() === 0) return; // root は chmod を無視するため検証できない
+    const env = setupEnv();
+    const targetDir = path.join(env.claudeDir, 'skills', 'anytime-note');
+    try {
+      writeMarker(env, { 'anytime-note': 1 });
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.chmodSync(targetDir, 0o555);
+      const result = run(env, 2);
+      expect(result.installed).toBe(false);
+      expect(readMarker(env)['anytime-note']).toBe(1);
+    } finally {
+      fs.chmodSync(targetDir, 0o755);
+      env.cleanup();
+    }
+  });
+});
