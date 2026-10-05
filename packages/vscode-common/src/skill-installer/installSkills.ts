@@ -28,6 +28,13 @@ export interface InstallTemplatedSkillOptions {
   readonly placeholders: Readonly<Record<string, string>>;
   /** true 指定時は既存ファイルが rendered と異なっていても上書きする。 */
   readonly force?: boolean;
+  /**
+   * 同梱テンプレートの版数（`skills/manifest.json`）。marker の記録版数より大きい、または未記録なら、
+   * 差分があっても上書きする（`installStaticSkillDir` と同じ規則）。省略時は版数ゲートなし。
+   */
+  readonly version?: number;
+  /** 版数の記録先ファイル名（`<claudeDir>/skills/<markerFile>`）。`version` 指定時のみ使う。 */
+  readonly markerFile?: string;
   readonly logger?: InstallSkillLogger;
 }
 
@@ -38,6 +45,8 @@ export interface InstallTemplatedSkillResult {
   readonly skipped: boolean;
   /** 既存ファイルがあり差分のため上書きを保留したか */
   readonly preserved: boolean;
+  /** 版数ゲートが上書きを発動したか（version 指定時のみ true になり得る）。 */
+  readonly upgraded: boolean;
 }
 
 function renderTemplate(template: string, placeholders: Readonly<Record<string, string>>): string {
@@ -53,13 +62,13 @@ export function installTemplatedSkill(opts: InstallTemplatedSkillOptions): Insta
   const force = opts.force === true;
 
   if (!fs.existsSync(opts.claudeDir)) {
-    return { installed: false, skipped: true, preserved: false };
+    return { installed: false, skipped: true, preserved: false, upgraded: false };
   }
 
   const templatePath = path.join(opts.extensionPath, 'skills', opts.skillName, TEMPLATE_FILE);
   if (!fs.existsSync(templatePath)) {
     logger.warn(`[install-skills] bundled template not found: ${templatePath}`);
-    return { installed: false, skipped: true, preserved: false };
+    return { installed: false, skipped: true, preserved: false, upgraded: false };
   }
 
   const template = fs.readFileSync(templatePath, 'utf-8');
@@ -68,9 +77,21 @@ export function installTemplatedSkill(opts: InstallTemplatedSkillOptions): Insta
   const targetDir = path.join(opts.claudeDir, 'skills', opts.skillName);
   const targetPath = path.join(targetDir, SKILL_FILE);
 
+  // 版数ゲート: 同梱版数が marker の記録版数を上回る（または未記録）なら preserve を破って上書きする。
+  // これが無いと、配布済みコピーに差分がある限りテンプレートの更新が永久に届かない（恒久 stale）。
+  const markerPath =
+    opts.version !== undefined && opts.markerFile !== undefined
+      ? path.join(opts.claudeDir, 'skills', opts.markerFile)
+      : null;
+  let upgraded = false;
+  if (markerPath !== null && opts.version !== undefined) {
+    const recorded = readSkillVersionMarker(markerPath, logger)[opts.skillName];
+    upgraded = recorded === undefined || recorded < opts.version;
+  }
+
   // existsSync → readFileSync の TOCTOU を避けるため readFileSync を直接呼び ENOENT で
   // 不在を判定する。CodeQL `js/file-system-race` の対象 (`installSkills.ts:175`) を解消する。
-  if (!force) {
+  if (!force && !upgraded) {
     let current: string | null = null;
     try {
       current = fs.readFileSync(targetPath, 'utf-8');
@@ -82,26 +103,34 @@ export function installTemplatedSkill(opts: InstallTemplatedSkillOptions): Insta
     if (current !== null) {
       if (current === rendered) {
         logger.info(`[install-skills] ${opts.skillName} SKILL.md up-to-date`);
-        return { installed: false, skipped: true, preserved: false };
+        return { installed: false, skipped: true, preserved: false, upgraded: false };
       }
       logger.info(
         `[install-skills] ${opts.skillName} SKILL.md exists with local edits, preserving (pass force: true to overwrite)`,
       );
-      return { installed: false, skipped: false, preserved: true };
+      return { installed: false, skipped: false, preserved: true, upgraded: false };
     }
   }
 
   try {
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(targetPath, rendered, { encoding: 'utf-8' });
-    logger.info(`[install-skills] installed ${opts.skillName} SKILL.md → ${targetPath}`);
-    return { installed: true, skipped: false, preserved: false };
+    logger.info(
+      `[install-skills] installed ${opts.skillName} SKILL.md → ${targetPath}${upgraded ? ` (upgraded to v${String(opts.version)})` : ''}`,
+    );
   } catch (err) {
     logger.error(
       `[install-skills] failed to install ${opts.skillName}: ${String(err)}\n${err instanceof Error ? err.stack ?? '' : ''}`,
     );
-    return { installed: false, skipped: true, preserved: false };
+    // 書き込みに失敗したら版数を記録しない。記録すると次回は recorded >= version となり、
+    // 失敗したまま「ローカル編集あり」として preserve され続ける（installStaticSkillDir と同じ理由）。
+    return { installed: false, skipped: true, preserved: false, upgraded };
   }
+
+  if (markerPath !== null && opts.version !== undefined && upgraded) {
+    recordSkillVersion(markerPath, opts.skillName, opts.version, logger);
+  }
+  return { installed: true, skipped: false, preserved: false, upgraded };
 }
 
 export interface InstallStaticSkillDirOptions {

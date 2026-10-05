@@ -43,6 +43,21 @@ describe('installWorkspaceSkills', () => {
     expect(content).not.toContain('__NOTE_DIR__');
   });
 
+  it('版数ゲート導入前に配置された古い anytime-note を同梱テンプレートで置き換え、版数を記録する', () => {
+    const noteStorageDir = path.join(workspaceRoot, '.anytime', 'notes');
+    const noteSkill = path.join(workspaceRoot, '.claude', 'skills', 'anytime-note', 'SKILL.md');
+    fs.mkdirSync(path.dirname(noteSkill), { recursive: true });
+    fs.writeFileSync(noteSkill, '# 旧版の anytime-note\n', 'utf-8');
+
+    installWorkspaceSkills({ workspaceRoot, extensionPath, noteStorageDir });
+
+    expect(fs.readFileSync(noteSkill, 'utf-8')).toContain(noteStorageDir);
+    const marker = JSON.parse(
+      fs.readFileSync(path.join(workspaceRoot, '.claude', 'skills', AGENT_SKILL_MARKER), 'utf-8'),
+    ) as Record<string, number>;
+    expect(marker['anytime-note']).toBeGreaterThan(0);
+  });
+
   it('統合・改名で消えた旧スキル dir を掃除する', () => {
     const noteStorageDir = path.join(workspaceRoot, '.anytime', 'notes');
     const oldNames = BUNDLED_STATIC_SKILLS.flatMap((s) => s.oldNames ?? []);
