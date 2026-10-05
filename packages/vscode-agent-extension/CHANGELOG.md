@@ -4,7 +4,7 @@ All notable changes to the "Anytime Agent" extension will be documented in this 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.20.7] - 2026-10-05
 
 ### Changed
 
