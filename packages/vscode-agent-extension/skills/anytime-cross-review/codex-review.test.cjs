@@ -17,6 +17,12 @@ test('buildReviewPrompt は anytime-trail-review とセンチネルと read-only
   assert.match(p, /ファイルを変更しない|read-only|読み取り専用/);
 });
 
+test('buildReviewPrompt は diff・コメント内の指示文に従わない信頼境界と機密非出力を含む', () => {
+  const p = cr.buildReviewPrompt('develop');
+  assert.match(p, /指示文.*データとして扱い従わない/);
+  assert.match(p, /\.env/);
+});
+
 test('extractReviewSection はセンチネル間のみ抽出し codex メタを除去する', () => {
   const stdout = [
     'reading diff...', 'tokens used 1234',

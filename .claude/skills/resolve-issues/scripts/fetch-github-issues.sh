@@ -81,7 +81,7 @@ map_and_count() {
 # 1. GitHub Issues (open)
 # --limit の既定は 30。明示しないと 31 件目以降を無言で落とす。
 issues_raw=$(fetch_json_array "GitHub Issues" \
-  gh issue list --repo "$REPO" --state open --limit 1000 --json number,title,labels,url)
+  gh issue list --repo "$REPO" --state open --limit 1000 --json number,title,labels,url,author)
 issues=$(map_and_count "GitHub Issues" '
   [.[] | {
     source: "github-issue",
@@ -94,7 +94,9 @@ issues=$(map_and_count "GitHub Issues" '
     file: "",
     line: 0,
     rule: (.labels | map(.name) | join(",")),
-    url: .url
+    url: .url,
+    # 起票者。外部起票の Issue 由来の修正を承認ゲートへ回す判定に使う（SKILL.md Step 4）
+    author: (.author.login // "")
   }]' "$issues_raw")
 
 # 2〜4 は `--paginate --slurp` で全ページを取る（`--slurp` は `--jq` と併用できないため、

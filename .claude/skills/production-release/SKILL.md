@@ -5,7 +5,7 @@ description: 本番リリース手順ガイド。「リリース」「本番リ�
 
 # VS Code 拡張機能リリース
 
-更新日: 2026-09-21
+更新日: 2026-10-05
 
 anytime-markdown / anytime-graph / anytime-trail / anytime-database / anytime-sheet / anytime-agent / anytime-history / anytime-extension-pack VS Code 拡張機能および web-app のリリース手順。
 
@@ -430,10 +430,13 @@ code --install-extension packages/vscode-extension-pack/anytime-extension-pack-<
 本番リリース依頼を受けている状態のため、通常の push 操作時にユーザー確認は挟まない。リリース依頼自体が push の承認にあたる。
 
 ```bash
-git add -A
+git status --porcelain                      # バージョン・CHANGELOG・lock 以外の変更が無いか確認する
+git diff --name-only -z | xargs -0 git add -- # 追跡済みの変更ファイルだけを名前で add する
 git commit -m "release: v<version>"
 git push origin develop
 ```
+
+`git add -A` を使わないのは、並行セッションが `.git/index` を共有しているとき、他セッションの作業中ファイルまでリリースコミットに混ぜてしまうため（global `CLAUDE.md`「広域 add 禁止」。`destructive-guard.sh` も止める）。`git status --porcelain` に未追跡ファイル（`??`）や想定外のファイルがあれば、コミットせずに確認する。
 
 **失敗時**: push が rejected された場合は `git pull --rebase origin develop` で最新を取り込んでから再 push。コンフリクトが発生した場合はユーザーに確認。
 
