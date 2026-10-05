@@ -1,6 +1,6 @@
 # Codex CLI の起動作法
 
-更新日: 2026-09-29
+更新日: 2026-10-05
 
 `codex exec` を Claude Code から起動するときの環境制約とコマンド形。委譲（同ディレクトリの `delegation.md` §3）とレビュー（`anytime-cross-review`）が共通で参照する。
 
@@ -17,6 +17,10 @@ timeout --kill-after=60 5400 codex exec --dangerously-bypass-approvals-and-sandb
 - **`< /dev/null` で stdin を閉じる（必須）**。閉じないと `codex exec` は `Reading additional input from stdin...` で**永久にブロックする**。Claude Code の Bash ツールは stdin をパイプで開いたまま渡すため EOF が来ない。前景実行では 10 分のタイムアウトで、バックグラウンド実行では無限に、いずれも**ファイルを 1 つも書かずに沈黙する**（2026-07-13 実測。「Codex が遅い」に見えるが実際は入力待ち）
 - **サブコマンドは `exec`**（非対話・headless）。対話モードは Claude からは使わない
 - **`--dangerously-bypass-approvals-and-sandbox` は必須**。この環境は bwrap（bubblewrap）が使えず、Codex 既定のサンドボックス起動が失敗するため。フラグ名のとおり承認とサンドボックスを外すので、**渡すプロンプトの側で対象と変更禁止範囲を縛る**（委譲契約 6 点）
+- **サンドボックスの代わりに次の 3 点を必ず行う（補償統制）**。プロンプトの縛りは Codex が守るかどうかに依存し、機構として何も止めないため（AI事業者ガイドライン第1.2版 本編「セキュリティ確保」は、脆弱性を完全には排除できない前提で合理的な対策を講じることを求める。proposal `20261005-skills-ai-guideline-alignment`）
+  1. **専用 worktree で実行する**: 実装委譲は `git worktree add` で切った作業専用の worktree を cwd にして起動する。他セッションの未コミット差分や main チェックアウトを巻き込まない。レビュー委譲（`anytime-cross-review`）は対象 worktree を read-only で扱い、事後の fingerprint で書き込みを検出する
+  2. **機密ファイルを事前に確認する**: 起動前に cwd 配下の `.env*`・`*.pem`・`*.key`・`credentials*`・`.npmrc` を `git ls-files --others --ignored --exclude-standard` と `find` で列挙する。あれば委任プロンプトの変更禁止範囲に「読まない・出力に含めない」と明記する。Codex 自身がネットワークへ出られる状態のため、読めるものは送られ得る前提で扱う
+  3. **コミット前に Claude が差分を確認する**: Codex はコミットしない（`delegation.md` §3.2「委任しない作業」）。Claude が `git status` と `git diff` で、変更禁止範囲・設定ファイル（`.claude/`・`.github/workflows/`・`package.json` の依存・hooks）への変更がないかを確認する。想定外の変更は統合せず差し戻す
 - Codex が読む指示ファイルはリポジトリの `AGENTS.md`（と存在すれば `~/.codex/AGENTS.md`）だけ。`~/.codex/rules/` は実行許可ルールで指示ファイルではなく、CLAUDE.md・`~/.claude/rules/` は読まれない（2026-09-13 実測）。**Claude の現セッション文脈も継承しない**ため、前提はプロンプトに明示する
 - **husky 導入リポジトリでは「husky コマンドの実行禁止」を委任プロンプトに明記する**。Codex が検証目的で `husky --version` を実行すると、husky v9 が「--version」を init ディレクトリ引数と解釈して `core.hooksPath` を `--version/_` に書き換え、リポジトリ直下に `--version/` を生成し、以後の commit が `sh: 0: Illegal option --` で失敗する（2026-07-13 実例）。復旧は `git config core.hooksPath '.husky/_'` と残骸ディレクトリの削除
 
