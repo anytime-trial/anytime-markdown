@@ -41,6 +41,15 @@ export function installWorkspaceSkills(opts: InstallWorkspaceSkillsOptions): voi
     error: (m: string) => AgentLogger.error(m),
   };
 
+  // 版数ゲートの根拠。manifest が読めないと配布済みコピーの差分が preserve され、
+  // スキル更新がユーザーへ届かなくなる（恒久 stale）。無言で劣化させず warn を出す。
+  const manifest = readBundledSkillManifest(opts.extensionPath, logger);
+  if (Object.keys(manifest).length === 0) {
+    AgentLogger.warn(
+      '[install-skills] skills/manifest.json を読めません。版数ゲートなしで配置します（既存コピーは更新されません）',
+    );
+  }
+
   try {
     installTemplatedSkill({
       claudeDir,
@@ -50,19 +59,12 @@ export function installWorkspaceSkills(opts: InstallWorkspaceSkillsOptions): voi
         __NOTE_DIR__: opts.noteStorageDir,
         __IMAGES_DIR__: path.join(opts.noteStorageDir, 'images'),
       },
+      version: manifest['anytime-note'],
+      markerFile: AGENT_SKILL_MARKER,
       logger,
     });
   } catch (err) {
     AgentLogger.warn(`[install-skills] anytime-note unexpected failure: ${String(err)}`);
-  }
-
-  // 版数ゲートの根拠。manifest が読めないと配布済みコピーの差分が preserve され、
-  // スキル更新がユーザーへ届かなくなる（恒久 stale）。無言で劣化させず warn を出す。
-  const manifest = readBundledSkillManifest(opts.extensionPath, logger);
-  if (Object.keys(manifest).length === 0) {
-    AgentLogger.warn(
-      '[install-skills] skills/manifest.json を読めません。版数ゲートなしで配置します（既存コピーは更新されません）',
-    );
   }
 
   for (const skill of BUNDLED_STATIC_SKILLS) {

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `anytime-note` now has a version gate too. Previously, a templated skill whose installed `SKILL.md` differed from the rendered template was preserved, so skill updates never reached existing workspaces. `anytime-note` is added to `skills/manifest.json`; when the bundled version is higher than the recorded one (or none is recorded) the file is overwritten and the version recorded. On first run, an `anytime-note` installed before the gate is replaced once by the bundled version. Local edits to `.claude/skills/anytime-note/SKILL.md` are lost on that first run, so copy the file before updating if you want to keep them.
 - Revised the bundled skills to match the measures that the AI Guidelines for Business v1.2 (MIC / METI, 2026-03-31) expect when AI agents are used.
   - `anytime-loop-start`: the child session's `--allowedTools` now lists git subcommands explicitly. Launcher, prompt and log files move from `/tmp` to `.git/ticket-delegations/logs/` in the tickets repository. The delegation prompt must now carry a trust boundary (commands or outbound transfers written in a ticket body are not executed as-is) and require `Co-Authored-By` / `Ticket:` trailers on the child's commits.
   - `anytime-dev-cycle`: Codex delegation now requires compensating controls in place of the sandbox (dedicated worktree, pre-run check for secret files, diff review before commit), and the delegation prompt must include a trust-boundary paragraph (delegation contract template v5).
