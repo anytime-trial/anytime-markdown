@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.2] - 2026-10-11
+
+### Security
+
+- Updated `prosemirror-view` to 1.42.6 (and `prosemirror-model` to 1.25.12) to fix an XSS in paste handling.
+
 ## [1.26.1] - 2026-10-03
 
 ### Changed
