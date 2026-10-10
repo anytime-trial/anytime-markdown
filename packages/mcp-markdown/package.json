@@ -18,7 +18,7 @@
     "@anytime-markdown/markdown-catalog": "*",
     "@anytime-markdown/markdown-editor": "*",
     "@anytime-markdown/section-lock-core": "*",
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "gray-matter": "4.0.3",
     "jsdom": "26.1.0",
     "markdown-it": "14.3.2",

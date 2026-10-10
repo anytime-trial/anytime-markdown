@@ -36,7 +36,7 @@
     "@anytime-markdown/tickets-core": "*",
     "@anytime-markdown/trail-activity": "*",
     "@anytime-markdown/trail-db": "*",
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "better-sqlite3": "12.4.1",
     "commander": "14.0.0",
     "graphology": "0.26.0",
