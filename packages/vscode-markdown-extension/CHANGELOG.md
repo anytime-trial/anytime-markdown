@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.2] - 2026-10-11
+
+### Security
+
+- Updated the bundled `@modelcontextprotocol/sdk` to 1.32.1 to address an OAuth client issue where credentials could be sent to an authorization server chosen by the MCP server.
+- Updated `prosemirror-view` to 1.42.6 (and `prosemirror-model` to 1.25.12) to fix an XSS in paste handling.
+
 ## [1.26.1] - 2026-10-03
 
 ### Changed

@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.56.3] - 2026-10-11
+
+### セキュリティ
+
+- `npm audit` で指摘された依存を更新しました: `prosemirror-view` 1.42.6（貼り付け XSS）、`handlebars` 4.7.10、`proxy-addr` 2.0.8、`source-map-js` 1.2.2、`sharp` 0.35.5、`dompurify` 3.4.16。
+
 ## [0.56.2] - 2026-10-03
 
 ### 変更

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-11
+
+### Security
+
+- Updated the bundled `@modelcontextprotocol/sdk` to 1.32.1 to address an OAuth client issue where credentials could be sent to an authorization server chosen by the MCP server.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added

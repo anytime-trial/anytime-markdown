@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-10-11
+
+### Security
+
+- Updated the bundled `@modelcontextprotocol/sdk` to 1.32.1 to address an OAuth client issue where credentials could be sent to an authorization server chosen by the MCP server.
+
 ## [1.3.3] - 2026-10-03
 
 ### Graph Core (graph-core)
