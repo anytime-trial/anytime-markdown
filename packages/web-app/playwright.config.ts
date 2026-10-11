@@ -36,8 +36,10 @@ export default defineConfig({
       ? [
           {
             name: "firefox",
-            // VR 基準画像は Linux + chromium 専用のため他ブラウザでは除外する。
-            testIgnore: [/visual-baseline/, /chart-fence-vr/],
+            // VR 基準画像（visual-baseline / chart-fence-vr）と a11y 基線（a11y-baseline.json）は
+            // chromium で取った値のため、他ブラウザでは判定しない。firefox / webkit は同じページでも
+            // 別の axe 違反を報告し、2026-09-29〜10-06 の Daily Build Check を連日赤くした。
+            testIgnore: [/visual-baseline/, /chart-fence-vr/, /a11y\.spec/],
             use: {
               browserName: "firefox" as const,
               launchOptions: {
@@ -52,8 +54,10 @@ export default defineConfig({
           },
           {
             name: "webkit",
-            // VR 基準画像は Linux + chromium 専用のため他ブラウザでは除外する。
-            testIgnore: [/visual-baseline/, /chart-fence-vr/],
+            // VR 基準画像（visual-baseline / chart-fence-vr）と a11y 基線（a11y-baseline.json）は
+            // chromium で取った値のため、他ブラウザでは判定しない。firefox / webkit は同じページでも
+            // 別の axe 違反を報告し、2026-09-29〜10-06 の Daily Build Check を連日赤くした。
+            testIgnore: [/visual-baseline/, /chart-fence-vr/, /a11y\.spec/],
             use: { browserName: "webkit" as const },
           },
         ]
