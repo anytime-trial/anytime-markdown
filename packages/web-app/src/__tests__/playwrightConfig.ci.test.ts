@@ -4,15 +4,21 @@
 /**
  * What: CI の Playwright 構成で、a11y ratchet（e2e/a11y.spec.ts）は chromium だけで走らせる。
  *
- * 基線 `e2e/a11y-baseline.json` は chromium の走査で seed したブラウザ非依存の値で、
- * firefox / webkit は同じページでも別の違反（`select-name` / `aria-prohibited-attr` 等）を報告し、
- * master の Daily Build Check を 2026-09-29 以降連日赤くした。VR 基準（visual-baseline /
- * chart-fence-vr）と同じく、基線を持つ spec は基線を取ったブラウザだけで判定する。
+ * 基線 `e2e/a11y-baseline.json` は chromium の走査結果に固定された値で、firefox / webkit は同じページでも
+ * 別の違反（`select-name` / `aria-prohibited-attr` 等）を報告し、master の Daily Build Check を
+ * 2026-09-29 以降連日赤くした（https://github.com/anytime-trial/anytime-markdown/actions/runs/36645792190）。
+ * VR 基準（visual-baseline / chart-fence-vr）と同じく、基線を持つ spec は基線を取ったブラウザだけで判定する。
  */
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import type { PlaywrightTestConfig, Project } from "@playwright/test";
 
 const A11Y_SPEC = "e2e/a11y.spec.ts";
 const UNRELATED_SPEC = "e2e/toolbar.spec.ts";
+/** 基線を持つ spec（chromium 以外では判定しない）。増やすときは基線の取り方を先に決める */
+const CHROMIUM_ONLY_SPECS = ["a11y.spec.ts", "chart-fence-vr.spec.ts", "visual-baseline.spec.ts"];
+const E2E_DIR = join(__dirname, "..", "..", "e2e");
 
 function loadCiConfig(): PlaywrightTestConfig {
   jest.resetModules();
@@ -58,6 +64,16 @@ describe("playwright.config（CI）", () => {
   it("除外は基線を持つ spec に限り、他の spec は 3 ブラウザとも走る", () => {
     for (const name of ["chromium", "firefox", "webkit"]) {
       expect(ignores(projectNamed(config, name), UNRELATED_SPEC)).toBe(false);
+    }
+  });
+
+  it("firefox / webkit が除外する spec は e2e/ の実ファイルのうち基線を持つ 3 件と一致する", () => {
+    const specs = readdirSync(E2E_DIR).filter((f) => f.endsWith(".spec.ts"));
+    expect(specs.length).toBeGreaterThan(CHROMIUM_ONLY_SPECS.length);
+    for (const name of ["firefox", "webkit"]) {
+      const project = projectNamed(config, name);
+      const ignored = specs.filter((f) => ignores(project, join(E2E_DIR, f))).sort();
+      expect(ignored).toEqual(CHROMIUM_ONLY_SPECS);
     }
   });
 });
