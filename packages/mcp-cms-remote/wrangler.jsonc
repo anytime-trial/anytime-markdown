@@ -7,10 +7,6 @@
   "observability": {
     "enabled": true
   },
-  "alias": {
-    "raw-body": "./src/empty.ts",
-    "content-type": "./src/empty.ts"
-  },
   "dev": {
     "port": 3001
   }
