@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-11
+
+### Fixed
+
+- Fixed `wrangler deploy` failing because the `raw-body` / `content-type` aliases pointed to a deleted `src/empty.ts`. Removed the aliases, since MCP SDK 1.32.1 uses `content-type` at runtime.
+
 ## [0.4.2] - 2026-10-11
 
 ### Security

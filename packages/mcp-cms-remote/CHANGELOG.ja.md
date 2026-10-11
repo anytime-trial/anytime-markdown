@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-11
+
+### 修正
+
+- `raw-body` / `content-type` の alias が削除済みの `src/empty.ts` を指していたため `wrangler deploy` が失敗していた問題を修正しました。MCP SDK 1.32.1 は `content-type` を実行時に使うため、alias を外しました。
+
 ## [0.4.2] - 2026-10-11
 
 ### セキュリティ
