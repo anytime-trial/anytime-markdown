@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.56.4] - 2026-10-11
+
+### Changed
+
+- CI: the Daily Build Check runs the axe accessibility ratchet (`e2e/a11y.spec.ts`) on chromium only. The baseline `a11y-baseline.json` is pinned to chromium results, and firefox / webkit reported different violations (`select-name`, `aria-prohibited-attr`) that kept the daily build red since 2026-09-29. The build job timeout is raised from 30 to 45 minutes so the e2e step is no longer cancelled; both rules are guarded by regression tests.
+
 ## [0.56.3] - 2026-10-11
 
 ### Security

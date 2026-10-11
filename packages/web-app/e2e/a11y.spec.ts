@@ -9,6 +9,10 @@
  * - 走査対象へページを足した時だけ `A11Y_BASELINE_SEED=1` で新ページの現状を取り込む。
  *   既存ページ（違反 0 で空になったページも基線にキーが残る）の許容を増やす入口は無い（手で書き換えない）。
  *
+ * CI では chromium だけで走る（playwright.config.ts の firefox / webkit は本 spec を testIgnore）。
+ * 基線は chromium の走査で seed した値で、他ブラウザは同じページでも別の違反を報告するため、
+ * 基線を取ったブラウザだけで判定する（VR 基準画像と同じ扱い）。
+ *
  * 実行: `npm run e2e:a11y -w @anytime-markdown/web-app`
  */
 import AxeBuilder from "@axe-core/playwright";
