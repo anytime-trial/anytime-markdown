@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.56.4] - 2026-10-11
+
+### 変更
+
+- CI: Daily Build Check の axe アクセシビリティ ratchet（`e2e/a11y.spec.ts`）を chromium だけで走らせる。基線 `a11y-baseline.json` は chromium の走査結果に固定された値で、firefox / webkit は別の違反（`select-name` / `aria-prohibited-attr`）を報告し、2026-09-29 以降 daily を赤くし続けていた。build ジョブの timeout を 30 分から 45 分へ上げ、e2e 途中で cancel されないようにした。いずれもリグレッションテストで固定している。
+
 ## [0.56.3] - 2026-10-11
 
 ### セキュリティ
