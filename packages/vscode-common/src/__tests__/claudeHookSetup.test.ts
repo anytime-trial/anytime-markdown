@@ -178,6 +178,54 @@ describe('setupClaudeHooks', () => {
     expect(mjs).toContain('terminalPid: pids ? pids.terminalPid : undefined');
   });
 
+  describe('agent-status-report.mjs の Git Bash 形式 cwd（Windows）', () => {
+    // 生成スクリプトから toNativePath を切り出して評価する（出荷されるコードそのものを試す）。
+    function loadToNativePath(): (p: string, platform?: string) => string {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+      const mjs = readScript('agent-status-report.mjs');
+      const start = mjs.indexOf('function toNativePath(');
+      expect(start).toBeGreaterThanOrEqual(0);
+      const end = mjs.indexOf('\n}\n', start);
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      return new Function(`${mjs.slice(start, end + 2)}\nreturn toNativePath;`)();
+    }
+
+    test('win32 では /c/... をドライブレター付きのネイティブパスへ直す', () => {
+      const toNativePath = loadToNativePath();
+      expect(toNativePath('/c/dev/x', 'win32')).toBe('C:\\dev\\x');
+      expect(toNativePath('/c', 'win32')).toBe('C:\\');
+      expect(toNativePath('/d/repo/sub', 'win32')).toBe('D:\\repo\\sub');
+      expect(toNativePath('C:\\dev\\x', 'win32')).toBe('C:\\dev\\x');
+      expect(toNativePath('/home/u', 'win32')).toBe('/home/u');
+    });
+
+    test('win32 以外（Linux / macOS / WSL）では変換しない', () => {
+      const toNativePath = loadToNativePath();
+      expect(toNativePath('/c/dev/x', 'linux')).toBe('/c/dev/x');
+      expect(toNativePath('/c', 'darwin')).toBe('/c');
+    });
+
+    test('hook 入力の cwd を入口で toNativePath に通し、ワーカー未検出は無言で終わらない', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+      const mjs = readScript('agent-status-report.mjs');
+      expect(mjs).toContain('const cwd = toNativePath((input && input.cwd) || process.cwd());');
+      expect(mjs).toMatch(/if \(!wk\) \{\n\s+warn\(/);
+    });
+
+    test('win32 では /proc を読まず、PID 解決の失敗を stderr に出し続けない', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+      const mjs = readScript('agent-status-report.mjs');
+      const resolvePids = mjs.slice(mjs.indexOf('function resolvePids()'));
+      expect(resolvePids).toMatch(/^function resolvePids\(\) \{\n\s+if \(process\.platform === 'win32'\) return null;/);
+      expect(mjs).toContain(
+        "if (process.platform !== 'win32') warn('claude process not found in /proc ancestry; gate disabled');",
+      );
+    });
+  });
+
   test('commit-tracker / session-guard / handoff-inject hooks are bare bash (AGENT_HOME 注入なし)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);

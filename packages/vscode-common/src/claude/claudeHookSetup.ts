@@ -355,6 +355,17 @@ function readStdin() {
   });
 }
 
+// Git Bash / MSYS 形式（/c/dev/x）を Windows のネイティブパス（C:\\\\dev\\\\x）へ直す。
+// Bash ツールで cd した後のセッションは hook 入力の cwd がこの形式になり、Windows の path.join は
+// \\\\c\\\\dev\\\\x… を作って存在しないパスを見る（ワーカー未検出・worktree 不一致で一覧から消える）。
+// win32 以外は変換しない。Linux / macOS / WSL の /c/... は実在し得る正規のパスのため。
+function toNativePath(p, platform = process.platform) {
+  if (platform !== 'win32') return p;
+  const m = /^\\/([a-zA-Z])(\\/.*)?$/.exec(p);
+  if (!m) return p;
+  return m[1].toUpperCase() + ':' + (m[2] || '/').replace(/\\//g, '\\\\');
+}
+
 // startDir から親方向へ walk-up し、最初に見つかった .anytime/agent/agent-worker.json を採用する。
 // \\$HOME / FS ルートで打ち切る。見つからなければ null。
 function resolveWorker(startDir) {
@@ -462,7 +473,8 @@ function airspaceVerdict(mode, input, cwd) {
 
   const claudePid = api.findClaudePid(process.pid);
   if (claudePid === null) {
-    warn('claude process not found in /proc ancestry; gate disabled');
+    // Windows には /proc が無く毎回ここへ来る。常に出る警告は本物の失敗を埋もれさせるため黙る。
+    if (process.platform !== 'win32') warn('claude process not found in /proc ancestry; gate disabled');
     return null;
   }
   const starttime = api.readProcessStartTime(claudePid);
@@ -628,6 +640,7 @@ function loopCheck(input, cwd) {
 // airspace.cjs の findClaudePid と同じ判定（comm が 'claude' で始まる。WSL 相互運用では claude.exe になり得る）。
 // 非 Linux（/proc なし）・プロセス消滅時は null（PID なしで続行。ゲートと同じ fail-open）。
 function resolvePids() {
+  if (process.platform === 'win32') return null; // /proc が無い。読みに行くと毎回 ENOENT の警告になる
   let current = process.pid;
   for (let depth = 0; depth < 8; depth += 1) {
     let comm = '';
@@ -718,7 +731,7 @@ async function main() {
   } catch {
     process.exit(0);
   }
-  const cwd = (input && input.cwd) || process.cwd();
+  const cwd = toNativePath((input && input.cwd) || process.cwd());
 
   // Phase 5 S2: 全ツール対象の軽量モード。クレーム更新・ワーカー POST は行わず即 exit する。
   // - gate: PreToolUse（matcher なし）。Kill Switch 台帳だけを見る。S1 の edit-start/bash-start
@@ -835,7 +848,10 @@ async function main() {
 
   // 2) agent-status ワーカーへの POST（Agent マッピング UI 用）
   const wk = resolveWorker(cwd);
-  if (!wk) process.exit(0);
+  if (!wk) {
+    warn(\`agent worker not found from \${cwd}; status not reported\`);
+    process.exit(0);
+  }
 
   // branch の基点は常に hook の実行 cwd。git worktree/submodule では cwd 側が正しいブランチを返す。
   const branch = safeBranch(cwd);
