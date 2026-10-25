@@ -117,19 +117,33 @@ test('markChanged は行範囲が重なるテストだけを changed にする',
   assert.deepStrictEqual(marked.map((t) => t.changed), [false, true, false]);
 });
 
-test('extractSpecKeys は既存仕様書のテストキー列（バッククォート内の path::title）を集める', () => {
+test('extractSpecKeys は「テスト項目」節の表のテストキー列だけを集め、要確認・範囲外・削除節と本文のコードを拾わない', () => {
   const md = [
+    '## テスト範囲との突合',
+    '| 必須 | 出典 | 対応 | 状態 |',
+    '| AC-01 | x | 範囲外 `e2e/x.spec.ts::外部` | あり |',
+    '## 要確認',
+    '| T-001 | `src/a.test.ts::群 > 項目` | 弱い一致 | x |',
+    '## テスト項目',
+    '### 機能',
     '| ID | テストキー | 確かめること |',
     '| --- | --- | --- |',
     '| T-001 | `src/a.test.ts::群 > 項目` | x |',
     '| T-002 | `e2e/b.spec.ts::開ける` | y |',
-    '本文中の `npm test` は拾わない。',
+    '| T-003 | `a.test.ts::%s \\| %s` | z |',
+    '本文中の `std::vector` は拾わない。',
+    '## 削除されたテスト',
+    '| T-009 | `a.test.ts::消えた` | x | y | |',
   ].join('\n');
-  assert.deepStrictEqual(ct.extractSpecKeys(md), ['src/a.test.ts::群 > 項目', 'e2e/b.spec.ts::開ける']);
+  assert.deepStrictEqual(ct.extractSpecKeys(md), ['src/a.test.ts::群 > 項目', 'e2e/b.spec.ts::開ける', 'a.test.ts::%s | %s']);
 });
 
-test('diffKeys は追加・削除・継続に分ける', () => {
-  assert.deepStrictEqual(ct.diffKeys(['a', 'b'], ['b', 'c']), { added: ['c'], removed: ['a'], kept: ['b'] });
+test('diffKeys は追加・削除・継続に分け、重複を除く', () => {
+  assert.deepStrictEqual(ct.diffKeys(['a', 'b', 'a'], ['b', 'c', 'c']), { added: ['c'], removed: ['a'], kept: ['b'] });
+});
+
+test('extractSpecKeys は「テスト項目」節が無い文書を拒否する（更新の照合元にできない）', () => {
+  assert.throws(() => ct.extractSpecKeys('| T-001 | `a.test.ts::x` |'), /テスト項目/);
 });
 
 test('collect はディレクトリを走査してテストファイルだけを集め、node_modules を除外する', () => {
@@ -154,7 +168,7 @@ test('collect は previous を渡すと既存仕様書との差分を返す', ()
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'test-spec-'));
   try {
     fs.writeFileSync(path.join(root, 'a.test.ts'), "it('新', () => { expect(1).toBe(1); });\n");
-    fs.writeFileSync(path.join(root, 'spec.md'), '| T-001 | `a.test.ts::旧` | x |\n');
+    fs.writeFileSync(path.join(root, 'spec.md'), '## テスト項目\n| T-001 | `a.test.ts::旧` | x |\n');
     const result = ct.collect({ root, paths: ['a.test.ts'], previous: path.join(root, 'spec.md') });
     assert.deepStrictEqual(result.diff, { added: ['a.test.ts::新'], removed: ['a.test.ts::旧'], kept: [] });
   } finally {
@@ -295,4 +309,86 @@ test('scanTestFile はテスト本体の中の条件付き test.skip を所属�
     ['詳細', []],
   ]);
   assert.deepStrictEqual(unparsed, []);
+});
+
+test('タイトルの閉じ引用符が無い行でも、バックスラッシュの連続で正規表現が詰まらない（ReDoS）', () => {
+  const src = "it('" + '\\'.repeat(5000) + "\nit.each([\n" + "  '" + '\\'.repeat(5000) + "\n";
+  const started = Date.now();
+  ct.scanTestFile(src, 'a.test.ts');
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started}ms`);
+});
+
+test('scanTestFile は連結などでタイトルを確定できない呼び出しと、1 行に複数ある呼び出しを unparsed に出す', () => {
+  const src = [
+    "it('値 ' + name + ' を返す', () => { expect(1).toBe(1); });",
+    "it('a', () => { expect(1).toBe(1); }); it('b', () => { expect(2).toBe(2); });",
+  ].join('\n');
+  const { tests, unparsed } = ct.scanTestFile(src, 'a.test.ts');
+  assert.deepStrictEqual(tests.map((t) => t.title), ['a']);
+  assert.deepStrictEqual(unparsed.map((u) => u.line), [1, 2]);
+});
+
+test('scanTestFile はブロックコメントと行コメントの中の呼び出しを数えない', () => {
+  const src = [
+    '/*',
+    "it('コメント内', () => {});",
+    '*/',
+    "// it('行コメント', () => {});",
+    "it('本物', () => { expect(1).toBe(1); });",
+  ].join('\n');
+  const { tests, unparsed } = ct.scanTestFile(src, 'a.test.ts');
+  assert.deepStrictEqual(tests.map((t) => t.title), ['本物']);
+  assert.deepStrictEqual(unparsed, []);
+});
+
+test('parseTestFile は ${} を含むテンプレート文字列のタイトルに dynamic-title フラグを付ける', () => {
+  const src = 'it(`${name} works`, () => { expect(1).toBe(1); });';
+  assert.deepStrictEqual(ct.parseTestFile(src, 'a.test.ts')[0].flags, ['dynamic-title']);
+});
+
+test('scanTestFile は本体の中の test.fail() を conditional-skip でなく expected-fail にする', () => {
+  const src = ["test('期待失敗', async () => {", '  test.fail();', '  expect(1).toBe(2);', '});'].join('\n');
+  assert.deepStrictEqual(ct.parseTestFile(src, 'e2e/a.spec.ts')[0].flags, ['expected-fail']);
+});
+
+test('collect は存在しない since を、全件 changed にせずエラーにする', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'test-spec-git-'));
+  const run = (...args) => require('node:child_process').execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    run('init', '-q');
+    run('config', 'user.email', 't@example.com');
+    run('config', 'user.name', 't');
+    fs.writeFileSync(path.join(repo, 'a.test.ts'), "it('a', () => { expect(1).toBe(1); });\n");
+    run('add', '.');
+    run('commit', '-q', '-m', 'base');
+    assert.throws(() => ct.collect({ root: repo, paths: ['.'], since: 'no-such-rev' }), /no-such-rev/);
+    assert.throws(() => ct.collect({ root: repo, paths: ['.'], since: '--output=x' }), /since/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('collect は since 時点に無かったファイルのテストだけを changed にし、変更の無いファイルは changed にしない', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'test-spec-git-'));
+  const run = (...args) => require('node:child_process').execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  try {
+    run('init', '-q');
+    run('config', 'user.email', 't@example.com');
+    run('config', 'user.name', 't');
+    fs.writeFileSync(path.join(repo, 'old.test.ts'), "it('既存', () => { expect(1).toBe(1); });\n");
+    run('add', '.');
+    run('commit', '-q', '-m', 'base');
+    fs.writeFileSync(path.join(repo, 'new.test.ts'), "it('新規', () => { expect(1).toBe(1); });\n");
+    const result = ct.collect({ root: repo, paths: ['.'], since: 'HEAD' });
+    assert.deepStrictEqual(result.tests.map((t) => [t.title, t.changed]), [['新規', true], ['既存', false]]);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('parseArgs は値の無いオプション・- で始まる値・未知のオプションを拒否する', () => {
+  assert.throws(() => ct.parseArgs(['--since']), /--since/);
+  assert.throws(() => ct.parseArgs(['--since', '--output=x']), /--since/);
+  assert.throws(() => ct.parseArgs(['--foo']), /--foo/);
+  assert.deepStrictEqual(ct.parseArgs(['--root', 'r', '--since', 'HEAD~1', 'src']), { root: 'r', since: 'HEAD~1', paths: ['src'] });
 });

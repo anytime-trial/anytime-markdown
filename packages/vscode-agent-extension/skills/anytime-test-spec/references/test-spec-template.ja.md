@@ -44,7 +44,7 @@ updatedAt: "<YYYY-MM-DD>"
 
 ## テスト項目
 
-機能またはファイル単位で表を分ける。テストキーは差分照合に使うため書式を変えない。
+機能またはファイル単位で `###` の小見出しと表を分ける。更新時の差分照合は、この節（見出し名「テスト項目」）の表の 2 列目だけから読む。見出し名・列の位置・テストキーの書式を変えない。キー中の `|` は `\|` と書く。
 
 ### <機能またはファイル>
 
@@ -53,7 +53,7 @@ updatedAt: "<YYYY-MM-DD>"
 | T-001 | `src/__tests__/a.test.ts::群 > 項目` | unit | <入力・操作> すると <観測される結果> | FR-01 | | 未レビュー | |
 
 - 種別: unit / integration / e2e
-- 注意: skip・fixme・only・todo・conditional-skip などのフラグ、要確認の ID、列挙漏れを手で補った旨
+- 注意: skip・fixme・only・todo・conditional-skip・fail・expected-fail・dynamic-title などのフラグ、要確認の ID、列挙漏れを手で補った旨
 - レビュー（人）: 未レビュー / 妥当 / 要修正 / 不要
 
 ## 削除されたテスト
