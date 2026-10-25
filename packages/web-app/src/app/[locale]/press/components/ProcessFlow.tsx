@@ -1,4 +1,5 @@
 import { useTranslations } from 'next-intl';
+import { useId } from 'react';
 
 import styles from '../press.module.css';
 
@@ -82,8 +83,10 @@ function FlowArrow({ label }: Readonly<{ label?: string }>) {
 
 export function ProcessFlow() {
   const t = useTranslations('press.process');
+  // 図の名前は短く保ち、詳しい説明は可視の figcaption に寄せる（長い aria-label は可視テキストと二重に読まれる）
+  const captionId = useId();
   return (
-    <figure className={styles.processFlow} aria-label={t('figureLabel')}>
+    <figure className={styles.processFlow} aria-label={t('figureLabel')} aria-describedby={captionId}>
       <div className={`${styles.processNode} ${styles.processNodeHuman}`}>{t('input')}</div>
       {LOOPS.map((loop) => (
         <div key={loop.titleKey} className={styles.processLoopBlock}>
@@ -129,7 +132,7 @@ export function ProcessFlow() {
           </section>
         </div>
       ))}
-      <figcaption className={styles.processCaption}>{t('caption')}</figcaption>
+      <figcaption id={captionId} className={styles.processCaption}>{t('caption')}</figcaption>
     </figure>
   );
 }

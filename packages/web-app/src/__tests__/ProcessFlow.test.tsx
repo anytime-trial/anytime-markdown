@@ -53,6 +53,22 @@ describe("ProcessFlow", () => {
     render(<ProcessFlow />);
     expect(screen.getByText(enMessages.process.loopB1a)).toBeTruthy();
     expect(screen.getByText(enMessages.process.loopB1b)).toBeTruthy();
+    expect(screen.getByText(enMessages.process.loopANote)).toBeTruthy();
+    expect(screen.getByText(enMessages.process.loopBReturn)).toBeTruthy();
+  });
+
+  it.each([
+    ["ja", jaMessages.process],
+    ["en", enMessages.process],
+  ])("%s: 図の名前は短くし、詳しい説明は figcaption を aria-describedby で結ぶ", (_lang, messages) => {
+    activeMessages = messages;
+    render(<ProcessFlow />);
+    const figure = screen.getByRole("figure");
+    // 長い aria-label は支援技術で切り詰め・冗長な読み上げになる。図中の可視テキストと重複させない
+    expect((figure.getAttribute("aria-label") ?? "").length).toBeLessThanOrEqual(80);
+    const describedBy = figure.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy as string)?.textContent).toBe(messages.caption);
   });
 
   it("ja と en の process 辞書はキーが一致する", () => {

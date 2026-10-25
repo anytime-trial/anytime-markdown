@@ -48,7 +48,7 @@
     "header": "Development",
     "headerEm": "Process.",
     "subtitle": "- three loops",
-    "figureLabel": "The Anytime development process. A human request enters the flow, which then circles through three loops — A: the spec-driven cycle, B: acceptance testing and release, C: the retrospective (health checks and incidents). Loop A runs every automated test within the scope defined in skills and CLAUDE.md; in acceptance testing a human first reviews what those automated tests cover, then runs the user tests. Failures and adopted proposals return to loop A as revisions to the spec and the test scope.",
+    "figureLabel": "The Anytime development process: three loops and their testing stages",
     "caption": "A simplified view of the four nested loops in our development process spec, overlaid with the stages from our test execution policy. Nodes marked (human) are the human touchpoints.",
     "input": "Request or instruction (human)",
     "skillLabel": "Skill:",
