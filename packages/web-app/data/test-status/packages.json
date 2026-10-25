@@ -1,6 +1,6 @@
 {
   "commit": "65dbacd38",
-  "runAt": "2026-10-25T03:42:07.755Z",
+  "runAt": "2026-10-25T03:58:49.591Z",
   "rows": [
     {
       "package": "agent-core",
@@ -16,7 +16,7 @@
       "passed": 427,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 19.7,
+      "durationSec": 11.3,
       "result": "pass"
     },
     {
@@ -50,7 +50,7 @@
       "passed": 74,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 7,
+      "durationSec": 5.5,
       "result": "pass"
     },
     {
@@ -67,7 +67,7 @@
       "passed": 68,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 3.5,
+      "durationSec": 6.3,
       "result": "pass"
     },
     {
@@ -84,7 +84,7 @@
       "passed": 54,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 3.9,
+      "durationSec": 4,
       "result": "pass"
     },
     {
@@ -101,7 +101,7 @@
       "passed": 47,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 8.2,
+      "durationSec": 4.6,
       "result": "pass"
     },
     {
@@ -118,7 +118,7 @@
       "passed": 75,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 14.2,
+      "durationSec": 13.7,
       "result": "pass"
     },
     {
@@ -135,7 +135,7 @@
       "passed": 538,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 12.3,
+      "durationSec": 11.3,
       "result": "pass"
     },
     {
@@ -152,7 +152,7 @@
       "passed": 121,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 4.1,
+      "durationSec": 2.9,
       "result": "pass"
     },
     {
@@ -169,7 +169,7 @@
       "passed": 32,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 6,
+      "durationSec": 4.7,
       "result": "pass"
     },
     {
@@ -186,7 +186,7 @@
       "passed": 285,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 4.3,
+      "durationSec": 3.4,
       "result": "pass"
     },
     {
@@ -217,11 +217,11 @@
       "expects": 1971,
       "suites": 68,
       "tests": 1161,
-      "passed": 1159,
-      "failed": 2,
+      "passed": 1161,
+      "failed": 0,
       "skipped": 0,
-      "durationSec": 42.3,
-      "result": "fail"
+      "durationSec": 41,
+      "result": "pass"
     },
     {
       "package": "graph-react-islands",
@@ -237,7 +237,7 @@
       "passed": 5,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 2.9,
+      "durationSec": 2.4,
       "result": "pass"
     },
     {
@@ -254,7 +254,7 @@
       "passed": 32,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 4.7,
+      "durationSec": 4.2,
       "result": "pass"
     },
     {
@@ -288,7 +288,7 @@
       "passed": 94,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 6.7,
+      "durationSec": 6.8,
       "result": "pass"
     },
     {
@@ -322,7 +322,7 @@
       "passed": 3592,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 46.5,
+      "durationSec": 37.9,
       "result": "pass"
     },
     {
@@ -356,7 +356,7 @@
       "passed": 46,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 2.2,
+      "durationSec": 2.4,
       "result": "pass"
     },
     {
@@ -373,7 +373,7 @@
       "passed": 26,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 4.5,
+      "durationSec": 4.4,
       "result": "pass"
     },
     {
@@ -390,7 +390,7 @@
       "passed": 637,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 11.2,
+      "durationSec": 8.6,
       "result": "pass"
     },
     {
@@ -441,7 +441,7 @@
       "passed": 12,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 3.5,
+      "durationSec": 2.5,
       "result": "pass"
     },
     {
@@ -458,7 +458,7 @@
       "passed": 86,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 4.2,
+      "durationSec": 3.1,
       "result": "pass"
     },
     {
@@ -475,7 +475,7 @@
       "passed": 25,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 6.4,
+      "durationSec": 2.4,
       "result": "pass"
     },
     {
@@ -492,7 +492,7 @@
       "passed": 61,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 7.3,
+      "durationSec": 4.8,
       "result": "pass"
     },
     {
@@ -509,7 +509,7 @@
       "passed": 188,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 5.3,
+      "durationSec": 5.6,
       "result": "pass"
     },
     {
@@ -526,7 +526,7 @@
       "passed": 503,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 12.5,
+      "durationSec": 11.1,
       "result": "pass"
     },
     {
@@ -543,7 +543,7 @@
       "passed": 64,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 6.6,
+      "durationSec": 6,
       "result": "pass"
     },
     {
@@ -560,7 +560,7 @@
       "passed": 3,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 4,
+      "durationSec": 2.5,
       "result": "pass"
     },
     {
@@ -577,7 +577,7 @@
       "passed": 23,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 1.6,
+      "durationSec": 1.3,
       "result": "pass"
     },
     {
@@ -594,7 +594,7 @@
       "passed": 65,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 3.4,
+      "durationSec": 3,
       "result": "pass"
     },
     {
@@ -611,7 +611,7 @@
       "passed": 133,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 5,
+      "durationSec": 3.5,
       "result": "pass"
     },
     {
@@ -628,7 +628,7 @@
       "passed": 146,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 2.7,
+      "durationSec": 3.2,
       "result": "pass"
     },
     {
@@ -645,7 +645,7 @@
       "passed": 48,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 9.8,
+      "durationSec": 6.5,
       "result": "pass"
     },
     {
@@ -662,7 +662,7 @@
       "passed": 61,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 16.5,
+      "durationSec": 9.8,
       "result": "pass"
     },
     {
@@ -679,7 +679,7 @@
       "passed": 26,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 5.1,
+      "durationSec": 3.9,
       "result": "pass"
     },
     {
@@ -696,7 +696,7 @@
       "passed": 25,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 7.8,
+      "durationSec": 4.7,
       "result": "pass"
     },
     {
@@ -713,7 +713,7 @@
       "passed": 1203,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 11.7,
+      "durationSec": 13.7,
       "result": "pass"
     },
     {
@@ -730,7 +730,7 @@
       "passed": 1457,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 59.3,
+      "durationSec": 45.1,
       "result": "pass"
     },
     {
@@ -747,7 +747,7 @@
       "passed": 1433,
       "failed": 3,
       "skipped": 1,
-      "durationSec": 80.4,
+      "durationSec": 54.4,
       "result": "fail"
     },
     {
@@ -764,7 +764,7 @@
       "passed": 1588,
       "failed": 8,
       "skipped": 0,
-      "durationSec": 344.9,
+      "durationSec": 272.3,
       "result": "fail"
     },
     {
@@ -781,7 +781,7 @@
       "passed": 1441,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 25.3,
+      "durationSec": 25.7,
       "result": "pass"
     },
     {
@@ -798,7 +798,7 @@
       "passed": 254,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 9.4,
+      "durationSec": 7.8,
       "result": "pass"
     },
     {
@@ -812,11 +812,11 @@
       "expects": 874,
       "suites": 38,
       "tests": 539,
-      "passed": 538,
-      "failed": 1,
+      "passed": 539,
+      "failed": 0,
       "skipped": 0,
-      "durationSec": 17.3,
-      "result": "fail"
+      "durationSec": 18.8,
+      "result": "pass"
     },
     {
       "package": "vscode-common",
@@ -832,7 +832,7 @@
       "passed": 196,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 15.5,
+      "durationSec": 10.5,
       "result": "pass"
     },
     {
@@ -849,7 +849,7 @@
       "passed": 16,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 6.2,
+      "durationSec": 5.4,
       "result": "pass"
     },
     {
@@ -866,7 +866,7 @@
       "passed": 13,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 7.3,
+      "durationSec": 8.5,
       "result": "pass"
     },
     {
@@ -900,7 +900,7 @@
       "passed": 29,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 8.7,
+      "durationSec": 7.4,
       "result": "pass"
     },
     {
@@ -917,7 +917,7 @@
       "passed": 82,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 6.7,
+      "durationSec": 3.7,
       "result": "pass"
     },
     {
@@ -934,7 +934,7 @@
       "passed": 133,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 2.6,
+      "durationSec": 1.9,
       "result": "pass"
     },
     {
@@ -968,7 +968,7 @@
       "passed": 212,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 30.3,
+      "durationSec": 20.7,
       "result": "pass"
     },
     {
@@ -985,7 +985,7 @@
       "passed": 1293,
       "failed": 0,
       "skipped": 0,
-      "durationSec": 31.5,
+      "durationSec": 21.3,
       "result": "pass"
     }
   ]
