@@ -1,6 +1,7 @@
 ---
 name: anytime-note
-description: Agent Note（anytime-note-N.md）を読んで指示を実行する。「/anytime-note [ページ番号] 対応内容」の形式で使用。ノートに書かれたコンテキスト（画像・テキスト・メモ）を参照し、指示された作業を行う。
+disable-model-invocation: true
+description: 手動起動専用（`/anytime-note`。モデルは自動起動しない）。Agent Note（anytime-note-N.md）を読んで指示を実行する。「/anytime-note [ページ番号] 対応内容」の形式で使用。ノートに書かれたコンテキスト（画像・テキスト・メモ）を参照し、指示された作業を行う。
 user_invocable: true
 argument: task
 ---

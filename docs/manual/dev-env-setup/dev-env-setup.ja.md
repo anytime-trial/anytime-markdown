@@ -1,26 +1,26 @@
 ---
-title: "新規アプリ開発環境構築手順（anytime-build-webapp）"
+title: "開発環境構築手順"
 date: "2026-07-17"
-updated: "2026-08-19"
+updated: "2026-10-25"
 type: "manual"
 lang: "ja"
 author: "Claude Code v2.1.212"
 skill: "anytime-doc-authoring (2026-08-19)"
 category: "setup"
-excerpt: "VS Code Dev Container 上で anytime-build-webapp スキルを使い新規 Web アプリを生成できる状態まで開発環境を構築する手順。Ubuntu（WSL2）・Docker Desktop のインストールから、Git/GitHub 認証（SSH 鍵・GH_TOKEN）・Claude Code・Dev Container 定義・anytime 拡張 3 種のインストールまでを順に整える。追加セットアップとして Google Drive「アプリで開く」連携・Google Drive Reader（サービスアカウント）・チケットループ・Supabase リモート同期の設定手順を含む。"
+excerpt: "VS Code Dev Container 上で Claude Code と anytime 拡張 3 種が動く状態まで開発環境を構築する手順。Ubuntu（WSL2）・Docker Desktop のインストールから、Git/GitHub 認証（SSH 鍵・GH_TOKEN）・Claude Code・Dev Container 定義・anytime 拡張 3 種のインストールまでを順に整える。追加セットアップとして Google Drive「アプリで開く」連携・Google Drive Reader（サービスアカウント）・チケットループ・Supabase リモート同期の設定手順を含む。"
 related:
     - to: "../dev-operations/dev-operations.ja.md"
       type: "references"
 ---
 
-# 新規アプリ開発環境構築手順（anytime-build-webapp）
+# 開発環境構築手順
 
-アプリの生成そのものは 1 コマンドで終わる。手間がかかるのはその手前で、Windows・WSL ホスト・Dev Container の三層にまたがる認証とマウントの配線が一つでも欠けていると、コンテナが起動して最後の一歩に達するまで失敗が表に出ない。そこで下の層から順に配線し、各手順の末尾に置いた確認コマンドが通ってから次へ進む。
+手間がかかるのは環境の配線である。Windows・WSL ホスト・Dev Container の三層にまたがる認証とマウントの配線が一つでも欠けていると、コンテナが起動して最後の一歩に達するまで失敗が表に出ない。そこで下の層から順に配線し、各手順の末尾に置いた確認コマンドが通ってから次へ進む。
 
 到達点は次の 2 点である。
 
-- VS Code Dev Container 内で Claude Code から `/anytime-build-webapp` を実行できる
-- 生成されたアプリが `http://localhost:3000` で HTTP 200 を返す
+- VS Code Dev Container 内で Claude Code がホストのログイン状態のまま起動する
+- anytime 拡張 3 種が activate し、同梱スキルと hooks が配置される
 
 ## 全体フロー
 
@@ -41,8 +41,8 @@ flowchart TD
     end
     subgraph CTN ["Dev Container 内"]
         direction TB
-        S7["7. 拡張 3 種の<br/>インストール確認"] --> S8["8. アプリ生成の実行<br/>(/anytime-build-webapp)"]
-        S8 --> S9["9. 結果確認<br/>(localhost:3000 が 200)"]
+        S7["7. 拡張 3 種の<br/>インストール確認"] --> S8["8. Claude Code の<br/>起動確認"]
+        S8 --> S9["9. 結果確認"]
     end
     S3 --> S4
     S6 -- "コンテナで開く（Reopen in Container）" --> S7
@@ -62,7 +62,7 @@ flowchart TD
 | --- | --- | --- |
 | 1〜3 | PC 単位（初回のみ） | PC を新調したとき、WSL を作り直したとき |
 | 4〜5 | ユーザー単位（初回のみ） | 鍵・トークンの失効時、Claude Code のログアウト時 |
-| 6〜9 | プロジェクト単位 | 新しいアプリを作るたび |
+| 6〜9 | プロジェクト単位 | 新しいプロジェクトを作るたび |
 
 ## 前提条件
 
@@ -71,11 +71,11 @@ flowchart TD
 | OS | Windows 10（21H2 以降）または Windows 11。管理者権限があること（WSL2 は手順 1、Docker Desktop は手順 2 で導入する） |
 | VS Code | Windows にインストール済み（WSL 連携は手順 3 で確認） |
 | Node.js | WSL 側に v20 以上（Claude Code CLI の実行に使用。手順 1 で導入） |
-| GitHub アカウント | `anytime-trial/anytime-lab` リポジトリへの読み取りアクセス権 |
+| GitHub アカウント | SSH 鍵と Personal Access Token を登録できること（手順 4） |
 | Claude Code | サブスクリプションまたは API キー（手順 5 でログイン） |
 
 > [!IMPORTANT]
-> アカウント情報・トークン値は本書にも生成したアプリのリポジトリにも記載しない。トークンは環境変数・シークレット管理でのみ扱う。
+> アカウント情報・トークン値は本書にもプロジェクトのリポジトリにも記載しない。トークンは環境変数・シークレット管理でのみ扱う。
 
 ## 手順
 
@@ -154,7 +154,7 @@ code --install-extension ms-vscode-remote.remote-containers
    git config --global user.email "<メールアドレス>"
    ```
 
-2. **SSH 鍵の生成と GitHub 登録**（anytime-lab のクローンは SSH 経由のため必須）
+2. **SSH 鍵の生成と GitHub 登録**（コンテナ内から SSH で clone / push するため）
 
    ```bash
    ssh-keygen -t ed25519 -C "<メールアドレス>"
@@ -168,9 +168,6 @@ code --install-extension ms-vscode-remote.remote-containers
    # "Hi <ユーザー名>! You've successfully authenticated..." が表示されれば成功
    # （シェルは割り当てられないため終了コードは 1 になる。これが正常）
    ```
-
-   > [!NOTE]
-   > anytime-build-webapp の起動前チェックは `ssh -T git@github.com` の終了コードが 1 であることを確認する。上記メッセージが出ていれば準備完了である。
 
 3. **Personal Access Token（GH_TOKEN）の設定**（gh CLI 用。GitHub MCP サーバーの自動登録は 2026-09-26 に廃止した — 2 か月間呼出ゼロで gh CLI が代替する）
 
@@ -187,7 +184,7 @@ code --install-extension ms-vscode-remote.remote-containers
 
    ```bash
    gh auth login
-   gh repo view anytime-trial/anytime-lab   # アクセス権の確認
+   gh auth status   # 認証状態の確認
    ```
 
 ### 5. Claude Code の準備（WSL ホスト側）
@@ -207,12 +204,9 @@ claude    # 初回起動でログイン（サブスクリプションまたは A
    mkdir -p ~/projects/<app-name>
    ```
 
-   > [!IMPORTANT]
-   > in-place モードではディレクトリ名（CWD の basename）がそのままプロジェクト名になる。kebab-case の英数字で命名する。
-
 2. `.devcontainer/devcontainer.json` **の作成**
 
-   anytime-build-webapp の in-place モードは既存の `.devcontainer/` を温存して動くため、先に最小構成を用意する。以下は必須要素を含むサンプルである。
+   以下は必須要素を含む最小構成のサンプルである。
 
    ```json
    {
@@ -243,11 +237,11 @@ claude    # 初回起動でログイン（サブスクリプションまたは A
 
    | 要素 | 役割 |
    | --- | --- |
-   | `~/.ssh` マウント | コンテナ内から SSH で `anytime-lab` をクローンするための認証 |
+   | `~/.ssh` マウント | コンテナ内から SSH で GitHub へ接続するための認証 |
    | `~/.claude` マウント | Claude Code のログイン状態・設定・スキルをコンテナと共有 |
    | `containerEnv.GH_TOKEN` | ホストの `GH_TOKEN` をコンテナへ伝播（gh CLI 用） |
    | `customizations.vscode.extensions` | anytime 拡張 3 種の自動インストール（手順 7） |
-   | `forwardPorts: [3000]` | 生成アプリの dev サーバーをホストブラウザから閲覧 |
+   | `forwardPorts: [3000]` | 開発するアプリの dev サーバーをホストブラウザから閲覧 |
 
 3. **Dev Container の起動**
 
@@ -265,53 +259,35 @@ claude    # 初回起動でログイン（サブスクリプションまたは A
 
 拡張の activate 時に以下が自動セットアップされる。
 
-- **Agent 拡張**: ワークスペースの `.claude/skills/` へ同梱スキルを展開する。`anytime-build-webapp` のほか、`anytime-dev-cycle`（開発基本）・`anytime-cross-review`（相互レビュー）・`anytime-analysis`（旧 `anytime-proposal`）・`anytime-loop-start` / `anytime-loop-stop`（チケットループ）・`anytime-session-exit`・`anytime-dev-audit`・`anytime-note` が含まれる
+- **Agent 拡張**: ワークスペースの `.claude/skills/` へ同梱スキルを展開する。`anytime-dev-cycle`（開発基本）・`anytime-cross-review`（相互レビュー）・`anytime-analysis`（旧 `anytime-proposal`）・`anytime-loop-start` / `anytime-loop-stop`（チケットループ）・`anytime-session-exit`・`anytime-dev-audit`・`anytime-note` が含まれる
 - **Trail / Agent 拡張**: `~/.claude/settings.json` へ Claude Code hooks（編集状態・コミット・トークン消費の記録）を登録する
 
 展開結果を確認する。
 
 ```bash
 ls .claude/skills/
-# anytime-build-webapp が含まれていること
+# anytime-dev-cycle が含まれていること
 ```
 
 > [!NOTE]
 > 拡張はサイドバーのパネルを開くなどで activate される。スキルが展開されない場合は、Anytime Agent のアイコンをアクティビティバーで一度開く。
 
-### 8. アプリ生成の実行（in-place モード）
+### 8. Claude Code の起動確認（コンテナ側）
 
-コンテナ内ターミナルで Claude Code を起動し、スキルを実行する。
+コンテナ内ターミナルで Claude Code を起動する。
 
 ```bash
 claude
 ```
 
-```text
-/anytime-build-webapp <1 行の要求> [--no-auth | --auth=email-password | --auth=google] [--design-url <URL> | --design-file <path>]
-```
-
-実行の流れは次のとおり。
-
-1. **Phase 1（Interview）**: 目的・エンティティ・認証・スタック・デザインの質問に回答する
-2. **要件承認**: 生成された `requirements.md` の要約が表示されるので内容を確認して承認する（What の承認。以後のプラン・実装は自動で進む）
-3. **Phase 2〜6**: プラン作成 → anytime-lab のクローンとスキャフォールド → 実装 → 起動検証まで自動実行される
-
-> [!IMPORTANT]
-> in-place モードでは既存の `.devcontainer/` が温存され、anytime-lab 側の devcontainer（Postgres 統合済み）は破棄される。データベースが必要なスタック（T3 の Prisma 等）では Postgres を別途用意する。
->
-> - 一時的: WSL ホストで `docker compose up -d db`（生成された `docker-compose.yml` を使用）
-> - 恒久的: `.devcontainer/devcontainer.json` を docker-compose 連携（`dockerComposeFile` 指定）に書き換えて Rebuild する
->
-> \[!NOTE\] 代替として **--new-dir モード**がある。WSL ホスト側（Docker daemon が使える環境）の空ディレクトリで `claude` を起動して `/anytime-build-webapp <要求> --new-dir` を実行すると、anytime-lab の `.devcontainer/` ごとプロジェクトが生成される。生成後に VS Code の **Reopen in Container** でコンテナ開発へ移行する。
+ログインを求められずに起動すれば、手順 5 のログイン状態が `~/.claude` マウント経由で共有されている。プロンプトで `/` を入力し、補完候補に `/anytime-dev-cycle` が出ることを確認する。
 
 ### 9. 結果確認
 
 | 確認項目 | コマンド / 操作 | 期待結果 |
 | --- | --- | --- |
-| アプリ疎通 | `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000` | `200` |
-| ブラウザ表示 | ホスト側ブラウザで `http://localhost:3000` を開く | トップページが表示される |
-| 初期コミット | `git log --oneline` | `chore: initial scaffold from anytime-lab ...` |
-| スキーマ適用（T3） | `.env` の `DATABASE_URL` を確認後 `npx prisma migrate dev --name init` | マイグレーション成功 |
+| GitHub 疎通 | `ssh -T git@github.com` | `Hi <ユーザー名>!` が表示される（終了コード 1） |
+| gh CLI | `gh auth status` | ログイン済みと表示される |
 | Trail 拡張 | コマンドパレット → `Anytime Trail: Open Trail Viewer` | `http://localhost:19841` でビューアが開く |
 | Agent 拡張 | アクティビティバーの Anytime Agent → Agent Mapping | 現在の Claude Code セッションが一覧に表示される |
 
@@ -445,6 +421,5 @@ Trail のローカルデータ（セッション・トークン消費等）を S
 | `Permission denied (publickey)` | SSH 鍵未登録またはマウント漏れ | `ssh -T git@github.com` で確認。コンテナ内で `ls ~/.ssh` を確認し、devcontainer の mounts を見直して Rebuild |
 | `docker info` が失敗 | Docker daemon 未起動 | Docker Desktop を起動、または WSL 内の Docker Engine を `sudo service docker start` |
 | コンテナ内で `GH_TOKEN` が空 | コンテナ作成後にホストへ export した | ホストの `~/.bashrc` 設定後、VS Code を再起動して **Rebuild Container** |
-| `/anytime-build-webapp` がスキル一覧に出ない | Agent 拡張が未 activate | アクティビティバーで Anytime Agent パネルを開き、`ls .claude/skills/` で展開を確認 |
-| `Repository not found` | anytime-lab へのアクセス権なし | `gh repo view anytime-trial/anytime-lab` で権限を確認し、管理者に招待を依頼 |
+| `/anytime-dev-cycle` がスキル一覧に出ない | Agent 拡張が未 activate | アクティビティバーで Anytime Agent パネルを開き、`ls .claude/skills/` で展開を確認 |
 | Claude Code が未ログイン状態 | `~/.claude` マウント漏れ | devcontainer の mounts に `~/.claude` を追加して Rebuild（ホスト側で先にログインしておく） |
