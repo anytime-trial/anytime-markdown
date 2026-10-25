@@ -70,6 +70,9 @@ export function Colophon() {
             <li>
               <Link href="/timeline">{t('releaseTimeline')}</Link>
             </li>
+            <li>
+              <Link href="/test-status">{t('testStatus')}</Link>
+            </li>
             {showGraph ? (
               <li>
                 <Link href="/graph">{tLanding('graphPage')}</Link>

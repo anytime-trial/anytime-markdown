@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+## [1.26.3] - 2026-10-25
+
+### セキュリティ
+
+- `dompurify` を 3.4.17（shadow root 内容での `SAFE_FOR_TEMPLATES` のバイパス）、`markdown-it` を 14.3.3（インライン HTML 解析の二乗時間 DoS）へ更新した。
+
 ## [1.26.2] - 2026-10-11
 
 ### セキュリティ

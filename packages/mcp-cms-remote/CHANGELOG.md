@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-10-25
+
+### Security
+
+- Updated `hono` to 4.13.13 (`serveStatic` decoded the request path twice, allowing middleware bypass on static paths).
+- Updated `zod` to 4.6.7 (from 3.25.76) to address memory exhaustion when validating oversized constrained collections.
+
 ## [0.4.3] - 2026-10-11
 
 ### Fixed

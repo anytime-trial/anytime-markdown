@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.4] - 2026-10-25
+
+### Security
+
+- Updated the bundled `dompurify` to 3.4.17 (`SAFE_FOR_TEMPLATES` bypass) and `zod` to 4.6.7 (from 3.25.76 in the extension host and 4.3.6 in `mcp-trail` / `trail-caravan-book`) (memory exhaustion when validating oversized constrained collections).
+
 ## [1.8.3] - 2026-10-11
 
 ### Security

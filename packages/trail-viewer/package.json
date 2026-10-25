@@ -18,7 +18,7 @@
     "@anytime-markdown/trace-viewer": "*",
     "@anytime-markdown/trail-activity": "*",
     "@anytime-markdown/ui-core": "*",
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.17",
     "graphology": "0.26.0",
     "marked": "17.0.3",
     "sigma": "3.0.2"
