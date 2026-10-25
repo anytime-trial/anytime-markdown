@@ -19,7 +19,8 @@
     "gen:architecture-icons": "node scripts/gen-architecture-icons.mjs",
     "analyze": "next build --experimental-analyze",
     "analyze:webpack": "ANALYZE=true next build --webpack",
-    "data:insights": "tsx scripts/build-insight-timeline.ts"
+    "data:insights": "tsx scripts/build-insight-timeline.ts",
+    "data:test-status": "tsx scripts/build-test-status.ts"
   },
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
