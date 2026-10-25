@@ -1,5 +1,11 @@
 # Change Log
 
+## [0.5.2] - 2026-10-25
+
+### Security
+
+- Updated the bundled MCP server to `zod` 4.6.7 (from 3.25.76) to address memory exhaustion when validating oversized constrained collections. Tool input schemas are unchanged.
+
 ## [0.5.1] - 2026-10-11
 
 ### Security

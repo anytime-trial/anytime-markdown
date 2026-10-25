@@ -10,7 +10,7 @@
 
 ### セキュリティ
 
-- 同梱の `dompurify` を 3.4.17（`SAFE_FOR_TEMPLATES` のバイパス）、`mcp-trail` / `trail-caravan-book` が使う `zod` を 4.6.7（制約付きの巨大コレクション検証でのメモリ枯渇）へ更新した。
+- 同梱の `dompurify` を 3.4.17（`SAFE_FOR_TEMPLATES` のバイパス）、`zod` を 4.6.7（拡張本体は 3.25.76、`mcp-trail` / `trail-caravan-book` は 4.3.6 から）（制約付きの巨大コレクション検証でのメモリ枯渇）へ更新した。
 
 ## [1.8.3] - 2026-10-11
 

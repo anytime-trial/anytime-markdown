@@ -14,7 +14,7 @@
 
 ### セキュリティ
 
-- `next` を 16.4.3（SVG を扱う Image Optimization API での未認証リモートコード実行）、`dompurify` を 3.4.17、`zod` を 4.6.7 へ更新した。overrides で固定している間接依存も `undici` 7.30.1、`body-parser` 2.4.0、`fast-uri` 3.1.9、`ip-address` 10.7.5、`serialize-javascript` 7.1.4 へ更新した。
+- `next` を 16.4.3（SVG を扱う Image Optimization API での未認証リモートコード実行）、`dompurify` を 3.4.17、`zod` を 4.6.7 へ更新した（`@serwist/build` が脆弱な 4.6.5 を要求するため overrides でも固定）。overrides で固定している間接依存も `undici` 7.30.1、`body-parser` 2.4.0、`fast-uri` 3.1.9、`ip-address` 10.7.5、`serialize-javascript` 7.1.4 へ更新した。
 
 ## [0.56.4] - 2026-10-11
 

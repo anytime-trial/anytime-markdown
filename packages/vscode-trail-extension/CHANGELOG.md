@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Security
 
-- Updated the bundled `dompurify` to 3.4.17 (`SAFE_FOR_TEMPLATES` bypass) and `zod` (used by `mcp-trail` / `trail-caravan-book`) to 4.6.7 (memory exhaustion when validating oversized constrained collections).
+- Updated the bundled `dompurify` to 3.4.17 (`SAFE_FOR_TEMPLATES` bypass) and `zod` to 4.6.7 (from 3.25.76 in the extension host and 4.3.6 in `mcp-trail` / `trail-caravan-book`) (memory exhaustion when validating oversized constrained collections).
 
 ## [1.8.3] - 2026-10-11
 

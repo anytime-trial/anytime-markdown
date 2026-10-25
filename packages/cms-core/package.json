@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/cms-core",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1004.0",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

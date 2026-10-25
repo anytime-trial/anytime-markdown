@@ -15,7 +15,7 @@
     "@xmldom/xmldom": "^0.9.10",
     "fetch-to-node": "2.1.0",
     "hono": "4.13.13",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20250327.0",

@@ -31,7 +31,6 @@ function registerTool(
   params: Record<string, z.ZodType>,
   handler: ToolCallback,
 ): void {
-  // @ts-expect-error TS2589: MCP SDK の Zod 型推論が深すぎる既知の制限
   server.registerTool(name, { description, inputSchema: params }, handler);
 }
 

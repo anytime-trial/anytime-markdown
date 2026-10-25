@@ -155,7 +155,7 @@ export function createMcpServer(options: McpGraphOptions): McpServer {
       nodes: z.array(z.object({
         id: z.string().describe('User-supplied node ID (mapped to internal UUID)'),
         text: z.string().describe('Node label text'),
-        metadata: z.record(z.union([z.string(), z.number()])).optional()
+        metadata: z.record(z.string(), z.union([z.string(), z.number()])).optional()
           .describe('Key-value metadata for data-driven styling'),
         url: z.string().optional().describe('URL associated with the node'),
       })).describe('Array of nodes to create'),

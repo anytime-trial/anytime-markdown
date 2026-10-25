@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/mcp-cms",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -15,7 +15,7 @@
     "@anytime-markdown/cms-core": "*",
     "@modelcontextprotocol/sdk": "1.32.1",
     "dotenv": "16.5.0",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

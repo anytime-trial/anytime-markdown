@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-10-25
+
+### Security
+
+- Updated the bundled MCP server to `zod` 4.6.7 (from 3.25.76) to address memory exhaustion when validating oversized constrained collections. Tool input schemas are unchanged.
+
 ## [1.3.4] - 2026-10-11
 
 ### Security

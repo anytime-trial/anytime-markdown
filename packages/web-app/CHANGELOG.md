@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Security
 
-- Updated `next` to 16.4.3 (unauthenticated remote code execution in the Image Optimization API with SVG files), `dompurify` to 3.4.17, `zod` to 4.6.7, and the overridden transitive dependencies `undici` 7.30.1, `body-parser` 2.4.0, `fast-uri` 3.1.9, `ip-address` 10.7.5 and `serialize-javascript` 7.1.4.
+- Updated `next` to 16.4.3 (unauthenticated remote code execution in the Image Optimization API with SVG files), `dompurify` to 3.4.17, `zod` to 4.6.7 (also pinned via overrides, since `@serwist/build` requires a vulnerable 4.6.5), and the overridden transitive dependencies `undici` 7.30.1, `body-parser` 2.4.0, `fast-uri` 3.1.9, `ip-address` 10.7.5 and `serialize-javascript` 7.1.4.
 
 ## [0.56.4] - 2026-10-11
 
