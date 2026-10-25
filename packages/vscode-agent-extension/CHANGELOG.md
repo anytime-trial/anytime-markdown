@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- The bundled skills `anytime-loop-start`, `anytime-loop-stop`, `anytime-dev-audit` and `anytime-note` are now manual-only (`disable-model-invocation: true`). Their descriptions no longer load into Claude Code's startup context, and they run only when invoked as `/skill-name`. Natural-language requests such as "stop the ticket loop" no longer start them, so call them by name, e.g. `/anytime-loop-stop`.
+- The bundled skills `anytime-loop-stop`, `anytime-dev-audit` and `anytime-note` are now manual-only (`disable-model-invocation: true`). Their descriptions no longer load into Claude Code's startup context, and they run only when invoked as `/skill-name`. Natural-language requests such as "stop the ticket loop" no longer start them, so call them by name, e.g. `/anytime-loop-stop`. `anytime-loop-start` is excluded: the `/anytime-loop-start` prompt fired by an in-session cron job is not expanded as a slash command, so the model has to load the skill through the Skill tool.
 
 ## [1.20.8] - 2026-10-25
 

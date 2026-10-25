@@ -12,7 +12,7 @@
 
 ### 変更
 
-- 同梱スキル `anytime-loop-start` / `anytime-loop-stop` / `anytime-dev-audit` / `anytime-note` を手動起動専用（`disable-model-invocation: true`）にした。Claude Code の起動時文脈に description が載らなくなり、`/スキル名` でだけ起動する。「チケットループを止めて」のような自然言語では起動しないため、`/anytime-loop-stop` のように名前で呼ぶこと。
+- 同梱スキル `anytime-loop-stop` / `anytime-dev-audit` / `anytime-note` を手動起動専用（`disable-model-invocation: true`）にした。Claude Code の起動時文脈に description が載らなくなり、`/スキル名` でだけ起動する。「チケットループを止めて」のような自然言語では起動しないため、`/anytime-loop-stop` のように名前で呼ぶこと。`anytime-loop-start` は対象外。セッション内の cron が発火させるプロンプト `/anytime-loop-start` はスラッシュコマンドとして展開されず、モデルが Skill ツールで読み込む必要があるため。
 
 ## [1.20.8] - 2026-10-25
 
