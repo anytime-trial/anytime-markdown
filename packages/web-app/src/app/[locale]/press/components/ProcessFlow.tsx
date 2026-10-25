@@ -1,4 +1,5 @@
 import { useTranslations } from 'next-intl';
+import { useId } from 'react';
 
 import styles from '../press.module.css';
 
@@ -7,6 +8,8 @@ interface ProcessStep {
   human?: boolean;
   /** 工程を実行する Claude Code スキル名。固有名のため翻訳しない */
   skill?: string;
+  /** 工程の内訳。受け入れ試験の 2 段（自動テストの内容確認 → ユーザーテスト）など */
+  subKeys?: readonly string[];
 }
 
 interface ProcessLoop {
@@ -14,8 +17,10 @@ interface ProcessLoop {
   scaleKey: string;
   /** ループを実行する Claude Code スキル名。固有名のため翻訳しない */
   skill?: string;
+  /** ループを回す前提の注記。ループ A は自動テストの範囲を事前定義した上で回す */
+  noteKey?: string;
   steps: readonly ProcessStep[];
-  /** ループの出口注記。ループ B は次工程へ直進するだけなので持たない */
+  /** ループの出口注記（差し戻し・改訂の戻り先） */
   returnKey?: string;
   /** 直前のループから伸びる矢印のラベル。最初のループには無い */
   edgeKey?: string;
@@ -26,6 +31,7 @@ const LOOPS: readonly ProcessLoop[] = [
     titleKey: 'loopATitle',
     scaleKey: 'loopAScale',
     skill: 'anytime-dev-cycle',
+    noteKey: 'loopANote',
     steps: [
       { key: 'loopA1' },
       { key: 'loopA2', human: true },
@@ -38,7 +44,11 @@ const LOOPS: readonly ProcessLoop[] = [
   {
     titleKey: 'loopBTitle',
     scaleKey: 'loopBScale',
-    steps: [{ key: 'loopB1', human: true }, { key: 'loopB2', skill: 'production-release' }],
+    steps: [
+      { key: 'loopB1', human: true, subKeys: ['loopB1a', 'loopB1b'] },
+      { key: 'loopB2', skill: 'production-release' },
+    ],
+    returnKey: 'loopBReturn',
     edgeKey: 'edgeAB',
   },
   {
@@ -73,8 +83,10 @@ function FlowArrow({ label }: Readonly<{ label?: string }>) {
 
 export function ProcessFlow() {
   const t = useTranslations('press.process');
+  // 図の名前は短く保ち、詳しい説明は可視の figcaption に寄せる（長い aria-label は可視テキストと二重に読まれる）
+  const captionId = useId();
   return (
-    <figure className={styles.processFlow} aria-label={t('figureLabel')}>
+    <figure className={styles.processFlow} aria-label={t('figureLabel')} aria-describedby={captionId}>
       <div className={`${styles.processNode} ${styles.processNodeHuman}`}>{t('input')}</div>
       {LOOPS.map((loop) => (
         <div key={loop.titleKey} className={styles.processLoopBlock}>
@@ -85,6 +97,7 @@ export function ProcessFlow() {
               <span className={styles.processLoopScale}>{t(loop.scaleKey)}</span>
             </header>
             {loop.skill ? <SkillTag label={t('skillLabel')} skill={loop.skill} /> : null}
+            {loop.noteKey ? <p className={styles.processNote}>{t(loop.noteKey)}</p> : null}
             <ol className={styles.processSteps}>
               {loop.steps.map((step, idx) => (
                 <li
@@ -97,6 +110,13 @@ export function ProcessFlow() {
                     </span>
                   ) : null}
                   {t(step.key)}
+                  {step.subKeys ? (
+                    <ol className={styles.processSubSteps}>
+                      {step.subKeys.map((subKey) => (
+                        <li key={subKey}>{t(subKey)}</li>
+                      ))}
+                    </ol>
+                  ) : null}
                   {step.skill ? <SkillTag label={t('skillLabel')} skill={step.skill} /> : null}
                 </li>
               ))}
@@ -112,7 +132,7 @@ export function ProcessFlow() {
           </section>
         </div>
       ))}
-      <figcaption className={styles.processCaption}>{t('caption')}</figcaption>
+      <figcaption id={captionId} className={styles.processCaption}>{t('caption')}</figcaption>
     </figure>
   );
 }
