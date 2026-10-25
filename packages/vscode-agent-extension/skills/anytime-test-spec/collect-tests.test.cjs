@@ -186,3 +186,113 @@ test('collect は root が git リポジトリのサブディレクトリでも 
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test('parseTestFile は複数行の配列テーブルを持つ it.each のタイトルを、閉じ括弧の行から拾う', () => {
+  const src = [
+    "describe('isTestFile', () => {",
+    '  it.each([',
+    "    ['a.test.ts', true],",
+    "    ['a.ts', false],",
+    "  ])('%s は %s', (p, expected) => {",
+    '    expect(isTestFile(p)).toBe(expected);',
+    '  });',
+    '});',
+  ].join('\n');
+  const tests = ct.parseTestFile(src, 'a.test.ts');
+  assert.deepStrictEqual(tests.map((t) => [t.key, t.line, t.assertions]), [['a.test.ts::isTestFile > %s は %s', 2, 1]]);
+});
+
+test('parseTestFile はテンプレート文字列のテーブルを持つ test.each のタイトルを拾う', () => {
+  const src = [
+    'test.each`',
+    '  a    | b',
+    '  ${1} | ${2}',
+    "`('$a と $b', ({ a, b }) => {",
+    '  expect(a).toBeLessThan(b);',
+    '});',
+  ].join('\n');
+  assert.deepStrictEqual(ct.parseTestFile(src, 'a.test.ts').map((t) => t.title), ['$a と $b']);
+});
+
+test('scanTestFile はタイトルを拾えなかった describe / it / test の呼び出しを unparsed に出す', () => {
+  const src = [
+    "it('拾える', () => { expect(1).toBe(1); });",
+    'it(TITLE, () => { expect(1).toBe(1); });',
+    '  test.skip(name, () => {});',
+    'const items = list.filter((it) => it.ok);',
+  ].join('\n');
+  const { tests, unparsed } = ct.scanTestFile(src, 'a.test.ts');
+  assert.deepStrictEqual(tests.map((t) => t.title), ['拾える']);
+  assert.deepStrictEqual(unparsed.map((u) => u.line), [2, 3]);
+  assert.strictEqual(unparsed[0].file, 'a.test.ts');
+});
+
+test('collect は unparsed の件数を summary に出す', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'test-spec-'));
+  try {
+    fs.writeFileSync(path.join(root, 'a.test.ts'), "it('a', () => { expect(1).toBe(1); });\nit(T, () => {});\n");
+    const result = ct.collect({ root, paths: ['.'] });
+    assert.strictEqual(result.summary.unparsed, 1);
+    assert.strictEqual(result.unparsed[0].text, 'it(T, () => {});');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('scanTestFile は Playwright のフック・設定の呼び出しを unparsed に出さない', () => {
+  const src = [
+    'test.beforeEach(async ({ page }) => {});',
+    'test.afterAll(async () => {});',
+    "test.describe.configure({ mode: 'serial' });",
+    "test.use({ viewport: { width: 400, height: 800 } });",
+    'test.setTimeout(60_000);',
+    "await test.step('開く', async () => {});",
+    'test.slow();',
+  ].join('\n');
+  assert.deepStrictEqual(ct.scanTestFile(src, 'e2e/a.spec.ts').unparsed, []);
+});
+
+test('parseTestFile は閉じ括弧の次の行にタイトルを置く it.each を拾う', () => {
+  const src = [
+    'it.each(["ja", "en"] as const)(',
+    "  '%s のメタデータ',",
+    '  (locale) => {',
+    '    expect(meta(locale)).toBeTruthy();',
+    '  },',
+    ');',
+    'it.each([',
+    '  [1],',
+    '  [2],',
+    '])(',
+    '  "%d は正",',
+    '  (n) => {',
+    '    expect(n).toBeGreaterThan(0);',
+    '  },',
+    ');',
+  ].join('\n');
+  const { tests, unparsed } = ct.scanTestFile(src, 'a.test.ts');
+  assert.deepStrictEqual(tests.map((t) => [t.title, t.line]), [
+    ['%s のメタデータ', 1],
+    ['%d は正', 7],
+  ]);
+  assert.deepStrictEqual(unparsed, []);
+});
+
+test('scanTestFile はテスト本体の中の条件付き test.skip を所属テストの conditional-skip フラグにする', () => {
+  const src = [
+    "test('一覧', async ({ page }) => {",
+    '  const hasRows = await page.locator("tr").count();',
+    "  test.skip(!hasRows, '行が無い');",
+    '  expect(hasRows).toBeGreaterThan(0);',
+    '});',
+    "test('詳細', async () => {",
+    '  expect(1).toBe(1);',
+    '});',
+  ].join('\n');
+  const { tests, unparsed } = ct.scanTestFile(src, 'e2e/a.spec.ts');
+  assert.deepStrictEqual(tests.map((t) => [t.title, t.flags]), [
+    ['一覧', ['conditional-skip']],
+    ['詳細', []],
+  ]);
+  assert.deepStrictEqual(unparsed, []);
+});

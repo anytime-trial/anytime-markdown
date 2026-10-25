@@ -23,10 +23,25 @@ const { execFileSync } = require('node:child_process');
 const TEST_FILE_PATTERN = /\.(test|spec)\.[cm]?[jt]sx?$/;
 const EXCLUDED_DIRS = new Set(['node_modules', 'dist', 'out', 'build', 'coverage', '.next', '.git', '.worktrees']);
 
-// describe / it / test と修飾子（.skip / .only / .todo / .fixme / .describe / .each(...) 等）の後に
-// 文字列リテラルのタイトルが続く呼び出し。.each のテーブルが複数行にまたがる場合は拾えない。
+// describe / it / test と修飾子（.skip / .only / .todo / .fixme / .describe / 1 行の .each(...) 等）の後に
+// 文字列リテラルのタイトルが続く呼び出し。
 const CALL_PATTERN =
   /^(\s*)(describe|it|test)((?:\.(?:describe|skip|only|todo|fixme|concurrent|serial|parallel|failing))*)(?:\.each\s*\(.*?\)\s*)?\s*\(\s*(['"`])((?:\\.|(?!\4).)*)\4/;
+// タイトルが開始行に無い .each の開始行（テーブルが複数行・タイトルが次の行など）
+const EACH_START_PATTERN =
+  /^(\s*)(describe|it|test)((?:\.(?:describe|skip|only|todo|fixme|concurrent|serial|parallel|failing))*)\.each\s*[(`]/;
+// .each のテーブルを閉じた直後の `(` とタイトル（`])('t'` / `] as const)(\n 't'` / `\`('t'`）。改行をまたいで探す
+const EACH_TITLE_PATTERN = /(?:(?:\]\s*(?:as\s+const\s*)?)?\)|`)\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
+// テスト本体の中で実行時に skip する呼び出し（`test.skip(!cond, 'reason')`）。コールバックを持つ定義とは区別する
+const RUNTIME_SKIP_PATTERN = /^\s*test\.(?:skip|fixme|fail)\s*\(/;
+const CALLBACK_PATTERN = /=>|\bfunction\b/;
+// 行頭の describe / it / test 呼び出し。タイトルを拾えなかったものを unparsed に出し、列挙漏れを件数とは
+// 別の経路で知らせる（件数照合はスクリプト自身の数え方に依存し、漏れを検知できない）
+const CALL_START_PATTERN = /^\s*(describe|it|test)(?:\.\w+)*\s*[(`]/;
+// テストを定義しないフック・設定の呼び出し（Playwright の test.beforeEach / test.describe.configure 等）は除く
+const NON_TEST_CALL_PATTERN =
+  /^\s*(?:describe|test)(?:\.describe)?\.(?:beforeEach|afterEach|beforeAll|afterAll|configure|use|step|setTimeout|slow|info|extend|expect)\b/;
+const EACH_CLOSE_SEARCH_LINES = 200;
 const ASSERTION_PATTERN = /\bexpect(?:\.\w+)?\s*\(|\bassert(?:\.\w+)?\s*\(|\bexpectTypeOf\s*\(/;
 const FLAG_NAMES = ['skip', 'only', 'todo', 'fixme', 'failing'];
 
@@ -41,20 +56,65 @@ function modifierFlags(modifiers) {
     .filter((m) => FLAG_NAMES.includes(m));
 }
 
+function toCall(line, indent, fn, modifiers, title) {
+  const isDescribe = fn === 'describe' || modifiers.split('.').includes('describe');
+  return { line, indent: indent.length, isDescribe, title, flags: modifierFlags(modifiers) };
+}
+
+/**
+ * 行 start で始まる .each のタイトルを、テーブルを閉じた後ろから探す。
+ * [タイトルのある行番号(0 始まり), タイトル] を返し、見つからなければ null。
+ */
+function findEachTitle(lines, start) {
+  const joined = lines.slice(start, start + EACH_CLOSE_SEARCH_LINES).join('\n');
+  // テーブルの開き（`.each(` / `.each\``）の後ろから探す。開きの `(` をタイトル直前の `(` と取り違えない
+  const opener = /\.each\s*[(`]/.exec(joined);
+  if (!opener) return null;
+  EACH_TITLE_PATTERN.lastIndex = opener.index + opener[0].length;
+  const m = EACH_TITLE_PATTERN.exec(joined);
+  if (!m) return null;
+  const titleLine = start + joined.slice(0, m.index + m[0].length).split('\n').length - 1;
+  return [titleLine, m[2]];
+}
+
+/** 行ごとに describe / it / test の呼び出しを拾い、拾えなかった呼び出しを unparsed に分ける。 */
+function scanCalls(lines, relPath) {
+  const calls = [];
+  const unparsed = [];
+  const runtimeSkipLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i];
+    const m = CALL_PATTERN.exec(text);
+    if (m) {
+      calls.push(toCall(i + 1, m[1], m[2], m[3], m[5]));
+      continue;
+    }
+    const each = EACH_START_PATTERN.exec(text);
+    const title = each ? findEachTitle(lines, i) : null;
+    if (each && title) {
+      calls.push(toCall(i + 1, each[1], each[2], each[3], title[1]));
+      i = title[0];
+      continue;
+    }
+    if (RUNTIME_SKIP_PATTERN.test(text) && !CALLBACK_PATTERN.test(text)) {
+      runtimeSkipLines.push(i + 1);
+      continue;
+    }
+    if (CALL_START_PATTERN.test(text) && !NON_TEST_CALL_PATTERN.test(text)) {
+      unparsed.push({ file: relPath, line: i + 1, text: text.trim() });
+    }
+  }
+  return { calls, unparsed, runtimeSkipLines };
+}
+
 /**
  * 1 ファイル分のソースからテストを列挙する（純関数）。
  * 返す各テストは key（path::タイトルパス）・行範囲・フラグ・アサーション数を持つ。
+ * タイトルを拾えなかった呼び出しは unparsed に入る（仕様書を書く側が手で補う）。
  */
-function parseTestFile(source, relPath) {
+function scanTestFile(source, relPath) {
   const lines = source.split(/\r?\n/);
-  const calls = [];
-  lines.forEach((text, idx) => {
-    const m = CALL_PATTERN.exec(text);
-    if (!m) return;
-    const [, indent, fn, modifiers, , title] = m;
-    const isDescribe = fn === 'describe' || modifiers.split('.').includes('describe');
-    calls.push({ line: idx + 1, indent: indent.length, isDescribe, title, flags: modifierFlags(modifiers) });
-  });
+  const { calls, unparsed, runtimeSkipLines } = scanCalls(lines, relPath);
 
   const tests = [];
   const stack = [];
@@ -69,7 +129,8 @@ function parseTestFile(source, relPath) {
     const endLine = i + 1 < calls.length ? calls[i + 1].line - 1 : lines.length;
     const body = lines.slice(call.line - 1, endLine);
     const inherited = stack.flatMap((d) => d.flags);
-    const flags = [...new Set([...inherited, ...call.flags])];
+    const runtimeSkip = runtimeSkipLines.some((l) => l > call.line && l <= endLine) ? ['conditional-skip'] : [];
+    const flags = [...new Set([...inherited, ...call.flags, ...runtimeSkip])];
     const titlePath = [...stack.map((d) => d.title), call.title];
     const baseKey = `${relPath}::${titlePath.join(' > ')}`;
     const count = (seen.get(baseKey) ?? 0) + 1;
@@ -86,7 +147,11 @@ function parseTestFile(source, relPath) {
       assertions: body.filter((l) => ASSERTION_PATTERN.test(l)).length,
     });
   });
-  return tests;
+  return { tests, unparsed };
+}
+
+function parseTestFile(source, relPath) {
+  return scanTestFile(source, relPath).tests;
 }
 
 /** `git diff -U0` の出力から、新しい側で変わった行範囲 [start, end] を返す（純関数）。 */
@@ -160,7 +225,7 @@ function applySince(root, relPath, tests, since) {
   return markChanged(tests, changedLineRanges(git(root, ['diff', '-U0', since, '--', relPath])));
 }
 
-function summarize(tests, fileCount) {
+function summarize(tests, fileCount, unparsedCount) {
   const byKind = {};
   for (const t of tests) byKind[t.kind] = (byKind[t.kind] ?? 0) + 1;
   const withFlag = (f) => tests.filter((t) => t.flags.includes(f)).length;
@@ -169,9 +234,11 @@ function summarize(tests, fileCount) {
     tests: tests.length,
     byKind,
     skip: withFlag('skip') + withFlag('fixme'),
+    conditionalSkip: withFlag('conditional-skip'),
     only: withFlag('only'),
     todo: withFlag('todo'),
     noAssertion: tests.filter((t) => t.assertions === 0 && !t.flags.includes('todo')).length,
+    unparsed: unparsedCount,
   };
 }
 
@@ -182,18 +249,20 @@ function collect({ root, paths, since, previous }) {
   files.sort();
 
   let tests = [];
+  let unparsed = [];
   for (const abs of files) {
     const relPath = toPosix(path.relative(absRoot, abs));
-    let parsed = parseTestFile(fs.readFileSync(abs, 'utf8'), relPath);
-    if (since) parsed = applySince(absRoot, relPath, parsed, since);
-    tests = tests.concat(parsed);
+    const scanned = scanTestFile(fs.readFileSync(abs, 'utf8'), relPath);
+    tests = tests.concat(since ? applySince(absRoot, relPath, scanned.tests, since) : scanned.tests);
+    unparsed = unparsed.concat(scanned.unparsed);
   }
 
   const result = {
     root: toPosix(absRoot),
     since: since ?? null,
-    summary: summarize(tests, files.length),
+    summary: summarize(tests, files.length, unparsed.length),
     tests,
+    unparsed,
   };
   if (previous) {
     result.diff = diffKeys(extractSpecKeys(fs.readFileSync(previous, 'utf8')), tests.map((t) => t.key));
@@ -228,6 +297,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  scanTestFile,
   parseTestFile,
   changedLineRanges,
   markChanged,

@@ -20,7 +20,7 @@ updatedAt: "<YYYY-MM-DD>"
 | 対象 | <パッケージ・機能> |
 | 基準コミット | `<sourceCommit の先頭 9 桁>` |
 | テスト範囲の定義 | <所在> |
-| テスト件数 | <summary.tests>（unit <n> / integration <n> / e2e <n>） |
+| テスト件数 | <件数>（unit <n> / integration <n> / e2e <n>）。手で補った件数があれば併記 |
 | 要確認 | <件数> |
 
 ## レビューの観点
@@ -53,7 +53,7 @@ updatedAt: "<YYYY-MM-DD>"
 | T-001 | `src/__tests__/a.test.ts::群 > 項目` | unit | <入力・操作> すると <観測される結果> | FR-01 | | 未レビュー | |
 
 - 種別: unit / integration / e2e
-- 注意: skip・fixme・only・todo などのフラグ、要確認の ID
+- 注意: skip・fixme・only・todo・conditional-skip などのフラグ、要確認の ID、列挙漏れを手で補った旨
 - レビュー（人）: 未レビュー / 妥当 / 要修正 / 不要
 
 ## 削除されたテスト
