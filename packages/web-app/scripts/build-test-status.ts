@@ -17,6 +17,8 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
+
 import {
   countFixesByPackage,
   countSmells,
@@ -183,7 +185,7 @@ async function main(): Promise<void> {
   const ci = parseCiTestPackages(readFileSync(CI_WORKFLOW, 'utf8'), readFileSync(COVERAGE_ACTION, 'utf8'));
   const vm = coverageRemainingPackages();
   const fixes = countFixesByPackage(
-    execFileSync('git', ['-C', REPO_ROOT, 'log', '--since=90.days', '--pretty=%s'], { encoding: 'utf8' }),
+    execFileSync(resolveGitExecutable(), ['-C', REPO_ROOT, 'log', '--since=90.days', '--pretty=%s'], { encoding: 'utf8' }),
   );
   // SEC-02: テストが本物の HOME（~/.claude 等の保護領域）へ書かないよう使い捨ての HOME で回す
   const home = mkdtempSync(join(tmpdir(), 'test-status-home-'));
@@ -208,7 +210,7 @@ async function main(): Promise<void> {
   }
   rows.sort((a, b) => a.package.localeCompare(b.package));
   const snapshot: TestStatusSnapshot = {
-    commit: execFileSync('git', ['-C', REPO_ROOT, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim(),
+    commit: execFileSync(resolveGitExecutable(), ['-C', REPO_ROOT, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim(),
     runAt: new Date().toISOString(),
     rows,
   };
