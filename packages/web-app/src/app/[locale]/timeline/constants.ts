@@ -6,8 +6,8 @@ import type {
   ReleaseKind,
 } from '../../../lib/releaseTimeline/types';
 
-/** ブランドの唯一の差し色（design.md §2.1 `--color-accent-amber`）。影響度「高」の強調にだけ使う */
-export const ACCENT_AMBER = '#E8A012';
+/** 年表では影響度「高」の強調にだけ使う */
+export { ACCENT_AMBER } from '../../../lib/accentColor';
 
 export interface ImpactMeta {
   readonly label: string;

@@ -36,6 +36,7 @@ const PAGES = [
   "/docs/view",
   "/tickets",
   "/timeline",
+  "/test-status",
   "/report",
   "/graph",
   "/diagram",

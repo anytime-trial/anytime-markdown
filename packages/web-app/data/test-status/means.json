@@ -1,0 +1,21 @@
+{
+  "evaluatedAt": "2026-10-25",
+  "source": "tech/test/20261025-test-evaluation.ja.md",
+  "rows": [
+    { "id": "ci-checks", "name": "CI の自動チェック", "section": "§2", "cost": "低", "need": "必須", "state": "partial", "basis": "型・audit・CodeQL・SonarCloud・a11y ratchet・構成整合は揃う。lint の対象は 2 パッケージだけで、ユニットテストは master 向け PR でしか回らない" },
+    { "id": "unit-pure", "name": "ユニット（TDD・純粋関数）", "section": "§3.1", "cost": "低", "need": "必須", "state": "partial", "basis": "純粋関数のテストは多くのパッケージにある。一方で、テストを持つのに CI で実行されないパッケージがある（下の表の「CI 外のみ」で確かめられる）" },
+    { "id": "regression", "name": "リグレッションテスト", "section": "§3.3", "cost": "低", "need": "必須", "state": "done", "basis": "fix コミットに回帰テストを付ける運用が定着している。3 回以上再発した不具合のグループは 0 件" },
+    { "id": "unit-ui", "name": "ユニット（UI 部品・状態を持つ処理）", "section": "§3.2", "cost": "低〜中", "need": "必須", "state": "partial", "basis": "trail-viewer・cooccurrence-viewer など viewer 系の多くが CI 外" },
+    { "id": "install", "name": "配布物のインストールテスト", "section": "§6.4", "cost": "低〜中", "need": "必須（配布物）", "state": "partial", "basis": "vsix-smoke は受入ファームから手動で起動するだけで、CI に組み込まれていない" },
+    { "id": "migration", "name": "互換性・マイグレーションテスト", "section": "§6.2", "cost": "中", "need": "必須（永続データ）", "state": "partial", "basis": "旧スキーマをテスト内で手書きして再現している。旧版の実データは保存していない" },
+    { "id": "visual", "name": "目視テスト", "section": "§7", "cost": "中", "need": "必須（UI の変更時）", "state": "partial", "basis": "IME・印刷・往復の受入 spec はある。VS Code 拡張の webview のチェックリストは無い" },
+    { "id": "e2e", "name": "E2E（主要シナリオ）", "section": "§3.4", "cost": "中", "need": "高", "state": "done", "basis": "web-app に 35 spec。master 向け PR で chromium、日次で 3 ブラウザを回す。CI の再試行は 2 回" },
+    { "id": "xplat-unit", "name": "クロスプラットフォーム（純粋関数）", "section": "§6.1", "cost": "低", "need": "高（複数 OS 対応）", "state": "partial", "basis": "win32・Git Bash 形式を扱うテストは 3 ファイルだけ" },
+    { "id": "contract", "name": "契約テスト", "section": "§6.3", "cost": "低〜中", "need": "高", "state": "none", "basis": "MCP サーバのツールスキーマを固定するテストが無い" },
+    { "id": "property", "name": "性質ベーステスト", "section": "§5.1", "cost": "中", "need": "高（パーサ・変換・サニタイズ）", "state": "none", "basis": "fast-check の利用は 0 件" },
+    { "id": "snapshot", "name": "画面のスナップショット比較", "section": "§4", "cost": "低", "need": "中", "state": "done", "basis": "visual-baseline と chart-fence-vr を chromium で比較している" },
+    { "id": "xplat-ci", "name": "クロスプラットフォーム（OS ごとの CI）", "section": "§6.1", "cost": "高", "need": "中", "state": "none", "basis": "windows runner はビルドだけを行い、テストを回さない" },
+    { "id": "model-check", "name": "モデル検査", "section": "§5.2", "cost": "高", "need": "中（並行処理）", "state": "none", "basis": "並行セッションの調停（airspace）が候補だが未着手" },
+    { "id": "proof", "name": "定理証明", "section": "§5.2", "cost": "高", "need": "低", "state": "na", "basis": "対象となる中核アルゴリズムが無い" }
+  ]
+}

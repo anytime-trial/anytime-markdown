@@ -45,6 +45,7 @@ export const STATIC_ROUTES: readonly StaticRoute[] = [
  */
 export const SINGLE_SOURCE_ROUTES: readonly StaticRoute[] = [
   { path: "/timeline", changeFrequency: "weekly", priority: 0.6 },
+  { path: "/test-status", changeFrequency: "weekly", priority: 0.4 },
 ];
 
 /** ロケールプレフィックスを含まないパスの一覧（robots の allow はここから展開する） */

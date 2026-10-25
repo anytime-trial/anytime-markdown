@@ -36,6 +36,7 @@ const OK_PATHS = [
   '/en/markdown/mermaid',
   '/markdown/table',
   '/report',
+  '/test-status',
   '/privacy',
 ];
 
