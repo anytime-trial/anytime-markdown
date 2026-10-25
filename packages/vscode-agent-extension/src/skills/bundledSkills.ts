@@ -22,6 +22,9 @@ export interface BundledSkill {
  */
 export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-cross-review' },
+  // 受け入れ試験の「自動テストの内容確認」用に、実装済みテストの内容をレビューするテスト仕様書を
+  // 新規作成・更新する。実装前の試験設計（markdown 拡張の anytime-doc-authoring §5）とは向きが逆。
+  { name: 'anytime-test-spec' },
   // セッション終了時の構造化自己評価（debrief ブロック）出力ガイド。Phase 6 S2 の機体側。
   // 出力は Stop フック → trail サーバの caravan_flight_reviews へ outcome_source='self' として取り込まれる。
   // 2026-08-05 に anytime-debrief からリネーム（出力形式でなく発火タイミングを名前に出した）。
