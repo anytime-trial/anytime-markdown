@@ -78,6 +78,32 @@ describe('removeObsoleteSkills', () => {
     expect(readMarker()).toEqual({});
   });
 
+  it.each([
+    ['不正な JSON', '{ broken'],
+    ['配列', '["retired-skill"]'],
+  ])('marker が壊れている（%s）ときは何も消さない', (_label, raw) => {
+    const dir = seedSkill('retired-skill');
+    fs.writeFileSync(markerPath(), raw, 'utf-8');
+
+    const removed = removeObsoleteSkills({ claudeDir, names: ['retired-skill'], bundled: {} });
+
+    expect(removed).toEqual([]);
+    expect(fs.existsSync(dir)).toBe(true);
+    expect(fs.readFileSync(markerPath(), 'utf-8')).toBe(raw);
+  });
+
+  it('削除対象が無ければ marker も他拡張の marker も書き換えない', () => {
+    writeMarker({ 'kept-skill': 1 });
+    const otherMarker = path.join(skillsDir(), '.anytime-skills.json');
+    fs.writeFileSync(otherMarker, JSON.stringify({ 'retired-skill': 2 }), 'utf-8');
+    const before = fs.readFileSync(markerPath(), 'utf-8');
+
+    removeObsoleteSkills({ claudeDir, names: ['retired-skill'], bundled: {} });
+
+    expect(fs.readFileSync(markerPath(), 'utf-8')).toBe(before);
+    expect(JSON.parse(fs.readFileSync(otherMarker, 'utf-8'))).toEqual({ 'retired-skill': 2 });
+  });
+
   it('パス区切りを含む名前は skills/ の外を指し得るため無視する', () => {
     const outside = path.join(claudeDir, 'outside');
     fs.mkdirSync(outside, { recursive: true });

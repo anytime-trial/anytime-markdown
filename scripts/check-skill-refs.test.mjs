@@ -303,7 +303,7 @@ test('lintSkillsDir: canonical 不在(CI)で packages 側にも無い参照は�
 });
 
 // 別リポ生成型スキル(externalRepoRefs: true)の除外。
-// リグレッション: anytime-build-webapp は生成先リポジトリの `npm run dev` / `npm run gen:api` を
+// リグレッション: 2026-10-25 に廃止した anytime-build-webapp は生成先リポジトリの `npm run dev` / `npm run gen:api` を
 // 本文に含むため、本リポの package.json と照合する既定動作では恒久 fail していた(811fb7ce5)。
 const EXTERNAL_REPO_SKILL_MD = [
   '---',
