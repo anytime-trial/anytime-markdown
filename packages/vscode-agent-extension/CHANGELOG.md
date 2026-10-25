@@ -4,6 +4,16 @@ All notable changes to the "Anytime Agent" extension will be documented in this 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Removed
+
+- Retired the bundled skill `anytime-build-webapp`. On activation, `.claude/skills/anytime-build-webapp/` is deleted when this extension's install record (`.claude/skills/.anytime-agent-skills.json`) lists it. A directory of the same name without that record (for example one you wrote yourself) is left alone.
+
+### Changed
+
+- The bundled skills `anytime-loop-start`, `anytime-loop-stop`, `anytime-dev-audit` and `anytime-note` are now manual-only (`disable-model-invocation: true`). Their descriptions no longer load into Claude Code's startup context, and they run only when invoked as `/skill-name`. Natural-language requests such as "stop the ticket loop" no longer start them, so call them by name, e.g. `/anytime-loop-stop`.
+
 ## [1.20.8] - 2026-10-25
 
 ### Fixed

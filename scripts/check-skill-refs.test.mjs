@@ -365,17 +365,3 @@ test('lintSkillsDir: 本文中(frontmatter 外)の externalRepoRefs: true は効
     rmSync(dir, { recursive: true, force: true });
   }
 });
-
-test('anytime-build-webapp(canonical 実在時): externalRepoRefs で npm script 照合をスキップする（811fb7ce5 の回帰）', (t) => {
-  const canonicalDir = join(repoRoot, '.claude', 'skills');
-  const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf-8'));
-  const rootScripts = new Set(Object.keys(pkg.scripts ?? {}));
-  const results = lintSkillsDir(canonicalDir, rootScripts, { docsRootAvailable: false });
-  const target = results.find((r) => r.skill === 'anytime-build-webapp');
-  if (!target) {
-    t.skip('anytime-build-webapp が canonical に存在しないためスキップ');
-    return;
-  }
-  assert.deepEqual(target.missingScripts, []);
-  assert.deepEqual(target.missingRefs, []);
-});

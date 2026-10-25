@@ -9,7 +9,7 @@
 // 使い方: node scripts/check-skill-refs.mjs [--json] [skillsDir ...]
 //   skillsDir 省略時は <repoRoot>/.claude/skills。リポジトリ外の dir(例: ~/.claude/skills)を
 //   渡した場合、リポジトリ相対パス参照と npm script 参照の検証はスキップする(別リポの文脈のため)。
-//   別リポジトリを生成するスキル(例: anytime-build-webapp)は本文の npm script・リポ相対パスが
+//   別リポジトリを生成するスキルは本文の npm script・リポ相対パスが
 //   生成先リポを指すため、SKILL.md frontmatter の `externalRepoRefs: true` で同じスキップを
 //   スキル単位に宣言できる(docPath・スキル間参照・/Shared 欠落 typo の検査は継続する)。
 // 終了コード: 参照切れ検出時のみ 1。更新日欠落は warn(非 fail)。
