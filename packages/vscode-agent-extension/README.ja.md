@@ -125,7 +125,6 @@ AI が実行した git 操作の履歴を表示します。
 | `anytime-analysis` | 思考法ガイド付きで対象を分析し、結果を提案書（RFC / ADR / 軽量提案）または共起グラフ（`.cooc.json`）として出力する |
 | `anytime-session-exit` | セッションを締めて構造化デブリーフ（達成度・未解決事項・懸念点）を出力する |
 | `anytime-dev-audit` | PC 環境と Claude Code 設定を read-only で診断し、最適化プランを提示する |
-| `anytime-build-webapp` | Web アプリ・フルスタック MVP の雛形を新規生成する |
 | `anytime-loop-start` / `anytime-loop-stop` | `.tickets/` のチケットを 1 件ずつ自動実行するループを開始・停止する |
 
 
