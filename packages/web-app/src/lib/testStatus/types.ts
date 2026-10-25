@@ -61,6 +61,8 @@ export interface TestStatusSummary {
   readonly testsOutsideCI: number;
   readonly packagesOutsideCI: number;
   readonly failedPackages: number;
+  /** 時間切れ・起動失敗・jest 設定なしで、結果が 1 件も得られなかったパッケージ */
+  readonly unrunPackages: number;
 }
 
 export interface RowFilter {

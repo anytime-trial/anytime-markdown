@@ -64,6 +64,16 @@ describe('summarize', () => {
     expect(s.failedPackages).toBe(3);
   });
 
+  it('時間切れ・起動失敗・jest 設定なしのパッケージを「実行できなかった」に数える', () => {
+    const s = summarize([
+      ...ROWS,
+      row({ package: 'eta', result: 'timeout', tests: 0, passed: 0 }),
+      row({ package: 'theta', result: 'error', tests: 0, passed: 0 }),
+      row({ package: 'iota', result: 'no-config', tests: 0, passed: 0 }),
+    ]);
+    expect(s.unrunPackages).toBe(3);
+  });
+
   it('行が無いときはすべて 0 を返す', () => {
     expect(summarize([])).toEqual({
       totalTests: 0,
@@ -74,6 +84,7 @@ describe('summarize', () => {
       testsOutsideCI: 0,
       packagesOutsideCI: 0,
       failedPackages: 0,
+      unrunPackages: 0,
     });
   });
 });
@@ -85,6 +96,11 @@ describe('filterRows', () => {
 
   it('失敗のみを指定すると、失敗した行だけが残る', () => {
     expect(filterRows(ROWS, { outsideCIOnly: false, failedOnly: true }).map((r) => r.package)).toEqual(['alpha']);
+  });
+
+  it('両方を指定すると、CI 外かつ失敗した行だけが残る', () => {
+    const rows = [...ROWS, row({ package: 'lambda', inCI: false, failed: 1, result: 'fail' })];
+    expect(filterRows(rows, { outsideCIOnly: true, failedOnly: true }).map((r) => r.package)).toEqual(['lambda']);
   });
 
   it('どちらも指定しないと、テストを持たない行を含めてすべて残る', () => {
@@ -137,6 +153,24 @@ describe('buildTakeaway', () => {
     expect(buildTakeaway(summarize(ROWS))).toBe(
       '145 件中 2 件が失敗し、40 件（1 パッケージ）が CI で実行されていない。',
     );
+  });
+
+  it('失敗が無く CI 外だけがあれば、通ったうえで CI 外の件数を述べる', () => {
+    expect(buildTakeaway(summarize([row({ package: 'a' }), row({ package: 'b', inCI: false })]))).toBe(
+      '20 件すべてが通ったが、10 件（1 パッケージ）が CI で実行されていない。',
+    );
+  });
+
+  it('失敗があり CI 外が無ければ、残りは CI で実行されていると述べる', () => {
+    expect(buildTakeaway(summarize([row({ package: 'a', failed: 1, passed: 9, result: 'fail' })]))).toBe(
+      '10 件中 1 件が失敗し、残りはすべて CI で実行されている。',
+    );
+  });
+
+  it('テストの失敗が 0 でも実行できなかったパッケージがあれば「すべて通った」と言わない', () => {
+    expect(
+      buildTakeaway(summarize([row({ package: 'a' }), row({ package: 'b', result: 'timeout', tests: 0, passed: 0 })])),
+    ).toBe('10 件中 1 パッケージのテストを実行できず、残りはすべて CI で実行されている。');
   });
 
   it('失敗も CI 外も無ければ、すべて通り CI で実行されていると述べる', () => {

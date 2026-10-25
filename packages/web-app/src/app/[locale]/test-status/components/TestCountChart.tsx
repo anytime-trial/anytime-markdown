@@ -34,7 +34,11 @@ export default function TestCountChart({ rows }: Props) {
             data-testid="test-status-chart-row"
             sx={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(0, 14rem) minmax(0, 1fr) 5.5rem',
+              // 幅 400px で名前の列が 14rem まで広がると棒が 40px ほどになり長さを比べられない
+              gridTemplateColumns: {
+                xs: 'minmax(0, 8rem) minmax(0, 1fr) 4.5rem',
+                sm: 'minmax(0, 14rem) minmax(0, 1fr) 5.5rem',
+              },
               alignItems: 'center',
               gap: 1,
             }}

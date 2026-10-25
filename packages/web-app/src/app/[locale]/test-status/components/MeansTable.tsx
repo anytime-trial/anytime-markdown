@@ -23,7 +23,7 @@ export default function MeansTable({ means }: Readonly<{ means: MeansDataset }>)
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '60ch', lineHeight: 1.8, mb: 2 }}>
         {`テスト実施の指針 §11 の各手段を、${means.evaluatedAt} の評価に基づいて判定したものです。`}
       </Typography>
-      <TableContainer sx={{ overflowX: 'auto' }}>
+      <TableContainer sx={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-labelledby="means-heading">
         <Table size="small" aria-labelledby="means-heading">
           <TableHead>
             <TableRow>

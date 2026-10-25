@@ -23,7 +23,7 @@ export default function CoverageSmellList({ rows }: Readonly<{ rows: readonly Pa
       {ranked.length === 0 ? (
         <Typography variant="body2">兆候のあるパッケージはありません。</Typography>
       ) : (
-        <TableContainer sx={{ overflowX: 'auto' }}>
+        <TableContainer sx={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-labelledby="smells-heading">
           <Table size="small" aria-labelledby="smells-heading">
             <TableHead>
               <TableRow>

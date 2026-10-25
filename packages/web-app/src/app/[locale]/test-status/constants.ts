@@ -1,7 +1,7 @@
 import type { MeansState, SortKey, TestRunResult } from '../../../lib/testStatus/types';
 
-/** ブランドの唯一の差し色（design-system.ja.md §1）。「CI で実行されていない」の強調にだけ使う */
-export const ACCENT_AMBER = '#E8A012';
+/** テスト実施状況では「CI で実行されていない」の強調にだけ使う */
+export { ACCENT_AMBER } from '../../../lib/accentColor';
 
 export interface StateMeta {
   readonly label: string;

@@ -61,6 +61,19 @@ describe('TestStatusBody', () => {
     expect(within(stats).queryByText('1,441 件')).not.toBeNull();
   });
 
+  it('実行できなかったパッケージがあれば、要約で「すべて通った」と言わず集計に件数を出す', () => {
+    const snapshot: TestStatusSnapshot = {
+      ...SNAPSHOT,
+      rows: [row({ package: 'a' }), row({ package: 'b', result: 'timeout', tests: 0, passed: 0 })],
+    };
+    render(<TestStatusBody snapshot={snapshot} means={MEANS} />);
+    expect(screen.getByTestId('test-status-takeaway').textContent).toBe(
+      '10 件中 1 パッケージのテストを実行できず、残りはすべて CI で実行されている。',
+    );
+    const stat = within(screen.getByTestId('test-status-stats')).getByText('実行できなかったパッケージ');
+    expect(stat.nextElementSibling?.textContent).toBe('1');
+  });
+
   it('対象コミットをリポジトリのコミットへのリンクで示す', () => {
     render(<TestStatusBody snapshot={SNAPSHOT} means={MEANS} />);
     expect(screen.getByRole('link', { name: 'abc1234' }).getAttribute('href')).toBe(

@@ -54,6 +54,15 @@ describe('parseCiTestPackages', () => {
     ]);
   });
 
+  it('npm run test:e2e のような別スクリプトはユニットテストの実行とみなさない', () => {
+    const ci = `
+      - name: Run e2e
+        run: npm run test:e2e
+        working-directory: packages/web-app
+`;
+    expect(parseCiTestPackages(ci, '').has('web-app')).toBe(false);
+  });
+
   it('ビルドだけのステップのパッケージは含めない', () => {
     expect(parseCiTestPackages(CI_YML, ACTION_YML).has('vscode-markdown-extension')).toBe(false);
   });

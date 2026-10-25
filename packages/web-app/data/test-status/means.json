@@ -3,7 +3,7 @@
   "source": "tech/test/20261025-test-evaluation.ja.md",
   "rows": [
     { "id": "ci-checks", "name": "CI の自動チェック", "section": "§2", "cost": "低", "need": "必須", "state": "partial", "basis": "型・audit・CodeQL・SonarCloud・a11y ratchet・構成整合は揃う。lint の対象は 2 パッケージだけで、ユニットテストは master 向け PR でしか回らない" },
-    { "id": "unit-pure", "name": "ユニット（TDD・純粋関数）", "section": "§3.1", "cost": "低", "need": "必須", "state": "partial", "basis": "テストファイルは約 1,900 件あるが、13 パッケージのテストが CI で実行されていない" },
+    { "id": "unit-pure", "name": "ユニット（TDD・純粋関数）", "section": "§3.1", "cost": "低", "need": "必須", "state": "partial", "basis": "純粋関数のテストは多くのパッケージにある。一方で、テストを持つのに CI で実行されないパッケージがある（下の表の「CI 外のみ」で確かめられる）" },
     { "id": "regression", "name": "リグレッションテスト", "section": "§3.3", "cost": "低", "need": "必須", "state": "done", "basis": "fix コミットに回帰テストを付ける運用が定着している。3 回以上再発した不具合のグループは 0 件" },
     { "id": "unit-ui", "name": "ユニット（UI 部品・状態を持つ処理）", "section": "§3.2", "cost": "低〜中", "need": "必須", "state": "partial", "basis": "trail-viewer・cooccurrence-viewer など viewer 系の多くが CI 外" },
     { "id": "install", "name": "配布物のインストールテスト", "section": "§6.4", "cost": "低〜中", "need": "必須（配布物）", "state": "partial", "basis": "vsix-smoke は受入ファームから手動で起動するだけで、CI に組み込まれていない" },

@@ -8,6 +8,7 @@ import type {
 } from './types';
 
 const FAILED_RESULTS = new Set<PackageTestRow['result']>(['fail', 'timeout', 'error']);
+const UNRUN_RESULTS = new Set<PackageTestRow['result']>(['timeout', 'error', 'no-config']);
 
 function isFailed(row: PackageTestRow): boolean {
   return FAILED_RESULTS.has(row.result);
@@ -22,6 +23,7 @@ export function summarize(rows: readonly PackageTestRow[]): TestStatusSummary {
   let testsOutsideCI = 0;
   let packagesOutsideCI = 0;
   let failedPackages = 0;
+  let unrunPackages = 0;
   for (const row of rows) {
     totalTests += row.tests;
     failed += row.failed;
@@ -34,6 +36,7 @@ export function summarize(rows: readonly PackageTestRow[]): TestStatusSummary {
       packagesOutsideCI++;
     }
     if (isFailed(row)) failedPackages++;
+    if (UNRUN_RESULTS.has(row.result)) unrunPackages++;
   }
   return {
     totalTests,
@@ -44,6 +47,7 @@ export function summarize(rows: readonly PackageTestRow[]): TestStatusSummary {
     testsOutsideCI,
     packagesOutsideCI,
     failedPackages,
+    unrunPackages,
   };
 }
 
@@ -91,11 +95,13 @@ const COUNT = new Intl.NumberFormat('ja-JP');
 export function buildTakeaway(summary: TestStatusSummary): string {
   const total = COUNT.format(summary.totalTests);
   const outside = `${COUNT.format(summary.testsOutsideCI)} 件（${summary.packagesOutsideCI} パッケージ）が CI で実行されていない`;
-  if (summary.failed > 0 && summary.testsOutsideCI > 0) {
-    return `${total} 件中 ${COUNT.format(summary.failed)} 件が失敗し、${outside}。`;
-  }
-  if (summary.failed > 0) {
-    return `${total} 件中 ${COUNT.format(summary.failed)} 件が失敗し、残りはすべて CI で実行されている。`;
+  // 起動できなかったパッケージは failed に現れない。数えずに「すべて通った」と書くと事実に反する
+  const problems: string[] = [];
+  if (summary.failed > 0) problems.push(`${COUNT.format(summary.failed)} 件が失敗し`);
+  if (summary.unrunPackages > 0) problems.push(`${summary.unrunPackages} パッケージのテストを実行できず`);
+  if (problems.length > 0) {
+    const rest = summary.testsOutsideCI > 0 ? outside : '残りはすべて CI で実行されている';
+    return `${total} 件中 ${problems.join('、')}、${rest}。`;
   }
   if (summary.testsOutsideCI > 0) {
     return `${total} 件すべてが通ったが、${outside}。`;

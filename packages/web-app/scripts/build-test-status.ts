@@ -82,31 +82,66 @@ function runJest(pkgDir: string, home: string, vmModules: boolean): Promise<{ re
   const outputFile = join(home, `jest-${basename(pkgDir)}.json`);
   // CI と同じ判定にそろえる。CI 変数が無いと手元専用の検査（graph-core のレイアウト時間予算等）が
   // 有効になり、CI では出ない失敗がページに載る
-  const env: NodeJS.ProcessEnv = { ...process.env, HOME: home, CI: 'true' };
+  // SEC-02: Windows の os.homedir() は USERPROFILE を、設定・データ領域は XDG_* を見るため HOME だけでは隔離しきれない
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: home,
+    USERPROFILE: home,
+    XDG_CONFIG_HOME: join(home, '.config'),
+    XDG_DATA_HOME: join(home, '.local', 'share'),
+    XDG_CACHE_HOME: join(home, '.cache'),
+    CI: 'true',
+  };
   if (vmModules) env.NODE_OPTIONS = '--experimental-vm-modules';
   return new Promise((resolve) => {
     const started = Date.now();
+    // detached でプロセスグループを分け、時間切れのときに jest の worker ごと終わらせる
     const child = spawn(process.execPath, [JEST_BIN, '--json', `--outputFile=${outputFile}`, '--silent'], {
       cwd: pkgDir,
       env,
       stdio: 'ignore',
+      detached: process.platform !== 'win32',
     });
     let timedOut = false;
+    let settled = false;
+    const finish = (result: JestJson | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ result, timedOut, durationSec: Math.round((Date.now() - started) / 100) / 10 });
+    };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
+      killTree(child.pid);
     }, TIMEOUT_MS);
-    child.on('exit', () => {
-      clearTimeout(timer);
-      const durationSec = Math.round((Date.now() - started) / 100) / 10;
-      if (!existsSync(outputFile)) {
-        resolve({ result: null, timedOut, durationSec });
-        return;
-      }
-      const result = JSON.parse(readFileSync(outputFile, 'utf8')) as JestJson;
-      resolve({ result, timedOut, durationSec });
+    child.on('error', (error) => {
+      console.error(`[${new Date().toISOString()}] [ERROR] jest を起動できない: ${basename(pkgDir)}`, error.stack);
+      finish(null);
     });
+    child.on('exit', () => finish(readJestJson(outputFile, basename(pkgDir))));
   });
+}
+
+function killTree(pid: number | undefined): void {
+  if (pid === undefined) return;
+  try {
+    if (process.platform === 'win32') process.kill(pid, 'SIGKILL');
+    else process.kill(-pid, 'SIGKILL');
+  } catch (error: unknown) {
+    // 終了済みなら ESRCH になる。それ以外は記録して続ける（収集全体は止めない）
+    console.error(`[${new Date().toISOString()}] [WARN] jest のプロセスを終了できない: pid=${pid}`, error instanceof Error ? error.message : error);
+  }
+}
+
+/** jest が途中で落ちて JSON が壊れていても、そのパッケージを「起動失敗」にして収集を続ける */
+function readJestJson(outputFile: string, name: string): JestJson | null {
+  if (!existsSync(outputFile)) return null;
+  try {
+    return JSON.parse(readFileSync(outputFile, 'utf8')) as JestJson;
+  } catch (error: unknown) {
+    console.error(`[${new Date().toISOString()}] [ERROR] jest の結果を読めない: ${name}`, error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 async function collectPackage(name: string, ctx: { ci: Set<string>; vm: Set<string>; fixes: Record<string, number>; home: string }): Promise<PackageTestRow> {
@@ -178,7 +213,11 @@ async function main(): Promise<void> {
     rows,
   };
   const serialized = `${JSON.stringify(snapshot, null, 2)}\n`;
-  const leaked = findAbsolutePaths(serialized);
+  // 正規表現は典型的な場所しか見ないため、この実行で実際に使ったパスの混入も直接照合する
+  const leaked = [
+    ...findAbsolutePaths(serialized),
+    ...[REPO_ROOT, tmpdir(), home].filter((path) => serialized.includes(path)),
+  ];
   if (leaked.length > 0) {
     throw new Error(`スナップショットに絶対パスが含まれるため書き出さない: ${leaked.slice(0, 3).join(', ')}`);
   }

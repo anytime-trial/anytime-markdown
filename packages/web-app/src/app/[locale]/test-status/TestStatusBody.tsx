@@ -50,6 +50,7 @@ export default function TestStatusBody({ snapshot, means }: Props) {
         <Stat label="CI で実行されないテスト" value={`${formatCount(summary.testsOutsideCI)} 件`} />
         <Stat label="テストのあるパッケージ" value={`${summary.packagesWithTests}`} />
         <Stat label="テストのないパッケージ" value={`${summary.packagesWithoutTests}`} />
+        <Stat label="実行できなかったパッケージ" value={`${summary.unrunPackages}`} />
       </Stack>
 
       <Divider />

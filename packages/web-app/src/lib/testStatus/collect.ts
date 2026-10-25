@@ -7,7 +7,8 @@ const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs)$/;
 const COVERAGE_NAMED_RE = /(coverage|additional|extra)\d*\.(test|spec)\.[a-z]+$/i;
 const WEAK_ASSERTION_RE = /\.(toBeDefined|toBeTruthy)\(\)|\.not\.toThrow\(\)/g;
 const EXPECT_RE = /\bexpect\(/g;
-const TEST_COMMAND_RE = /\b(npx jest|npm test|npm run test)\b/;
+// `npm run test:e2e` 等の別スクリプトを拾わないよう、後ろに続く : - 英数字を否定先読みで除く
+const TEST_COMMAND_RE = /\b(npx jest|npm test|npm run test)(?![:\w-])/;
 const WORKING_DIRECTORY_RE = /working-directory:\s*packages\/([a-z0-9-]+)/;
 const FIX_SUBJECT_RE = /^fix\(([^/)]+)/;
 // SEC-01: スナップショットへ環境固有の絶対パスを載せない。検出対象はホーム・一時領域・Windows ドライブ
