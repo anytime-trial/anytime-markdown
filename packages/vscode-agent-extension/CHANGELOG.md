@@ -4,6 +4,13 @@ All notable changes to the "Anytime Agent" extension will be documented in this 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+
+- Bundled skill `anytime-test-spec` (v1). It lists the implemented automated tests (unit / integration / E2E) and creates or updates a test specification for reviewing, during acceptance testing, what each test checks rather than its results. The bundled script `collect-tests.cjs` does the listing mechanically so no test is missed, and update mode uses the diff since the previous base commit to find added, changed, and removed tests. Removed tests stay in the document instead of being deleted, so a shrinking test scope can be reviewed.
+- `anytime-dev-cycle` (33 → 34): points to `anytime-test-spec` as the input for the first stage of acceptance testing (reviewing what the automated tests check).
+
 ## [1.20.8] - 2026-10-25
 
 ### Fixed
