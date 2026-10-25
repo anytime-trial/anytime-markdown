@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.3] - 2026-10-25
+
+### Security
+
+- Updated `dompurify` to 3.4.17 (`SAFE_FOR_TEMPLATES` bypass in shadow root content) and `markdown-it` to 14.3.3 (quadratic-time DoS in inline HTML parsing).
+
 ## [1.26.2] - 2026-10-11
 
 ### Security

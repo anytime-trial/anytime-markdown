@@ -4,6 +4,12 @@ All notable changes to the "Anytime Agent" extension will be documented in this 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.20.8] - 2026-10-25
+
+### Fixed
+
+- On Windows, sessions whose hook input `cwd` was in Git Bash form (`/c/dev/x`, e.g. after `cd` in the Bash tool) did not appear in the Agent mapping. The hook script now converts the cwd to a native path (`C:\dev\x`) on win32 only, logs one line to stderr when no worker is found instead of exiting silently, and no longer reads `/proc` on win32.
+
 ## [1.20.7] - 2026-10-05
 
 ### Changed

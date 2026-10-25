@@ -4,6 +4,12 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/) に基づいています。
 
+## [1.20.8] - 2026-10-25
+
+### 修正
+
+- Windows で hook 入力の `cwd` が Git Bash 形式（`/c/dev/x`。Bash ツールで `cd` した後など）のセッションが Agent マッピングに出なかった問題を修正した。hook スクリプトが win32 に限り cwd をネイティブパス（`C:\dev\x`）へ変換し、ワーカー未検出時は無言で終わらず stderr に 1 行出す。win32 では `/proc` を読まない。
+
 ## [1.20.7] - 2026-10-05
 
 ### 変更
