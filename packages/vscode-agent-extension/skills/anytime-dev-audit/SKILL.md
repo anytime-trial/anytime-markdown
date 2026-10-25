@@ -1,7 +1,8 @@
 ---
 name: anytime-dev-audit
+disable-model-invocation: true
 effort: medium
-description: "PC 環境と Claude Code 設定（CLAUDE.md / rules / skills / hooks / settings / MCP / メモリ）を read-only で診断し、影響度×工数マトリクスと最適化プランを提示する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「CLAUDE.md の見直し」「CLAUDE.md レビュー」「/anytime-dev-audit」、および VS Code 拡張設定と Trail ingest 配線の診断（「取込が止まっている」「データが更新されない」「パイプラインが skip される」）で使用。開発活動の健全性は anytime-dev-retro。"
+description: "手動起動専用（`/anytime-dev-audit`。モデルは自動起動しない）。PC 環境と Claude Code 設定（CLAUDE.md / rules / skills / hooks / settings / MCP / メモリ）を read-only で診断し、影響度×工数マトリクスと最適化プランを提示する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「CLAUDE.md の見直し」「CLAUDE.md レビュー」「/anytime-dev-audit」、および VS Code 拡張設定と Trail ingest 配線の診断（「取込が止まっている」「データが更新されない」「パイプラインが skip される」）で使用。開発活動の健全性は anytime-dev-retro。"
 ---
 
 # anytime-dev-audit — セットアップ監査（Claude Code 環境の read-only 診断）

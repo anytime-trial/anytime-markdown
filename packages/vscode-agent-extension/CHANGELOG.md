@@ -4,6 +4,23 @@ All notable changes to the "Anytime Agent" extension will be documented in this 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+## [1.21.0] - 2026-10-25
+
+### Added
+
+- Bundled skill `anytime-test-spec` (v1). It lists the implemented automated tests (unit / integration / E2E) and creates or updates a test specification for reviewing, during acceptance testing, what each test checks rather than its results. The bundled script `collect-tests.cjs` lists the tests, and update mode uses the diff since the previous base commit to find added, changed, and removed tests. Removed tests stay in the document instead of being deleted, so a shrinking test scope can be reviewed. Because the listing is a line-based approximation, calls whose titles cannot be determined are reported as `unparsed` so missed tests can be noticed, and conditional `test.skip` calls inside a test body are flagged as `conditional-skip`.
+- `anytime-dev-cycle` (33 → 34): points to `anytime-test-spec` as the input for the first stage of acceptance testing (reviewing what the automated tests check).
+
+### Removed
+
+- Retired the bundled skill `anytime-build-webapp`. On activation, `.claude/skills/anytime-build-webapp/` is deleted when this extension's install record (`.claude/skills/.anytime-agent-skills.json`) lists it. A directory of the same name without that record (for example one you wrote yourself) is left alone.
+
+### Changed
+
+- The bundled skills `anytime-loop-stop`, `anytime-dev-audit` and `anytime-note` are now manual-only (`disable-model-invocation: true`). Their descriptions no longer load into Claude Code's startup context, and they run only when invoked as `/skill-name`. Natural-language requests such as "stop the ticket loop" no longer start them, so call them by name, e.g. `/anytime-loop-stop`. `anytime-loop-start` is excluded: the `/anytime-loop-start` prompt fired by an in-session cron job is not expanded as a slash command, so the model has to load the skill through the Skill tool.
+
 ## [1.20.8] - 2026-10-25
 
 ### Fixed

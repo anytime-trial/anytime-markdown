@@ -1,6 +1,7 @@
 ---
 name: anytime-reverse-codegraph
-description: "Trail DB 保存済みのコードグラフ・コミュニティに AI で name / summary を付与し、各コミュニティの C4 要素の role（primary / secondary / dependency）を判定して mappings_json に保存する後処理。コードグラフ生成は Anytime Trail 拡張側で完了している前提。"
+disable-model-invocation: true
+description: "手動起動専用（`/anytime-reverse-codegraph`。モデルは自動起動しない）。Trail DB 保存済みのコードグラフ・コミュニティに AI で name / summary を付与し、各コミュニティの C4 要素の role（primary / secondary / dependency）を判定して mappings_json に保存する後処理。コードグラフ生成は Anytime Trail 拡張側で完了している前提。"
 trigger: /anytime-reverse-codegraph
 ---
 

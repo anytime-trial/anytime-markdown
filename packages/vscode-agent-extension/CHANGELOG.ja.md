@@ -4,6 +4,23 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/) に基づいています。
 
+## [Unreleased]
+
+## [1.21.0] - 2026-10-25
+
+### 追加
+
+- 同梱スキル `anytime-test-spec`（v1）を追加した。実装済みの自動テスト（unit / integration / E2E）を列挙し、テスト結果ではなく「何を確かめているか」を受け入れ試験で人がレビューするためのテスト仕様書を新規作成・更新する。テストの列挙は同梱スクリプト `collect-tests.cjs` が行い、更新時は前回の基準コミットからの差分で追加・変更・削除されたテストを特定する。削除されたテストは行を消さずに残し、確認範囲が縮んだことをレビューできるようにした。列挙は行単位の近似のため、タイトルを確定できなかった呼び出しは `unparsed` として出力し、列挙漏れに気づけるようにした。テスト本体の中の条件付き `test.skip` は `conditional-skip` フラグとして示す。
+- `anytime-dev-cycle`（33 → 34）: 受け入れ試験の最初の段（自動テストの内容確認）の入力として `anytime-test-spec` を参照するようにした。
+
+### 削除
+
+- 同梱スキル `anytime-build-webapp` を廃止した。起動時に、本拡張が配置した記録（`.claude/skills/.anytime-agent-skills.json`）のある `.claude/skills/anytime-build-webapp/` を削除する。記録の無い同名ディレクトリ（自作など）は削除しない。
+
+### 変更
+
+- 同梱スキル `anytime-loop-stop` / `anytime-dev-audit` / `anytime-note` を手動起動専用（`disable-model-invocation: true`）にした。Claude Code の起動時文脈に description が載らなくなり、`/スキル名` でだけ起動する。「チケットループを止めて」のような自然言語では起動しないため、`/anytime-loop-stop` のように名前で呼ぶこと。`anytime-loop-start` は対象外。セッション内の cron が発火させるプロンプト `/anytime-loop-start` はスラッシュコマンドとして展開されず、モデルが Skill ツールで読み込む必要があるため。
+
 ## [1.20.8] - 2026-10-25
 
 ### 修正

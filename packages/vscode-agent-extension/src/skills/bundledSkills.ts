@@ -21,10 +21,10 @@ export interface BundledSkill {
  * installTemplatedSkill で個別に扱う。
  */
 export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
-  // 要求から T3 Stack Web アプリ MVP を生成する汎用スキル。グローバル配布から
-  // 2026-07-16 に canonical（.claude/skills/）へ移設した（811fb7ce5）ものを同梱化。
-  { name: 'anytime-build-webapp' },
   { name: 'anytime-cross-review' },
+  // 受け入れ試験の「自動テストの内容確認」用に、実装済みテストの内容をレビューするテスト仕様書を
+  // 新規作成・更新する。実装前の試験設計（markdown 拡張の anytime-doc-authoring §5）とは向きが逆。
+  { name: 'anytime-test-spec' },
   // セッション終了時の構造化自己評価（debrief ブロック）出力ガイド。Phase 6 S2 の機体側。
   // 出力は Stop フック → trail サーバの caravan_flight_reviews へ outcome_source='self' として取り込まれる。
   // 2026-08-05 に anytime-debrief からリネーム（出力形式でなく発火タイミングを名前に出した）。
@@ -64,4 +64,15 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-loop-start', oldNames: ['anytime-ticket-loop'] },
   // 上記が確保した cron の停止。停止と「実行中チケット作業の中断」は別物のため別スキルに分けてある。
   { name: 'anytime-loop-stop', oldNames: ['anytime-ticket-loop-stop'] },
+];
+
+/**
+ * 統合先を持たずに配布を取りやめたスキル。activate 時に配置先から削除する。
+ *
+ * oldNames と違い、本拡張の marker に配置記録がある dir だけを消す（removeObsoleteSkills）。
+ * 記録の無い同名 dir はユーザー自作や他経路の配置物とみなして触らない。
+ */
+export const OBSOLETE_AGENT_SKILL_NAMES: readonly string[] = [
+  // 2026-10-25: 利用が途絶えたため廃止（直近 90 日の起動 0 件）。
+  'anytime-build-webapp',
 ];
