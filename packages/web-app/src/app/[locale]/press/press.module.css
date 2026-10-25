@@ -1031,6 +1031,33 @@
     margin-top: 24px;
 }
 
+/* 工程の内訳（受け入れ試験の 2 段）。.processSteps li + li の間隔が入れ子にも効くため打ち消す */
+.processSubSteps {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 8px 0 0;
+    border-top: var(--rule-hair) dashed var(--vermilion);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-weight: 400;
+    text-align: start;
+}
+
+.processSteps .processSubSteps li + li {
+    margin-top: 0;
+}
+
+.processNote {
+    margin: 0;
+    padding: 6px 10px;
+    border: var(--rule-hair) dashed var(--ink-light);
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    line-height: 1.6;
+    color: var(--ink-faded);
+}
+
 .processStepArrow {
     position: absolute;
     top: -19px;

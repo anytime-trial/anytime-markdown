@@ -7,6 +7,8 @@ interface ProcessStep {
   human?: boolean;
   /** 工程を実行する Claude Code スキル名。固有名のため翻訳しない */
   skill?: string;
+  /** 工程の内訳。受け入れ試験の 2 段（自動テストの内容確認 → ユーザーテスト）など */
+  subKeys?: readonly string[];
 }
 
 interface ProcessLoop {
@@ -14,8 +16,10 @@ interface ProcessLoop {
   scaleKey: string;
   /** ループを実行する Claude Code スキル名。固有名のため翻訳しない */
   skill?: string;
+  /** ループを回す前提の注記。ループ A は自動テストの範囲を事前定義した上で回す */
+  noteKey?: string;
   steps: readonly ProcessStep[];
-  /** ループの出口注記。ループ B は次工程へ直進するだけなので持たない */
+  /** ループの出口注記（差し戻し・改訂の戻り先） */
   returnKey?: string;
   /** 直前のループから伸びる矢印のラベル。最初のループには無い */
   edgeKey?: string;
@@ -26,6 +30,7 @@ const LOOPS: readonly ProcessLoop[] = [
     titleKey: 'loopATitle',
     scaleKey: 'loopAScale',
     skill: 'anytime-dev-cycle',
+    noteKey: 'loopANote',
     steps: [
       { key: 'loopA1' },
       { key: 'loopA2', human: true },
@@ -38,7 +43,11 @@ const LOOPS: readonly ProcessLoop[] = [
   {
     titleKey: 'loopBTitle',
     scaleKey: 'loopBScale',
-    steps: [{ key: 'loopB1', human: true }, { key: 'loopB2', skill: 'production-release' }],
+    steps: [
+      { key: 'loopB1', human: true, subKeys: ['loopB1a', 'loopB1b'] },
+      { key: 'loopB2', skill: 'production-release' },
+    ],
+    returnKey: 'loopBReturn',
     edgeKey: 'edgeAB',
   },
   {
@@ -85,6 +94,7 @@ export function ProcessFlow() {
               <span className={styles.processLoopScale}>{t(loop.scaleKey)}</span>
             </header>
             {loop.skill ? <SkillTag label={t('skillLabel')} skill={loop.skill} /> : null}
+            {loop.noteKey ? <p className={styles.processNote}>{t(loop.noteKey)}</p> : null}
             <ol className={styles.processSteps}>
               {loop.steps.map((step, idx) => (
                 <li
@@ -97,6 +107,13 @@ export function ProcessFlow() {
                     </span>
                   ) : null}
                   {t(step.key)}
+                  {step.subKeys ? (
+                    <ol className={styles.processSubSteps}>
+                      {step.subKeys.map((subKey) => (
+                        <li key={subKey}>{t(subKey)}</li>
+                      ))}
+                    </ol>
+                  ) : null}
                   {step.skill ? <SkillTag label={t('skillLabel')} skill={step.skill} /> : null}
                 </li>
               ))}
