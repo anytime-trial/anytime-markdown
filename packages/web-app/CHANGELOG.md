@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.57.1] - 2026-10-25
+
+### Changed
+
+- The development process diagram on the landing page now overlays the test execution policy: the automated test scope is defined up front, verification runs every defined test, and acceptance testing is split into two stages (reviewing what the automated tests check, then user testing). Failed acceptance or missing tests return to the design documents.
+- Shortened the diagram's `aria-label`; the detailed description is linked from the `figcaption` via `aria-describedby`.
+
 ## [0.57.0] - 2026-10-25
 
 ### Added

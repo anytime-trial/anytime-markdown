@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.5] - 2026-10-25
+
+### Changed
+
+- The bundled skills `anytime-dev-retro` and `anytime-reverse-codegraph` are now manual-only (`disable-model-invocation: true`). Their descriptions no longer load into Claude Code's startup context; run them as `/anytime-dev-retro` or `/anytime-reverse-codegraph`.
+
 ## [1.8.4] - 2026-10-25
 
 ### Security

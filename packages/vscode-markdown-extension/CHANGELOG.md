@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.26.4] - 2026-10-25
+
+### Changed
+
+- The bundled skill `anytime-reverse-spec` is now manual-only (`disable-model-invocation: true`). Its description no longer loads into Claude Code's startup context; run it as `/anytime-reverse-spec`.
+- `anytime-doc-authoring`: removed the reference to the retired `anytime-build-webapp` skill.
+
 ## [1.26.3] - 2026-10-25
 
 ### Security

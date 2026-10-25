@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-10-25
+
 ### Added
 
 - Bundled skill `anytime-test-spec` (v1). It lists the implemented automated tests (unit / integration / E2E) and creates or updates a test specification for reviewing, during acceptance testing, what each test checks rather than its results. The bundled script `collect-tests.cjs` lists the tests, and update mode uses the diff since the previous base commit to find added, changed, and removed tests. Removed tests stay in the document instead of being deleted, so a shrinking test scope can be reviewed. Because the listing is a line-based approximation, calls whose titles cannot be determined are reported as `unparsed` so missed tests can be noticed, and conditional `test.skip` calls inside a test body are flagged as `conditional-skip`.

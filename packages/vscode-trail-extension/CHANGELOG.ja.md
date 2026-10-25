@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.8.5] - 2026-10-25
+
+### 変更
+
+- 同梱スキル `anytime-dev-retro` と `anytime-reverse-codegraph` を手動起動専用（`disable-model-invocation: true`）にした。description が Claude Code の起動時文脈に載らなくなり、`/anytime-dev-retro` / `/anytime-reverse-codegraph` で呼び出したときだけ動く。
+
 ## [1.8.4] - 2026-10-25
 
 ### セキュリティ

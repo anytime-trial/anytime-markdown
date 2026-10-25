@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [1.26.4] - 2026-10-25
+
+### 変更
+
+- 同梱スキル `anytime-reverse-spec` を手動起動専用（`disable-model-invocation: true`）にした。description が Claude Code の起動時文脈に載らなくなり、`/anytime-reverse-spec` で呼び出したときだけ動く。
+- `anytime-doc-authoring`: 廃止した `anytime-build-webapp` スキルへの参照を外した。
+
 ## [1.26.3] - 2026-10-25
 
 ### セキュリティ
