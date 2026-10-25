@@ -1,6 +1,7 @@
 ---
 name: anytime-reverse-spec
-description: "Trail DB のコードグラフ・DB スキーマ・外部 I/F・画面定義から基本設計書一式を自動生成する（「基本設計書を生成」「basic-design」「リバース設計書」）。任意リポジトリ対応（outputDir / repoRoot / schemaGlobs / interfaceGlobs / screenGlobs）。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「ユーザビリティ評価」「アクセシビリティを診断」「/anytime-ux-archeologist」は外形リバースモード（references/ux-archeologist.ja.md）。手元の CSS/スクリーンショットからは design-md、暗黙知の明文化は anytime-dev-retro。"
+disable-model-invocation: true
+description: "手動起動専用（`/anytime-reverse-spec`。モデルは自動起動しない）。Trail DB のコードグラフ・DB スキーマ・外部 I/F・画面定義から基本設計書一式を自動生成する（「基本設計書を生成」「basic-design」「リバース設計書」）。任意リポジトリ対応（outputDir / repoRoot / schemaGlobs / interfaceGlobs / screenGlobs）。「外部サイトのデザインを抽出」「UI/UX をリバースエンジニアリング」「このサイトの DESIGN.md を作って」「ユーザビリティ評価」「アクセシビリティを診断」「/anytime-ux-archeologist」は外形リバースモード（references/ux-archeologist.ja.md）。手元の CSS/スクリーンショットからは design-md、暗黙知の明文化は anytime-dev-retro。"
 trigger: /anytime-reverse-spec
 ---
 

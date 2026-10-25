@@ -1,6 +1,7 @@
 ---
 name: anytime-loop-stop
-description: anytime-loop-start が自己確保したチケットループ（cron ジョブ）を停止する。「/anytime-loop-stop」「チケットループを止めて」「ticket loop stop」「ループ停止」「tick を止めて」の指示で使用する。cron を削除するだけで、実行中の子セッション（委譲済みチケット作業）は既定では止めない。
+disable-model-invocation: true
+description: 手動起動専用（`/anytime-loop-stop`。モデルは自動起動しない）。anytime-loop-start が自己確保したチケットループ（cron ジョブ）を停止する。「/anytime-loop-stop」「チケットループを止めて」「ticket loop stop」「ループ停止」「tick を止めて」の指示で使用する。cron を削除するだけで、実行中の子セッション（委譲済みチケット作業）は既定では止めない。
 ---
 
 # anytime-loop-stop — チケットループの停止
